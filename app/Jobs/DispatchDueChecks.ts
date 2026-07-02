@@ -1,12 +1,16 @@
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import AiCheck from '../Models/AiCheck'
 import Monitor from '../Models/Monitor'
+import RunAiCheck from './RunAiCheck'
+import RunBlocklistCheck from './RunBlocklistCheck'
 import RunCrawl from './RunCrawl'
 import RunDnsCheck from './RunDnsCheck'
 import RunDomainCheck from './RunDomainCheck'
 import RunHealthCheck from './RunHealthCheck'
 import RunLighthouseAudit from './RunLighthouseAudit'
 import RunPingCheck from './RunPingCheck'
+import RunPortScan from './RunPortScan'
 import RunSslCheck from './RunSslCheck'
 import RunTcpPortCheck from './RunTcpPortCheck'
 import RunUptimeCheck from './RunUptimeCheck'
@@ -19,14 +23,16 @@ import RunUptimeCheck from './RunUptimeCheck'
  * dialect-specific interval syntax — the monitor count this needs to scale
  * to before that matters is far beyond what a single-process scheduler
  * tick should be doing anyway (see stacksjs/status#1 Phase 11, queue
- * scaling). A full-site crawl is comparatively expensive, so a
- * 'broken_links' monitor should be given a much longer
- * checkIntervalSeconds (e.g. daily) than an uptime/ping monitor — nothing
- * here enforces that, it's a matter of what the monitor is configured with.
+ * scaling). A full-site crawl or port scan is comparatively expensive, so
+ * those monitor types should be given a much longer checkIntervalSeconds
+ * (e.g. daily) than an uptime/ping monitor — nothing here enforces that,
+ * it's a matter of what the monitor is configured with.
  *
- * 'cron' monitors are heartbeat-based (passive — see CheckOverdueHeartbeats)
- * and 'performance'/'lighthouse'/'port_scan'/'dns_blocklist'/'ai_check'
- * aren't implemented yet (Phase 4+), so those are skipped here.
+ * 'cron' monitors are heartbeat-based (passive — see CheckOverdueHeartbeats).
+ *
+ * 'ai_check' is handled separately below: a single monitor can have
+ * multiple AiCheck assertions attached, so it fans out one RunAiCheck job
+ * per assertion rather than one job per monitor.
  */
 const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }>> = {
   uptime: RunUptimeCheck,
@@ -43,6 +49,8 @@ const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: numb
   health: RunHealthCheck,
   broken_links: RunCrawl,
   lighthouse: RunLighthouseAudit,
+  port_scan: RunPortScan,
+  dns_blocklist: RunBlocklistCheck,
 }
 
 export default new Job({
@@ -58,13 +66,27 @@ export default new Job({
     let dispatched = 0
 
     for (const monitor of monitors) {
-      const job = CHECK_JOBS[monitor.type]
-      if (!job)
-        continue
-
       const lastCheckedAt = monitor.last_checked_at ? new Date(monitor.last_checked_at).getTime() : null
       const dueAt = lastCheckedAt ? lastCheckedAt + monitor.check_interval_seconds * 1000 : 0
       if (now < dueAt)
+        continue
+
+      if (monitor.type === 'ai_check') {
+        const assertions = await AiCheck.where('monitor_id', monitor.id).get()
+        if (assertions.length === 0)
+          continue
+        for (const assertion of assertions)
+          await RunAiCheck.dispatch({ monitorId: monitor.id, aiCheckId: assertion.id })
+        // AiCheck has no unified up/down status of its own; touch
+        // last_checked_at directly so this monitor doesn't get redispatched
+        // every minute — RunAiCheck opens its own incidents per assertion.
+        await monitor.update({ last_checked_at: new Date().toISOString() })
+        dispatched++
+        continue
+      }
+
+      const job = CHECK_JOBS[monitor.type]
+      if (!job)
         continue
 
       await job.dispatch({ monitorId: monitor.id })
