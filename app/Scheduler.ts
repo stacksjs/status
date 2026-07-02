@@ -16,9 +16,15 @@ export default function () {
     .hourly()
     .setTimeZone('America/Los_Angeles')
 
-  // Fan out due monitor checks every minute (stacksjs/status#1 Phase 1)
+  // Fan out due monitor checks every minute (stacksjs/status#1 Phase 1/2)
   schedule
     .job('DispatchDueChecks')
+    .everyMinute()
+
+  // Heartbeat monitors are passive — watch for missed check-ins rather
+  // than polling (stacksjs/status#1 Phase 2)
+  schedule
+    .job('CheckOverdueHeartbeats')
     .everyMinute()
 
   // Run a custom action every five minutes

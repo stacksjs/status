@@ -20,6 +20,11 @@ route.get('/', () => response.text('hello world'))
 // triggering an out-of-band check outside the scheduler's normal cadence.
 route.post('/monitors/{id}/check', 'Actions/Monitors/RunCheckAction')
 
+// Public heartbeat ping endpoint (no auth — the token itself is the secret).
+// GET *and* POST both work since cron jobs commonly just `curl` the URL.
+route.get('/ping/{token}', 'Actions/Heartbeats/ReceivePingAction')
+route.post('/ping/{token}', 'Actions/Heartbeats/ReceivePingAction')
+
 // `/coming-soon` is served as an STX view from
 // `storage/framework/defaults/resources/views/coming-soon.stx`. The
 // view auto-resolves through stx-serve, so no route registration is
