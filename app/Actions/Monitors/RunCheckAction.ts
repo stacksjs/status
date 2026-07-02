@@ -1,13 +1,30 @@
 import { Action } from '@stacksjs/actions'
 import { log } from '@stacksjs/logging'
 import Monitor from '../../Models/Monitor'
+import RunDnsCheck from '../../Jobs/RunDnsCheck'
+import RunDomainCheck from '../../Jobs/RunDomainCheck'
+import RunHealthCheck from '../../Jobs/RunHealthCheck'
+import RunPingCheck from '../../Jobs/RunPingCheck'
+import RunSslCheck from '../../Jobs/RunSslCheck'
+import RunTcpPortCheck from '../../Jobs/RunTcpPortCheck'
 import RunUptimeCheck from '../../Jobs/RunUptimeCheck'
+
+const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }>> = {
+  uptime: RunUptimeCheck,
+  ssl: RunSslCheck,
+  ping: RunPingCheck,
+  tcp_port: RunTcpPortCheck,
+  dns: RunDnsCheck,
+  domain: RunDomainCheck,
+  health: RunHealthCheck,
+}
 
 /**
  * Triggers an immediate, on-demand check for a single monitor (the
  * `POST /monitors/:id/check` route), independent of the scheduler's
- * every-minute cadence. Only `uptime` is implemented so far (Phase 2 of
- * stacksjs/status#1 adds ssl, dns, ping, tcp_port, domain, health, cron).
+ * every-minute cadence. 'cron' monitors are heartbeat-based and have
+ * nothing to actively check; 'broken_links'/'performance'/'lighthouse'/
+ * 'port_scan'/'dns_blocklist'/'ai_check' land in later phases.
  */
 export default new Action({
   name: 'RunCheckAction',
@@ -20,13 +37,13 @@ export default new Action({
     if (!monitor)
       return { success: false, message: `Monitor ${id} not found` }
 
-    switch (monitor.type) {
-      case 'uptime':
-        await RunUptimeCheck.dispatch({ monitorId: monitor.id })
-        return { success: true, message: `Uptime check dispatched for ${monitor.name}` }
-      default:
-        log.warn(`[RunCheckAction] Monitor type '${monitor.type}' has no check runner yet`)
-        return { success: false, message: `Check type '${monitor.type}' is not implemented yet` }
+    const job = CHECK_JOBS[monitor.type]
+    if (!job) {
+      log.warn(`[RunCheckAction] Monitor type '${monitor.type}' has no on-demand check runner yet`)
+      return { success: false, message: `Check type '${monitor.type}' is not implemented yet` }
     }
+
+    await job.dispatch({ monitorId: monitor.id })
+    return { success: true, message: `Check dispatched for ${monitor.name}` }
   },
 })
