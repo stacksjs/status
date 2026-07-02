@@ -33,8 +33,10 @@ export default defineModel({
     },
 
     // JSON-stringified array of record values, same convention as
-    // Monitor.config.
-    values: {
+    // Monitor.config. Named recordValues, not values — `values` is a SQL
+    // reserved word and the ORM doesn't quote column names in its INSERT
+    // statement, so a literal `values` column breaks every insert.
+    recordValues: {
       order: 2,
       fillable: true,
       validation: {
