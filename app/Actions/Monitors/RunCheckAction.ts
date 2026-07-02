@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { log } from '@stacksjs/logging'
 import Monitor from '../../Models/Monitor'
+import RunCrawl from '../../Jobs/RunCrawl'
 import RunDnsCheck from '../../Jobs/RunDnsCheck'
 import RunDomainCheck from '../../Jobs/RunDomainCheck'
 import RunHealthCheck from '../../Jobs/RunHealthCheck'
@@ -17,6 +18,7 @@ const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: numb
   dns: RunDnsCheck,
   domain: RunDomainCheck,
   health: RunHealthCheck,
+  broken_links: RunCrawl,
 }
 
 /**

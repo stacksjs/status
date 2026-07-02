@@ -1,6 +1,7 @@
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import Monitor from '../Models/Monitor'
+import RunCrawl from './RunCrawl'
 import RunDnsCheck from './RunDnsCheck'
 import RunDomainCheck from './RunDomainCheck'
 import RunHealthCheck from './RunHealthCheck'
@@ -17,11 +18,14 @@ import RunUptimeCheck from './RunUptimeCheck'
  * dialect-specific interval syntax — the monitor count this needs to scale
  * to before that matters is far beyond what a single-process scheduler
  * tick should be doing anyway (see stacksjs/status#1 Phase 11, queue
- * scaling).
+ * scaling). A full-site crawl is comparatively expensive, so a
+ * 'broken_links' monitor should be given a much longer
+ * checkIntervalSeconds (e.g. daily) than an uptime/ping monitor — nothing
+ * here enforces that, it's a matter of what the monitor is configured with.
  *
  * 'cron' monitors are heartbeat-based (passive — see CheckOverdueHeartbeats)
- * and 'broken_links'/'performance'/'lighthouse'/'port_scan'/'dns_blocklist'/
- * 'ai_check' aren't implemented yet (Phase 3+), so both are skipped here.
+ * and 'performance'/'lighthouse'/'port_scan'/'dns_blocklist'/'ai_check'
+ * aren't implemented yet (Phase 4+), so those are skipped here.
  */
 const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }>> = {
   uptime: RunUptimeCheck,
@@ -31,6 +35,7 @@ const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: numb
   dns: RunDnsCheck,
   domain: RunDomainCheck,
   health: RunHealthCheck,
+  broken_links: RunCrawl,
 }
 
 export default new Job({
