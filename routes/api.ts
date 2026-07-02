@@ -25,6 +25,11 @@ route.post('/monitors/{id}/check', 'Actions/Monitors/RunCheckAction')
 route.get('/ping/{token}', 'Actions/Heartbeats/ReceivePingAction')
 route.post('/ping/{token}', 'Actions/Heartbeats/ReceivePingAction')
 
+// Status page subscriber signup/unsubscribe — public, no auth.
+route.post('/status/{slug}/subscribe', 'Actions/StatusPages/SubscribeAction')
+route.get('/status/{slug}/unsubscribe/{token}', 'Actions/StatusPages/UnsubscribeAction')
+route.get('/status/{slug}/feed', 'Actions/StatusPages/IncidentFeedAction')
+
 // `/coming-soon` is served as an STX view from
 // `storage/framework/defaults/resources/views/coming-soon.stx`. The
 // view auto-resolves through stx-serve, so no route registration is

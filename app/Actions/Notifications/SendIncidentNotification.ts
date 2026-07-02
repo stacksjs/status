@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { log } from '@stacksjs/logging'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
+import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
 import SendNotification from '../../Jobs/SendNotification'
 
 /**
@@ -39,6 +40,8 @@ export default new Action({
         severity: 'critical',
       })
     }
+
+    await NotifyStatusPageSubscribers.dispatch({ monitorId: monitor.id, subject, message })
 
     log.debug(`[listener] SendIncidentNotification: notified ${attachments.length} channel(s) for ${monitor.name}`)
   },
