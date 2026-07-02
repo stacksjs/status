@@ -1,0 +1,98 @@
+@extends('layouts/status')
+
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const pageSlug = (typeof slug !== 'undefined' && slug) ? String(slug) : ''
+const incidentId = Number((typeof id !== 'undefined' && id) || 0)
+
+const statusPage = pageSlug
+  ? db.query(`SELECT * FROM status_pages WHERE slug = ?1 AND is_public = 1 LIMIT 1`).get(pageSlug)
+  : null
+
+const incident = (statusPage && incidentId)
+  ? db.query(`
+      SELECT i.*, m.name AS monitor_name
+      FROM incidents i
+      JOIN monitors m ON m.id = i.monitor_id
+      JOIN status_page_monitors spm ON spm.monitor_id = i.monitor_id AND spm.status_page_id = ?1
+      WHERE i.id = ?2
+      LIMIT 1
+    `).get(statusPage.id, incidentId)
+  : null
+
+const updates = incident
+  ? db.query(`
+      SELECT message, status, posted_at
+      FROM incident_updates
+      WHERE incident_id = ?1
+      ORDER BY posted_at ASC
+    `).all(incident.id)
+  : []
+
+const pageTitle = incident ? `${incident.monitor_name} incident` : 'Incident not found'
+
+function formatDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function statusBadgeClass(status) {
+  if (status === 'resolved') return 'text-xs font-medium uppercase tracking-wide text-emerald-600'
+  if (status === 'monitoring') return 'text-xs font-medium uppercase tracking-wide text-sky-600'
+  return 'text-xs font-medium uppercase tracking-wide text-amber-600'
+}
+</script>
+
+@section('title', pageTitle)
+@section('description', 'Incident detail and timeline')
+
+@section('content')
+  <div class="mx-auto max-w-2xl px-6 py-16">
+
+    @if (!incident)
+      <div class="py-24 text-center">
+        <p class="text-sm font-medium uppercase tracking-wide text-gray-400">404</p>
+        <h1 class="mt-2 text-2xl font-semibold text-gray-900">Incident not found</h1>
+      </div>
+    @endif
+
+    @if (incident)
+      <a href="/status/{{ pageSlug }}" class="text-sm text-gray-500 hover:text-gray-900">&larr; Back to status</a>
+
+      <header class="mt-4 mb-8">
+        <p class="{{ statusBadgeClass(incident.status) }}">{{ incident.status }}</p>
+        <h1 class="mt-2 text-2xl font-semibold text-gray-900">{{ incident.monitor_name }}</h1>
+        <p class="mt-2 text-gray-600">{{ incident.cause }}</p>
+      </header>
+
+      <div class="space-y-6 border-l-2 border-gray-200 pl-6">
+        <div>
+          <p class="text-sm font-medium text-gray-900">Incident started</p>
+          <p class="text-sm text-gray-500">{{ formatDate(incident.started_at) }}</p>
+        </div>
+
+        @foreach (updates as update)
+          <div>
+            <p class="{{ statusBadgeClass(update.status) }}">{{ update.status }}</p>
+            <p class="mt-1 text-sm text-gray-700">{{ update.message }}</p>
+            <p class="mt-1 text-sm text-gray-500">{{ formatDate(update.posted_at) }}</p>
+          </div>
+        @endforeach
+
+        @if (incident.resolved_at)
+          <div>
+            <p class="text-sm font-medium text-emerald-700">Resolved</p>
+            <p class="text-sm text-gray-500">{{ formatDate(incident.resolved_at) }}</p>
+          </div>
+        @endif
+      </div>
+    @endif
+
+  </div>
+@endsection
