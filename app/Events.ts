@@ -11,4 +11,9 @@ export default {
   // eventName: ['Listener1', 'Listener2'] -> listeners default to ./app/actions/*
   'user:registered': ['SendWelcomeEmail'],
   'user:created': ['NotifyUser'],
+
+  // Incident has `observe: true` (see app/Models/Incident.ts), which emits
+  // these automatically on every create/update (stacksjs/status#1 Phase 6).
+  'incident:created': ['Notifications/SendIncidentNotification'],
+  'incident:updated': ['Notifications/SendIncidentResolvedNotification'],
 } satisfies Events
