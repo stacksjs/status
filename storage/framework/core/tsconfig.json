@@ -1,0 +1,91 @@
+{
+  "compilerOptions": {
+    // `baseUrl` was deprecated in TS 6.0 and will be removed in TS 7.0.
+    // Path mappings below resolve relative to this file's directory
+    // automatically (TS 4.1+ behavior) so removing baseUrl is a no-op
+    // for resolution but unblocks the next major TypeScript upgrade.
+    "incremental": true,
+    "target": "esnext",
+    "jsx": "preserve",
+    "lib": ["esnext"],
+    "moduleDetection": "force",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@stacksjs/*": ["./*/src"],
+      "stacks/*": ["./*/src"],
+      "buddy": ["./buddy/src/index.ts"],
+      "buddy/*": ["./buddy/src/*"],
+      "Actions/*": ["../../../app/Actions/*"],
+      "Commands/*": ["../../../app/Commands/*"],
+      "Jobs/*": ["../../../app/Jobs/*"],
+      "Middleware/*": ["../../../app/Middleware/*"],
+      "Models/*": ["../../../app/Models/*"],
+      "Notifications/*": ["../../../app/Notifications/*"],
+      "~/*": ["../../../*"],
+      "@/*": ["../../../resources/*"],
+      "*": ["../../../pantry/*"]
+    },
+    "resolveJsonModule": true,
+    "types": [
+      "bun"
+    ],
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "noUncheckedSideEffectImports": true,
+    "noUnusedLocals": false,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": true,
+    "outDir": "./dist/types",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "../../../*.stx",
+    "../../../**/*.stx",
+    "../../../*.ts",
+    "../../../**/*.ts",
+    "../../../*.yaml",
+    "../../../**/*.yaml",
+    "../../../*.yml",
+    "../../../**/*.yml",
+    "../../../*.d.ts",
+    "../../../**/*.d.ts"
+  ],
+  "exclude": [
+    "../../../dist",
+    "../../../dist/**",
+    "../../../pantry",
+    "../../../pantry/**",
+    "../**/cdk.out",
+    "../**/dist",
+    "../**/fixtures",
+    "**/node_modules",
+    "../**/out",
+    "../server/app",
+    "../server/config",
+    "../server/core",
+    "../server/docs",
+    "../server/routes",
+    "../server/storage",
+    "../**/tests/**",
+    "../**/*.test.ts",
+    "../**/*.spec.ts",
+    "../models/**",
+    "../../../resources/assets/**",
+    "../../../cloud/**",
+    "./cloud/**",
+    "./deploy/**",
+    "../../../config/**",
+    "../views/**",
+    "../auto-imports/**",
+    "../requests/**",
+    "../**/build.ts"
+  ]
+}

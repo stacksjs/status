@@ -1,0 +1,250 @@
+api:
+  - 'storage/framework/api/**'
+
+deps:
+  - ./package.json
+
+core:
+  - 'storage/framework/core/**'
+
+ide:
+  - 'storage/framework/defaults/ide/**'
+
+jetbrains:
+  - 'storage/framework/defaults/ide/jetbrains/**'
+
+vscode:
+  - 'storage/framework/defaults/ide/vscode/**'
+
+libs:
+  - 'storage/framework/libs/**'
+
+components:
+  - 'storage/framework/libs/components/**'
+  - resources/components/**
+
+entries:
+  - storage/framework/libs/entries/**
+
+examples:
+  - storage/framework/libs/examples/**
+
+functions:
+  - 'storage/framework/libs/functions/**'
+  - resources/functions/**
+
+scripts:
+  - ./storage/framework/scripts/**
+
+stack:
+  - 'storage/framework/stacks/**'
+
+dashboard:
+  - 'storage/framework/stacks/dashboard/**'
+
+vcs:
+  - ./storage/framework/core/vcs/**
+
+github:
+  - ./storage/framework/core/vcs/github/**
+
+views:
+  - 'storage/framework/core/views/**'
+  - resources/views/**
+
+web:
+  - ./storage/framework/core/views/web/**
+
+actions:
+  - 'storage/framework/core/actions/**'
+
+ai:
+  - 'storage/framework/core/ai/**'
+
+alias:
+  - 'storage/framework/core/alias/**'
+
+analytics:
+  - 'storage/framework/core/analytics/**'
+
+arrays:
+  - 'storage/framework/core/utils/arrays/**'
+
+auth:
+  - 'storage/framework/core/auth/**'
+
+buddy:
+  - 'storage/framework/core/buddy/**'
+
+build:
+  - 'storage/framework/core/build/**'
+
+cache:
+  - 'storage/framework/core/cache/**'
+
+chat:
+  - 'storage/framework/core/notifications/chat/**'
+
+cli:
+  - 'storage/framework/core/cli/**'
+  - app/Commands/**
+
+cloud:
+  - 'storage/framework/core/cloud/**'
+
+collections:
+  - 'storage/framework/core/utils/collections/**'
+
+config:
+  - 'storage/framework/core/config/**'
+  - config/**
+
+database:
+  - 'storage/framework/core/database/**'
+
+datetime:
+  - 'storage/framework/core/utils/datetime/**'
+
+desktop:
+  - 'storage/framework/core/desktop/**'
+  - ./storage/framework/core/views/desktop/**
+
+development:
+  - 'storage/framework/core/development/**'
+
+dns:
+  - 'storage/framework/core/dns/**'
+
+docs:
+  - 'storage/framework/core/docs/**'
+  - 'storage/framework/docs/**'
+  - docs/**
+  - config/docs.ts
+
+email:
+  - 'storage/framework/core/notifications/email/**'
+
+error-handling:
+  - 'storage/framework/core/error-handling/**'
+
+events:
+  - 'storage/framework/core/events/**'
+  - app/Events/**
+
+faker:
+  - 'storage/framework/core/faker/**'
+
+git:
+  - 'storage/framework/core/utils/git/**'
+
+health:
+  - 'storage/framework/core/health/**'
+
+lint:
+  - 'storage/framework/core/lint/**'
+
+logging:
+  - 'storage/framework/core/logging/**'
+
+modules:
+  - 'storage/framework/core/modules/**'
+
+notifications:
+  - 'storage/framework/core/notifications/**'
+  - app/Notifications/**
+
+objects:
+  - 'storage/framework/core/utils/objects/**'
+
+orm:
+  - 'storage/framework/core/orm/**'
+
+path:
+  - 'storage/framework/core/path/**'
+
+payments:
+  - 'storage/framework/core/payments/**'
+
+push:
+  - 'storage/framework/core/notifications/push/**'
+
+query-builder:
+  - 'storage/framework/core/query-builder/**'
+
+queue:
+  - 'storage/framework/core/queue/**'
+
+real-time:
+  - 'storage/framework/core/real-time/**'
+
+repl:
+  - 'storage/framework/core/repl/**'
+
+router:
+  - 'storage/framework/core/router/**'
+
+scheduler:
+  - 'storage/framework/core/scheduler/**'
+
+search-engine:
+  - 'storage/framework/core/search-engine/**'
+
+security:
+  - 'storage/framework/core/security/**'
+
+signals:
+  - 'storage/framework/core/signals/**'
+
+slug:
+  - 'storage/framework/core/slug/**'
+
+sms:
+  - 'storage/framework/core/notifications/sms/**'
+
+storage:
+  - storage/**
+
+strings:
+  - 'storage/framework/core/utils/strings/**'
+
+testing:
+  - 'storage/framework/core/testing/**'
+
+tinker:
+  - 'storage/framework/core/tinker/**'
+
+types:
+  - 'storage/framework/core/types/**'
+
+ui:
+  - 'storage/framework/core/ui/**'
+
+utils:
+  - 'storage/framework/core/utils/**'
+
+validation:
+  - 'storage/framework/core/validation/**'
+
+app:
+  - app/**
+
+jobs:
+  - app/Jobs/**
+
+models:
+  - app/Models/**
+
+resources:
+  - resources/**
+
+lang:
+  - resources/lang/**
+
+stores:
+  - resources/stores/**
+
+routes:
+  - routes/**
+
+tests:
+  - tests/**

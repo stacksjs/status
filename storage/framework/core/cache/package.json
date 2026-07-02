@@ -1,0 +1,56 @@
+{
+  "name": "@stacksjs/cache",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "Caching the Stacks way.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/cache#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/cache"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "cache",
+    "serverless",
+    "dynamodb",
+    "utilities",
+    "functions",
+    "stacks"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "import": "./dist/*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@stacksjs/config": "workspace:*",
+    "@stacksjs/ts-cache": "^0.1.4"
+  }
+}

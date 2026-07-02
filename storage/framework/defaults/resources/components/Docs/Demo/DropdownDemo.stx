@@ -1,0 +1,82 @@
+<script>
+interface DropdownDemoProps {
+  menuItems?: string
+  isOpen?: boolean
+}
+
+const { menuItems = [, isOpen = false } = defineProps<DropdownDemoProps>()
+
+{ icon: 'i-hugeicons-pencil-20-solid', label: 'Edit' },
+  { icon: 'i-hugeicons-document-duplicate-20-solid', label: 'Duplicate' },
+  { divider: true },
+  { icon: 'i-hugeicons-archive-box-20-solid', label: 'Archive' },
+  { icon: 'i-hugeicons-arrow-path-20-solid', label: 'Move' },
+  { divider: true },
+  { icon: 'i-hugeicons-trash-20-solid', label: 'Delete', variant: 'danger' },
+]
+function getMenuSections(items) {
+  const sections = []
+  let currentSection = []
+
+  for (const item of items) {
+    if (item.divider) {
+      if (currentSection.length > 0) {
+        sections.push(currentSection)
+        currentSection = []
+      }
+    } else {
+      currentSection.push(item)
+    }
+  }
+
+  if (currentSection.length > 0) {
+    sections.push(currentSection)
+  }
+
+  return sections
+}
+</script>
+<div class="max-w-4xl">
+  <DocsPlayground>
+    <div class="flex flex-col items-center justify-center mb-12 space-y-4 h-[200px]">
+      <div class="inline-block relative text-left">
+        <button
+          class="inline-flex gap-2 items-center justify-center px-4 py-2.5 font-medium text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 shadow-sm duration-200 transition-all"
+          data-action="toggle-dropdown"
+        >
+          Options
+          <div class="h-5 w-5 duration-200 transition-transform : ? '' 'rotate-180' {{ }} i-hugeicons-chevron-down-20-solid isOpen"></div>
+        </button>
+
+        @if(isOpen)
+          <div class="absolute right-0 mt-2 w-56 bg-white divide-gray-100 divide-y ring-1 ring-black/5 rounded-lg focus:outline-none shadow-lg origin-top-right">
+            @foreach(getMenuSections(menuItems) as section)
+              <div class="p-1">
+                @foreach(section as item)
+                  <button
+                    type="button"
+                    class="flex relative items-center px-2 py-2 w-full text-sm hover:bg-gray-50' hover:bg-red-50' outline-none rounded-md transition-colors : ? 'danger' 'text-gray-700 'text-red-600 {{ }} == group item.variant"
+                    data-action="menu-item"
+                    data-item-label="{{ item.label }}"
+                  >
+                    <div class="mr-2 h-5 w-5 group-hover:text-gray-700' : ? 'danger' 'text-gray-500 'text-red-600' {{ {{ }} }} == item.icon item.variant"></div>
+                    {{ item.label }}
+                  </button>
+                @endforeach
+              </div>
+            @endforeach
+          </div>
+        @endif
+      </div>
+    </div>
+
+    <div slot="code">
+      <!-- DropdownCode component would be rendered here -->
+    </div>
+  </DocsPlayground>
+</div>
+<style>
+.rotate-180 {
+  transform: rotate(180deg);
+}
+</style>

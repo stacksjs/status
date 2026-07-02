@@ -1,0 +1,62 @@
+{
+  "name": "@stacksjs/email",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "The Stacks Email integration. Painlessly create & manage your inboxes, templates, and send emails.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/email#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/email"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "email",
+    "ses",
+    "aws",
+    "stacks",
+    "emailjs",
+    "mailgun"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "import": "./dist/*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "build:inbound": "bun build-inbound.ts",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@stacksjs/ts-cloud": "^0.5.4"
+  },
+  "devDependencies": {
+    "@stacksjs/cli": "workspace:*",
+    "@stacksjs/config": "workspace:*",
+    "better-dx": "^0.2.12",
+    "@stacksjs/error-handling": "workspace:*",
+    "@stacksjs/types": "workspace:*"
+  }
+}

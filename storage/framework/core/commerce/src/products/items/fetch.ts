@@ -1,0 +1,282 @@
+type ProductJsonResponse = ModelRow<typeof Product>
+import type { StacksExpressionBuilder } from '@stacksjs/database'
+import { db, sql } from '@stacksjs/database'
+
+/**
+ * Fetch a product item by ID
+ */
+export async function fetchById(id: number): Promise<ProductJsonResponse | undefined> {
+  const model = await db
+    .selectFrom('products')
+    .where('id', '=', id)
+    .selectAll()
+    .executeTakeFirst()
+
+  if (model) {
+    let manufacturer = null
+    let category = null
+
+    if (model.manufacturer_id) {
+      manufacturer = await db
+        .selectFrom('manufacturers')
+        .where('id', '=', model.manufacturer_id)
+        .selectAll()
+        .executeTakeFirst()
+    }
+
+    if (model.category_id) {
+      category = await db
+        .selectFrom('categories')
+        .where('id', '=', model.category_id)
+        .selectAll()
+        .executeTakeFirst()
+    }
+
+    return {
+      ...model,
+      manufacturer,
+      category,
+    } as unknown as ProductJsonResponse
+  }
+
+  return undefined
+}
+
+/**
+ * Fetch all product items with their manufacturers and categories
+ */
+export async function fetchAll(): Promise<ProductJsonResponse[]> {
+  // Fetch all products
+  const models = await db.selectFrom('products').selectAll().execute()
+
+  // Get the IDs of all manufacturers and categories
+  const manufacturerIds = models.map((model: any) => model.manufacturer_id).filter((id: any) => id !== null && id !== undefined)
+  const categoryIds = models.map((model: any) => model.category_id).filter((id: any) => id !== null && id !== undefined)
+
+  let manufacturersQuery = db.selectFrom('manufacturers') as any
+  let categoriesQuery = db.selectFrom('categories') as any
+
+  if (manufacturerIds.length > 0) {
+    manufacturersQuery = manufacturersQuery.where('id', 'in', manufacturerIds)
+  }
+
+  if (categoryIds.length > 0) {
+    categoriesQuery = categoriesQuery.where('id', 'in', categoryIds)
+  }
+
+  // Fetch manufacturers and categories for these specific IDs using WHERE IN
+  const allManufacturers = await manufacturersQuery.selectAll().execute()
+  const allCategories = await categoriesQuery.selectAll().execute()
+
+  // Group manufacturers and categories by ID
+  const manufacturersById = allManufacturers.reduce((acc: any, manufacturer: any) => {
+    acc[manufacturer.id] = manufacturer
+    return acc
+  }, {} as Record<number, typeof allManufacturers[0]>)
+
+  const categoriesById = allCategories.reduce((acc: any, category: any) => {
+    acc[category.id] = category
+    return acc
+  }, {} as Record<number, typeof allCategories[0]>)
+
+  // Attach manufacturers and categories to each product
+  return models.map((model: any) => ({
+    ...model,
+    manufacturer: model.manufacturer_id ? manufacturersById[model.manufacturer_id] : null,
+    category: model.category_id ? categoriesById[model.category_id] : null,
+  }))
+}
+
+/**
+ * Get products by manufacturer
+ *
+ * @param manufacturerId Manufacturer identifier
+ * @returns List of products for the specified manufacturer
+ */
+export async function getProductsByManufacturer(manufacturerId: number): Promise<ProductJsonResponse[]> {
+  try {
+    const products = await db
+      .selectFrom('products')
+      .selectAll()
+      .where('manufacturer_id', '=', manufacturerId)
+      .orderBy('name')
+      .execute()
+
+    return products as ProductJsonResponse[]
+  }
+  catch (error) {
+    if (error instanceof Error) {
+      throw new TypeError(`Failed to get products by manufacturer: ${error.message}`)
+    }
+
+    throw error
+  }
+}
+
+/**
+ * Get products by category
+ *
+ * @param categoryId Category identifier
+ * @returns List of products for the specified category
+ */
+export async function getProductsByCategory(categoryId: number): Promise<ProductJsonResponse[]> {
+  try {
+    const products = await db
+      .selectFrom('products')
+      .selectAll()
+      .where('category_id', '=', categoryId)
+      .orderBy('name')
+      .execute()
+
+    return products as ProductJsonResponse[]
+  }
+  catch (error) {
+    if (error instanceof Error) {
+      throw new TypeError(`Failed to get products by category: ${error.message}`)
+    }
+
+    throw error
+  }
+}
+
+/**
+ * Get product by UUID
+ *
+ * @param uuid Product UUID
+ * @returns Matching product or undefined
+ */
+export async function getProductByUuid(uuid: string): Promise<ProductJsonResponse | undefined> {
+  try {
+    const product = await db
+      .selectFrom('products')
+      .selectAll()
+      .where('uuid', '=', uuid)
+      .executeTakeFirst()
+
+    return product as ProductJsonResponse | undefined
+  }
+  catch (error) {
+    if (error instanceof Error) {
+      throw new TypeError(`Failed to get product by UUID: ${error.message}`)
+    }
+
+    throw error
+  }
+}
+
+/**
+ * Format product options for dropdown menus or selectors
+ *
+ * @returns Array of formatted product options with id, name, uuid, and price
+ */
+export async function formatProductOptions(): Promise<{ id: number, name: string, uuid: string, price: number }[]> {
+  try {
+    const results = await db
+      .selectFrom('products')
+      .select(['id', 'name', 'uuid', 'price'])
+      .orderBy('name')
+      .execute()
+
+    // Filter out any results with undefined/null values to match the return type
+    return results.filter((result: any) =>
+      result.name !== null
+      && result.name !== undefined
+      && result.uuid !== null
+      && result.uuid !== undefined
+      && result.price !== null
+      && result.price !== undefined,
+    ) as { id: number, name: string, uuid: string, price: number }[]
+  }
+  catch (error) {
+    if (error instanceof Error) {
+      throw new TypeError(`Failed to format product options: ${error.message}`)
+    }
+
+    throw error
+  }
+}
+
+/**
+ * Get products by price range
+ *
+ * @param minPrice Minimum price
+ * @param maxPrice Maximum price
+ * @returns List of products within the specified price range
+ */
+export async function getProductsByPriceRange(minPrice: number, maxPrice: number): Promise<ProductJsonResponse[]> {
+  try {
+    const products = await db
+      .selectFrom('products')
+      .selectAll()
+      .where('price', '>=', minPrice)
+      .where('price', '<=', maxPrice)
+      .orderBy('price')
+      .execute()
+
+    return products as ProductJsonResponse[]
+  }
+  catch (error) {
+    if (error instanceof Error) {
+      throw new TypeError(`Failed to get products by price range: ${error.message}`)
+    }
+
+    throw error
+  }
+}
+
+/**
+ * Top-selling products by units sold.
+ *
+ * Aggregates `order_items` (the line-item table — each row is one
+ * product on one order) grouping by product, summing quantity for the
+ * "units sold" rank and the line-item revenue (price × quantity) for
+ * the revenue side. Joins back to `products` so we can return the
+ * product name + current inventory inline; if a product was deleted
+ * after sales were recorded, that row is skipped (INNER JOIN).
+ *
+ * Revenue uses the price stored on `order_items` (price-at-sale)
+ * rather than the current `products.price`, so historical numbers
+ * stay correct even when prices change.
+ */
+export interface TopProductRow {
+  id: number
+  name: string
+  units_sold: number
+  revenue: number
+  inventory_count: number
+}
+
+export async function fetchTopProducts(limit: number = 5): Promise<TopProductRow[]> {
+  try {
+    const rows = await db
+      .selectFrom('order_items')
+      .innerJoin('products', 'products.id', 'order_items.product_id')
+      .select([
+        'products.id as id',
+        'products.name as name',
+        'products.inventory_count as inventory_count',
+        ((eb: StacksExpressionBuilder) => eb.fn.sum('order_items.quantity').as('units_sold')) as any,
+        // Multiply line-item price × quantity inline. Falls back to the
+        // current product price if order_items.price is null (older data).
+        sql<number>`SUM(COALESCE(order_items.price, products.price) * order_items.quantity)`.as('revenue') as any,
+      ])
+      .groupBy(['products.id', 'products.name', 'products.inventory_count'])
+      .orderBy('units_sold', 'desc')
+      .limit(limit)
+      .execute()
+
+    return rows.map((r: any) => ({
+      id: Number(r.id),
+      name: String(r.name ?? 'Unnamed product'),
+      units_sold: Number(r.units_sold ?? 0),
+      revenue: Number(r.revenue ?? 0),
+      inventory_count: Number(r.inventory_count ?? 0),
+    }))
+  }
+  catch (error) {
+    if (error instanceof Error) {
+      throw new TypeError(`Failed to fetch top products: ${error.message}`)
+    }
+    throw error
+  }
+}

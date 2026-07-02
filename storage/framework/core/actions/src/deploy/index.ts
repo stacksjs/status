@@ -1,0 +1,2078 @@
+import type { Subprocess } from '@stacksjs/types'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import process from 'node:process'
+import { runCommand, spinner } from '@stacksjs/cli'
+import { config } from '@stacksjs/config'
+import { path as p } from '@stacksjs/path'
+import { storage } from '@stacksjs/storage'
+import { ExitCode } from '@stacksjs/types'
+
+// Use console.log for clean output
+const log = {
+  debug: (...args: any[]) => {
+    if (process.argv.includes('--verbose') || process.argv.includes('-v')) {
+      console.log('🔍', ...args)
+    }
+  },
+  success: (...args: any[]) => console.log('✓', ...args),
+  error: (...args: any[]) => console.error('✗', ...args),
+}
+
+const MAIL_PACKAGE_DOMAIN = 'github.com/mail-os/mail'
+const MAIL_PACKAGE_SPEC = `${MAIL_PACKAGE_DOMAIN}@0.1.0`
+const MAIL_TARGET_PLATFORM = 'linux-x86_64'
+const MAIL_BINARY_NAMES = ['mail', 'mail-x86_64-linux', 'mail-x86_64-linux-gnu']
+
+// Check if verbose mode is enabled via CLI args
+const isVerbose = process.argv.includes('--verbose') || process.argv.includes('-v')
+
+async function collectMatchingFiles(root: string, names: string[], maxDepth = 8): Promise<string[]> {
+  const { existsSync, readdirSync, statSync } = await import('node:fs')
+  const { join, basename } = await import('node:path')
+  const nameSet = new Set(names)
+  const matches: string[] = []
+
+  if (!existsSync(root)) return matches
+
+  function walk(dir: string, depth: number): void {
+    if (depth > maxDepth) return
+
+    for (const entry of readdirSync(dir)) {
+      if (entry === '.git' || entry === 'node_modules') continue
+
+      const fullPath = join(dir, entry)
+      const stat = statSync(fullPath)
+      if (stat.isDirectory()) {
+        walk(fullPath, depth + 1)
+      } else if (stat.isFile() && nameSet.has(basename(fullPath))) {
+        matches.push(fullPath)
+      }
+    }
+  }
+
+  walk(root, 0)
+  return matches
+}
+
+async function isElfBinary(filePath: string): Promise<boolean> {
+  const { readFileSync } = await import('node:fs')
+  const header = readFileSync(filePath).slice(0, 4)
+  return header[0] === 0x7f && header[1] === 0x45 && header[2] === 0x4c && header[3] === 0x46
+}
+
+async function resolvePantryInstallCommand(): Promise<{ command: string, args: string[] }> {
+  const { existsSync } = await import('node:fs')
+  const localPantryCli = `${process.env.HOME}/Code/Tools/pantry/packages/ts-pantry/bin/cli.ts`
+  if (existsSync(localPantryCli)) {
+    return { command: 'bun', args: [localPantryCli] }
+  }
+
+  const projectPantry = p.projectPath('pantry/.bin/pantry')
+  if (existsSync(projectPantry)) {
+    return { command: projectPantry, args: [] }
+  }
+
+  const globalPantry = `${process.env.HOME}/.local/share/pantry/global/bin/pantry`
+  if (existsSync(globalPantry)) {
+    return { command: globalPantry, args: [] }
+  }
+
+  return { command: 'pantry', args: [] }
+}
+
+async function installMailBinaryWithPantry(): Promise<void> {
+  const { execFileSync } = await import('node:child_process')
+  const installDir = p.projectPath('pantry')
+  const pantry = await resolvePantryInstallCommand()
+
+  execFileSync(pantry.command, [
+    ...pantry.args,
+    'install',
+    MAIL_PACKAGE_SPEC,
+    '--install-dir',
+    installDir,
+    '--platform',
+    MAIL_TARGET_PLATFORM,
+    '--quiet',
+  ], {
+    cwd: p.projectPath(),
+    stdio: isVerbose ? 'inherit' : 'pipe',
+    env: process.env,
+  })
+}
+
+async function findPantryMailBinary(): Promise<string | null> {
+  const { existsSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const pantryRoots = [
+    p.projectPath('pantry'),
+    `${process.env.HOME}/.local/share/pantry`,
+  ]
+  const directCandidates = [
+    ...MAIL_BINARY_NAMES.map(name => p.projectPath(`pantry/.bin/${name}`)),
+    ...MAIL_BINARY_NAMES.map(name => join(`${process.env.HOME}/.local/share/pantry/global/bin`, name)),
+  ]
+
+  for (const candidate of directCandidates) {
+    if (existsSync(candidate) && await isElfBinary(candidate)) return candidate
+  }
+
+  for (const root of pantryRoots) {
+    const candidates = await collectMatchingFiles(root, MAIL_BINARY_NAMES)
+    for (const candidate of candidates) {
+      if (await isElfBinary(candidate)) return candidate
+    }
+  }
+
+  return null
+}
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.eot': 'application/vnd.ms-fontobject',
+  '.otf': 'font/otf',
+  '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.pdf': 'application/pdf',
+  '.xml': 'application/xml',
+  '.txt': 'text/plain',
+}
+
+function getMimeType(filePath: string): string {
+  const dotIndex = filePath.lastIndexOf('.')
+  const ext = dotIndex >= 0 ? filePath.slice(dotIndex).toLowerCase() : ''
+  return MIME_TYPES[ext] || 'application/octet-stream'
+}
+
+async function traverseDirectory(
+  dir: string,
+  callback: (filePath: string, relativePath: string) => Promise<void>,
+  prefix = '',
+  skipPatterns = ['.DS_Store'],
+): Promise<void> {
+  const { readdirSync, statSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const items = readdirSync(dir)
+  for (const item of items) {
+    if (skipPatterns.includes(item)) continue
+    const filePath = join(dir, item)
+    const key = prefix ? `${prefix}/${item}` : item
+    if (statSync(filePath).isDirectory()) {
+      await traverseDirectory(filePath, callback, key, skipPatterns)
+    } else {
+      await callback(filePath, key)
+    }
+  }
+}
+
+/**
+ * Get the STX signals client-side runtime script.
+ * Dynamically imports from the stx package to get the full signals runtime
+ * with state(), derived(), effect(), @model, @show, @text, @class, :bind, @event support.
+ */
+async function withS3Retry<T>(fn: () => Promise<T>, label = 's3 operation'): Promise<T> {
+  const maxRetries = 3
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error: any) {
+      if (attempt >= maxRetries) throw error
+      const delay = Math.min(500 * 2 ** attempt + Math.random() * 200, 5000)
+      if (isVerbose) log.debug(`  Retrying ${label} (attempt ${attempt + 2}/${maxRetries + 1}) in ${Math.round(delay)}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  throw new Error(`${label} failed after ${maxRetries + 1} attempts`) // unreachable but satisfies TS
+}
+
+function normalizeArray<T>(value: T | T[] | undefined): T[] {
+  if (!value) return []
+  return Array.isArray(value) ? value : [value]
+}
+
+function buildCloudFrontXmlElement(name: string, value: any, indent = ''): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'boolean') return `${indent}<${name}>${value}</${name}>\n`
+  if (typeof value === 'number' || typeof value === 'string') return `${indent}<${name}>${value}</${name}>\n`
+  if (Array.isArray(value)) return value.map(item => buildCloudFrontXmlElement(name, item, indent)).join('')
+  if (typeof value === 'object') {
+    if (name.startsWith('@_') || name === '?xml') return ''
+
+    let children = ''
+    for (const [key, val] of Object.entries(value)) {
+      if (!key.startsWith('@_') && key !== '#text') {
+        children += buildCloudFrontXmlElement(key, val, `${indent}  `)
+      }
+    }
+
+    if (value['#text'] !== undefined) return `${indent}<${name}>${value['#text']}</${name}>\n`
+    return `${indent}<${name}>\n${children}${indent}</${name}>\n`
+  }
+
+  return ''
+}
+
+function buildCloudFrontDistributionConfigXml(config: Record<string, any>): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<DistributionConfig xmlns="http://cloudfront.amazonaws.com/doc/2020-05-31/">\n${Object.entries(config)
+    .filter(([key]) => !key.startsWith('@_'))
+    .map(([key, val]) => buildCloudFrontXmlElement(key, val, '  '))
+    .join('')}</DistributionConfig>\n`
+}
+
+function firewallOpenCommand(ports: number[]): string {
+  const uniquePorts = [...new Set(ports)]
+    .filter(port => Number.isFinite(port) && port > 0)
+    .sort((a, b) => a - b)
+
+  if (uniquePorts.length === 0) return 'true'
+
+  const args = uniquePorts.map(port => `--add-port=${port}/tcp`).join(' ')
+  return `if command -v firewall-cmd >/dev/null 2>&1; then firewall-cmd --permanent ${args} && firewall-cmd --reload; fi`
+}
+
+async function ensureSecurityGroupPort(ec2: any, securityGroupId: string | undefined, port: number): Promise<void> {
+  if (!securityGroupId) return
+
+  const securityGroups = await ec2.describeSecurityGroups({ GroupIds: [securityGroupId] })
+  const permissions = securityGroups?.SecurityGroups?.[0]?.IpPermissions || []
+  const alreadyOpen = permissions.some((permission: any) => {
+    return permission.IpProtocol === 'tcp'
+      && Number(permission.FromPort) <= port
+      && Number(permission.ToPort) >= port
+      && normalizeArray(permission.IpRanges).some((range: any) => range.CidrIp === '0.0.0.0/0')
+  })
+
+  if (alreadyOpen) return
+
+  try {
+    await ec2.authorizeSecurityGroupIngress({
+      GroupId: securityGroupId,
+      IpPermissions: [{
+        IpProtocol: 'tcp',
+        FromPort: port,
+        ToPort: port,
+        IpRanges: [{ CidrIp: '0.0.0.0/0', Description: `Stacks API port ${port}` }],
+      }],
+    })
+  } catch (error: any) {
+    if (!String(error?.message || '').includes('InvalidPermission.Duplicate')) throw error
+  }
+}
+
+async function ensureCloudFrontApiOriginPort(awsClient: any, distributionId: string | undefined, port: number): Promise<void> {
+  if (!distributionId) return
+
+  const getResult = await awsClient.request({
+    service: 'cloudfront',
+    region: 'us-east-1',
+    method: 'GET',
+    path: `/2020-05-31/distribution/${distributionId}/config`,
+    returnHeaders: true,
+  })
+
+  const etag = getResult.headers?.etag || getResult.headers?.ETag || ''
+  const currentConfig = getResult.body?.DistributionConfig || getResult.DistributionConfig || getResult.body
+  if (!etag || !currentConfig?.Origins?.Items) return
+
+  const origins = normalizeArray(currentConfig.Origins.Items.Origin)
+  const apiOrigin = origins.find((origin: any) => String(origin.Id || '').includes('-api'))
+  if (!apiOrigin?.CustomOriginConfig) return
+
+  if (Number(apiOrigin.CustomOriginConfig.HTTPPort) === port) return
+
+  apiOrigin.CustomOriginConfig.HTTPPort = port
+
+  await awsClient.request({
+    service: 'cloudfront',
+    region: 'us-east-1',
+    method: 'PUT',
+    path: `/2020-05-31/distribution/${distributionId}/config`,
+    body: buildCloudFrontDistributionConfigXml(currentConfig),
+    headers: {
+      'Content-Type': 'application/xml',
+      'If-Match': etag,
+    },
+  })
+}
+
+// Build framework - show output so user knows it's working
+const frameworkBuildSpinner = spinner('Building framework...')
+frameworkBuildSpinner.start()
+await runCommand('bun run build', {
+  cwd: p.frameworkPath('core'),
+  quiet: false, // Always show build output so it doesn't appear stuck
+})
+frameworkBuildSpinner.succeed('Framework built')
+
+// Build documentation with BunPress
+const docsDir = p.projectPath('docs')
+const docsBuildDir = p.projectPath('dist/docs/.bunpress')
+if (storage.hasFiles(docsDir)) {
+  const docsSpinner = spinner('Building documentation with BunPress...')
+  docsSpinner.start()
+  try {
+    const { rm } = await import('node:fs/promises')
+    const localBunpressCli = `${process.env.HOME}/Code/Tools/bunpress/packages/bunpress/bin/cli.ts`
+    const installedBunpressCli = p.projectPath('node_modules/@stacksjs/bunpress/dist/bin/cli.js')
+    const hasLocalBunpress = await Bun.file(localBunpressCli).exists()
+    const hasInstalledBunpress = await Bun.file(installedBunpressCli).exists()
+    const command = hasLocalBunpress
+      ? `bun ${localBunpressCli} build --dir ${docsDir} --outdir ${p.projectPath('dist/docs')}`
+      : hasInstalledBunpress
+        ? `bun ${installedBunpressCli} build --dir ${docsDir} --outdir ${p.projectPath('dist/docs')}`
+        : 'bunx @stacksjs/bunpress@0.1.5 build --dir ./docs --outdir ./dist/docs'
+
+    // Prefer the developer checkout in ~/Code/Tools/bunpress so deploys use
+    // the same docs engine being worked on locally. Always clear the old
+    // .bunpress output first so route shape changes cannot leave stale pages
+    // behind in production.
+    await rm(docsBuildDir, { recursive: true, force: true })
+    await runCommand(command, {
+      cwd: p.projectPath(),
+      quiet: !isVerbose,
+    })
+    docsSpinner.succeed(`Documentation built with BunPress${hasLocalBunpress ? ' (local checkout)' : ''}`)
+  } catch (docsError: any) {
+    // BunPress might not be installed - skip gracefully
+    docsSpinner.stop()
+    console.log(`⚠ Documentation build skipped: ${docsError.message}`)
+    if (isVerbose) log.debug('To build docs manually: cd ~/Code/Tools/bunpress && bun packages/bunpress/bin/cli.ts build --dir /path/to/docs --outdir /path/to/dist/docs')
+  }
+} else {
+  if (isVerbose) log.debug('No docs directory found, skipping documentation build')
+}
+
+// Build blog static site
+const blogDistExists = storage.hasFiles(p.projectPath('dist/blog'))
+const blogFontAssetsExist = [
+  'CampmateScript-Regular.woff2',
+  'SequoiaSans-Regular.woff2',
+  'Switchback-Regular.woff2',
+].every(file => existsSync(p.projectPath(`dist/blog/assets/fonts/nps/${file}`)))
+const blogImageAssetsExist = [
+  'topography.svg',
+  'park-ridge.svg',
+].every(file => existsSync(p.projectPath(`dist/blog/assets/images/${file}`)))
+const blogIndexPath = p.projectPath('dist/blog/index.html')
+const blogIndexHtml = existsSync(blogIndexPath) ? readFileSync(blogIndexPath, 'utf8') : ''
+const blogHtmlUsesCurrentFontFormat = blogIndexHtml.length > 0 && !blogIndexHtml.includes('woff2-variations')
+const blogHtmlUsesCurrentParkTheme = blogIndexHtml.includes('--on-primary') && blogIndexHtml.includes('--newsletter-bg')
+const blogHtmlUsesCurrentParkImages = blogIndexHtml.includes('topography.svg') && blogIndexHtml.includes('park-ridge.svg')
+const blogHtmlOmitsRetiredDecorations = !blogIndexHtml.includes('stamp-trail') && !blogIndexHtml.includes('blog-sign-tree.svg')
+const blogBuilderPath = p.frameworkPath('core/cms/src/build.ts')
+const blogConfigPath = p.projectPath('config/blog.ts')
+const blogHtmlIsFresh = existsSync(blogIndexPath)
+  && [blogBuilderPath, blogConfigPath]
+    .filter(path => existsSync(path))
+    .every(path => statSync(blogIndexPath).mtimeMs >= statSync(path).mtimeMs)
+
+if (!blogDistExists || !blogFontAssetsExist || !blogImageAssetsExist || !blogHtmlUsesCurrentFontFormat || !blogHtmlUsesCurrentParkTheme || !blogHtmlUsesCurrentParkImages || !blogHtmlOmitsRetiredDecorations || !blogHtmlIsFresh) {
+  const blogBuildSpinner = spinner('Building blog...')
+  blogBuildSpinner.start()
+  try {
+    const blogConfig = (await import(p.projectPath('config/blog'))).default
+    const { buildBlogSite } = await import(p.frameworkPath('core/cms/src/build'))
+    await buildBlogSite({ config: blogConfig, outDir: p.projectPath('dist/blog') })
+    blogBuildSpinner.succeed('Blog built successfully')
+  } catch (blogBuildError: any) {
+    blogBuildSpinner.stop()
+    console.log(`⚠ Blog build skipped: ${blogBuildError.message}`)
+    if (isVerbose) log.debug(`Blog build error: ${blogBuildError.stack}`)
+  }
+} else {
+  if (isVerbose) log.debug('Pre-built blog found at dist/blog, skipping build')
+}
+
+// Views are served via STX at runtime (SSR) — no pre-build step needed.
+// Static site generation (SSG) can be added here in the future if required.
+if (isVerbose) log.debug('Skipping views build (vite-config not configured)')
+
+// await runCommand('bun run build-edge', {
+//   cwd: p.corePath('cloud'),
+// })
+
+// Check deployment mode early to skip unnecessary build steps
+const earlyCloudConfig = await import(p.projectPath('config/cloud'))
+const earlyDeploymentMode = earlyCloudConfig?.tsCloud?.mode || 'server'
+
+// Build server and package (only needed for serverless/container mode)
+if (earlyDeploymentMode === 'serverless') {
+  const serverSpinner = spinner('Building server...')
+  serverSpinner.start()
+  await runCommand('bun build.ts', {
+    cwd: p.frameworkPath('server'),
+    quiet: !isVerbose,
+  })
+  serverSpinner.succeed('Server built')
+
+  const packageSpinner = spinner('Packaging for deployment...')
+  packageSpinner.start()
+  await runCommand('bun zip.ts', {
+    cwd: p.corePath('cloud'),
+    quiet: !isVerbose,
+  })
+  packageSpinner.succeed('Package ready')
+} else {
+  if (isVerbose) log.debug('Skipping server build and packaging (server mode)')
+}
+
+// Load AWS credentials from environment-specific .env file if not already set
+if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+  const { existsSync, readFileSync } = await import('node:fs')
+  const environment = process.env.APP_ENV || process.env.NODE_ENV || 'production'
+
+  // Try environment-specific file first (e.g., .env.staging, .env.production)
+  const envFiles = [
+    p.projectPath(`.env.${environment}`),
+    p.projectPath('.env'),
+  ]
+
+  for (const envPath of envFiles) {
+    if (existsSync(envPath)) {
+      const content = readFileSync(envPath, 'utf-8')
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim()
+        if (trimmed.startsWith('#') || !trimmed.includes('=')) continue
+        const eqIndex = trimmed.indexOf('=')
+        const key = trimmed.slice(0, eqIndex).trim()
+        let value = trimmed.slice(eqIndex + 1).trim()
+        // Strip surrounding quotes
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1)
+        }
+        if (key === 'AWS_ACCESS_KEY_ID' && value) process.env.AWS_ACCESS_KEY_ID = value
+        else if (key === 'AWS_SECRET_ACCESS_KEY' && value) process.env.AWS_SECRET_ACCESS_KEY = value
+        else if (key === 'AWS_REGION' && value && !process.env.AWS_REGION) process.env.AWS_REGION = value
+        else if (key === 'AWS_ACCOUNT_ID' && value && !process.env.AWS_ACCOUNT_ID) process.env.AWS_ACCOUNT_ID = value
+        // Also load MAIL_PASSWORD_* for SMTP proxy deployment
+        else if (key.startsWith('MAIL_PASSWORD_') && value && !process.env[key]) process.env[key] = value
+      }
+      if (isVerbose) log.debug(`Loaded AWS credentials from ${envPath}`)
+      break // Stop after loading the first existing file
+    }
+  }
+}
+
+// Use ts-cloud deployment instead of CDK
+try {
+  const { deployStack, deployFrontend: _deployFrontend } = await import('../../deploy')
+
+  const environment = process.env.APP_ENV || process.env.NODE_ENV || 'production'
+  const region = process.env.AWS_REGION || 'us-east-1'
+
+  // Check deployment mode - use relative import from project root
+  const cloudConfigModule = await import(p.projectPath('config/cloud'))
+  const deploymentMode = cloudConfigModule?.tsCloud?.mode || 'server'
+  const projectName = cloudConfigModule?.tsCloud?.project?.name || cloudConfigModule?.tsCloud?.project?.slug || 'stacks'
+
+  // For serverless mode, build and push container image before deploying infrastructure
+  if (deploymentMode === 'serverless') {
+    console.log('')
+    console.log('Serverless deployment mode detected')
+    console.log('Building and pushing container image...')
+    console.log('')
+
+    // Get AWS account ID for ECR
+    const accountId = process.env.AWS_ACCOUNT_ID || await getAwsAccountId(region)
+
+    // Validate account ID before proceeding
+    if (!accountId || accountId.length < 10) {
+      throw new Error(
+        `Invalid AWS Account ID: "${accountId || '(empty)'}"\n` +
+        `Set AWS_ACCOUNT_ID in your .env file or ensure valid AWS credentials are configured.`
+      )
+    }
+
+    const ecrRepository = `${accountId}.dkr.ecr.${region}.amazonaws.com/${projectName}-${environment}-api`
+    const imageTag = `${ecrRepository}:latest`
+
+    if (isVerbose) log.debug(`ECR repository: ${ecrRepository}`)
+
+    // Step 1: Verify ECR credentials (actual login happens before push)
+    if (isVerbose) log.debug('ECR credentials will be validated before push...')
+
+    // Step 2: Build Docker image
+    const buildSpinner = spinner('Building Docker image...')
+    buildSpinner.start()
+
+    try {
+      const { exec } = await import('node:child_process')
+      const { promisify } = await import('node:util')
+      const execAsync = promisify(exec)
+
+      const buildCmd = `docker build --platform linux/amd64 -t ${imageTag} -f Dockerfile .`
+      const { stdout, stderr } = await execAsync(buildCmd, {
+        cwd: p.projectPath(),
+        env: process.env,
+        maxBuffer: 1024 * 1024 * 10, // 10MB buffer for Docker output
+        timeout: 15 * 60 * 1000, // 15 minute timeout for Docker build
+      })
+      if (isVerbose && stdout) log.debug(stdout)
+      if (isVerbose && stderr) log.debug(stderr)
+      buildSpinner.succeed(`Docker image built: ${imageTag}`)
+    } catch (error: any) {
+      buildSpinner.fail('Docker build failed')
+      if (isVerbose) log.debug(`Docker build error: ${error.message}`)
+      throw error
+    }
+
+    // Step 3: Ensure ECR repository exists (create if needed)
+    const repoSpinner = spinner('Checking ECR repository...')
+    repoSpinner.start()
+
+    try {
+      const { ECRClient } = await import('@stacksjs/ts-cloud') as any
+      const ecr = new ECRClient(region)
+      const repoName = `${projectName}-${environment}-api`
+
+      // Check if repository exists
+      try {
+        await ecr.describeRepositories({ repositoryNames: [repoName] })
+        repoSpinner.succeed(`ECR repository exists: ${repoName}`)
+      } catch (err: any) {
+        // Repository doesn't exist, create it
+        if (err.code === 'RepositoryNotFoundException' || err.message?.includes('RepositoryNotFoundException')) {
+          repoSpinner.text = `Creating ECR repository: ${repoName}...`
+          await ecr.createRepository({
+            repositoryName: repoName,
+            imageScanningConfiguration: { scanOnPush: true },
+            imageTagMutability: 'MUTABLE',
+          })
+          repoSpinner.succeed(`ECR repository created: ${repoName}`)
+        } else {
+          throw err
+        }
+      }
+    } catch (error: any) {
+      repoSpinner.fail('ECR repository check failed')
+      if (isVerbose) log.debug(`ECR repository error: ${error.message}`)
+      throw error
+    }
+
+    // Step 4: Re-authenticate to ECR immediately before push
+    const authSpinner = spinner('Authenticating to ECR...')
+    authSpinner.start()
+
+    try {
+      const { ECRClient } = await import('@stacksjs/ts-cloud') as any
+      const ecr = new ECRClient(region)
+
+      // Get ECR authorization token
+      const authData = await ecr.getAuthorizationToken()
+      const token = authData.authorizationData?.[0]
+
+      if (!token?.authorizationToken) {
+        throw new Error('No authorization token received from ECR')
+      }
+
+      // Decode base64 token (format: AWS:password)
+      const decoded = Buffer.from(token.authorizationToken, 'base64').toString('utf-8')
+      const colonIndex = decoded.indexOf(':')
+      if (colonIndex === -1) {
+        throw new Error('ECR authorization token has unexpected format (missing colon separator)')
+      }
+      const password = decoded.slice(colonIndex + 1)
+
+      // Login to Docker using stdin for password (secure)
+      const loginResult = Bun.spawnSync([
+        'docker',
+        'login',
+        '--username',
+        'AWS',
+        '--password-stdin',
+        `${accountId}.dkr.ecr.${region}.amazonaws.com`,
+      ], {
+        stdin: new TextEncoder().encode(password),
+        stdout: 'pipe',
+        stderr: 'pipe',
+      })
+
+      if (loginResult.exitCode !== 0) {
+        const loginError = new TextDecoder().decode(loginResult.stderr)
+        throw new Error(`Docker login failed: ${loginError}`)
+      }
+
+      authSpinner.succeed('Authenticated to ECR')
+    } catch (error: any) {
+      authSpinner.fail('ECR authentication failed')
+      if (isVerbose) log.debug(`ECR auth error: ${error.message}`)
+      throw error
+    }
+
+    // Step 5: Push Docker image to ECR
+    console.log('')
+    const pushSpinner = spinner('Pushing image to ECR...')
+    pushSpinner.start()
+
+    try {
+      const { exec } = await import('node:child_process')
+      const { promisify } = await import('node:util')
+      const execAsync = promisify(exec)
+
+      const pushCmd = `docker push ${imageTag}`
+      await execAsync(pushCmd, { env: process.env })
+      pushSpinner.succeed(`Image pushed: ${imageTag}`)
+    } catch (error: any) {
+      pushSpinner.fail('Docker push failed')
+      if (isVerbose) log.debug(`Push error: ${error.message}`)
+      throw error
+    }
+
+    console.log('')
+    console.log('Container image ready in ECR. CloudFormation will use this image.')
+    console.log('')
+  } else {
+    console.log('')
+    console.log('Server deployment mode detected')
+    console.log('Deploying EC2 infrastructure via CloudFormation...')
+    console.log('')
+  }
+
+  // Helper function to get AWS account ID using ts-cloud SDK
+  async function getAwsAccountId(region: string): Promise<string> {
+    try {
+      const { STSClient } = await import('@stacksjs/ts-cloud') as any
+      const sts = new STSClient(region)
+      const identity = await sts.getCallerIdentity()
+      const accountId = identity.Account || process.env.AWS_ACCOUNT_ID || ''
+      if (isVerbose) log.debug(`Retrieved AWS Account ID: ${accountId || '(empty)'}`)
+      return accountId
+    } catch (error: any) {
+      if (isVerbose) log.debug(`Failed to get AWS Account ID: ${error.message}`)
+      // Fallback to environment variable
+      return process.env.AWS_ACCOUNT_ID || ''
+    }
+  }
+
+  // Run custom deploy script: beforeDeploy hook
+  try {
+    const deployScript = await import(p.projectPath('cloud/deploy-script'))
+    if (typeof deployScript.beforeDeploy === 'function') {
+      await deployScript.beforeDeploy({ environment, region })
+    }
+  } catch (hookError: any) {
+    // Only skip silently if the deploy-script module doesn't exist
+    if (hookError.code === 'ERR_MODULE_NOT_FOUND' || hookError.code === 'MODULE_NOT_FOUND') {
+      if (isVerbose) log.debug('No beforeDeploy hook found (cloud/deploy-script not found)')
+    } else {
+      console.warn(`⚠ beforeDeploy hook failed: ${hookError.message}`)
+      if (isVerbose) log.debug(`beforeDeploy error stack: ${hookError.stack}`)
+    }
+  }
+
+  // Deploy infrastructure stack
+  // Note: For serverless mode, the Docker image is already pushed to ECR above
+  // Note: deployStack outputs its own progress table, so we don't use a spinner here
+  await deployStack({
+    environment,
+    region,
+    waitForCompletion: true,
+    verbose: isVerbose,
+  })
+
+  // Run custom deploy script: afterDeploy hook
+  try {
+    const deployScript = await import(p.projectPath('cloud/deploy-script'))
+    if (typeof deployScript.afterDeploy === 'function') {
+      const { CloudFormationClient } = await import('@stacksjs/ts-cloud') as any
+      const cf = new CloudFormationClient(region)
+      const stackName = `${projectName}-cloud`
+      let stackOutputs: Record<string, string> = {}
+      try {
+        stackOutputs = await cf.getStackOutputs(stackName)
+      } catch (e) {
+        if (isVerbose) log.debug(`Failed to get stack outputs: ${e instanceof Error ? e.message : String(e)}`)
+      }
+      await deployScript.afterDeploy({ environment, region, outputs: stackOutputs })
+    }
+  } catch (hookError: any) {
+    if (hookError.code === 'ERR_MODULE_NOT_FOUND' || hookError.code === 'MODULE_NOT_FOUND') {
+      if (isVerbose) log.debug('No afterDeploy hook found (cloud/deploy-script not found)')
+    } else {
+      console.warn(`⚠ afterDeploy hook failed: ${hookError.message}`)
+      if (isVerbose) log.debug(`afterDeploy error stack: ${hookError.stack}`)
+    }
+  }
+
+  // Run database migrations after infrastructure is deployed
+  // This ensures the RDS database is available before we try to migrate
+  const migrateSpinner = spinner('Running database migrations...')
+  migrateSpinner.start()
+  try {
+    const { generateMigrations, runDatabaseMigration } = await import('@stacksjs/database')
+
+    // Generate migrations from models
+    await generateMigrations()
+
+    // Execute migrations against the production database
+    await runDatabaseMigration()
+
+    migrateSpinner.succeed('Database migrations completed')
+  } catch (migrationError: any) {
+    // Don't fail the entire deployment if migrations fail
+    // The database might not be accessible from the deploy machine
+    migrateSpinner.stop()
+    console.log(`⚠ Database migrations skipped: ${migrationError.message}`)
+    if (isVerbose) log.debug(`Migration error: ${migrationError.stack}`)
+  }
+
+  // Framework-table guarantees (stacksjs/stacks#1948) — the auth/oauth,
+  // notification, and RBAC tables (and the users.email_verified_at ALTER)
+  // ship outside the generated model migrations; `buddy migrate` applies
+  // them as a separate step, so deployed databases need the same step or
+  // verify-email 500s on a column no model migration creates. Runs in its
+  // own try/catch so a model-migration failure above (e.g. a unique-index
+  // replay hitting duplicate legacy rows, stacksjs/stacks#1952) doesn't
+  // also skip these — they're all idempotent CREATE TABLE IF NOT EXISTS
+  // plus defensive ALTERs, independent of the model-migration outcome.
+  const frameworkTablesSpinner = spinner('Ensuring framework tables (auth, notifications, RBAC)...')
+  frameworkTablesSpinner.start()
+  try {
+    const { migrateAuthTables, migrateNotificationTables, migrateRbacTables } = await import('@stacksjs/database')
+
+    const failures: string[] = []
+    const steps = [
+      ['auth', migrateAuthTables],
+      ['notification', migrateNotificationTables],
+      ['RBAC', migrateRbacTables],
+    ] as const
+    for (const [name, migrateTables] of steps) {
+      const result = await migrateTables({ verbose: isVerbose })
+      if (!result.success) failures.push(`${name}: ${result.error}`)
+    }
+
+    if (failures.length > 0) {
+      frameworkTablesSpinner.stop()
+      console.log(`⚠ Some framework tables could not be migrated: ${failures.join('; ')}`)
+    } else {
+      frameworkTablesSpinner.succeed('Framework tables ensured (auth, notifications, RBAC)')
+    }
+  } catch (frameworkTablesError: any) {
+    // Same policy as the model migrations above — the database might not
+    // be accessible from the deploy machine, so don't fail the deployment
+    frameworkTablesSpinner.stop()
+    console.log(`⚠ Framework table migrations skipped: ${frameworkTablesError.message}`)
+    if (isVerbose) log.debug(`Framework table migration error: ${frameworkTablesError.stack}`)
+  }
+
+  if (deploymentMode === 'server') {
+    // Server mode: show instance IPs from stack outputs
+    const serverOutputSpinner = spinner('Retrieving server instance details...')
+    serverOutputSpinner.start()
+
+    try {
+      const { CloudFormationClient } = await import('@stacksjs/ts-cloud') as any
+      const cf = new CloudFormationClient(region)
+      const stackName = `${projectName}-cloud`
+      const outputs = await cf.getStackOutputs(stackName)
+
+      serverOutputSpinner.succeed('Server instances deployed')
+      console.log('')
+      console.log('Server instances:')
+      for (const [key, value] of Object.entries(outputs)) {
+        if ((key as string).endsWith('PublicIp')) {
+          console.log(`  ${key}: ${value}`)
+        }
+        if ((key as string).endsWith('InstanceId')) {
+          console.log(`  ${key}: ${value}`)
+        }
+      }
+      console.log('')
+    } catch (outputError: any) {
+      serverOutputSpinner.stop()
+      console.log(`⚠ Could not retrieve server details: ${outputError.message}`)
+      if (isVerbose) log.debug(`Output retrieval error: ${outputError.stack}`)
+    }
+
+    // Deploy API server code to EC2 instances
+    const serverDeploySpinner = spinner('Deploying API server to EC2...')
+    serverDeploySpinner.start()
+
+    try {
+      const { S3Client, CloudFormationClient, AWSClient } = await import('@stacksjs/ts-cloud') as any
+      const { readFileSync: readServerFile, existsSync: serverFileExists } = await import('node:fs')
+      const { resolve } = await import('node:path')
+
+      const s3 = new S3Client(region)
+      const cf = new CloudFormationClient(region)
+      const awsClient = new AWSClient()
+
+      const stackName = `${projectName}-cloud`
+      const outputs = await cf.getStackOutputs(stackName)
+      const bucketName = outputs.FrontendBucketName
+      const apiServerPort = Number(config.ports?.api || 3008)
+
+      // Find the EC2 instance ID from stack outputs
+      let instanceId: string | undefined
+      for (const [key, value] of Object.entries(outputs)) {
+        if ((key as string).endsWith('InstanceId') && typeof value === 'string') {
+          instanceId = value as string
+          break
+        }
+      }
+
+      let securityGroupId: string | undefined
+      if (instanceId) {
+        const { EC2Client } = await import('@stacksjs/ts-cloud') as any
+        const ec2 = new EC2Client(region)
+        const instanceData = await ec2.describeInstances({
+          Filters: [{ Name: 'instance-id', Values: [instanceId] }],
+        })
+        const securityGroups = instanceData?.Reservations?.[0]?.Instances?.[0]?.SecurityGroups
+        securityGroupId = securityGroups?.[0]?.GroupId
+
+        await ensureSecurityGroupPort(ec2, securityGroupId, apiServerPort)
+      }
+
+      if (!instanceId || !bucketName) {
+        serverDeploySpinner.stop()
+        if (!instanceId) console.log('⚠ No EC2 instance found in stack outputs, skipping server deploy')
+        if (!bucketName) console.log('⚠ No S3 bucket found for staging server artifacts')
+      } else {
+        const publicDistributionId = outputs.publicCloudFrontDistributionId || outputs.CloudFrontDistributionId
+        await ensureCloudFrontApiOriginPort(awsClient, publicDistributionId, apiServerPort)
+
+        // Upload ts-cloud dist to S3 for EC2 to download
+        const tsCloudDistPath = resolve(p.projectPath('node_modules/@stacksjs/ts-cloud/dist/index.js'))
+        if (serverFileExists(tsCloudDistPath)) {
+          const tsCloudDist = readServerFile(tsCloudDistPath)
+          await withS3Retry(() => s3.putObject({
+            bucket: bucketName,
+            key: '_deploy/ts-cloud-dist.js',
+            body: tsCloudDist,
+            contentType: 'application/javascript',
+          }), 'upload ts-cloud dist')
+          if (isVerbose) log.debug('  Uploaded ts-cloud dist to S3')
+        }
+
+        // Generate the production API server code with SES email integration
+        const serverCode = `import { Database } from "bun:sqlite";
+import { SESClient } from "./ts-cloud-dist.js";
+
+const db = new Database("/var/www/api/stacks.db");
+db.run(\`CREATE TABLE IF NOT EXISTS subscribers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,
+  status TEXT DEFAULT 'subscribed',
+  source TEXT DEFAULT 'homepage',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)\`);
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+const ses = new SESClient("${region}");
+
+async function readBody(req) {
+  const contentType = req.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    return await req.json();
+  }
+
+  if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
+    const form = await req.formData();
+    return Object.fromEntries(form.entries());
+  }
+
+  const text = await req.text();
+  return Object.fromEntries(new URLSearchParams(text));
+}
+
+async function sendWelcomeEmail(email) {
+  try {
+    await ses.sendSimpleEmail({
+      from: "hello@stacksjs.com",
+      to: email,
+      subject: "Welcome to Stacks!",
+      html: \`<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#0e0e0e;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;padding:40px 20px;">
+    <tr><td style="text-align:center;padding-bottom:32px;"><h1 style="color:#ececec;font-size:28px;font-weight:600;margin:0;">Stacks</h1></td></tr>
+    <tr><td style="background-color:#1a1a1a;border-radius:12px;padding:32px;">
+      <h2 style="color:#ececec;font-size:22px;font-weight:600;margin:0 0 16px;">Welcome aboard!</h2>
+      <p style="color:#a0a0a0;font-size:16px;line-height:1.6;margin:0 0 16px;">Thanks for subscribing to Stacks. You will be the first to know about new releases, features, and updates.</p>
+      <p style="color:#a0a0a0;font-size:16px;line-height:1.6;margin:0 0 24px;">Stacks is a rapid application development framework that helps you build type-safe web apps, APIs, and cloud infrastructure with ease.</p>
+      <a href="https://stacksjs.com" style="display:inline-block;background-color:#6366f1;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:500;">Visit Stacks</a>
+    </td></tr>
+    <tr><td style="text-align:center;padding-top:32px;"><p style="color:#666;font-size:13px;margin:0;">You received this email because you subscribed at stacksjs.com</p></td></tr>
+  </table>
+</body>
+</html>\`,
+      text: "Welcome to Stacks! Thanks for subscribing. You will be the first to know about new releases, features, and updates. Visit us at https://stacksjs.com",
+    });
+    console.log(\`Welcome email sent to \${email}\`);
+  } catch (err) {
+    console.error(\`Failed to send welcome email to \${email}:\`, err.message);
+  }
+}
+
+const server = Bun.serve({
+  port: ${apiServerPort},
+  hostname: "0.0.0.0",
+  async fetch(req) {
+    const url = new URL(req.url);
+
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    if (url.pathname === "/health" || url.pathname === "/api/health") {
+      return Response.json({ status: "ok" }, { headers: CORS_HEADERS });
+    }
+
+    if (url.pathname === "/api/email/subscribe" && req.method === "POST") {
+      try {
+        const body = await readBody(req);
+        const email = (body.email || "").trim().toLowerCase();
+        if (!email || !email.includes("@")) {
+          return Response.json(
+            { success: false, message: "A valid email is required" },
+            { status: 400, headers: CORS_HEADERS },
+          );
+        }
+
+        const existing = db.query("SELECT id FROM subscribers WHERE email = ?").get(email);
+        if (existing) {
+          return Response.json(
+            { success: true, message: "Already subscribed" },
+            { headers: CORS_HEADERS },
+          );
+        }
+
+        db.run("INSERT INTO subscribers (email, source) VALUES (?, ?)", [email, body.source || "homepage"]);
+
+        // Send welcome email asynchronously (do not block the response)
+        sendWelcomeEmail(email);
+
+        return Response.json(
+          { success: true, message: "Thanks for subscribing!" },
+          { headers: CORS_HEADERS },
+        );
+      } catch (e) {
+        return Response.json(
+          { success: false, message: "Server error" },
+          { status: 500, headers: CORS_HEADERS },
+        );
+      }
+    }
+
+    return Response.json({ error: "Not found" }, { status: 404, headers: CORS_HEADERS });
+  },
+});
+
+console.log(\`Stacks API server running on port \${server.port}\`);
+`
+
+        // Upload server.ts to S3
+        await withS3Retry(() => s3.putObject({
+          bucket: bucketName,
+          key: '_deploy/server.ts',
+          body: Buffer.from(serverCode),
+          contentType: 'application/typescript',
+        }), 'upload server.ts')
+        if (isVerbose) log.debug('  Uploaded server.ts to S3')
+
+        // Use SSM SendCommand to deploy files to EC2 and restart the service
+        // Handles both first-time setup and subsequent deploys
+        const ssmCommand = [
+          // Ensure API directory exists
+          'mkdir -p /var/www/api',
+          // Download deployment artifacts from S3
+          `aws s3 cp s3://${bucketName}/_deploy/ts-cloud-dist.js /var/www/api/ts-cloud-dist.js`,
+          `aws s3 cp s3://${bucketName}/_deploy/server.ts /var/www/api/server.ts`,
+          firewallOpenCommand([apiServerPort]),
+          // Always write the service file so deploys can fix stale ExecStart/port assumptions.
+          `cat > /etc/systemd/system/stacks-api.service << 'SERVICEFILE'
+[Unit]
+Description=Stacks Bun API Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/api
+ExecStart=/root/.bun/bin/bun server.ts
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+SERVICEFILE
+systemctl daemon-reload
+systemctl enable stacks-api`,
+          // Restart the API server
+          'systemctl reset-failed stacks-api || true',
+          'systemctl restart stacks-api',
+          `for i in $(seq 1 20); do curl -fsS http://127.0.0.1:${apiServerPort}/api/health && break; sleep 1; done`,
+          `curl -fsS http://127.0.0.1:${apiServerPort}/api/health`,
+          `echo "API server deployed and restarted on port ${apiServerPort}"`,
+        ].join(' && ')
+
+        // Call SSM SendCommand via AWSClient
+        const ssmResult = await awsClient.request({
+          service: 'ssm',
+          region,
+          method: 'POST',
+          path: '/',
+          headers: {
+            'Content-Type': 'application/x-amz-json-1.1',
+            'X-Amz-Target': 'AmazonSSM.SendCommand',
+          },
+          body: JSON.stringify({
+            InstanceIds: [instanceId],
+            DocumentName: 'AWS-RunShellScript',
+            Parameters: {
+              commands: [ssmCommand],
+            },
+            TimeoutSeconds: 120,
+          }),
+        })
+
+        const commandId = ssmResult?.Command?.CommandId
+        if (commandId) {
+          // Wait for the command to complete
+          let attempts = 0
+          while (attempts < 30) {
+            await new Promise(resolve => setTimeout(resolve, 3000))
+            try {
+              const invocation = await awsClient.request({
+                service: 'ssm',
+                region,
+                method: 'POST',
+                path: '/',
+                headers: {
+                  'Content-Type': 'application/x-amz-json-1.1',
+                  'X-Amz-Target': 'AmazonSSM.GetCommandInvocation',
+                },
+                body: JSON.stringify({
+                  CommandId: commandId,
+                  InstanceId: instanceId,
+                }),
+              })
+
+              const status = invocation?.Status
+              if (status === 'Success') {
+                serverDeploySpinner.succeed('API server deployed to EC2')
+                break
+              } else if (status === 'Failed' || status === 'Cancelled' || status === 'TimedOut') {
+                const errOutput = invocation?.StandardErrorContent || 'Unknown error'
+                serverDeploySpinner.fail(`API server deploy failed: ${errOutput}`)
+                break
+              }
+              // InProgress - keep waiting
+            } catch {
+              // Command may not be ready yet
+            }
+            attempts++
+          }
+          if (attempts >= 30) {
+            serverDeploySpinner.fail('API server deploy timed out waiting for SSM command')
+          }
+        } else {
+          serverDeploySpinner.fail('Failed to send SSM command')
+        }
+
+        // Clean up deployment artifacts from S3
+        try {
+          await s3.deleteObject({ bucket: bucketName, key: '_deploy/ts-cloud-dist.js' })
+          await s3.deleteObject({ bucket: bucketName, key: '_deploy/server.ts' })
+        } catch {
+          // Non-critical cleanup
+        }
+      }
+    } catch (serverDeployError: any) {
+      serverDeploySpinner.fail(`API server deployment failed: ${serverDeployError.message}`)
+      if (isVerbose) log.debug(`Server deploy error: ${serverDeployError.stack}`)
+    }
+
+    // Deploy mail server to EC2 (if email server is enabled)
+    const emailConfig = config.email
+    if (emailConfig?.server?.enabled) {
+      const mailServerMode = emailConfig?.server?.mode || 'server'
+      const smtpSpinner = spinner(`Deploying mail server (${mailServerMode} mode) to EC2...`)
+      smtpSpinner.start()
+
+      try {
+        const { S3Client, AWSClient, EC2Client } = await import('@stacksjs/ts-cloud') as any
+        const { readFileSync: readSmtpFile, existsSync: smtpFileExists } = await import('node:fs')
+        const { resolve: resolvePath, join: joinPath } = await import('node:path')
+        const { execSync } = await import('node:child_process')
+
+        const s3 = new S3Client(region)
+        const awsClient = new AWSClient()
+        const ec2 = new EC2Client(region)
+
+        const stackName = `${projectName}-cloud`
+
+        // Find the EC2 instance, bucket, and security group
+        let smtpInstanceId: string | undefined
+        let smtpBucketName: string | undefined
+        let emailBucketName: string | undefined
+        let securityGroupId: string | undefined
+        try {
+          const { AWSCloudFormationClient: CfnClient } = await import('@stacksjs/ts-cloud') as any
+          const cfn = new CfnClient(region)
+          const cfnOutputs = await cfn.getStackOutputs(stackName)
+          for (const [key, value] of Object.entries(cfnOutputs)) {
+            if ((key as string).endsWith('InstanceId') && typeof value === 'string') {
+              smtpInstanceId = value as string
+            }
+            if ((key as string) === 'FrontendBucketName' && typeof value === 'string') {
+              smtpBucketName = value as string
+            }
+            if ((key as string) === 'emailBucketName' && typeof value === 'string') {
+              emailBucketName = value as string
+            }
+          }
+        } catch {
+          // Stack outputs not available
+        }
+
+        if (!emailBucketName) {
+          emailBucketName = `${projectName}-production-s3-email`
+        }
+
+        if (smtpInstanceId && smtpBucketName) {
+          const mailPorts = [25, 80, 110, 143, 465, 587, 993, 995]
+
+          // Get the security group for the instance to open mail ports
+          try {
+            const instanceData = await ec2.describeInstances({
+              Filters: [{ Name: 'instance-id', Values: [smtpInstanceId] }],
+            })
+            const sgs = instanceData?.Reservations?.[0]?.Instances?.[0]?.SecurityGroups
+            if (sgs?.[0]?.GroupId) {
+              securityGroupId = sgs[0].GroupId
+            }
+          } catch {
+            if (isVerbose) log.debug('Could not get security group for instance')
+          }
+
+          // Open mail ports on the security group
+          if (securityGroupId) {
+            for (const port of mailPorts) {
+              try {
+                await ec2.authorizeSecurityGroupIngress({
+                  GroupId: securityGroupId,
+                  IpPermissions: [{
+                    IpProtocol: 'tcp',
+                    FromPort: port,
+                    ToPort: port,
+                    IpRanges: [{ CidrIp: '0.0.0.0/0', Description: `Mail port ${port}` }],
+                  }],
+                })
+                if (isVerbose) log.debug(`  Opened port ${port} on security group ${securityGroupId}`)
+              } catch (e: any) {
+                // Ignore if rule already exists
+                if (!e.message?.includes('already exists')) {
+                  if (isVerbose) log.debug(`  Port ${port}: ${e.message}`)
+                }
+              }
+            }
+          }
+
+          const domain = emailConfig.domain || 'stacksjs.com'
+          const mailSubdomain = emailConfig?.server?.subdomain || 'mail'
+
+          if (mailServerMode === 'server') {
+            // Server mode: deploy the Pantry-provided Linux binary.
+            if (isVerbose) log.debug('Deploying Zig mail server binary...')
+
+            try {
+              await installMailBinaryWithPantry()
+            } catch (error: any) {
+              if (isVerbose) log.debug(`  Pantry mail install failed: ${error.message}`)
+            }
+
+            const linuxBinaryPath = await findPantryMailBinary()
+            if (linuxBinaryPath && smtpFileExists(linuxBinaryPath)) {
+              if (!await isElfBinary(linuxBinaryPath)) {
+                smtpSpinner.fail(`Pantry installed ${MAIL_PACKAGE_DOMAIN}, but the ${MAIL_TARGET_PLATFORM} binary is not an ELF file.`)
+                throw new Error('Linux binary is not a valid ELF file')
+              }
+
+              // Upload binary to S3
+              const binaryContent = readSmtpFile(linuxBinaryPath)
+              await s3.putObject({
+                bucket: emailBucketName,
+                key: 'mail-server/smtp-server',
+                body: binaryContent,
+                contentType: 'application/octet-stream',
+              })
+              if (isVerbose) log.debug(`  Uploaded Zig binary (${(binaryContent.length / 1024 / 1024).toFixed(1)}MB) to S3`)
+
+              // Deploy Zig binary via SSM
+              const zigSsmCommand = [
+                // Stop any previous mail server services
+                'systemctl stop stacks-mail 2>/dev/null || true',
+                'systemctl disable stacks-mail 2>/dev/null || true',
+                'systemctl stop stacks-smtp 2>/dev/null || true',
+                'systemctl disable stacks-smtp 2>/dev/null || true',
+                'systemctl stop smtp-server 2>/dev/null || true',
+                // Create directories
+                'mkdir -p /opt/smtp-server /var/lib/smtp-server /var/log/smtp-server /var/spool/mail /etc/smtp-server /var/lib/smtp-server/backups',
+                // Download binary from S3
+                `aws s3 cp s3://${emailBucketName}/mail-server/smtp-server /opt/smtp-server/smtp-server --region ${region}`,
+                'chmod +x /opt/smtp-server/smtp-server',
+                // Verify binary
+                'file /opt/smtp-server/smtp-server | grep -q ELF || { echo "Binary is not ELF"; exit 1; }',
+                firewallOpenCommand(mailPorts),
+                // Create environment configuration
+                // Note: TLS is disabled for now due to Zig TLS PEM parsing issue.
+                // SMTP_IO_MODE=epoll is required (io_uring causes issues under systemd).
+                // STARTTLS will be offered once the Zig TLS cert loading is fixed upstream.
+                `cat > /etc/smtp-server/smtp-server.env << 'ENVEOF'
+SMTP_PROFILE=production
+SMTP_HOST=0.0.0.0
+SMTP_PORT=25
+SMTP_HOSTNAME=${mailSubdomain}.${domain}
+SMTP_ENABLE_TLS=false
+SMTP_ENABLE_AUTH=true
+SMTP_DB_PATH=/var/lib/smtp-server/smtp.db
+AWS_S3_BUCKET=${emailBucketName}
+AWS_REGION=${region}
+SMTP_ENABLE_JSON_LOGGING=true
+SMTP_LOG_LEVEL=info
+SMTP_MAILBOX_PATH=/var/spool/mail
+SMTP_BACKUP_PATH=/var/lib/smtp-server/backups
+SMTP_MAX_CONNECTIONS=1000
+SMTP_MAX_MESSAGE_SIZE=52428800
+SMTP_MAX_RECIPIENTS=100
+SMTP_RATE_LIMIT_PER_IP=100
+SMTP_RATE_LIMIT_PER_USER=200
+SMTP_IO_MODE=epoll
+ENVEOF`,
+                'chmod 600 /etc/smtp-server/smtp-server.env',
+                // Create systemd service (no sandboxing - Zig binary needs unrestricted access)
+                `cat > /etc/systemd/system/smtp-server.service << 'SVCEOF'
+[Unit]
+Description=Stacks Mail Server (Zig)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/smtp-server
+EnvironmentFile=/etc/smtp-server/smtp-server.env
+ExecStart=/opt/smtp-server/smtp-server
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smtp-server
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF`,
+                'systemctl daemon-reload',
+                'systemctl enable smtp-server',
+                'systemctl restart smtp-server',
+                // Verify
+                'sleep 3',
+                'systemctl is-active smtp-server && echo "Mail server is running" || echo "Mail server failed to start"',
+                'ss -tlnp | grep -E "(25|143)" || echo "Warning: mail ports not listening yet"',
+              ].join(' && ')
+
+              const ssmResult = await awsClient.request({
+                service: 'ssm',
+                region,
+                method: 'POST',
+                path: '/',
+                headers: {
+                  'Content-Type': 'application/x-amz-json-1.1',
+                  'X-Amz-Target': 'AmazonSSM.SendCommand',
+                },
+                body: JSON.stringify({
+                  InstanceIds: [smtpInstanceId],
+                  DocumentName: 'AWS-RunShellScript',
+                  Parameters: { commands: [zigSsmCommand] },
+                  TimeoutSeconds: 300,
+                }),
+              })
+
+              const cmdId = ssmResult?.Command?.CommandId
+              if (cmdId) {
+                let ssmAttempts = 0
+                while (ssmAttempts < 100) {
+                  await new Promise(resolve => setTimeout(resolve, 3000))
+                  try {
+                    const invocation = await awsClient.request({
+                      service: 'ssm',
+                      region,
+                      method: 'POST',
+                      path: '/',
+                      headers: {
+                        'Content-Type': 'application/x-amz-json-1.1',
+                        'X-Amz-Target': 'AmazonSSM.GetCommandInvocation',
+                      },
+                      body: JSON.stringify({ CommandId: cmdId, InstanceId: smtpInstanceId }),
+                    })
+
+                    const status = invocation?.Status
+                    if (status === 'Success') {
+                      smtpSpinner.succeed('Zig mail server deployed to EC2')
+                      if (isVerbose && invocation?.StandardOutputContent) {
+                        console.log(invocation.StandardOutputContent)
+                      }
+                      break
+                    } else if (status === 'Failed' || status === 'Cancelled' || status === 'TimedOut') {
+                      const errOutput = invocation?.StandardErrorContent || invocation?.StandardOutputContent || 'Unknown error'
+                      smtpSpinner.fail(`Zig mail server deploy failed: ${errOutput.slice(0, 500)}`)
+                      break
+                    }
+                  } catch {
+                    // Not ready yet
+                  }
+                  ssmAttempts++
+                }
+                if (ssmAttempts >= 100) {
+                  smtpSpinner.fail('Zig mail server deploy timed out')
+                }
+              } else {
+                smtpSpinner.fail('Failed to send SSM command for mail server')
+              }
+            } else {
+              smtpSpinner.fail(`No Pantry-provided ${MAIL_TARGET_PLATFORM} mail binary found. Release ${MAIL_PACKAGE_DOMAIN}, then run the Pantry binary sync for that package.`)
+            }
+          } else {
+            // Serverless mode: Deploy the TypeScript SMTP proxy (existing behavior)
+            const smtpServerSrc = resolvePath(p.projectPath('storage/framework/core/cloud/src/imap/smtp-server.ts'))
+            const bundleOutDir = joinPath(p.projectPath(), '.stacks/tmp/smtp-bundle')
+            execSync(`bun build ${smtpServerSrc} --target=bun --outdir=${bundleOutDir}`, { stdio: 'pipe' })
+
+            const bundlePath = joinPath(bundleOutDir, 'smtp-server.js')
+            if (smtpFileExists(bundlePath)) {
+              const smtpBundle = readSmtpFile(bundlePath)
+              const mailboxes = emailConfig.mailboxes || ['chris', 'blake', 'glenn']
+              const usersEntries = (mailboxes as string[]).map((name: string) => {
+                const envKey = `MAIL_PASSWORD_${name.toUpperCase()}`
+                return `  "${name}": { password: process.env["${envKey}"] || "", email: "${name}@${domain}" }`
+              }).join(',\n')
+
+              const entryPoint = `import { SmtpServer } from "./smtp-server.js";
+import * as fs from "fs";
+const domain = "${domain}";
+const users = { ${usersEntries} };
+const certDir = \`/etc/letsencrypt/live/mail.\${domain}\`;
+let tlsConfig = undefined;
+if (fs.existsSync(\`\${certDir}/privkey.pem\`)) {
+  tlsConfig = { key: \`\${certDir}/privkey.pem\`, cert: \`\${certDir}/fullchain.pem\` };
+}
+const server = new SmtpServer({ port: 587, tlsPort: 465, host: "0.0.0.0", domain, users, tls: tlsConfig, sentBucket: "${projectName}-production-email", sentPrefix: "sent/" });
+await server.start();
+`
+              await s3.putObject({ bucket: smtpBucketName, key: '_deploy/smtp-server.js', body: smtpBundle, contentType: 'application/javascript' })
+              await s3.putObject({ bucket: smtpBucketName, key: '_deploy/smtp-entry.ts', body: Buffer.from(entryPoint), contentType: 'application/typescript' })
+
+              const envLines = (mailboxes as string[]).map((name: string) => {
+                const envKey = `MAIL_PASSWORD_${name.toUpperCase()}`
+                return `Environment=${envKey}=${process.env[envKey] || ''}`
+              }).join('\n')
+
+              const smtpSsmCommand = [
+                'mkdir -p /var/www/smtp',
+                `aws s3 cp s3://${smtpBucketName}/_deploy/smtp-server.js /var/www/smtp/smtp-server.js`,
+                `aws s3 cp s3://${smtpBucketName}/_deploy/smtp-entry.ts /var/www/smtp/smtp-entry.ts`,
+                firewallOpenCommand(mailPorts),
+                `if ! command -v certbot &> /dev/null; then dnf install -y certbot || yum install -y certbot || apt-get install -y certbot || true; fi`,
+                `if [ ! -d /etc/letsencrypt/live/mail.${domain} ]; then certbot certonly --standalone --non-interactive --agree-tos --email admin@${domain} -d mail.${domain} --http-01-port 80 || echo "Certbot failed"; fi`,
+                `cat > /etc/systemd/system/stacks-smtp.service << 'SERVICEFILE'
+[Unit]
+Description=Stacks SMTP Proxy Server
+After=network.target
+[Service]
+Type=simple
+WorkingDirectory=/var/www/smtp
+ExecStart=/root/.bun/bin/bun smtp-entry.ts
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=AWS_REGION=${region}
+${envLines}
+[Install]
+WantedBy=multi-user.target
+SERVICEFILE`,
+                'systemctl daemon-reload',
+                'systemctl enable stacks-smtp',
+                'systemctl restart stacks-smtp',
+              ].join(' && ')
+
+              const ssmResult = await awsClient.request({
+                service: 'ssm', region, method: 'POST', path: '/',
+                headers: { 'Content-Type': 'application/x-amz-json-1.1', 'X-Amz-Target': 'AmazonSSM.SendCommand' },
+                body: JSON.stringify({ InstanceIds: [smtpInstanceId], DocumentName: 'AWS-RunShellScript', Parameters: { commands: [smtpSsmCommand] }, TimeoutSeconds: 180 }),
+              })
+
+              const cmdId = ssmResult?.Command?.CommandId
+              if (cmdId) {
+                let ssmAttempts = 0
+                while (ssmAttempts < 60) {
+                  await new Promise(resolve => setTimeout(resolve, 3000))
+                  try {
+                    const invocation = await awsClient.request({
+                      service: 'ssm', region, method: 'POST', path: '/',
+                      headers: { 'Content-Type': 'application/x-amz-json-1.1', 'X-Amz-Target': 'AmazonSSM.GetCommandInvocation' },
+                      body: JSON.stringify({ CommandId: cmdId, InstanceId: smtpInstanceId }),
+                    })
+                    const status = invocation?.Status
+                    if (status === 'Success') { smtpSpinner.succeed('SMTP proxy deployed to EC2'); break }
+                    else if (status === 'Failed' || status === 'Cancelled' || status === 'TimedOut') { smtpSpinner.fail(`SMTP proxy deploy failed: ${invocation?.StandardErrorContent || 'Unknown'}`); break }
+                  } catch { /* not ready */ }
+                  ssmAttempts++
+                }
+                if (ssmAttempts >= 60) smtpSpinner.fail('SMTP proxy deploy timed out')
+              } else {
+                smtpSpinner.fail('Failed to send SSM command for SMTP proxy')
+              }
+
+              try {
+                await s3.deleteObject({ bucket: smtpBucketName, key: '_deploy/smtp-server.js' })
+                await s3.deleteObject({ bucket: smtpBucketName, key: '_deploy/smtp-entry.ts' })
+              } catch { /* non-critical */ }
+            } else {
+              smtpSpinner.stop()
+              if (isVerbose) log.debug('SMTP server bundle not found, skipping')
+            }
+          }
+        } else {
+          smtpSpinner.stop()
+          if (isVerbose) log.debug('No EC2 instance or bucket found, skipping mail server deploy')
+        }
+      } catch (smtpDeployError: any) {
+        smtpSpinner.fail(`Mail server deployment failed: ${smtpDeployError.message}`)
+        if (isVerbose) log.debug(`Mail server deploy error: ${smtpDeployError.stack}`)
+      }
+    }
+  }
+
+  // Deploy frontend to S3 (works for both server and serverless modes)
+  const frontendSpinner = spinner('Deploying frontend to S3...')
+  frontendSpinner.start()
+
+  try {
+    const { S3Client, CloudFormationClient } = await import('@stacksjs/ts-cloud') as any
+    const { readFileSync } = await import('node:fs')
+    const { buildFrontendStatic } = await import('../build/frontend-static')
+
+    const s3 = new S3Client(region)
+    const cf = new CloudFormationClient(region)
+
+    // Get bucket name from stack outputs
+    const stackName = `${projectName}-cloud`
+    const stackOutputs = await cf.getStackOutputs(stackName)
+    const bucketName = stackOutputs.FrontendBucketName
+
+    if (!bucketName) {
+      frontendSpinner.stop()
+      console.log('⚠ Frontend bucket not found in stack outputs (add storage.public to infrastructure config)')
+    } else {
+      // Build the prerendered marketing/public static site into
+      // storage/framework/frontend-dist. This is the same logic invoked by
+      // `buddy build:frontend-static` — extracted to keep both paths DRY.
+      const buildDir = await buildFrontendStatic()
+
+      // Upload files to S3
+      const uploadDir = async (dir: string, _prefix = '') => {
+        await traverseDirectory(dir, async (filePath, key) => {
+          const content = readFileSync(filePath)
+          const contentType = getMimeType(filePath)
+          const cacheControl = key === 'index.html' || key.endsWith('/index.html')
+            ? 'no-cache, no-store, must-revalidate'
+            : 'public, max-age=31536000, immutable'
+          await withS3Retry(() => s3.putObject({ bucket: bucketName, key, body: content, contentType, cacheControl }), `upload ${key}`)
+          if (isVerbose) log.debug(`  Uploaded: ${key}`)
+        })
+      }
+
+      await uploadDir(buildDir)
+
+      // Upload bootstrap/install script to frontend bucket
+      const bootstrapPath = p.projectPath('bootstrap')
+      if (existsSync(bootstrapPath)) {
+        const bootstrapContent = readFileSync(bootstrapPath)
+        await withS3Retry(() => s3.putObject({
+          bucket: bucketName,
+          key: 'install',
+          body: bootstrapContent,
+          contentType: 'text/plain',
+          cacheControl: 'no-cache, no-store, must-revalidate',
+        }), 'upload bootstrap install script')
+        if (isVerbose) log.debug('  Uploaded bootstrap install script')
+      }
+
+      // Invalidate CloudFront cache if distribution exists
+      const distributionId = stackOutputs.publicCloudFrontDistributionId || stackOutputs.CloudFrontDistributionId
+      if (distributionId) {
+        if (isVerbose) log.debug('  Invalidating CloudFront cache...')
+        const { AWSClient } = await import('@stacksjs/ts-cloud') as any
+        const client = new AWSClient()
+        await client.request({
+          service: 'cloudfront',
+          region: 'us-east-1', // CloudFront is always us-east-1
+          method: 'POST',
+          path: `/2020-05-31/distribution/${distributionId}/invalidation`,
+          headers: {
+            'Content-Type': 'application/xml',
+          },
+          body: `<?xml version="1.0" encoding="UTF-8"?>
+<InvalidationBatch xmlns="http://cloudfront.amazonaws.com/doc/2020-05-31/">
+  <CallerReference>${Date.now()}</CallerReference>
+  <Paths>
+    <Quantity>1</Quantity>
+    <Items>
+      <Path>/*</Path>
+    </Items>
+  </Paths>
+</InvalidationBatch>`,
+        })
+      }
+
+      frontendSpinner.succeed(`Frontend deployed to S3 (${bucketName})`)
+    }
+  } catch (frontendError: any) {
+    frontendSpinner.fail(`Frontend deployment failed: ${frontendError.message}`)
+    if (isVerbose) log.debug(`Frontend error: ${frontendError.stack}`)
+  }
+
+  // Deploy documentation to S3
+  // Note: BunPress outputs to .bunpress subdirectory within outdir
+  const docsDistPath = p.projectPath('dist/docs/.bunpress')
+  const { existsSync: docsExists } = await import('node:fs')
+  if (docsExists(docsDistPath)) {
+    const docsDeploySpinner = spinner('Deploying documentation to S3...')
+    docsDeploySpinner.start()
+
+    try {
+      const { S3Client, CloudFormationClient } = await import('@stacksjs/ts-cloud') as any
+      const { readFileSync } = await import('node:fs')
+
+      const s3 = new S3Client(region)
+      const cf = new CloudFormationClient(region)
+
+      // Get docs bucket name from stack outputs
+      const stackName = `${projectName}-cloud`
+      const docsOutputs = await cf.getStackOutputs(stackName)
+      const docsBucketName = docsOutputs.DocsBucketName
+
+      if (!docsBucketName) {
+        docsDeploySpinner.stop()
+        console.log('⚠ Docs bucket not found in stack outputs (infrastructure may not be updated yet)')
+      } else {
+        // Upload docs files to S3 (files go to root since CloudFront routes /docs/* to this bucket)
+        const uploadDocsDir = async (dir: string, _prefix = '') => {
+          await traverseDirectory(dir, async (filePath, key) => {
+            const content = readFileSync(filePath)
+            const contentType = getMimeType(filePath)
+            const cacheControl = key.endsWith('.html')
+              ? 'no-cache, no-store, must-revalidate'
+              : 'public, max-age=31536000, immutable'
+            await withS3Retry(() => s3.putObject({ bucket: docsBucketName, key, body: content, contentType, cacheControl }), `upload docs ${key}`)
+            if (isVerbose) log.debug(`  Uploaded docs: ${key}`)
+          }, '', ['.DS_Store', '.bunpress'])
+        }
+
+        await uploadDocsDir(docsDistPath)
+
+        // Invalidate CloudFront cache for docs
+        // Use the dedicated docs distribution if available, otherwise fall back to shared one
+        const docsDistributionId = docsOutputs.docsCloudFrontDistributionId || docsOutputs.publicCloudFrontDistributionId || docsOutputs.CloudFrontDistributionId
+        if (docsDistributionId) {
+          if (isVerbose) log.debug('  Invalidating CloudFront cache for docs...')
+          const { AWSClient } = await import('@stacksjs/ts-cloud') as any
+          const client = new AWSClient()
+          const docsInvalidationPaths = docsOutputs.docsCloudFrontDistributionId
+            ? ['/*']
+            : ['/docs', '/docs/*']
+          await client.request({
+            service: 'cloudfront',
+            region: 'us-east-1',
+            method: 'POST',
+            path: `/2020-05-31/distribution/${docsDistributionId}/invalidation`,
+            headers: {
+              'Content-Type': 'application/xml',
+            },
+            body: `<?xml version="1.0" encoding="UTF-8"?>
+<InvalidationBatch xmlns="http://cloudfront.amazonaws.com/doc/2020-05-31/">
+  <CallerReference>docs-${Date.now()}</CallerReference>
+  <Paths>
+    <Quantity>${docsInvalidationPaths.length}</Quantity>
+    <Items>
+      ${docsInvalidationPaths.map(path => `<Path>${path}</Path>`).join('\n      ')}
+    </Items>
+  </Paths>
+</InvalidationBatch>`,
+          })
+        }
+
+        docsDeploySpinner.succeed(`Documentation deployed to S3 (${docsBucketName})`)
+      }
+    } catch (docsDeployError: any) {
+      docsDeploySpinner.fail(`Documentation deployment failed: ${docsDeployError.message}`)
+      if (isVerbose) log.debug(`Docs deploy error: ${docsDeployError.stack}`)
+    }
+  } else {
+    if (isVerbose) log.debug('No docs build found at dist/docs, skipping docs deployment')
+  }
+
+  // Deploy blog static site to S3
+  const blogDistPath = p.projectPath('dist/blog')
+  const { existsSync: blogExists } = await import('node:fs')
+  if (blogExists(blogDistPath)) {
+    const blogDeploySpinner = spinner('Deploying blog to S3...')
+    blogDeploySpinner.start()
+
+    try {
+      const { S3Client: BlogS3Client, CloudFormationClient: BlogCFClient } = await import('@stacksjs/ts-cloud') as any
+      const { readFileSync: readBlogFile } = await import('node:fs')
+
+      const blogS3 = new BlogS3Client(region)
+      const blogCf = new BlogCFClient(region)
+
+      const stackName = `${projectName}-cloud`
+      const outputs = await blogCf.getStackOutputs(stackName)
+      const blogBucketName = outputs.BlogBucketName
+
+      if (!blogBucketName) {
+        blogDeploySpinner.stop()
+        console.log('⚠ Blog bucket not found in stack outputs')
+      } else {
+        await traverseDirectory(blogDistPath, async (filePath, key) => {
+          const content = readBlogFile(filePath)
+          const contentType = getMimeType(filePath)
+          const cacheControl = key.endsWith('.html')
+            ? 'no-cache, no-store, must-revalidate'
+            : 'public, max-age=31536000, immutable'
+          await withS3Retry(() => blogS3.putObject({ bucket: blogBucketName, key, body: content, contentType, cacheControl }), `upload blog ${key}`)
+          if (isVerbose) log.debug(`  Uploaded blog: ${key}`)
+        }, '', ['.DS_Store'])
+
+        // Invalidate CloudFront cache for blog
+        const blogDistributionId = outputs.blogCloudFrontDistributionId || outputs.publicCloudFrontDistributionId || outputs.CloudFrontDistributionId
+        if (blogDistributionId) {
+          if (isVerbose) log.debug('  Invalidating CloudFront cache for blog...')
+          const { AWSClient: BlogAWSClient } = await import('@stacksjs/ts-cloud') as any
+          const blogClient = new BlogAWSClient()
+          const blogInvalidationPaths = outputs.blogCloudFrontDistributionId
+            ? ['/*']
+            : ['/blog', '/blog/*']
+          await blogClient.request({
+            service: 'cloudfront',
+            region: 'us-east-1',
+            method: 'POST',
+            path: `/2020-05-31/distribution/${blogDistributionId}/invalidation`,
+            headers: {
+              'Content-Type': 'application/xml',
+            },
+            body: `<?xml version="1.0" encoding="UTF-8"?>
+<InvalidationBatch xmlns="http://cloudfront.amazonaws.com/doc/2020-05-31/">
+  <CallerReference>blog-${Date.now()}</CallerReference>
+  <Paths>
+    <Quantity>${blogInvalidationPaths.length}</Quantity>
+    <Items>
+      ${blogInvalidationPaths.map(path => `<Path>${path}</Path>`).join('\n      ')}
+    </Items>
+  </Paths>
+</InvalidationBatch>`,
+          })
+        }
+
+        blogDeploySpinner.succeed(`Blog deployed to S3 (${blogBucketName})`)
+      }
+    } catch (blogDeployError: any) {
+      blogDeploySpinner.fail(`Blog deployment failed: ${blogDeployError.message}`)
+      if (isVerbose) log.debug(`Blog deploy error: ${blogDeployError.stack}`)
+    }
+  } else {
+    if (isVerbose) log.debug('No blog build found at dist/blog, skipping blog deployment')
+  }
+
+  // Deploy 404 page and configure CloudFront error responses
+  const errorPageSpinner = spinner('Configuring 404 error page...')
+  errorPageSpinner.start()
+
+  try {
+    const { S3Client, CloudFormationClient, AWSClient } = await import('@stacksjs/ts-cloud') as any
+    const { existsSync: exists404, readFileSync: read404 } = await import('node:fs')
+
+    const s3 = new S3Client(region)
+    const cf = new CloudFormationClient(region)
+    const awsClient = new AWSClient()
+
+    // Get bucket names and distribution ID from stack outputs
+    const stackName = `${projectName}-cloud`
+    const outputs = await cf.getStackOutputs(stackName)
+    const frontendBucket = outputs.FrontendBucketName
+    const docsBucket = outputs.DocsBucketName
+    const distributionId = outputs.publicCloudFrontDistributionId || outputs.CloudFrontDistributionId
+
+    // Check for 404.html in docs build output
+    const docs404Path = p.projectPath('dist/docs/.bunpress/404.html')
+    let html404Content: string
+
+    if (exists404(docs404Path)) {
+      // Use the 404.html generated by BunPress
+      html404Content = read404(docs404Path, 'utf-8')
+      if (isVerbose) log.debug('  Using BunPress-generated 404.html')
+    } else {
+      // Generate a default VitePress-style 404 page
+      html404Content = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 - Page Not Found</title>
+  <meta name="robots" content="noindex">
+  <style>
+    :root {
+      --vp-c-bg: #ffffff;
+      --vp-c-divider: #e2e2e3;
+      --vp-c-text-1: rgba(60, 60, 67);
+      --vp-c-text-2: rgba(60, 60, 67, 0.78);
+      --vp-c-brand-1: #3451b2;
+      --vp-c-brand-2: #3a5ccc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --vp-c-bg: #1b1b1f;
+        --vp-c-divider: #2e2e32;
+        --vp-c-text-1: rgba(255, 255, 245, 0.86);
+        --vp-c-text-2: rgba(235, 235, 245, 0.6);
+        --vp-c-brand-1: #a8b1ff;
+        --vp-c-brand-2: #5c73e7;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { min-height: 100vh; background: var(--vp-c-bg); color: var(--vp-c-text-1); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    .NotFound { padding: 96px 32px 168px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .code { font-size: 64px; font-weight: 600; line-height: 64px; }
+    .title { padding-top: 12px; letter-spacing: 2px; font-size: 20px; font-weight: 700; }
+    .divider { margin: 24px auto 18px; width: 64px; height: 1px; background: var(--vp-c-divider); }
+    .quote { max-width: 256px; font-size: 14px; font-weight: 500; color: var(--vp-c-text-2); }
+    .action { padding-top: 20px; }
+    .link { display: inline-block; border: 1px solid var(--vp-c-brand-1); border-radius: 16px; padding: 3px 16px; font-size: 14px; font-weight: 500; color: var(--vp-c-brand-1); text-decoration: none; transition: border-color 0.25s, color 0.25s; }
+    .link:hover { border-color: var(--vp-c-brand-2); color: var(--vp-c-brand-2); }
+  </style>
+</head>
+<body>
+  <div class="NotFound">
+    <p class="code">404</p>
+    <h1 class="title">PAGE NOT FOUND</h1>
+    <div class="divider"></div>
+    <blockquote class="quote">But if you don't change your direction, and if you keep looking, you may end up where you are heading.</blockquote>
+    <div class="action"><a class="link" href="/docs/">Take me home</a></div>
+  </div>
+</body>
+</html>`
+      if (isVerbose) log.debug('  Using default 404.html template')
+    }
+
+    // Upload 404.html to frontend bucket
+    if (frontendBucket) {
+      await withS3Retry(() => s3.putObject({
+        bucket: frontendBucket,
+        key: '404.html',
+        body: html404Content,
+        contentType: 'text/html',
+        cacheControl: 'no-cache, no-store, must-revalidate',
+      }), 'upload 404.html to frontend bucket')
+      if (isVerbose) log.debug(`  Uploaded 404.html to frontend bucket: ${frontendBucket}`)
+    }
+
+    // Upload 404.html to docs bucket
+    if (docsBucket) {
+      await withS3Retry(() => s3.putObject({
+        bucket: docsBucket,
+        key: '404.html',
+        body: html404Content,
+        contentType: 'text/html',
+        cacheControl: 'no-cache, no-store, must-revalidate',
+      }), 'upload 404.html to docs bucket')
+      if (isVerbose) log.debug(`  Uploaded 404.html to docs bucket: ${docsBucket}`)
+    }
+
+    // Configure CloudFront custom error responses
+    if (distributionId) {
+      if (isVerbose) log.debug('  Configuring CloudFront custom error responses...')
+
+      // Get current distribution config
+      const getResult = await awsClient.request({
+        service: 'cloudfront',
+        region: 'us-east-1',
+        method: 'GET',
+        path: `/2020-05-31/distribution/${distributionId}/config`,
+        returnHeaders: true,
+      })
+
+      const etag = getResult.headers?.etag || getResult.headers?.ETag || ''
+      const currentConfig = getResult.body?.DistributionConfig || getResult.DistributionConfig
+
+      if (currentConfig && etag) {
+        // Check if custom error responses are already configured
+        const existingErrors = currentConfig.CustomErrorResponses?.Quantity || 0
+        const has404Config = existingErrors > 0 &&
+          currentConfig.CustomErrorResponses?.Items?.CustomErrorResponse?.some?.(
+            (err: any) => err.ErrorCode === 404 && err.ResponsePagePath === '/404.html'
+          )
+
+        if (!has404Config) {
+          // Update custom error responses
+          currentConfig.CustomErrorResponses = {
+            Quantity: 2,
+            Items: {
+              CustomErrorResponse: [
+                {
+                  ErrorCode: 403,
+                  ResponsePagePath: '/404.html',
+                  ResponseCode: 404,
+                  ErrorCachingMinTTL: 10,
+                },
+                {
+                  ErrorCode: 404,
+                  ResponsePagePath: '/404.html',
+                  ResponseCode: 404,
+                  ErrorCachingMinTTL: 10,
+                },
+              ],
+            },
+          }
+
+          // Build XML for update
+          const buildXmlElement = (name: string, value: any, indent: string = ''): string => {
+            if (value === null || value === undefined) return ''
+            if (typeof value === 'boolean') return `${indent}<${name}>${value}</${name}>\n`
+            if (typeof value === 'number' || typeof value === 'string') return `${indent}<${name}>${value}</${name}>\n`
+            if (Array.isArray(value)) return value.map(item => buildXmlElement(name, item, indent)).join('')
+            if (typeof value === 'object') {
+              if (name.startsWith('@_') || name === '?xml') return ''
+              let children = ''
+              for (const [key, val] of Object.entries(value)) {
+                if (!key.startsWith('@_') && key !== '#text') {
+                  children += buildXmlElement(key, val, `${indent}  `)
+                }
+              }
+              if ((value as any)['#text'] !== undefined) return `${indent}<${name}>${(value as any)['#text']}</${name}>\n`
+              return `${indent}<${name}>\n${children}${indent}</${name}>\n`
+            }
+            return ''
+          }
+
+          const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<DistributionConfig xmlns="http://cloudfront.amazonaws.com/doc/2020-05-31/">\n${Object.entries(currentConfig)
+            .filter(([key]) => !key.startsWith('@_'))
+            .map(([key, val]) => buildXmlElement(key, val, '  '))
+            .join('')}</DistributionConfig>\n`
+
+          // Update the distribution
+          await awsClient.request({
+            service: 'cloudfront',
+            region: 'us-east-1',
+            method: 'PUT',
+            path: `/2020-05-31/distribution/${distributionId}/config`,
+            body: xml,
+            headers: {
+              'Content-Type': 'application/xml',
+              'If-Match': etag,
+            },
+          })
+          if (isVerbose) log.debug('  CloudFront custom error responses configured')
+        } else {
+          if (isVerbose) log.debug('  CloudFront custom error responses already configured')
+        }
+      }
+    }
+
+    errorPageSpinner.succeed('404 error page configured')
+  } catch (errorPageError: any) {
+    errorPageSpinner.stop()
+    console.log(`⚠ 404 page configuration skipped: ${errorPageError.message}`)
+    if (isVerbose) log.debug(`Error page config error: ${errorPageError.stack}`)
+  }
+  // ============================================
+  // Tunnel server deployment (custom domains only)
+  // ============================================
+  try {
+    const tunnelCloudConfig = await import(p.projectPath('config/cloud'))
+    const tunnelConfig = tunnelCloudConfig?.tsCloud?.infrastructure?.tunnel
+
+    if (tunnelConfig?.enabled) {
+      const tunnelDomain = tunnelConfig.domain || ''
+
+      if (!tunnelDomain || tunnelDomain === 'localtunnel.dev' || tunnelDomain === 'api.localtunnel.dev') {
+        console.log('ℹ Tunnel: Using shared localtunnel.dev (no custom tunnel deployment needed)')
+      }
+      else {
+        const tunnelSpinner = spinner(`Deploying tunnel server to ${tunnelDomain}...`)
+        tunnelSpinner.start()
+        try {
+          const { deployTunnelServer } = await import('@stacksjs/tunnel')
+          await deployTunnelServer({
+            domain: tunnelDomain,
+            region: tunnelConfig.region || tunnelCloudConfig?.tsCloud?.project?.region || 'us-east-1',
+            instanceType: tunnelConfig.instanceType,
+            prefix: tunnelConfig.prefix,
+            enableSsl: tunnelConfig.ssl?.enabled,
+            porkbunApiKey: tunnelConfig.ssl?.porkbunApiKey,
+            porkbunSecretKey: tunnelConfig.ssl?.porkbunSecretKey,
+            verbose: isVerbose,
+          })
+          tunnelSpinner.succeed(`Tunnel server deployed to ${tunnelDomain}`)
+        }
+        catch (tunnelError: any) {
+          tunnelSpinner.stop()
+          console.log(`⚠ Tunnel deployment skipped: ${tunnelError.message}`)
+          if (isVerbose) log.debug(`Tunnel deploy error: ${tunnelError.stack}`)
+        }
+      }
+    }
+  }
+  catch {
+    // Tunnel config not available — skip silently
+  }
+
+  // ============================================
+  // DNS record reconciliation
+  // Ensures Route53 A/AAAA records point to CloudFront distributions
+  // This fixes drift where CloudFormation thinks records exist but they were deleted
+  // ============================================
+  const dnsSpinner = spinner('Reconciling DNS records...')
+  dnsSpinner.start()
+
+  try {
+    const { Route53Client, CloudFormationClient: DnsCfClient } = await import('@stacksjs/ts-cloud') as any
+
+    const dnsCf = new DnsCfClient(region)
+    const dnsStackName = `${projectName}-cloud`
+    const dnsOutputs = await dnsCf.getStackOutputs(dnsStackName)
+
+    // Load cloud config for DNS settings
+    const dnsCloudConfig = await import(p.projectPath('config/cloud'))
+    const hostedZoneId = dnsCloudConfig?.tsCloud?.infrastructure?.dns?.hostedZoneId
+    const siteDomain = dnsCloudConfig?.tsCloud?.infrastructure?.dns?.domain || 'stacksjs.com'
+
+    if (hostedZoneId) {
+      const route53 = new Route53Client(region)
+
+      // CloudFront hosted zone ID (always Z2FDTNDATAQYW2 for all CloudFront distributions)
+      const cfHostedZoneId = 'Z2FDTNDATAQYW2'
+
+      // Map domains to their CloudFront distributions
+      const domainMappings: Array<{ domain: string, cfDomain: string | undefined }> = [
+        { domain: siteDomain, cfDomain: dnsOutputs.publicCloudFrontDomain },
+        { domain: `www.${siteDomain}`, cfDomain: dnsOutputs.publicCloudFrontDomain },
+        { domain: `docs.${siteDomain}`, cfDomain: dnsOutputs.docsCloudFrontDomain },
+        { domain: `blog.${siteDomain}`, cfDomain: dnsOutputs.blogCloudFrontDomain },
+      ]
+
+      let recordsCreated = 0
+      for (const { domain, cfDomain } of domainMappings) {
+        if (!cfDomain) continue
+
+        // Check if A record exists
+        try {
+          const existing = await route53.listResourceRecordSets({
+            HostedZoneId: hostedZoneId,
+            StartRecordName: domain,
+            StartRecordType: 'A',
+            MaxItems: '1',
+          })
+
+          const records = existing?.ResourceRecordSets || []
+          const hasARecord = records.some((r: any) =>
+            r.Name === `${domain}.` && r.Type === 'A'
+          )
+
+          if (!hasARecord) {
+            // Create A record (alias to CloudFront)
+            await route53.changeResourceRecordSets({
+              HostedZoneId: hostedZoneId,
+              ChangeBatch: {
+                Changes: [
+                  {
+                    Action: 'UPSERT',
+                    ResourceRecordSet: {
+                      Name: domain,
+                      Type: 'A',
+                      AliasTarget: {
+                        HostedZoneId: cfHostedZoneId,
+                        DNSName: cfDomain,
+                        EvaluateTargetHealth: false,
+                      },
+                    },
+                  },
+                  {
+                    Action: 'UPSERT',
+                    ResourceRecordSet: {
+                      Name: domain,
+                      Type: 'AAAA',
+                      AliasTarget: {
+                        HostedZoneId: cfHostedZoneId,
+                        DNSName: cfDomain,
+                        EvaluateTargetHealth: false,
+                      },
+                    },
+                  },
+                ],
+              },
+            })
+            recordsCreated++
+            if (isVerbose) log.debug(`  Created DNS records: ${domain} -> ${cfDomain}`)
+          } else {
+            if (isVerbose) log.debug(`  DNS record exists: ${domain}`)
+          }
+        } catch (dnsErr: any) {
+          if (isVerbose) log.debug(`  DNS check/create failed for ${domain}: ${dnsErr.message}`)
+        }
+      }
+
+      if (recordsCreated > 0) {
+        dnsSpinner.succeed(`DNS records reconciled (${recordsCreated} created)`)
+      } else {
+        dnsSpinner.succeed('DNS records verified')
+      }
+    } else {
+      dnsSpinner.stop()
+      if (isVerbose) log.debug('No hosted zone ID configured, skipping DNS reconciliation')
+    }
+  } catch (dnsError: any) {
+    dnsSpinner.stop()
+    console.log(`⚠ DNS reconciliation skipped: ${dnsError.message}`)
+    if (isVerbose) log.debug(`DNS error: ${dnsError.stack}`)
+  }
+
+  console.log('')
+  log.success('Deployment completed successfully!')
+} catch (error) {
+  log.error('Deployment failed:', error)
+  process.exit(ExitCode.FatalError)
+}
+
+// Legacy CDK deployment (commented out for reference)
+// const profile = process.env.AWS_PROFILE ?? 'stacks'
+// const result = await runCommand(`bunx --bun cdk deploy --require-approval never --profile="${profile}"`, {
+//   cwd: p.frameworkCloudPath(),
+// })
+// if (result.isErr) {
+//   log.error(result.error)
+//   process.exit(ExitCode.FatalError)
+// }
+// const t = result.value as Subprocess
+// await t.exited

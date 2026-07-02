@@ -1,0 +1,24 @@
+import { Action } from '@stacksjs/actions'
+import { response } from '@stacksjs/router'
+
+export default new Action({
+  name: 'UpdateCustomerAction',
+  description: 'Update customer detauls',
+  method: 'POST',
+  async handle(request: RequestInstance) {
+    const user = await request.user()
+
+    if (!user)
+      return response.unauthorized('Authentication required')
+
+    const customer = await user?.syncStripeCustomerDetails({ address: {
+      line1: '123 Elm St',
+      city: 'Austin',
+      state: 'TX',
+      postal_code: '78701',
+      country: 'US',
+    } })
+
+    return response.json(customer)
+  },
+})

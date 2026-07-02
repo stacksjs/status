@@ -1,0 +1,54 @@
+{
+  "name": "@stacksjs/events",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "Functional event emitting.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/events#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/events"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "events",
+    "functional",
+    "functions",
+    "mitt",
+    "stacks"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "import": "./dist/*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "test": "bun test.ts",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "better-dx": "^0.2.12"
+  }
+}

@@ -1,0 +1,99 @@
+<script>
+interface NotificationDemoProps {
+  position?: string
+  theme?: string
+}
+
+const { position = 'top-right', theme = 'light' } = defineProps<NotificationDemoProps>()
+</script>
+<div class="max-w-4xl">
+  <DocsPlayground>
+    <div class="flex flex-wrap gap-3">
+      <button
+        class="px-4 py-2 text-white bg-blue-500 hover:bg-blue-600 rounded"
+        data-action="show-notification"
+        data-type="basic"
+      >
+        Basic Notification
+      </button>
+
+      <button
+        class="px-4 py-2 text-white bg-green-500 hover:bg-green-600 rounded"
+        data-action="show-notification"
+        data-type="success"
+      >
+        Success Notification
+      </button>
+
+      <button
+        class="px-4 py-2 text-white bg-red-500 hover:bg-red-600 rounded"
+        data-action="show-notification"
+        data-type="error"
+      >
+        Error Notification
+      </button>
+
+      <button
+        class="px-4 py-2 text-white bg-yellow-500 hover:bg-yellow-600 rounded"
+        data-action="show-notification"
+        data-type="loading"
+      >
+        Loading Notification
+      </button>
+
+      <button
+        class="px-4 py-2 text-white bg-purple-500 hover:bg-purple-600 rounded"
+        data-action="show-notification"
+        data-type="promise"
+      >
+        Promise Notification
+      </button>
+
+      <button
+        class="px-4 py-2 text-white bg-gray-500 hover:bg-gray-600 rounded"
+        data-action="show-notification"
+        data-type="custom"
+      >
+        Custom Notification
+      </button>
+    </div>
+
+    <div class="mt-3 space-y-2">
+      <label class="block">
+        Position:
+        <select
+          name="position"
+          class="ml-2 p-1 font-semibold text-center text-white bg-blue-500 border rounded"
+          data-action="change-position"
+        >
+          <option value="top-right" {{ position == 'top-right' ? 'selected' : '' }}>Top Right</option>
+          <option value="top-left" {{ position == 'top-left' ? 'selected' : '' }}>Top Left</option>
+          <option value="bottom-right" {{ position == 'bottom-right' ? 'selected' : '' }}>Bottom Right</option>
+          <option value="bottom-left" {{ position == 'bottom-left' ? 'selected' : '' }}>Bottom Left</option>
+          <option value="top-center" {{ position == 'top-center' ? 'selected' : '' }}>Top Center</option>
+          <option value="bottom-center" {{ position == 'bottom-center' ? 'selected' : '' }}>Bottom Center</option>
+        </select>
+      </label>
+
+      <label class="block">
+        Theme:
+        <select
+          name="theme"
+          class="ml-2 p-2 font-semibold text-center text-white bg-blue-500 border rounded"
+          data-action="change-theme"
+        >
+          <option value="light" {{ theme == 'light' ? 'selected' : '' }}>Light</option>
+          <option value="dark" {{ theme == 'dark' ? 'selected' : '' }}>Dark</option>
+          <option value="system" {{ theme == 'system' ? 'selected' : '' }}>System</option>
+        </select>
+      </label>
+    </div>
+
+    <div slot="code">
+      <!-- NotificationCode component would be rendered here -->
+    </div>
+  </DocsPlayground>
+</div>
+
+<!-- Notification container would be rendered here with position and theme props -->
+<div id="notification-container" data-position="{{ position }}" data-theme="{{ theme }}"></div>

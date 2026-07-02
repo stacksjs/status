@@ -1,0 +1,47 @@
+{
+  "name": "@stacksjs/hello-world-vue",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "Your Vue component library description",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/components#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "resources/components"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "component",
+    "library",
+    "typescript",
+    "javascript"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "dev": "bunx --bun vite -c ../../../core/vite-config/src/components.ts",
+    "build": "bunx --bun vite build -c ../../../core/vite-config/src/components.ts",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "stacks": "workspace:*"
+  }
+}

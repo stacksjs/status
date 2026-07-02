@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 200" preserveAspectRatio="none" fill="#000">
+  <!-- Layered park skyline used as a single-colour silhouette (mask/background).
+       Two soft hill ranges, then a natural, uneven treeline: pines of varied
+       height, width and spacing so no two sit at the same rhythm. -->
+  <path d="M0 200 V132 L80 112 L170 128 L250 96 L340 120 L430 86 L540 118 L640 92 L740 122 L840 98 L950 124 L1050 104 L1140 126 L1200 110 V200 Z" opacity="0.5"/>
+  <path d="M0 200 V158 L100 140 L190 160 L290 122 L370 150 L470 112 L560 146 L660 118 L770 150 L880 126 L990 156 L1090 132 L1200 158 V200 Z"/>
+  <g>
+    <path d="M92 162 l16 24 h-7 l13 20 h-8 l13 18 h-40 l13-18 h-8 l13-20 h-7 z"/>
+    <path d="M158 168 l10 15 h-5 l8 13 h-6 l9 13 h-27 l9-13 h-6 l8-13 h-5 z"/>
+    <path d="M247 150 l21 30 h-9 l17 25 h-11 l17 23 h-51 l17-23 h-11 l17-25 h-9 z"/>
+    <path d="M338 166 l12 18 h-6 l10 15 h-7 l10 15 h-31 l10-15 h-7 l10-15 h-6 z"/>
+    <path d="M470 142 l24 34 h-10 l19 28 h-12 l19 25 h-58 l19-25 h-12 l19-28 h-10 z"/>
+    <path d="M548 170 l9 14 h-5 l8 12 h-6 l8 12 h-25 l8-12 h-6 l8-12 h-4 z"/>
+    <path d="M660 154 l18 26 h-8 l14 21 h-9 l15 20 h-44 l15-20 h-9 l14-21 h-8 z"/>
+    <path d="M742 172 l11 16 h-6 l9 14 h-6 l9 13 h-29 l9-13 h-6 l9-14 h-6 z"/>
+    <path d="M872 150 l22 32 h-9 l18 26 h-11 l18 24 h-54 l18-24 h-11 l18-26 h-9 z"/>
+    <path d="M968 168 l13 19 h-6 l11 16 h-7 l11 16 h-34 l11-16 h-7 l11-16 h-6 z"/>
+    <path d="M1088 158 l17 25 h-8 l14 20 h-9 l14 19 h-42 l14-19 h-9 l14-20 h-7 z"/>
+  </g>
+</svg>

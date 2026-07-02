@@ -1,0 +1,123 @@
+import type { Reviews } from '../../../types/defaults'
+import { useStorage } from '@stacksjs/browser'
+import { pushToast } from '../../toasts'
+
+// Create a persistent reviews array using VueUse's useStorage
+const reviews = useStorage<Reviews[]>('reviews', [])
+
+const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+
+// Basic fetch function to get all reviews
+async function fetchReviews(): Promise<Reviews[]> {
+  try {
+    const response = await fetch(`${baseURL}/commerce/products/reviews`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const data = await response.json() as Reviews[]
+
+    if (Array.isArray(data)) {
+      reviews.value = data
+      return data
+    }
+    else {
+      pushToast('error', 'Couldn\'t load reviews', { detail: 'Server returned a non-array response' })
+      return []
+    }
+  }
+  catch (error) {
+    pushToast('error', 'Error fetching reviews', { detail: String(error) })
+    return []
+  }
+}
+
+async function createReview(review: Reviews): Promise<Reviews | null> {
+  try {
+    const response = await fetch(`${baseURL}/commerce/products/reviews`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(review),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json() as Reviews
+    if (data) {
+      reviews.value.push(data)
+      return data
+    }
+    return null
+  }
+  catch (error) {
+    pushToast('error', 'Error creating review', { detail: String(error) })
+    return null
+  }
+}
+
+async function updateReview(review: Reviews): Promise<Reviews | null> {
+  try {
+    const response = await fetch(`${baseURL}/commerce/products/reviews/${review.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(review),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json() as Reviews
+    if (data) {
+      const index = reviews.value.findIndex(r => r.id === review.id)
+      if (index !== -1) {
+        reviews.value[index] = data
+      }
+      return data
+    }
+    return null
+  }
+  catch (error) {
+    pushToast('error', 'Error updating review', { detail: String(error) })
+    return null
+  }
+}
+
+async function deleteReview(id: number): Promise<boolean> {
+  try {
+    const response = await fetch(`${baseURL}/commerce/products/reviews/${id}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const index = reviews.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      reviews.value.splice(index, 1)
+    }
+
+    return true
+  }
+  catch (error) {
+    pushToast('error', 'Error deleting review', { detail: String(error) })
+    return false
+  }
+}
+
+// Export the composable
+export function useReviews() {
+  return {
+    reviews,
+    fetchReviews,
+    createReview,
+    updateReview,
+    deleteReview,
+  }
+}

@@ -1,0 +1,78 @@
+<!--
+  Custom Dashboard Card Component
+
+  A flexible card component for dashboard content.
+
+  Usage:
+  <Card title="My Card" :actions="[{ label: 'Action', onClick: handleClick }]">
+    <p>Card content here</p>
+  </Card>
+-->
+
+<script>
+interface CardProps {
+  title?: string
+  subtitle?: string
+  actions?: any[]
+  padding?: boolean
+}
+
+const { title, subtitle, actions, padding } = defineProps<CardProps>()
+</script>
+<div class="dashboard-card">
+    @if (title || actions.length > 0)
+      <div class="dashboard-card-header">
+        <div>
+          @if (title)
+            <h3 class="dashboard-card-title">{{ title }}</h3>
+          @endif
+          @if (subtitle)
+            <p class="dashboard-card-subtitle">{{ subtitle }}</p>
+          @endif
+        </div>
+        @if (actions.length > 0)
+          <div class="dashboard-card-actions">
+            @foreach (actions as action)
+              <button class="btn btn-ghost btn-sm" @click="action.onClick">
+                {{ action.label }}
+              </button>
+            @endforeach
+          </div>
+        @endif
+      </div>
+    @endif
+    <div class="{{ padding ? 'dashboard-card-content' : '' }}">
+      <slot></slot>
+    </div>
+  </div>
+<style>
+.dashboard-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+.dashboard-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.dashboard-card-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.dashboard-card-subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin-top: 0.125rem;
+}
+.dashboard-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.dashboard-card-content {
+  padding: 1.25rem;
+}
+</style>

@@ -1,0 +1,5 @@
+@yield('content')
+
+@yield('footer')
+
+@stack('scripts')

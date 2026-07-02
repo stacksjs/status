@@ -1,0 +1,16 @@
+<script>
+interface ForumCategoryProps {
+  title?: string
+}
+
+const { title = '' } = defineProps<ForumCategoryProps>()
+</script>
+<div class="mb-8">
+    <div class="flex items-center px-4 py-3 bg-gray-100 rounded-t-md">
+      <h2 class="font-bold text-lg">{{ title }}</h2>
+    </div>
+
+    <div class="border divide-y rounded-b-md">
+      <slot />
+    </div>
+  </div>

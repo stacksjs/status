@@ -1,0 +1,93 @@
+<script server>
+interface TextareaProps {
+  value?: string
+  label?: string
+  placeholder?: string
+  error?: string
+  hint?: string
+  disabled?: boolean
+  readonly?: boolean
+  required?: boolean
+  rows?: number
+  maxLength?: number
+  showCount?: boolean
+  resize?: 'none' | 'vertical' | 'horizontal' | 'both'
+  name?: string
+  id?: string
+}
+
+const { value = '', label = '', placeholder = '', error = '', hint = '', disabled = false, readonly = false, required = false, rows = 3, maxLength = 0, showCount = false, resize = 'vertical', name = '', id = '' } = defineProps<TextareaProps>()
+
+const resizeClasses = {
+  none: 'resize-none',
+  vertical: 'resize-y',
+  horizontal: 'resize-x',
+  both: 'resize'
+}
+
+const borderClass = error
+  ? 'border-red-300 dark:border-red-700 focus:ring-red-500/20 focus:border-red-500'
+  : 'border-neutral-300 dark:border-neutral-600 hover:border-neutral-400 dark:hover:border-neutral-500 focus:ring-blue-500/20 focus:border-blue-500'
+
+const disabledClass = disabled
+  ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed border-neutral-200 dark:border-neutral-700'
+  : 'bg-white dark:bg-neutral-900'
+
+const textareaClass = [
+  'block w-full rounded-lg border transition-all duration-150',
+  'text-sm text-neutral-900 dark:text-white',
+  'placeholder:text-neutral-400 dark:placeholder:text-neutral-500',
+  'focus:outline-none focus:ring-2',
+  'px-3 py-2.5',
+  resizeClasses[resize],
+  borderClass,
+  disabledClass
+].join(' ')
+
+const textareaId = id || 'textarea-' + Math.random().toString(36).slice(2, 11)
+</script>
+<div>
+    @if(label || (showCount && maxLength))
+      <div class="flex items-center justify-between mb-1.5">
+        @if(label)
+          <label for="{{ textareaId }}" class="block font-medium text-neutral-700 text-sm dark:text-neutral-200">
+            {{ label }}
+            @if(required)
+              <span class="text-red-500">*</span>
+            @endif
+          </label>
+        @endif
+        @if(showCount && maxLength)
+          <span class="text-neutral-400 text-xs dark:text-neutral-500">
+            <span data-char-count>{{ value.length || 0 }}</span>/{{ maxLength }}
+          </span>
+        @endif
+      </div>
+    @endif
+
+    <div class="relative">
+      <textarea
+        id="{{ textareaId }}"
+        name="{{ name }}"
+        rows="{{ rows }}"
+        placeholder="{{ placeholder }}"
+        class="{{ textareaClass }}"
+        @if(disabled) disabled @endif
+        @if(readonly) readonly @endif
+        @if(required) required @endif
+        @if(maxLength) maxlength="{{ maxLength }}" @endif
+      >{{ value }}</textarea>
+
+      @if(showCount && !maxLength)
+        <span class="absolute bottom-2 right-2 px-1 text-neutral-400 text-xs dark:text-neutral-500 bg-white dark:bg-neutral-900">
+          <span data-char-count>{{ value.length || 0 }}</span> characters
+        </span>
+      @endif
+    </div>
+
+    @if(error)
+      <p class="mt-1.5 text-red-600 text-sm dark:text-red-400">{{ error }}</p>
+    @elseif(hint)
+      <p class="mt-1.5 text-neutral-500 text-sm dark:text-neutral-400">{{ hint }}</p>
+    @endif
+  </div>

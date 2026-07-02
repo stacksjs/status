@@ -1,0 +1,23 @@
+<script>
+interface ForumTopicListProps {
+  title?: string
+}
+
+const { title = '' } = defineProps<ForumTopicListProps>()
+</script>
+<div class="mb-8">
+  <div class="flex items-center justify-between px-4 py-3 bg-gray-100 rounded-t-md">
+    <h2 class="font-bold text-lg">{{ title }}</h2>
+    <div class="flex gap-2 items-center">
+      <select class="px-2 py-1 text-sm border rounded" name="sort" data-action="sort-topics">
+        <option value="latest">Sort by Latest</option>
+        <option value="popular">Sort by Popular</option>
+        <option value="unanswered">Sort by Unanswered</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="border divide-y rounded-b-md">
+    <slot />
+  </div>
+</div>

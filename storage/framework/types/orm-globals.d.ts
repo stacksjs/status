@@ -1,0 +1,94 @@
+/**
+ * Global type declarations for ORM utilities and request types.
+ *
+ * These types are available globally without imports in all Stacks application code.
+ * Model types are derived dynamically from defineModel() definitions via `as const`.
+ *
+ * @example
+ * // No imports needed — all of these are global:
+ * type PostRow = ModelRow<typeof Post>
+ * type NewPost = NewModelData<typeof Post>
+ *
+ * // Actions with model: Post get fully typed requests automatically:
+ * new Action({
+ *   model: Post,
+ *   async handle(request) {
+ *     request.get('title')   // autocompletes to Post fields, returns string
+ *     request.get('invalid') // TS error!
+ *   }
+ * })
+ */
+
+import type { UserLoggedInEvent as _UserLoggedInEvent, UserLoggedOutEvent as _UserLoggedOutEvent, UserPasswordEvent as _UserPasswordEvent, UserRegisteredEvent as _UserRegisteredEvent } from '@stacksjs/events'
+import type { NotificationChannel as _NotificationChannel } from '@stacksjs/notifications'
+import type { ModelRow as _ModelRow, NewModelData as _NewModelData, UpdateModelData as _UpdateModelData } from '@stacksjs/orm'
+import type { RequestInstance as _RequestInstance } from '@stacksjs/types'
+
+export {}
+
+declare global {
+  /**
+   * Full database row type derived from a defineModel() definition.
+   * Includes model attributes + system fields (id, uuid, timestamps) + FK columns.
+   *
+   * @example
+   * type PostRow = ModelRow<typeof Post>
+   */
+  type ModelRow<T> = _ModelRow<T>
+
+  /**
+   * Insertable data type derived from a defineModel() definition.
+   * All fields are optional for flexible creation.
+   *
+   * @example
+   * type NewPost = NewModelData<typeof Post>
+   */
+  type NewModelData<T> = _NewModelData<T>
+
+  /**
+   * Updateable data type derived from a defineModel() definition.
+   * All fields are optional for partial updates.
+   *
+   * @example
+   * type PostUpdate = UpdateModelData<typeof Post>
+   */
+  type UpdateModelData<T> = _UpdateModelData<T>
+
+  /**
+   * Model-aware request interface.
+   *
+   * When parameterized with a model type, all input methods narrow to that model's
+   * field names and types. Automatically inferred in Action handlers via `model: Post`.
+   *
+   * @example
+   * // Bare — accepts any key:
+   * function handle(_request: RequestInstance) { ... }
+   *
+   * @example
+   * // Model-aware — full narrowing:
+   * function handle(request: RequestInstance<typeof Post>) {
+   *   request.get('title') // autocompletes, typed return
+   * }
+   */
+  type RequestInstance<TModel = never> = [TModel] extends [never]
+    ? _RequestInstance
+    : _RequestInstance<_ModelRow<TModel>>
+
+  /**
+   * Auth event payloads — surfaced as globals so listener actions in
+   * `app/Actions/` can type their `handle(input)` parameter without an
+   * explicit import (matching the rest of Stacks' "no imports needed"
+   * authoring style).
+   */
+  type UserRegisteredEvent = _UserRegisteredEvent
+  type UserLoggedInEvent = _UserLoggedInEvent
+  type UserLoggedOutEvent = _UserLoggedOutEvent
+  type UserPasswordEvent = _UserPasswordEvent
+
+  /**
+   * Channel name accepted by `notify()`. Lifted to a global so listener
+   * actions can declare `const channels: NotificationChannel[] = []`
+   * without importing from `@stacksjs/notifications`.
+   */
+  type NotificationChannel = _NotificationChannel
+}

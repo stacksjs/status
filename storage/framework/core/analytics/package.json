@@ -1,0 +1,54 @@
+{
+  "name": "@stacksjs/analytics",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "Stacks Analytics. Privacy-friendly.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/analytics#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/analytics"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "analytics",
+    "singlestore",
+    "gdpr compliant",
+    "zero cookies",
+    "privacy-first",
+    "api",
+    "functions",
+    "components",
+    "npm stats",
+    "fathom",
+    "stacks"
+  ],
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "better-dx": "^0.2.12"
+  }
+}

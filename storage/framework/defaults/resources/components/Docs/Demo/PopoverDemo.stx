@@ -1,0 +1,96 @@
+<script>
+interface PopoverDemoProps {
+  solutions?: string
+  isOpen?: boolean
+}
+
+const { solutions = [, isOpen = false } = defineProps<PopoverDemoProps>()
+
+{
+    name: 'Insights',
+    description: 'Measure actions your users take',
+    href: '##',
+    iconBg: '#FFEDD5',
+    iconStroke: '#FB923C',
+  },
+  {
+    name: 'Automations',
+    description: 'Create your own targeted content',
+    href: '##',
+    iconBg: '#FFEDD5',
+    iconStroke: '#FB923C',
+  },
+  {
+    name: 'Reports',
+    description: 'Keep track of your growth',
+    href: '##',
+    iconBg: '#FFEDD5',
+    iconStroke: '#FB923C',
+  },
+]
+</script>
+<div class="max-w-4xl">
+  <DocsPlayground>
+    <div class="items-center mx-auto my-12 space-y-4 h-[150px] w-3/5">
+      <div class="relative">
+        <button
+          class="inline-flex gap-2 items-center justify-center px-4 py-2.5 font-medium text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 shadow-sm duration-200 transition-all : ? 'text-white' 'text-white/90' {{ }} group isOpen"
+          data-action="toggle-popover"
+        >
+          <span>Example</span>
+          <div class="h-5 w-5 i-hugeicons-arrow-down-01"></div>
+        </button>
+
+        @if(isOpen)
+          <div class="absolute left-1/2 z-50 mt-3 px-4 sm:px-0 max-w-sm w-screen transform -translate-x-1/2">
+            <div class="overflow-hidden ring-1 ring-black/5 rounded-lg shadow-lg">
+              <div class="flex relative flex-col gap-8 lg:grid-cols-2 p-7 bg-white">
+                @foreach(solutions as item)
+                  <a
+                    href="{{ item.href }}"
+                    class="flex items-center -m-3 p-2 hover:bg-gray-50 rounded-lg focus-visible:ring focus-visible:ring-orange-500/50 focus:outline-none duration-150 ease-in-out transition"
+                  >
+                    <div class="flex items-center justify-center shrink-0 h-10 w-10 sm:h-12 sm:w-12 text-white">
+                      <div class="h-12 w-12 rounded-lg" style="background: {{ item.iconBg }}">
+                        <svg class="p-2 h-full w-full" viewBox="0 0 24 24" fill="none" stroke="{{ item.iconStroke }}" stroke-width="1.5">
+                          <circle cx="12" cy="12" r="8" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div class="ml-4">
+                      <p class="font-medium text-gray-900 text-sm">
+                        {{ item.name }}
+                      </p>
+                      <p class="text-gray-500 text-sm">
+                        {{ item.description }}
+                      </p>
+                    </div>
+                  </a>
+                @endforeach
+              </div>
+              <div class="p-4 bg-gray-50">
+                <a
+                  href="##"
+                  class="flow-root px-2 py-2 hover:bg-gray-100 rounded-md focus-visible:ring focus-visible:ring-orange-500/50 focus:outline-none duration-150 ease-in-out transition"
+                >
+                  <span class="flex items-center">
+                    <span class="font-medium text-gray-900 text-sm">
+                      Documentation
+                    </span>
+                  </span>
+                  <span class="block text-gray-500 text-sm">
+                    Start integrating products and tools
+                  </span>
+                </a>
+              </div>
+            </div>
+          </div>
+        @endif
+      </div>
+    </div>
+
+    <div slot="code">
+      <!-- PopoverCode component would be rendered here -->
+    </div>
+  </DocsPlayground>
+</div>

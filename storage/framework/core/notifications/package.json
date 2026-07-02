@@ -1,0 +1,67 @@
+{
+  "name": "@stacksjs/notifications",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "The Stacks notifications integration.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/notifications#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/notifications"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "notifications",
+    "nexmo",
+    "twilio",
+    "aws",
+    "sms",
+    "email",
+    "database",
+    "slack",
+    "discord",
+    "webhooks",
+    "stacks"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "import": "./dist/*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@stacksjs/chat": "workspace:*",
+    "@stacksjs/cli": "workspace:*",
+    "@stacksjs/config": "workspace:*",
+    "better-dx": "^0.2.12",
+    "@stacksjs/email": "workspace:*",
+    "@stacksjs/error-handling": "workspace:*",
+    "@stacksjs/push": "workspace:*",
+    "@stacksjs/sms": "workspace:*",
+    "@stacksjs/types": "workspace:*"
+  }
+}

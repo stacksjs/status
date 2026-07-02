@@ -1,0 +1,91 @@
+<script>
+interface ComboboxDemoProps {
+  listItems?: string
+  selected?: any
+  query?: string
+  isOpen?: boolean
+}
+
+const { listItems = [, selected = null, query = '', isOpen = false } = defineProps<ComboboxDemoProps>()
+
+{ id: 1, name: 'Chris Breuer' },
+  { id: 2, name: 'Avery Hill' },
+  { id: 3, name: 'Glenn Michael' },
+  { id: 4, name: 'Michael Vincent' },
+  { id: 5, name: 'Blake Ayer' },
+]
+function filterItems(items, query) {
+  if (query === '') return items
+  return items.filter(item => item.name.toLowerCase().includes(query.toLowerCase()))
+}
+</script>
+<div class="demo-wrapper">
+  <DocsPlayground>
+    <div class="flex flex-col mx-auto py-10 max-w-full w-full">
+      <main class="grid gap-8 grid-cols-1 text-primary text-xs 2xl:text-sm">
+        <div class="relative items-center mx-auto w-1/2">
+          <div class="relative">
+            <div class="relative">
+              <input
+                type="text"
+                class="placeholder-gray-400 pl-3 pr-10 py-2.5 w-full text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 shadow-sm duration-200 transition-all"
+                placeholder="Search people..."
+                value="{{ selected ? selected.name : '' }}"
+                data-action="combobox-input"
+              >
+              <button
+                class="flex absolute inset-y-0 right-0 items-center pr-2 text-gray-400 hover:text-gray-500"
+                data-action="toggle-dropdown"
+              >
+                <div class="h-5 w-5 i-hugeicons-chevron-up-down-20-solid"></div>
+              </button>
+            </div>
+
+            @if(isOpen)
+              <div class="absolute overflow-auto z-10 mt-1 py-1 max-h-60 w-full text-base bg-white ring-1 ring-black/5 rounded-md focus:outline-none shadow-lg">
+                @if(filterItems(listItems, query).length == 0)
+                  <div class="relative px-4 py-2 text-gray-700 cursor-default select-none">
+                    No results found.
+                  </div>
+                @endif
+
+                @foreach(filterItems(listItems, query) as item)
+                  <div
+                    class="relative pl-10 pr-4 py-2 text-gray-900 hover:text-white hover:bg-indigo-600 cursor-default select-none"
+                    data-action="select-item"
+                    data-item-id="{{ item.id }}"
+                    data-item-name="{{ item.name }}"
+                  >
+                    <span class="block truncate selected selected.id : ? 'font-medium' 'font-normal' {{ }} && == item.id">
+                      {{ item.name }}
+                    </span>
+                    @if(selected && selected.id == item.id)
+                      <span class="flex absolute inset-y-0 left-0 items-center pl-3 text-indigo-600">
+                        <div class="h-5 w-5 i-hugeicons-check-20-solid"></div>
+                      </span>
+                    @endif
+                  </div>
+                @endforeach
+              </div>
+            @endif
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div slot="code">
+      <!-- ComboboxCode component would be rendered here -->
+    </div>
+  </DocsPlayground>
+</div>
+<style>
+.demo-wrapper {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif,
+    Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+}
+
+button {
+  border: 0px solid #000;
+}
+</style>

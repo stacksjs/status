@@ -1,0 +1,52 @@
+<script>
+interface PaymentMethodListProps {
+  userId?: number
+  paymentMethods?: any[]
+  loading?: boolean
+}
+
+const { userId = 1, paymentMethods = [], loading = false } = defineProps<PaymentMethodListProps>()
+</script>
+<div class="mt-4">
+    @if(loading)
+      <slot name="loading" />
+    @else
+      <ul role="list" class="grid gap-6 grid-cols-1 sm:grid-cols-1 lg:grid-cols-1">
+        @foreach(paymentMethods as method)
+          <li class="col-span-1 bg-white border divide-gray-200 divide-y rounded-lg shadow">
+            <div class="p-3 w-full">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                  <slot name="cardBrand" />
+                  <h2 class="text-gray-600 text-sm">
+                    {{ method.brand }} •••• {{ method.last_four }} <br>
+                    <span class="italic text-gray-500 text-xs">Expires {{ method.exp_month }} / {{ method.exp_year }}</span>
+                  </h2>
+                </div>
+
+                <div class="flex justify-end space-x-4">
+                  <button
+                    type="button"
+                    class="px-2 py-1 font-semibold text-sm text-white bg-white hover:bg-neutral-50 border rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2 shadow-sm"
+                    data-action="make-default"
+                    data-method-id="{{ method.id }}"
+                  >
+                    <span class="text-gray-700 i-hugeicons-star"></span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="px-2 py-1 font-semibold text-sm text-white bg-white hover:bg-neutral-50 border rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2 shadow-sm"
+                    data-action="delete"
+                    data-method-id="{{ method.id }}"
+                  >
+                    <span class="text-gray-700 i-hugeicons-trash"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </li>
+        @endforeach
+      </ul>
+    @endif
+  </div>

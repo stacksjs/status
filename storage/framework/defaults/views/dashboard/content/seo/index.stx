@@ -1,0 +1,240 @@
+@extends('layouts/default')
+
+@section('content')
+<div class="p-6 space-y-6">
+  <div class="flex items-center justify-between">
+    <PageHeader title="SEO" description="Optimize each post for search engines" />
+  </div>
+
+  <dl class="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="overflow-hidden px-4 py-5 sm:p-6 bg-white dark:bg-neutral-800 rounded-lg shadow">
+      <dt class="font-medium text-gray-500 text-sm dark:text-neutral-300">Avg SEO Score</dt>
+      <dd class="mt-1 font-semibold text-3xl text-gray-900 dark:text-white">{{ avgScore }}</dd>
+    </div>
+    <div class="overflow-hidden px-4 py-5 sm:p-6 bg-white dark:bg-neutral-800 rounded-lg shadow">
+      <dt class="font-medium text-gray-500 text-sm dark:text-neutral-300">Posts Optimized</dt>
+      <dd class="mt-1 font-semibold text-3xl text-green-600 dark:text-green-400">{{ optimizedCount }}</dd>
+    </div>
+    <div class="overflow-hidden px-4 py-5 sm:p-6 bg-white dark:bg-neutral-800 rounded-lg shadow">
+      <dt class="font-medium text-gray-500 text-sm dark:text-neutral-300">Needs Work</dt>
+      <dd class="mt-1 font-semibold text-3xl text-yellow-600 dark:text-yellow-400">{{ needsWorkCount }}</dd>
+    </div>
+    <div class="overflow-hidden px-4 py-5 sm:p-6 bg-white dark:bg-neutral-800 rounded-lg shadow">
+      <dt class="font-medium text-gray-500 text-sm dark:text-neutral-300">Total Posts</dt>
+      <dd class="mt-1 font-semibold text-3xl text-gray-900 dark:text-white">{{ totalPosts }}</dd>
+    </div>
+  </dl>
+
+  <div class="bg-white dark:bg-neutral-800 rounded-lg shadow">
+    <div class="p-6">
+      <h3 class="font-semibold text-base text-gray-900 dark:text-white">Score Distribution</h3>
+      <div class="mt-2 h-80"><canvas id="seo_distribution_chart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="relative max-w-sm">
+      <div class="flex absolute inset-y-0 left-0 items-center pl-3 pointer-events-none">
+        <div class="h-5 w-5 text-gray-400 i-hugeicons-search-01"></div>
+      </div>
+      <input x-model="searchQuery" type="text" class="block pl-10 pr-3 py-1.5 w-full text-gray-900 sm:text-sm dark:text-white dark:bg-neutral-800 border-0 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-700 focus:ring-2 focus:ring-blue-600" placeholder="Search posts..." />
+    </div>
+    <select x-model="scoreFilter" class="block pl-3 pr-10 py-1.5 text-gray-900 sm:text-sm dark:text-white dark:bg-neutral-800 border-0 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-700 focus:ring-2 focus:ring-blue-600">
+      <option value="all">All Scores</option>
+      <option value="good">Good (80+)</option>
+      <option value="medium">Medium (50-79)</option>
+      <option value="poor">Poor (&lt; 50)</option>
+    </select>
+  </div>
+
+  <div class="overflow-x-auto border border-gray-200 rounded-lg dark:border-neutral-700 shadow">
+    <table class="min-w-full divide-gray-200 divide-y dark:divide-neutral-700">
+      <thead class="bg-gray-50 dark:bg-neutral-700/50">
+        <tr>
+          <th class="px-4 py-3.5 font-semibold text-gray-900 text-left text-sm dark:text-white">Post</th>
+          <th class="px-4 py-3.5 font-semibold text-gray-900 text-left text-sm dark:text-white">Focus Keyword</th>
+          <th class="px-4 py-3.5 font-semibold text-gray-900 text-left text-sm dark:text-white">Meta Description</th>
+          <th class="px-4 py-3.5 font-semibold text-gray-900 text-right text-sm dark:text-white">Score</th>
+          <th class="px-4 py-3.5 font-semibold text-gray-900 text-left text-sm dark:text-white">Last Updated</th>
+          <th class="relative px-4 py-3.5"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody class="bg-white dark:bg-neutral-800 divide-gray-200 divide-y dark:divide-neutral-700">
+        <template :for="entry in filteredEntries()">
+          <tr class="hover:bg-gray-50 dark:hover:bg-neutral-700">
+            <td class="px-4 py-4 whitespace-nowrap">
+              <div class="font-medium text-gray-900 text-sm dark:text-white">{{ entry.title }}</div>
+              <div class="text-gray-500 text-xs dark:text-neutral-400">/{{ entry.slug }}</div>
+            </td>
+            <td class="px-4 py-4 whitespace-nowrap"><div class="text-gray-500 text-sm dark:text-neutral-300">{{ entry.focusKeyword }}</div></td>
+            <td class="px-4 py-4">
+              <div class="max-w-md text-gray-500 text-sm truncate dark:text-neutral-300">{{ entry.metaDescription }}</div>
+            </td>
+            <td class="px-4 py-4 text-right whitespace-nowrap">
+              <span :class="scoreBadgeClass(entry.score)">{{ entry.score }}</span>
+            </td>
+            <td class="px-4 py-4 whitespace-nowrap"><div class="text-gray-500 text-sm dark:text-neutral-300">{{ entry.lastUpdated }}</div></td>
+            <td class="px-4 py-4 font-medium text-right text-sm whitespace-nowrap">
+              <button @click="openEdit(entry)" class="text-blue-600 hover:text-blue-500">Edit</button>
+            </td>
+          </tr>
+        </template>
+        <tr :show="filteredEntries().length === 0">
+          <td colspan="6" class="px-4 py-8 text-center text-gray-500 text-sm dark:text-neutral-400">No posts found.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div :show="editingEntry() !== null" class="relative z-10">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-neutral-900 dark:bg-opacity-75"></div>
+    <div class="fixed inset-0 overflow-y-auto z-10">
+      <div class="flex items-end justify-center sm:items-center p-4 min-h-full">
+        <div class="overflow-hidden relative pb-4 pt-5 px-4 sm:p-6 sm:max-w-lg sm:w-full bg-white dark:bg-neutral-800 rounded-lg shadow-xl">
+          <h3 class="font-semibold leading-6 text-base text-gray-900 dark:text-white">Edit SEO</h3>
+          <p :show="editingEntry() !== null" class="mt-1 text-gray-500 text-sm dark:text-neutral-400">{{ editingEntry()?.title }}</p>
+          <div class="mt-4 space-y-4">
+            <div>
+              <label class="block font-medium text-gray-900 text-sm dark:text-white">Focus Keyword</label>
+              <input x-model="editFocusKeyword" type="text" class="block mt-2 py-1.5 w-full text-gray-900 sm:text-sm dark:text-white dark:bg-neutral-700 border-0 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-600 focus:ring-2 focus:ring-blue-600 shadow-sm" />
+            </div>
+            <div>
+              <label class="block font-medium text-gray-900 text-sm dark:text-white">Meta Description</label>
+              <textarea x-model="editMetaDescription" rows="3" class="block mt-2 py-1.5 w-full text-gray-900 sm:text-sm dark:text-white dark:bg-neutral-700 border-0 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-600 focus:ring-2 focus:ring-blue-600 shadow-sm"></textarea>
+            </div>
+            <div>
+              <label class="block font-medium text-gray-900 text-sm dark:text-white">Canonical URL</label>
+              <input x-model="editCanonical" type="text" class="block mt-2 py-1.5 w-full text-gray-900 sm:text-sm dark:text-white dark:bg-neutral-700 border-0 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-600 focus:ring-2 focus:ring-blue-600 shadow-sm" />
+            </div>
+          </div>
+          <div class="sm:grid sm:gap-3 sm:grid-cols-2 mt-5">
+            <button @click="closeEdit()" class="inline-flex justify-center sm:col-start-1 px-3 py-2 w-full font-semibold text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-600 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-600 shadow-sm">Cancel</button>
+            <button @click="saveEdit()" class="inline-flex justify-center sm:col-start-2 px-3 py-2 w-full font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md shadow-sm">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script client>
+interface SeoEntry {
+  id: number
+  title: string
+  slug: string
+  focusKeyword: string
+  metaDescription: string
+  canonicalUrl: string
+  score: number
+  lastUpdated: string
+}
+
+interface ChartLike { destroy: () => void }
+type ChartCtor = new (canvas: HTMLElement, config: { type: string, data: unknown, options?: unknown }) => ChartLike
+
+const initialEntries: SeoEntry[] = [
+  { id: 1, title: '10 Tips for Better Code Quality', slug: '10-tips-for-better-code-quality', focusKeyword: 'code quality', metaDescription: 'Learn 10 essential tips to improve your code quality.', canonicalUrl: '', score: 87, lastUpdated: '2023-12-01' },
+  { id: 2, title: 'The Future of JavaScript Frameworks', slug: 'future-of-javascript-frameworks', focusKeyword: 'javascript frameworks', metaDescription: 'Where JS frameworks are headed in 2024 and beyond.', canonicalUrl: '', score: 72, lastUpdated: '2023-11-28' },
+  { id: 3, title: 'Getting Started with Vue 3', slug: 'getting-started-with-vue-3', focusKeyword: 'vue 3', metaDescription: 'A comprehensive guide to Vue 3 composition API.', canonicalUrl: '', score: 91, lastUpdated: '2023-11-25' },
+  { id: 4, title: 'Review: Latest MacBook Pro', slug: 'review-latest-macbook-pro', focusKeyword: 'macbook pro review', metaDescription: 'In-depth MacBook Pro review for developers.', canonicalUrl: '', score: 64, lastUpdated: '2023-11-20' },
+  { id: 5, title: 'Understanding Web Accessibility', slug: 'understanding-web-accessibility', focusKeyword: 'web accessibility', metaDescription: 'Why accessibility matters and how to implement it.', canonicalUrl: '', score: 88, lastUpdated: '2023-11-15' },
+  { id: 6, title: 'Introduction to TypeScript', slug: 'introduction-to-typescript', focusKeyword: 'typescript', metaDescription: '', canonicalUrl: '', score: 42, lastUpdated: '2023-11-10' },
+  { id: 7, title: 'Building a REST API with Node.js', slug: 'building-rest-api-nodejs', focusKeyword: 'rest api nodejs', metaDescription: 'Step-by-step guide to building REST APIs in Node.', canonicalUrl: '', score: 35, lastUpdated: '2023-11-05' },
+]
+
+const entries = state<SeoEntry[]>(initialEntries)
+const searchQuery = state('')
+const scoreFilter = state<'all' | 'good' | 'medium' | 'poor'>('all')
+const editingEntry = state<SeoEntry | null>(null)
+const editFocusKeyword = state('')
+const editMetaDescription = state('')
+const editCanonical = state('')
+
+const filteredEntries = derived(() => {
+  let list = [...entries()]
+  const filter = scoreFilter()
+  if (filter === 'good')
+    list = list.filter(e => e.score >= 80)
+  else if (filter === 'medium')
+    list = list.filter(e => e.score >= 50 && e.score < 80)
+  else if (filter === 'poor')
+    list = list.filter(e => e.score < 50)
+  const q = searchQuery().toLowerCase()
+  if (q)
+    list = list.filter(e => e.title.toLowerCase().includes(q) || e.focusKeyword.toLowerCase().includes(q))
+  return list
+})
+
+const totalPosts = derived(() => entries().length)
+const optimizedCount = derived(() => entries().filter(e => e.score >= 80).length)
+const needsWorkCount = derived(() => entries().filter(e => e.score < 50).length)
+const avgScore = derived(() => {
+  if (entries().length === 0)
+    return 0
+  return Math.round(entries().reduce((s, e) => s + e.score, 0) / entries().length)
+})
+
+function scoreBadgeClass(score: number) {
+  const base = 'inline-flex items-center px-2 py-0.5 font-semibold text-xs rounded-full'
+  if (score >= 80)
+    return `${base} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200`
+  if (score >= 50)
+    return `${base} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200`
+  return `${base} bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200`
+}
+
+function openEdit(entry: SeoEntry) {
+  editingEntry.set(entry)
+  editFocusKeyword.set(entry.focusKeyword)
+  editMetaDescription.set(entry.metaDescription)
+  editCanonical.set(entry.canonicalUrl)
+}
+
+function closeEdit() {
+  editingEntry.set(null)
+}
+
+function saveEdit() {
+  const target = editingEntry()
+  if (!target)
+    return
+  entries.set(entries().map(e => e.id === target.id ? {
+    ...e,
+    focusKeyword: editFocusKeyword(),
+    metaDescription: editMetaDescription(),
+    canonicalUrl: editCanonical(),
+    lastUpdated: new Date().toISOString().slice(0, 10),
+  } : e))
+  closeEdit()
+}
+
+let chartHandle: ChartLike | null = null
+
+onMount(async () => {
+  const { Chart, registerables } = await import('@stacksjs/charts')
+  Chart.register(...registerables)
+  const Ctor = Chart as unknown as ChartCtor
+
+  const good = entries().filter(e => e.score >= 80).length
+  const med = entries().filter(e => e.score >= 50 && e.score < 80).length
+  const poor = entries().filter(e => e.score < 50).length
+
+  chartHandle = useChart({
+    Chart: Ctor,
+    id: 'seo_distribution_chart',
+    type: 'bar',
+    data: {
+      labels: ['Good (80+)', 'Medium (50-79)', 'Poor (<50)'],
+      datasets: [{ label: 'Posts', backgroundColor: ['rgba(34, 197, 94, 0.8)', 'rgba(245, 158, 11, 0.8)', 'rgba(239, 68, 68, 0.8)'], borderRadius: 4, data: [good, med, poor] }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+  }) as unknown as ChartLike
+})
+
+onDestroy(() => {
+  chartHandle?.destroy()
+  chartHandle = null
+})
+</script>
+
+@endsection

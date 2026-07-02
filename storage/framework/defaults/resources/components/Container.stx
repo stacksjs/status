@@ -1,0 +1,10 @@
+<script>
+interface ContainerProps {
+  className?: string
+}
+
+const { className = '' } = defineProps<ContainerProps>()
+</script>
+<div class="mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl {{ }} className">
+    <slot />
+  </div>

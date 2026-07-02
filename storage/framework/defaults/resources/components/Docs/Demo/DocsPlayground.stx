@@ -1,0 +1,39 @@
+<script>
+interface DocsPlaygroundProps {
+  isPreviewMode?: boolean
+}
+
+const { isPreviewMode = true } = defineProps<DocsPlaygroundProps>()
+</script>
+<div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-2">
+    <div class="relative bg-gray-100 dark:bg-neutral-800 rounded-lg">
+      <div class="flex items-stretch justify-end px-3 py-1 md:m-1 bg-gray-100 dark:bg-neutral-800 rounded-t-[10px] md:rounded-lg">
+        <button
+          class="flex mr-1 px-3 py-2 font-medium text-blue-500' text-xs dark:text-neutral-300 hover:bg-gray-300 dark:hover:bg-neutral-600' rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 pointer-events-auto : ? 'bg-white 'text-gray-600 {{ }} isPreviewMode"
+          data-action="toggle-preview"
+        >
+          Preview
+        </button>
+        <button
+          class="flex px-3 py-2 font-medium text-blue-500' text-xs dark:text-neutral-300 hover:bg-gray-300 dark:hover:bg-neutral-600' rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 pointer-events-auto : !isPreviewMode ? 'bg-white 'text-gray-600 {{ }}"
+          data-action="toggle-code"
+        >
+          Code
+        </button>
+      </div>
+
+      <div>
+        @if(isPreviewMode)
+          <div class="relative z-30 px-4 py-4 h-full">
+            <slot />
+          </div>
+        @else
+          <div class="overflow-auto relative z-30 h-[350px] text-sm">
+            <slot name="code" />
+          </div>
+        @endif
+      </div>
+    </div>
+  </div>
+</div>

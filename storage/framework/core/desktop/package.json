@@ -1,0 +1,65 @@
+{
+  "name": "@stacksjs/desktop",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "The Stacks Desktop engine.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/desktop#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/desktop"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "desktop",
+    "nexmo",
+    "twilio",
+    "aws",
+    "sms",
+    "email",
+    "database",
+    "slack",
+    "discord",
+    "webhooks",
+    "stacks"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "import": "./dist/*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "dev": "bunx --bun vite ../../dashboard -c ../vite-config/src/desktop.ts",
+    "dev:app": "tauri dev",
+    "build": "bun build.ts",
+    "build:app": "bunx --bun vite build ../../dashboard -c ../vite-config/src/desktop.ts",
+    "tauri:build": "tauri build",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@stacksjs/build": "workspace:*",
+    "better-dx": "^0.2.12",
+    "@stacksjs/server": "workspace:*"
+  }
+}

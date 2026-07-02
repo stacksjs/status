@@ -1,0 +1,257 @@
+<style>
+/*
+ * Make every chart canvas fill its wrapper. @stacksjs/charts sizes its
+ * bitmap from `getBoundingClientRect()`, so without CSS dimensions the
+ * canvas stays at the intrinsic 300x150 default and the chart renders
+ * cropped (bar charts lose right-side bars; doughnuts overflow because
+ * the parent grid cell is sized but the canvas isn't).
+ */
+canvas[id$="_chart"] {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+</style>
+
+<script>
+// Dynamic import map injection. Pages do `await import('@stacksjs/charts')`
+// in their `<script client>` blocks, which the browser refuses to resolve
+// without an import map. Writing a literal `<script type="importmap">` here
+// would be the obvious fix, but STX's layout-script processor strips the
+// `type` attribute and wraps the body in an IIFE — destroying it. Instead
+// we inject the import map programmatically via DOM, synchronously, before
+// any page-level script (and therefore before any dynamic import) runs.
+// The matching `/__deps/charts.js` route lives in dev/dashboard.ts.
+;(function () {
+  if (typeof document === 'undefined') return
+  // SPA fragment swaps re-execute scripts — only install once.
+  if (document.querySelector('script[data-stx-importmap]')) return
+  var s = document.createElement('script')
+  s.type = 'importmap'
+  s.setAttribute('data-stx-importmap', '')
+  s.textContent = '{"imports":{"@stacksjs/charts":"/__deps/charts.js"}}'
+  ;(document.head || document.documentElement).prepend(s)
+})();
+</script>
+
+<script>
+// Dashboard-wide chart helpers exposed on window so feature pages can call
+// `useChart(...)` / `useCharts(...)` without importing the composables
+// module. The page's `<script client>` blocks run inside a non-module
+// `<script data-stx-scoped>` tag, so an ES `import` at the top of the
+// file is a syntax error. Exposing these globals here lets every page
+// drop the import and call the helper directly.
+;(function () {
+  if (typeof window === 'undefined') return
+  if (window.useChart) return
+
+  function useChart(opts) {
+    if (typeof document === 'undefined')
+      return { instance: null, destroy: function () {} }
+    var el = document.getElementById(opts.id)
+    if (!el) {
+      console.warn('[useChart] no element with id "' + opts.id + '" — chart not initialised')
+      return { instance: null, destroy: function () {} }
+    }
+    var instance = new opts.Chart(el, { type: opts.type, data: opts.data, options: opts.options })
+    return {
+      instance: instance,
+      destroy: function () { instance.destroy() },
+    }
+  }
+
+  function useCharts(specs) {
+    var handles = specs.map(useChart)
+    return {
+      handles: handles,
+      destroyAll: function () { handles.forEach(function (h) { h.destroy() }) },
+    }
+  }
+
+  window.useChart = useChart
+  window.useCharts = useCharts
+})()
+</script>
+
+<script client>
+// Craft native sidebar integration
+// Maps sidebar itemIds to STX page routes for SPA navigation
+const sidebarRoutes = {
+  'home': '/',
+  'dependencies': '/dependencies',
+  'services': '/health',
+  'ci': '/ci',
+  'components': '/components',
+  'functions': '/functions',
+  'releases': '/releases',
+  'packages': '/packages',
+  'content-dashboard': '/content/dashboard',
+  'files': '/content/files',
+  'pages': '/content/pages',
+  'posts': '/content/posts',
+  'categories': '/content/categories',
+  'tags': '/content/tags',
+  'comments': '/content/comments',
+  'authors': '/content/authors',
+  'seo': '/content/seo',
+  'deployments': '/deployments',
+  'requests': '/requests',
+  'realtime': '/realtime',
+  'actions': '/actions',
+  'commands': '/commands',
+  'queue': '/queue',
+  'jobs': '/jobs',
+  'inbox': '/inbox',
+  'queries': '/queries',
+  'notifications': '/notifications/dashboard',
+  'data-dashboard': '/data/dashboard',
+  'activity': '/data/activity',
+  'users': '/data/users',
+  'teams': '/data/teams',
+  'subscribers': '/data/subscribers',
+  'commerce-dashboard': '/commerce/dashboard',
+  'pos': '/commerce/pos',
+  'customers': '/commerce/customers',
+  'orders': '/commerce/orders',
+  'products': '/commerce/products',
+  'coupons': '/commerce/coupons',
+  'gift-cards': '/commerce/gift-cards',
+  'payments': '/commerce/payments',
+  'delivery': '/commerce/delivery',
+  'taxes': '/commerce/taxes',
+  'lists': '/marketing/lists',
+  'social-posts': '/marketing/social-posts',
+  'campaigns': '/marketing/campaigns',
+  'marketing-reviews': '/marketing/reviews',
+  'analytics-web': '/analytics/web',
+  'analytics-blog': '/analytics/blog',
+  'analytics-goals': '/analytics/goals',
+  'analytics-commerce': '/analytics/commerce/web',
+  'analytics-sales': '/analytics/commerce/sales',
+  'analytics-marketing': '/analytics/marketing',
+  'cloud': '/cloud',
+  'servers': '/servers',
+  'serverless': '/serverless',
+  'dns': '/dns',
+  'permissions': '/management/permissions',
+  'kanban': '/kanban',
+  'mailboxes': '/mailboxes',
+  'logs': '/logs',
+  'buddy': '/buddy',
+  'environment': '/environment',
+  'access-tokens': '/access-tokens',
+  'settings': '/settings/billing',
+}
+
+// Handle Craft native sidebar selection events
+window.craft = window.craft || {}
+window.craft._sidebarSelectHandler = (event) => {
+  const url = sidebarRoutes[event.itemId]
+    || (event.itemId && event.itemId.startsWith('model-') ? '/models/' + event.itemId.slice(6) : null)
+  if (url) {
+    navigate(url)
+  }
+}
+
+// Global toast queue. Composables across the dashboard call
+// `pushToast(...)` (defined in defaults/functions/toasts.ts) when
+// network requests fail or succeed; that signal is rendered in the
+// fixed-position container below the <main> slot. Mounted in the
+// layout so every dashboard page picks it up without opting in.
+import { useToasts, dismissToast } from '../../../functions/toasts'
+const { toasts } = useToasts()
+
+// Helpers below return COMPLETE class strings (static + dynamic) and are
+// applied via `:class="fn(...)"` because stx's `{{ ... }}` placeholder is
+// not reactively bound inside a `class` attribute — only inside text content.
+const toastIconClass = (type) => `flex-shrink-0 h-5 w-5 mt-0.5 ${({
+  success: 'i-hugeicons-checkmark-circle-02 text-green-500 dark:text-green-400',
+  error: 'i-hugeicons-alert-02 text-red-500 dark:text-red-400',
+  warning: 'i-hugeicons-alert-circle text-yellow-500 dark:text-yellow-400',
+  info: 'i-hugeicons-information-circle text-blue-500 dark:text-blue-400',
+}[type] || 'i-hugeicons-information-circle text-gray-500 dark:text-neutral-400')}`
+
+const toastWrapperClass = (type) => `pointer-events-auto overflow-hidden bg-white dark:bg-neutral-800 ring-1 ${({
+  success: 'ring-green-500/20',
+  error: 'ring-red-500/30',
+  warning: 'ring-yellow-500/20',
+  info: 'ring-blue-500/20',
+}[type] || 'ring-black/5 dark:ring-white/10')} rounded-lg shadow-lg`
+
+// Role-gated sidebar filter (stacksjs/stacks#1843).
+//
+// The server emits sidebar `<a>` items with `data-required-roles="…"` for
+// any model that declares `dashboard.roles: ['admin', 'dev', …]`. We
+// walk those nodes on hydration and on auth-store changes, hiding rows
+// the current viewer can't access.
+//
+// Permissive default: when the viewer is unauthenticated (the localhost
+// dev dashboard) `isDev()` returns true so every gated row stays visible.
+// In production deployments where `/api/dashboard/*` sits behind auth,
+// the endpoint returns real role data and the filter hides what the
+// viewer can't reach.
+const auth = useStore('auth')
+auth.load()
+
+function applyRoleFilter() {
+  const roleList = auth.roles()
+  const unauth = auth.unauthenticated()
+  const nodes = document.querySelectorAll('[data-required-roles]')
+  for (const el of nodes) {
+    const required = (el.getAttribute('data-required-roles') || '')
+      .split(',').map(s => s.trim()).filter(Boolean)
+    if (required.length === 0) continue
+    // Unauthenticated viewers (no auth wired) see everything — keeps the
+    // dev dashboard usable. Once authenticated, role membership becomes
+    // the authoritative answer.
+    const allowed = unauth || required.some(r => roleList.includes(r))
+    // Hide the parent <li> when the link is inside one; otherwise the
+    // link itself. Either way the row disappears from the rendered
+    // sidebar; CSS `display: none` keeps the DOM intact for SPA nav so
+    // a later role change can re-show without a re-render.
+    const target = el.closest('li') || el
+    target.style.display = allowed ? '' : 'none'
+  }
+}
+
+effect(() => {
+  // `effect` re-runs whenever `auth.roles()` / `auth.unauthenticated()`
+  // change. Includes the first run, which executes after hydration once
+  // the auth fetch resolves.
+  applyRoleFilter()
+})
+</script>
+
+<main data-stx-content>
+  @slot('content')
+</main>
+
+<!-- Global toast container. Top-right stack, newest at the bottom.
+    Pointer-events-none on the wrapper + auto on individual toasts so
+    surrounding UI stays clickable while a toast is up. -->
+<div class="flex fixed right-4 top-4 z-[60] flex-col gap-2 max-w-sm w-full pointer-events-none">
+  @foreach(toasts() as toast)
+    <div role="alert" aria-live="assertive" :class="toastWrapperClass(toast.type)">
+      <div class="flex gap-3 items-start p-4">
+        <div :class="toastIconClass(toast.type)"></div>
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-gray-900 text-sm dark:text-neutral-100">{{ toast.title }}</p>
+          @if(toast.detail)
+            <p class="mt-1 break-words text-gray-500 text-xs dark:text-neutral-400">{{ toast.detail }}</p>
+          @endif
+        </div>
+        <button type="button" @click="dismissToast({{ toast.id }})" class="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-neutral-200" aria-label="Dismiss">
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  @endforeach
+</div>
+
+<style>
+body {
+  @apply bg-neutral-100 dark:bg-neutral-950;
+}
+</style>

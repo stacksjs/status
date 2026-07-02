@@ -1,0 +1,1404 @@
+<script server>
+const appName = 'Stacks'
+const appVersion = '0.1.0'
+const siteMode = 'coming-soon'
+const comingSoonBypassEnabled = true
+const comingSoonBypassToken = 'trailhead'
+
+const navLinks = [
+  { label: 'Features', url: '#platform' },
+  { label: 'CMS', url: '#cms' },
+  { label: 'Cloud', url: '#deploy' },
+  { label: 'Docs', url: '/docs', native: true },
+  { label: 'Blog', url: '/blog', native: true },
+  { label: 'GitHub', url: 'https://github.com/stacksjs/stacks' },
+]
+
+const productAreas = [
+  {
+    title: 'Application core',
+    text: 'Routes, STX views, layouts, components, validation, auth, sessions, and assets live in one TypeScript application.',
+    image: '/assets/images/marketing-park-trail.svg',
+  },
+  {
+    title: 'Content workspace',
+    text: 'Markdown posts, pages, docs, tags, authors, custom resources, generated APIs, and a local dashboard move together.',
+    image: '/assets/images/marketing-park-camp.svg',
+  },
+  {
+    title: 'Production path',
+    text: 'Buddy builds the app, docs, blog, CMS API, mail service, static assets, DNS, CDN, and AWS infrastructure in one deploy.',
+    image: '/assets/images/marketing-park-geyser.svg',
+  },
+]
+
+const workflowSteps = [
+  { label: '01', title: 'Build the product', text: 'Create STX views, API routes, models, actions, queues, mail, and content resources in the app.' },
+  { label: '02', title: 'Run the command center', text: './buddy dev --dashboard gives teams a local CMS and framework operations surface.' },
+  { label: '03', title: 'Ship the whole trail', text: './buddy deploy publishes the marketing site, docs, blog, API, app server, and cloud.' },
+]
+
+const platformFeatures = [
+  { title: 'Routing', text: 'Expressive web and API routes, middleware, controllers, actions, JSON resources, and OpenAPI output.' },
+  { title: 'STX views', text: 'Server-rendered layouts and components with a Blade-like authoring model and TypeScript nearby.' },
+  { title: 'ORM', text: 'Typed models, traits, relationships, factories, seeders, generated migrations, and query tooling.' },
+  { title: 'Auth', text: 'Authentication, authorization, sessions, tokens, policies, passkeys, rate limiting, and guards.' },
+  { title: 'CMS', text: 'Posts, pages, authors, tags, categories, comments, media, dashboard screens, and generated CMS APIs.' },
+  { title: 'Queues', text: 'Jobs, batches, schedules, events, notifications, mail, and worker-friendly background workflows.' },
+  { title: 'Storage', text: 'Local, memory, S3, signed URLs, uploads, public assets, visibility, hashes, and file utilities.' },
+  { title: 'Testing', text: 'Unit, feature, HTTP, browser, database, DynamoDB, factories, assertions, and test helpers.' },
+  { title: 'Realtime', text: 'Channels, broadcasts, websocket drivers, server instances, and product events.' },
+  { title: 'Search', text: 'Search documents, settings, drivers, flushes, imports, and app-level search workflows.' },
+  { title: 'Docs and blog', text: 'BunPress docs, Markdown blog posts, RSS, sitemap, canonical URLs, and path-mounted deploys.' },
+  { title: 'Cloud', text: 'AWS infrastructure, DNS, CDN, email, compute, storage, security, and deploys from TypeScript config.' },
+]
+
+const cmsResources = [
+  { title: 'Posts', text: 'Markdown body, excerpt, author, tags, featured state, publication date, and generated CMS API.' },
+  { title: 'Pages', text: 'Structured site content with stable slugs, generated routes, and dashboard editing.' },
+  { title: 'Taxonomy', text: 'Tags, categories, relationships, search metadata, and editorial filters.' },
+  { title: 'Media', text: 'First-party storage hooks for images, attachments, public assets, and generated paths.' },
+  { title: 'Custom resources', text: 'Model-backed CMS resources can expose generated API endpoints and dashboard management.' },
+  { title: 'Docs', text: 'BunPress-powered documentation published at /docs beside the product site.' },
+  { title: 'Blog', text: 'Nature-park styled posts, feed, sitemap, and newsletter capture published at /blog.' },
+]
+
+const stackLayers = [
+  { label: 'Create', value: 'Buddy generators, STX views, components, models, actions, routes' },
+  { label: 'Operate', value: 'Dashboard, CMS resources, auth, queue monitor, settings, APIs' },
+  { label: 'Scale', value: 'Jobs, schedules, mail, storage, realtime, search, analytics' },
+  { label: 'Deploy', value: 'CloudFront, S3, DNS, compute, TLS, mail, docs, blog, app server' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Stacks is a full-stack TypeScript framework for web apps, CMS content, docs, APIs, queues, mail, tests, and cloud deployment.">
+    <title>Stacks - Full-stack TypeScript framework</title>
+    <style>
+      @font-face {
+        font-display: swap;
+        font-family: "Campmate Script";
+        font-style: normal;
+        font-weight: 400;
+        src: url("/assets/fonts/nps/CampmateScript-Regular.woff2") format("woff2");
+      }
+
+      @font-face {
+        font-display: swap;
+        font-family: "Switchback";
+        font-style: normal;
+        font-weight: 400;
+        src: url("/assets/fonts/nps/Switchback-Regular.woff2") format("woff2");
+      }
+
+      @font-face {
+        font-display: swap;
+        font-family: "NPS 2026";
+        font-style: normal;
+        font-weight: 100 900;
+        src: url("/assets/fonts/nps/NPS_2026-variable.woff2") format("woff2");
+      }
+
+      @font-face {
+        font-display: swap;
+        font-family: "Redwood Serif";
+        font-style: normal;
+        font-weight: 400;
+        src: url("/assets/fonts/nps/RedwoodSerif-Regular.woff2") format("woff2");
+      }
+
+      :root {
+        color-scheme: dark;
+        --ranger: #0d1e16;
+        --pine: #163824;
+        --canopy: #275f3c;
+        --moss: #aac47d;
+        --paper: #fff0c8;
+        --cream: #fff7e1;
+        --river: #7fb8ae;
+        --sky: #b8d9cf;
+        --gold: #df9a2f;
+        --clay: #a85f35;
+        --line: rgba(255, 240, 200, 0.2);
+        --line-strong: rgba(255, 240, 200, 0.34);
+        --shadow: 0 30px 80px rgba(0, 0, 0, 0.36);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--ranger);
+        overflow-x: hidden;
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        overflow-x: hidden;
+        color: var(--cream);
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        background:
+          radial-gradient(circle at 18% 16%, rgba(223, 154, 47, 0.2), transparent 24rem),
+          radial-gradient(circle at 88% 6%, rgba(127, 184, 174, 0.2), transparent 28rem),
+          linear-gradient(180deg, #0c1e15 0%, #10271b 48%, #0d1b14 100%);
+      }
+
+      body::before {
+        position: fixed;
+        inset: 0;
+        z-index: -2;
+        content: "";
+        background-image: url("/assets/images/topography.svg");
+        background-size: 760px auto;
+        opacity: 0.045;
+      }
+
+      body::after {
+        position: fixed;
+        inset: auto 0 0;
+        z-index: -1;
+        height: min(34vh, 24rem);
+        content: "";
+        background:
+          linear-gradient(180deg, transparent 0%, rgba(13, 30, 22, 0.64) 46%, rgba(13, 30, 22, 0.94) 100%),
+          url("/assets/images/park-ridge.svg") center bottom / cover no-repeat;
+        opacity: 0.25;
+        pointer-events: none;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      body[data-site-mode="coming-soon"] .site-content {
+        display: none;
+      }
+
+      body[data-site-mode="coming-soon"].site-mode-unlocked .site-content {
+        display: block;
+      }
+
+      body[data-site-mode="coming-soon"].site-mode-unlocked .mode-screen,
+      body:not([data-site-mode="coming-soon"]) .mode-screen {
+        display: none;
+      }
+
+      .mode-screen {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: clamp(1rem, 4vw, 3rem);
+      }
+
+      .mode-card {
+        position: relative;
+        width: min(1140px, 100%);
+        min-height: min(760px, 86vh);
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-top: 5px solid var(--gold);
+        border-radius: 18px;
+        padding: clamp(2.25rem, 6vw, 5.5rem);
+        background:
+          radial-gradient(120% 92% at 84% -12%, rgba(223, 154, 47, 0.20), transparent 46%),
+          linear-gradient(178deg, rgba(39, 95, 60, 0.80), rgba(13, 30, 22, 0.98) 78%),
+          var(--pine);
+        box-shadow: var(--shadow);
+      }
+
+      .mode-card::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        background-image: url("/assets/images/topography.svg");
+        background-size: 720px auto;
+        opacity: 0.08;
+        pointer-events: none;
+      }
+
+      /* layered scenery band across the bottom */
+      .mode-card::after {
+        position: absolute;
+        inset: auto -1% -1px;
+        height: 48%;
+        content: "";
+        background: url("/assets/images/park-ridge.svg") center bottom / 102% 100% no-repeat;
+        opacity: 0.3;
+        height: 40%;
+        pointer-events: none;
+      }
+
+      /* the sun disc */
+      .mode-sun {
+        position: absolute;
+        top: clamp(2rem, 9%, 5.5rem);
+        right: clamp(2rem, 10%, 7rem);
+        width: clamp(58px, 8vw, 108px);
+        height: clamp(58px, 8vw, 108px);
+        border-radius: 50%;
+        background: radial-gradient(circle at 38% 34%, #ffe6a6, var(--gold) 60%, #bd7d21);
+        box-shadow: 0 0 64px rgba(223, 154, 47, 0.42);
+        opacity: 0.92;
+        z-index: 0;
+      }
+
+      .mode-content {
+        position: relative;
+        z-index: 1;
+        max-width: 620px;
+      }
+
+      .mode-title {
+        margin: 0 0 1.4rem;
+        color: var(--cream);
+        font-family: "Campmate Script", ui-serif, Georgia, serif;
+        font-weight: 400;
+        font-size: clamp(3.6rem, 11vw, 6.4rem);
+        line-height: 1.02;
+      }
+
+      .mode-content > * {
+        animation: mode-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .mode-content > *:nth-child(2) { animation-delay: 0.06s; }
+      .mode-content > *:nth-child(3) { animation-delay: 0.12s; }
+      .mode-content > *:nth-child(4) { animation-delay: 0.18s; }
+      .mode-content > *:nth-child(5) { animation-delay: 0.24s; }
+
+      @keyframes mode-in {
+        from { opacity: 0; transform: translateY(18px); }
+        to { opacity: 1; transform: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .mode-content > * { animation: none; }
+      }
+
+      .mode-lead {
+        margin: 1rem 0 0;
+        color: var(--sky);
+        font-family: "NPS 2026", "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: clamp(1.1rem, 2vw, 1.5rem);
+        font-weight: 850;
+        line-height: 1.24;
+        letter-spacing: 0.01em;
+        text-transform: uppercase;
+      }
+
+      .mode-copy {
+        max-width: 30rem;
+        margin: 1.05rem 0 0;
+        color: rgba(255, 247, 225, 0.82);
+        font-size: 1.05rem;
+        line-height: 1.62;
+      }
+
+      .mode-subscribe {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.7rem;
+        margin-top: 1.9rem;
+        max-width: 30rem;
+      }
+      .mode-subscribe input {
+        flex: 1 1 15rem;
+        min-height: 50px;
+        padding: 0 1rem;
+        border: 1px solid rgba(255, 240, 200, 0.26);
+        border-radius: 10px;
+        color: var(--cream);
+        font-size: 1rem;
+        background: rgba(8, 23, 15, 0.5);
+      }
+      .mode-subscribe input::placeholder { color: rgba(255, 247, 225, 0.5); }
+      .mode-subscribe input:focus {
+        outline: none;
+        border-color: var(--gold);
+        box-shadow: 0 0 0 3px rgba(223, 154, 47, 0.24);
+      }
+      .mode-subscribe button {
+        flex: 0 0 auto;
+        min-height: 50px;
+        border-radius: 10px;
+      }
+
+      .mode-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem 1.4rem;
+        margin-top: 1.6rem;
+      }
+      .mode-textlink {
+        color: var(--moss);
+        font-weight: 700;
+        font-size: 0.95rem;
+        border-bottom: 1px solid rgba(170, 196, 125, 0.4);
+        padding-bottom: 1px;
+      }
+      .mode-textlink:hover { color: var(--gold); border-color: var(--gold); }
+      .mode-social { display: inline-flex; gap: 0.55rem; }
+      .mode-social a {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border: 1px solid rgba(255, 240, 200, 0.22);
+        border-radius: 50%;
+        color: var(--cream);
+      }
+      .mode-social a:hover { color: var(--gold); border-color: var(--gold); }
+      .mode-social svg { width: 19px; height: 19px; fill: currentColor; }
+
+      .site-shell {
+        width: min(1220px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .site-nav {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        border-bottom: 1px solid var(--line);
+        background: rgba(13, 30, 22, 0.9);
+        backdrop-filter: blur(18px);
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 70px;
+        gap: 1rem;
+      }
+
+      .brand {
+        display: inline-flex;
+        gap: 0.75rem;
+        align-items: center;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        display: grid;
+        flex: 0 0 auto;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border: 2px solid var(--gold);
+        border-radius: 7px;
+        color: var(--gold);
+        font-weight: 950;
+      }
+
+      .brand-name {
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.4rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        line-height: 1;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        color: rgba(255, 247, 225, 0.78);
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.74rem;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .nav-links a:hover,
+      .footer-link:hover {
+        color: var(--gold);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
+        gap: clamp(2rem, 4vw, 4rem);
+        align-items: center;
+        padding: clamp(2.2rem, 4vw, 4rem) 0 clamp(1rem, 2vw, 1.5rem);
+      }
+
+      .kicker {
+        display: inline-flex;
+        gap: 0.55rem;
+        align-items: center;
+        margin-bottom: 1rem;
+        color: var(--moss);
+        font-size: 0.78rem;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .kicker::before {
+        width: 42px;
+        height: 2px;
+        content: "";
+        background: var(--gold);
+      }
+
+      .hero-title {
+        margin: 0 0 0.4rem;
+        color: var(--cream);
+        font-family: "Campmate Script", ui-serif, Georgia, serif;
+        font-size: clamp(3.4rem, 6.4vw, 5.6rem);
+        font-weight: 400;
+        line-height: 0.95;
+      }
+
+      .hero-headline {
+        max-width: 620px;
+        margin: 0;
+        color: var(--sky);
+        font-family: "NPS 2026", "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: clamp(1.22rem, 1.62vw, 1.58rem);
+        font-weight: 850;
+        line-height: 1.2;
+        text-transform: uppercase;
+      }
+
+      .hero-copy {
+        max-width: 690px;
+        margin: 1.3rem 0 0;
+        color: rgba(255, 247, 225, 0.82);
+        font-size: 1.06rem;
+        line-height: 1.66;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem;
+        margin-top: 2rem;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 1.1rem;
+        border: 1px solid var(--line-strong);
+        border-radius: 7px;
+        color: var(--cream);
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.78rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        background: rgba(255, 247, 225, 0.06);
+      }
+
+      .button.primary {
+        border-color: var(--gold);
+        color: #102218;
+        background: var(--gold);
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+      }
+
+      .hero-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin-top: 2rem;
+      }
+
+      .metric {
+        padding: 0.8rem;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: rgba(255, 247, 225, 0.045);
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--gold);
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.2rem;
+      }
+
+      .metric span {
+        color: rgba(255, 247, 225, 0.7);
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.7rem;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .product-preview {
+        position: relative;
+        padding: 1rem;
+        border: 1px solid var(--line-strong);
+        border-top: 5px solid var(--gold);
+        border-radius: 8px;
+        background:
+          linear-gradient(180deg, rgba(39, 95, 60, 0.88), rgba(15, 42, 28, 0.94)),
+          var(--pine);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .product-preview::after {
+        position: absolute;
+        right: -1rem;
+        bottom: -2.4rem;
+        width: 14rem;
+        height: 14rem;
+        content: "";
+        background: url("/assets/images/marketing-park-trail.svg") center / contain no-repeat;
+        filter: invert(92%) sepia(17%) saturate(576%) hue-rotate(336deg) brightness(102%) contrast(100%);
+        opacity: 0.08;
+        pointer-events: none;
+      }
+
+      .product-preview::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        background-image: url("/assets/images/topography.svg");
+        background-size: 520px auto;
+        opacity: 0.08;
+      }
+
+      .dashboard-shell {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 9.4rem minmax(0, 1fr);
+        min-height: 340px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 247, 225, 0.2);
+        border-radius: 7px;
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        background: rgba(8, 23, 15, 0.82);
+      }
+
+      .dashboard-side {
+        padding: 1rem;
+        border-right: 1px solid var(--line);
+        background: rgba(12, 31, 21, 0.86);
+      }
+
+      .dashboard-logo {
+        display: flex;
+        gap: 0.65rem;
+        align-items: center;
+        margin-bottom: 1.2rem;
+        color: var(--cream);
+        font-size: 0.7rem;
+        font-weight: 950;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .dashboard-logo img {
+        width: 34px;
+        height: 34px;
+        padding: 0.3rem;
+        border-radius: 6px;
+        background: var(--paper);
+      }
+
+      .side-pill {
+        display: block;
+        margin-bottom: 0.5rem;
+        padding: 0.62rem 0.7rem;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        color: rgba(255, 247, 225, 0.66);
+        font-size: 0.66rem;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .side-pill.active {
+        border-color: rgba(223, 154, 47, 0.46);
+        color: var(--cream);
+        background: rgba(223, 154, 47, 0.14);
+      }
+
+      .dashboard-main {
+        padding: 1rem;
+      }
+
+      .dashboard-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: start;
+        margin-bottom: 1rem;
+      }
+
+      .dashboard-top h2 {
+        margin: 0;
+        color: var(--cream);
+        font-size: 1.18rem;
+        line-height: 1.1;
+      }
+
+      .status-chip {
+        flex: 0 0 auto;
+        padding: 0.38rem 0.55rem;
+        border-radius: 999px;
+        color: #112117;
+        font-size: 0.58rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        background: var(--moss);
+      }
+
+      .content-table {
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .content-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.35rem;
+        padding: 0.66rem;
+        border: 1px solid rgba(255, 247, 225, 0.13);
+        border-radius: 6px;
+        background: rgba(255, 247, 225, 0.05);
+      }
+
+      .content-row strong {
+        display: block;
+        color: var(--cream);
+        font-size: 0.88rem;
+      }
+
+      .content-row span {
+        color: rgba(255, 247, 225, 0.58);
+        font-size: 0.72rem;
+        font-weight: 800;
+      }
+
+      .row-state {
+        color: var(--gold);
+        font-size: 0.68rem;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .terminal-strip {
+        margin-top: 1rem;
+        padding: 0.72rem;
+        border: 1px solid rgba(127, 184, 174, 0.22);
+        border-radius: 6px;
+        color: #c8f5dd;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.74rem;
+        line-height: 1.5;
+        background: #07130d;
+        white-space: pre-wrap;
+      }
+
+      .section {
+        padding: 4rem 0;
+      }
+
+      .hero + .section {
+        padding-top: 1.2rem;
+      }
+
+      .section-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 0.96fr) minmax(280px, 0.72fr);
+        gap: 2rem;
+        align-items: end;
+        margin-bottom: 1.5rem;
+      }
+
+      .section-title {
+        margin: 0;
+        color: var(--cream);
+        font-family: "Redwood Serif", Georgia, ui-serif, serif;
+        font-size: clamp(1.72rem, 2.45vw, 2.62rem);
+        font-weight: 400;
+        line-height: 1.08;
+        overflow-wrap: anywhere;
+      }
+
+      .section-copy {
+        margin: 0;
+        color: rgba(255, 247, 225, 0.72);
+        font-size: 1.04rem;
+        line-height: 1.7;
+      }
+
+      .area-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .area-card,
+      .cms-panel,
+      .deploy-panel,
+      .signup-panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(8, 23, 15, 0.68);
+        box-shadow: var(--shadow);
+      }
+
+      .area-card {
+        min-height: 272px;
+        padding: 1.25rem;
+      }
+
+      .area-icon {
+        display: grid;
+        place-items: center;
+        width: 78px;
+        height: 78px;
+        margin-bottom: 1.25rem;
+        border-radius: 7px;
+        background: var(--paper);
+      }
+
+      .area-icon img {
+        width: 54px;
+        height: 54px;
+        object-fit: contain;
+        opacity: 0.86;
+      }
+
+      .area-card h3,
+      .cms-panel h3,
+      .deploy-panel h3,
+      .signup-panel h2 {
+        margin: 0;
+        color: var(--cream);
+        font-family: "Redwood Serif", Georgia, ui-serif, serif;
+        font-size: 1.12rem;
+        font-weight: 400;
+        line-height: 1.18;
+      }
+
+      .area-card p,
+      .cms-panel p,
+      .deploy-panel p,
+      .signup-panel p {
+        color: rgba(255, 247, 225, 0.7);
+        font-size: 1rem;
+        line-height: 1.65;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+
+      .feature-item {
+        min-height: 154px;
+        padding: 0.95rem;
+        border: 1px solid rgba(255, 247, 225, 0.14);
+        border-radius: 7px;
+        background: rgba(255, 247, 225, 0.045);
+      }
+
+      .feature-item strong {
+        display: block;
+        color: var(--sky);
+        font-size: 0.76rem;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .feature-item span {
+        display: block;
+        margin-top: 0.55rem;
+        color: rgba(255, 247, 225, 0.72);
+        font-size: 0.88rem;
+        line-height: 1.5;
+      }
+
+      .stack-band {
+        display: grid;
+        grid-template-columns: minmax(0, 0.82fr) minmax(340px, 1.18fr);
+        gap: 1.5rem;
+        align-items: stretch;
+        padding: clamp(1.25rem, 4vw, 2rem);
+        border: 1px solid var(--line);
+        border-top: 5px solid var(--gold);
+        border-radius: 8px;
+        background:
+          linear-gradient(135deg, rgba(17, 45, 30, 0.95), rgba(8, 23, 15, 0.92)),
+          var(--pine);
+        box-shadow: var(--shadow);
+      }
+
+      .stack-map {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .stack-layer {
+        display: grid;
+        grid-template-columns: 7.2rem minmax(0, 1fr);
+        gap: 1rem;
+        align-items: center;
+        padding: 0.85rem;
+        border: 1px solid rgba(255, 247, 225, 0.14);
+        border-radius: 7px;
+        background: rgba(255, 247, 225, 0.05);
+      }
+
+      .stack-layer strong {
+        color: var(--gold);
+        font-size: 0.72rem;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .stack-layer span {
+        color: rgba(255, 247, 225, 0.78);
+        line-height: 1.45;
+      }
+
+      .cms-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 0.82fr) minmax(320px, 1.18fr);
+        gap: 1.5rem;
+        padding: clamp(1.25rem, 4vw, 2rem);
+      }
+
+      .resource-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+
+      .resource {
+        padding: 1rem;
+        border: 1px solid rgba(255, 247, 225, 0.14);
+        border-radius: 7px;
+        background: rgba(255, 247, 225, 0.045);
+      }
+
+      .resource strong {
+        display: block;
+        color: var(--gold);
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+      }
+
+      .resource span {
+        display: block;
+        margin-top: 0.35rem;
+        color: rgba(255, 247, 225, 0.72);
+        line-height: 1.45;
+      }
+
+      .deploy-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(330px, 1.08fr);
+        gap: 1.25rem;
+        padding: clamp(1.25rem, 4vw, 2rem);
+        overflow: hidden;
+      }
+
+      .route-list {
+        display: grid;
+        gap: 0.7rem;
+        margin-top: 1rem;
+      }
+
+      .route {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid rgba(255, 247, 225, 0.12);
+      }
+
+      .route span {
+        color: rgba(255, 247, 225, 0.66);
+      }
+
+      .route strong {
+        color: var(--river);
+      }
+
+      .workflow {
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      .workflow-step {
+        display: grid;
+        grid-template-columns: 3.5rem minmax(0, 1fr);
+        gap: 0.9rem;
+        padding: 0.9rem;
+        border: 1px solid rgba(255, 247, 225, 0.14);
+        border-radius: 7px;
+        background: rgba(255, 247, 225, 0.045);
+      }
+
+      .workflow-step em {
+        color: var(--gold);
+        font-style: normal;
+        font-family: "Switchback", ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.2rem;
+        font-weight: 950;
+      }
+
+      .workflow-step strong {
+        display: block;
+        color: var(--cream);
+      }
+
+      .workflow-step span {
+        display: block;
+        margin-top: 0.3rem;
+        color: rgba(255, 247, 225, 0.66);
+        line-height: 1.45;
+      }
+
+      .signup-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 1rem;
+        align-items: center;
+        padding: clamp(1.25rem, 4vw, 2rem);
+        background:
+          url("/assets/images/topography.svg") center / 620px auto,
+          linear-gradient(135deg, rgba(39, 95, 60, 0.92), rgba(18, 50, 32, 0.96)),
+          var(--pine);
+        background-blend-mode: soft-light, normal, normal;
+      }
+
+      .signup-panel form {
+        display: flex;
+        gap: 0.75rem;
+        width: min(440px, 100%);
+      }
+
+      input {
+        width: 100%;
+        min-height: 48px;
+        padding: 0 0.9rem;
+        border: 1px solid rgba(16, 34, 24, 0.28);
+        border-radius: 7px;
+        color: #18261d;
+        font: inherit;
+        font-weight: 850;
+        background: var(--cream);
+      }
+
+      input:focus {
+        border-color: var(--gold);
+        outline: 3px solid rgba(223, 154, 47, 0.25);
+      }
+
+      .site-footer {
+        padding: 2rem 0 3rem;
+        color: rgba(255, 247, 225, 0.64);
+        font-size: 0.78rem;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      .footer-inner {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        border-top: 1px solid var(--line);
+        padding-top: 1.25rem;
+      }
+
+      @media (max-width: 920px) {
+        .site-shell {
+          width: min(100% - 32px, 720px);
+        }
+
+        .nav-inner {
+          min-height: 64px;
+        }
+
+        .nav-links {
+          gap: 0.7rem;
+          font-size: 0.66rem;
+        }
+
+        .hero,
+        .section-heading,
+        .cms-panel,
+        .deploy-panel,
+        .signup-panel,
+        .stack-band {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .hero {
+          gap: 1.5rem;
+          padding: 2rem 0 2.25rem;
+        }
+
+        .hero-title {
+          font-size: clamp(4.4rem, 22vw, 7rem);
+        }
+
+        .kicker {
+          font-size: 0.68rem;
+        }
+
+        .kicker::before {
+          width: 36px;
+        }
+
+        .hero-headline {
+          font-size: clamp(1.2rem, 5.4vw, 1.74rem);
+        }
+
+        .hero-copy {
+          font-size: 1.02rem;
+          line-height: 1.55;
+        }
+
+        .hero-actions {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.6rem;
+          margin-top: 1.25rem;
+        }
+
+        .button {
+          width: 100%;
+          min-height: 44px;
+          padding: 0 0.85rem;
+          font-size: 0.72rem;
+        }
+
+        .hero-metrics,
+        .area-grid,
+        .resource-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .feature-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .hero-metrics,
+        .product-preview {
+          display: none;
+        }
+
+        .dashboard-shell {
+          grid-template-columns: 1fr;
+          min-height: auto;
+        }
+
+        .dashboard-side {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .side-pill {
+          display: inline-block;
+          margin: 0 0.35rem 0.45rem 0;
+        }
+
+        .section {
+          padding: 2.75rem 0;
+        }
+
+        .hero + .section {
+          padding-top: 1.5rem;
+        }
+
+        .section-title {
+          font-size: clamp(1.85rem, 9vw, 2.7rem);
+          line-height: 1.05;
+        }
+
+        .signup-panel form {
+          flex-direction: column;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .nav-inner {
+          flex-wrap: wrap;
+          justify-content: center;
+          padding: 0.8rem 0;
+        }
+
+        .brand,
+        .nav-links {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .nav-links {
+          flex-wrap: wrap;
+        }
+
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .product-preview {
+          padding: 0.7rem;
+        }
+
+        .dashboard-top,
+        .content-row,
+        .route {
+          grid-template-columns: 1fr;
+          flex-direction: column;
+        }
+
+        .terminal-strip {
+          font-size: 0.72rem;
+        }
+      }
+    </style>
+  </head>
+  <body data-site-mode="{{ siteMode }}" data-coming-soon-bypass-enabled="{{ comingSoonBypassEnabled }}" data-coming-soon-bypass="{{ comingSoonBypassToken }}">
+    <section class="mode-screen" aria-labelledby="coming-soon-heading">
+      <div class="mode-card">
+        <span class="mode-sun" aria-hidden="true"></span>
+        <div class="mode-content">
+          <h1 id="coming-soon-heading" class="mode-title">{{ appName }}</h1>
+          <p class="mode-lead">The trailhead is almost ready.</p>
+          <p class="mode-copy">
+            We are clearing the last stretch: framework, docs, CMS, and the deploy path. Leave your email and we will let you know the moment the trail opens.
+          </p>
+          <form class="mode-subscribe" action="/api/email/subscribe" method="POST">
+            <input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email address" required>
+            <button class="button primary" type="submit">Notify me</button>
+          </form>
+          <div class="mode-meta">
+            <a class="mode-textlink" href="/blog/introducing-stacks" data-no-router>Read “Introducing Stacks”</a>
+            <span class="mode-social">
+              <a href="https://bsky.app/profile/stacksjs.com" target="_blank" rel="noopener" aria-label="Stacks on Bluesky">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.038.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.789.624-6.478 0-.69-.139-1.861-.902-2.206-.658-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8Z"/></svg>
+              </a>
+              <a href="https://github.com/stacksjs" target="_blank" rel="noopener" aria-label="Stacks on GitHub">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+              </a>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="site-content">
+      <nav class="site-nav">
+        <div class="site-shell nav-inner">
+          <a class="brand" href="/" aria-label="Stacks home">
+            <span class="brand-mark">S</span>
+            <span class="brand-name">{{ appName }}</span>
+          </a>
+          <div class="nav-links" aria-label="Primary navigation">
+            @foreach (navLinks as link)
+              <a href="{{ link.url }}" {{ link.native ? 'data-no-router' : '' }}>{{ link.label }}</a>
+            @endforeach
+          </div>
+        </div>
+      </nav>
+
+      <main>
+        <section class="site-shell hero">
+          <div>
+            <span class="kicker">Full-stack TypeScript framework</span>
+            <h1 class="hero-title">{{ appName }}</h1>
+            <p class="hero-headline">The TypeScript framework for product teams.</p>
+            <p class="hero-copy">
+              Stacks gives TypeScript teams the web framework essentials in one place: routing, STX views, models, auth, CMS, queues, mail, storage, tests, docs, blog, APIs, and cloud deployment through Buddy.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="/docs" data-no-router>Read the docs</a>
+              <a class="button" href="#platform">Explore features</a>
+            </div>
+            <div class="hero-metrics" aria-label="Stacks platform coverage">
+              <div class="metric"><strong>12+</strong><span>First-party systems</span></div>
+              <div class="metric"><strong>CMS</strong><span>Content and APIs</span></div>
+              <div class="metric"><strong>Cloud</strong><span>One deploy path</span></div>
+            </div>
+          </div>
+
+          <aside class="product-preview" aria-label="Stacks dashboard preview">
+            <div class="dashboard-shell">
+              <div class="dashboard-side">
+                <div class="dashboard-logo">
+                  <img src="/assets/images/marketing-park-camp.svg" alt="">
+                  <span>CMS</span>
+                </div>
+                <span class="side-pill active">Content</span>
+                <span class="side-pill">Models</span>
+                <span class="side-pill">Docs</span>
+                <span class="side-pill">Deploys</span>
+                <span class="side-pill">Mail</span>
+              </div>
+              <div class="dashboard-main">
+                <div class="dashboard-top">
+                  <div>
+                    <h2>Framework dashboard</h2>
+                    <p class="section-copy">Edit CMS resources, inspect generated APIs, review models, and run the app from the same local command center.</p>
+                  </div>
+                  <span class="status-chip">Local</span>
+                </div>
+                <div class="content-table">
+                  <div class="content-row">
+                    <div><strong>Marketing, docs, blog</strong><span>Static and server-rendered pages</span></div>
+                    <span class="row-state">Live</span>
+                  </div>
+                  <div class="content-row">
+                    <div><strong>CMS API and dashboard</strong><span>Generated from your models</span></div>
+                    <span class="row-state">Ready</span>
+                  </div>
+                  <div class="content-row">
+                    <div><strong>App, queues, mail, cloud</strong><span>One deploy on Bun and AWS</span></div>
+                    <span class="row-state">Shipped</span>
+                  </div>
+                </div>
+                <div class="terminal-strip">$ ./buddy dev --dashboard
+CMS API:      /api/cms/posts
+Dashboard:    /dashboard/content
+Docs:         /docs
+
+$ ./buddy deploy
+Marketing, docs, blog, CMS, API, mail, and cloud.</div>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section id="platform" class="site-shell section" aria-labelledby="platform-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="platform-heading" class="section-title">A complete web framework.</h2>
+          </div>
+          <p class="section-copy">Routing, views, models, auth, queues, storage, tests, content, and deployment are first-party. The pieces are designed to move together instead of arriving as separate projects.</p>
+        </div>
+
+        <div class="area-grid">
+          @foreach (productAreas as area)
+            <article class="area-card">
+              <div class="area-icon">
+                <img src="{{ area.image }}" alt="">
+              </div>
+              <h3>{{ area.title }}</h3>
+              <p>{{ area.text }}</p>
+            </article>
+          @endforeach
+        </div>
+
+        <div class="feature-grid">
+          @foreach (platformFeatures as feature)
+            <div class="feature-item">
+              <strong>{{ feature.title }}</strong>
+              <span>{{ feature.text }}</span>
+            </div>
+          @endforeach
+        </div>
+        </section>
+
+        <section class="site-shell section" aria-labelledby="stack-heading">
+        <div class="stack-band">
+          <div>
+            <h2 id="stack-heading" class="section-title">From idea to release.</h2>
+            <p class="section-copy">Build product surfaces, operate the dashboard, scale background work, and deploy the public site from the same project. Stacks keeps the application, CMS, docs, blog, APIs, and cloud config on one route.</p>
+          </div>
+          <div class="stack-map">
+            @foreach (stackLayers as layer)
+              <div class="stack-layer">
+                <strong>{{ layer.label }}</strong>
+                <span>{{ layer.value }}</span>
+              </div>
+            @endforeach
+          </div>
+        </div>
+        </section>
+
+        <section id="cms" class="site-shell section" aria-labelledby="cms-heading">
+        <div class="cms-panel">
+          <div>
+            <h2 id="cms-heading" class="section-title">Built-in CMS.</h2>
+            <p class="section-copy">Markdown stays friendly for developers, while the dashboard gives editors real resource management for posts, pages, taxonomy, media, docs, blog content, and model-backed custom resources.</p>
+          </div>
+          <div class="resource-grid">
+            @foreach (cmsResources as resource)
+              <div class="resource"><strong>{{ resource.title }}</strong><span>{{ resource.text }}</span></div>
+            @endforeach
+          </div>
+        </div>
+        </section>
+
+        <section id="deploy" class="site-shell section" aria-labelledby="deploy-heading">
+        <div class="deploy-panel">
+          <div>
+            <h2 id="deploy-heading" class="section-title">Deploy every surface.</h2>
+            <p class="section-copy">The same deploy path builds the homepage, docs, blog, CMS API, application server, mail service, DNS, CDN, storage, and static assets.</p>
+            <div class="route-list">
+              <div class="route"><span>Marketing</span><strong>stacksjs.com</strong></div>
+              <div class="route"><span>Docs</span><strong>stacksjs.com/docs</strong></div>
+              <div class="route"><span>Blog</span><strong>stacksjs.com/blog</strong></div>
+              <div class="route"><span>API</span><strong>stacksjs.com/api</strong></div>
+              <div class="route"><span>Dashboard</span><strong>stacksjs.com/dashboard</strong></div>
+            </div>
+          </div>
+          <div class="workflow">
+            @foreach (workflowSteps as step)
+              <div class="workflow-step">
+                <em>{{ step.label }}</em>
+                <div>
+                  <strong>{{ step.title }}</strong>
+                  <span>{{ step.text }}</span>
+                </div>
+              </div>
+            @endforeach
+          </div>
+        </div>
+        </section>
+
+        <section class="site-shell section" aria-labelledby="signup-heading">
+        <div class="signup-panel">
+          <div>
+            <h2 id="signup-heading" class="section-title">Get product updates.</h2>
+            <p>Framework updates, CMS improvements, and deployment notes by email.</p>
+          </div>
+          <form action="/api/email/subscribe" method="POST">
+            <input type="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+            <button class="button primary" type="submit">Subscribe</button>
+          </form>
+        </div>
+        </section>
+      </main>
+
+      <footer class="site-shell site-footer">
+        <div class="footer-inner">
+          <span>© 2026 Stacks</span>
+          <a class="footer-link" href="https://github.com/stacksjs/stacks">Source on GitHub</a>
+        </div>
+      </footer>
+    </div>
+    <script src="/assets/scripts/site-mode.js" defer></script>
+  </body>
+</html>

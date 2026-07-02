@@ -1,0 +1,33 @@
+<script>
+interface PaymentFormProps {
+  productId?: number
+  price?: string
+  paymentIntent?: string
+}
+
+const { productId = 1, price = '$0.00', paymentIntent = '' } = defineProps<PaymentFormProps>()
+</script>
+<div>
+    <form id="payment-form">
+      <div id="link-authentication-element"></div>
+      <div id="payment-element"></div>
+
+      <div class="flex mt-6 space-x-2">
+        <button
+          type="button"
+          class="px-2 py-1.5 w-full font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-500 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 focus-visible:outline-offset-2 shadow-sm"
+          data-action="pay"
+        >
+          Pay {{ price }}
+        </button>
+
+        <button
+          type="button"
+          class="px-2 py-1.5 w-full font-semibold text-gray-900 text-sm bg-white hover:bg-gray-50 ring-1 ring-gray-300 ring-inset rounded shadow-sm"
+          data-action="cancel"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>

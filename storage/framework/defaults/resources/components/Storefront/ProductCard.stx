@@ -1,0 +1,63 @@
+<script>
+interface ProductCardProps {
+  slug: string
+  name: string
+  /** Pre-formatted price label, e.g. "$22.00". Format at the call site
+   *  — STX defineProps values aren't in scope for SSR template evaluation. */
+  priceLabel: string
+  image: string
+  ingredient?: string
+  weight?: string
+  badge?: string
+  speciesLabel?: string
+}
+
+const {
+  slug,
+  name,
+  priceLabel,
+  image,
+  ingredient = '',
+  weight = '',
+  badge = '',
+  speciesLabel = '',
+} = defineProps<ProductCardProps>()
+</script>
+
+<a href="/products/{{ slug }}" class="block overflow-hidden bg-stone-50 border border-stone-200 rounded-2xl hover:border-stone-900 transition-colors group">
+  <div class="aspect-square overflow-hidden relative bg-stone-200">
+    {{-- decoding=async + loading=lazy so a long catalog grid below the fold
+        doesn't block first paint, and explicit width/height (matched to a
+        square aspect-ratio container above) keep CLS at 0 while images
+        resolve. The card is below the fold on every page that uses it
+        (home featured, /products grid) so lazy is always safe. --}}
+    <img
+      src="{{ image }}"
+      alt="{{ name }}"
+      width="600"
+      height="600"
+      loading="lazy"
+      decoding="async"
+      class="object-cover h-full w-full duration-500 transition-transform group-hover:scale-105"
+    >
+    @if (badge)
+      <span class="absolute left-3 top-3 px-2 py-0.5 font-semibold text-[10px] text-stone-900 tracking-wider uppercase bg-stone-50 rounded-full">{{ badge }}</span>
+    @endif
+  </div>
+  <div class="p-4">
+    <div class="flex items-center justify-between">
+      <span class="font-semibold text-[10px] text-stone-500 tracking-wider uppercase">{{ speciesLabel }}</span>
+      @if (weight)
+        <span class="text-stone-500 text-xs">{{ weight }}</span>
+      @endif
+    </div>
+    <h3 class="mt-2 font-semibold leading-snug text-stone-900">{{ name }}</h3>
+    @if (ingredient)
+      <p class="mt-1 text-stone-500 text-xs">{{ ingredient }}</p>
+    @endif
+    <div class="flex items-center justify-between mt-3">
+      <p class="font-bold text-stone-900">{{ priceLabel }}</p>
+      <span class="font-medium text-stone-500 text-xs group-hover:text-stone-900">View →</span>
+    </div>
+  </div>
+</a>

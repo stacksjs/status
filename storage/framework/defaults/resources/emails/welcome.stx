@@ -1,0 +1,48 @@
+<script server>
+// Welcome email — sent after a user signs up. Uses the bundled
+// <EmailLayout> + <EmailSection> + ... component library
+// (stacksjs/stacks#1901). All copy / colour can be overridden by
+// passing the matching prop to the Mailable.
+const appName = props.appName || 'Stacks'
+const appUrl = props.appUrl || 'https://stacksjs.com'
+const userName = props.userName || 'there'
+const primaryColor = props.primaryColor || '#3451b2'
+const subject = props.subject || `Welcome to ${appName}`
+const year = props.year || new Date().getFullYear()
+</script>
+
+<EmailLayout title="{{ subject }}">
+  <template #header>
+    <tr>
+      <td style="background-color:{{ primaryColor }};padding:30px 40px;text-align:center;">
+        <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:600;">{{ appName }}</h1>
+      </td>
+    </tr>
+  </template>
+
+  <EmailText size="heading">Welcome to {{ appName }}!</EmailText>
+  <EmailText>Hi {{ userName }},</EmailText>
+  <EmailText>Thank you for signing up — we're excited to have you on board.</EmailText>
+  <EmailText>Your account has been created successfully. You can sign in and start exploring everything {{ appName }} has to offer.</EmailText>
+
+  <EmailButton href="{{ appUrl }}" bg="{{ primaryColor }}">Get Started</EmailButton>
+
+  <EmailText size="lg" color="#111827">What's next?</EmailText>
+  <ul style="margin:0;padding:0 0 0 20px;color:#4b5563;font-size:14px;">
+    <li style="margin-bottom:8px;">Complete your profile</li>
+    <li style="margin-bottom:8px;">Explore the dashboard</li>
+    <li style="margin-bottom:8px;">Check out our documentation</li>
+  </ul>
+
+  <EmailDivider />
+  <EmailText size="sm" color="#6b7280" spacing="0">If you have any questions, reach out to support — we're here to help.</EmailText>
+
+  <template #footer>
+    <tr>
+      <td style="padding:20px 40px;background-color:#f9fafb;border-top:1px solid #e5e7eb;">
+        <p style="margin:0;color:#6b7280;font-size:12px;text-align:center;">This is an automated message from {{ appName }}. Please do not reply to this email.</p>
+        <p style="margin:10px 0 0 0;color:#9ca3af;font-size:11px;text-align:center;">&copy; {{ year }} {{ appName }}. All rights reserved.</p>
+      </td>
+    </tr>
+  </template>
+</EmailLayout>

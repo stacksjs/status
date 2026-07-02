@@ -1,0 +1,119 @@
+import type { NewShippingRate, ShippingRates } from '../../../types/defaults'
+import { useStorage } from '@stacksjs/browser'
+import { pushToast } from '../../toasts'
+
+// Create a persistent shipping rates array using VueUse's useStorage
+const shippingRates = useStorage<ShippingRates[]>('shippingRates', [])
+
+const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+
+// Basic fetch function to get all shipping rates
+async function fetchShippingRates() {
+  try {
+    const response = await fetch(`${baseURL}/commerce/shipping-rates`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const { data } = await response.json() as { data: ShippingRates[] }
+
+    shippingRates.value = data
+
+    return data
+  }
+  catch (error) {
+    pushToast('error', 'Error fetching shipping rates', { detail: String(error) })
+    return []
+  }
+}
+
+async function createShippingRate(shippingRate: NewShippingRate) {
+  try {
+    const response = await fetch(`${baseURL}/commerce/shipping-rates`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(shippingRate),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json() as ShippingRates
+    if (data) {
+      shippingRates.value.push(data)
+      return data
+    }
+    return null
+  }
+  catch (error) {
+    pushToast('error', 'Error creating shipping rate', { detail: String(error) })
+    return null
+  }
+}
+
+async function updateShippingRate(shippingRate: ShippingRates) {
+  try {
+    const response = await fetch(`${baseURL}/commerce/shipping-rates/${shippingRate.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(shippingRate),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json() as ShippingRates
+    if (data) {
+      const index = shippingRates.value.findIndex(s => s.id === shippingRate.id)
+      if (index !== -1) {
+        shippingRates.value[index] = data
+      }
+      return data
+    }
+    return null
+  }
+  catch (error) {
+    pushToast('error', 'Error updating shipping rate', { detail: String(error) })
+    return null
+  }
+}
+
+async function deleteShippingRate(id: number) {
+  try {
+    const response = await fetch(`${baseURL}/commerce/shipping-rates/${id}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const index = shippingRates.value.findIndex(s => s.id === id)
+    if (index !== -1) {
+      shippingRates.value.splice(index, 1)
+    }
+
+    return true
+  }
+  catch (error) {
+    pushToast('error', 'Error deleting shipping rate', { detail: String(error) })
+    return false
+  }
+}
+
+// Export the composable
+export function useShippingRates() {
+  return {
+    shippingRates,
+    fetchShippingRates,
+    createShippingRate,
+    updateShippingRate,
+    deleteShippingRate,
+  }
+}

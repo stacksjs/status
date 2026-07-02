@@ -1,0 +1,209 @@
+import type { EmailAddress, EmailMessage, EmailResult } from '@stacksjs/types'
+import { Buffer } from 'node:buffer'
+import { config } from '@stacksjs/config'
+import { log } from '@stacksjs/logging'
+import type { TemplateOptions } from '../template'
+import { template } from '../template'
+import { filterStringHeaders } from '../validation'
+import { BaseEmailDriver } from './base'
+
+export class SendGridDriver extends BaseEmailDriver {
+  public name = 'sendgrid'
+  private apiKey: string | null = null
+
+  private getApiKey(): string {
+    if (!this.apiKey) {
+      this.apiKey = config.services.sendgrid?.apiKey ?? ''
+    }
+    return this.apiKey
+  }
+
+  public async send(message: EmailMessage, options?: TemplateOptions): Promise<EmailResult> {
+    const logContext = {
+      provider: this.name,
+      to: message.to,
+      subject: message.subject,
+    }
+
+    log.info('Sending email via SendGrid...', logContext)
+
+    try {
+      this.validateMessage(message)
+
+      // Only attempt to render template if one is provided
+      let htmlContent: string | undefined
+      if (message.template) {
+        const templ = await template(message.template, options)
+        if (templ && 'html' in templ) {
+          htmlContent = templ.html
+        }
+      }
+
+      // Use template HTML if available, otherwise use direct HTML from message
+      const finalHtml = htmlContent || message.html
+
+      // Prepare content array based on available content
+      const content = []
+
+      // Add HTML content if available
+      if (finalHtml) {
+        content.push({
+          type: 'text/html',
+          value: finalHtml,
+        })
+      }
+
+      // Add text content if available
+      if (message.text) {
+        content.push({
+          type: 'text/plain',
+          value: message.text,
+        })
+      }
+
+      // If no content was added, throw an error
+      if (content.length === 0) {
+        throw new Error('Email must have either HTML or text content')
+      }
+
+      // First reply-to address only — SendGrid's `reply_to` slot takes
+      // a single email, not an array. Multi-replyTo callers get the
+      // first entry; the rest are silently dropped, matching SendGrid's
+      // own API behavior. (stacksjs/stacks#1871 M-4.)
+      const replyTo = this.firstSendGridAddress(message.replyTo)
+
+      // Custom headers passthrough (stacksjs/stacks#1871 M-5). SendGrid
+      // accepts arbitrary headers via the `headers` field — used for
+      // List-Unsubscribe / In-Reply-To / Message-ID overrides. The
+      // shared `filterStringHeaders` strips non-string values and any
+      // entry containing CR/LF (header injection).
+      const customHeaders = filterStringHeaders(message.headers)
+
+      const sendgridPayload: Record<string, unknown> = {
+        personalizations: [
+          {
+            to: this.formatSendGridAddresses(message.to),
+            ...(message.cc && { cc: this.formatSendGridAddresses(message.cc) }),
+            ...(message.bcc && { bcc: this.formatSendGridAddresses(message.bcc) }),
+            subject: message.subject,
+          },
+        ],
+        from: {
+          email: message.from?.address || config.email.from?.address || '',
+          name: message.from?.name || config.email.from?.name,
+        },
+        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(customHeaders ? { headers: customHeaders } : {}),
+        content,
+        ...(message.attachments && {
+          attachments: message.attachments.map(attachment => ({
+            filename: attachment.filename,
+            content: typeof attachment.content === 'string'
+              ? attachment.content
+              : this.arrayBufferToBase64(attachment.content),
+            type: attachment.contentType,
+            disposition: 'attachment',
+          })),
+        }),
+      }
+
+      const response = await this.sendWithRetry(sendgridPayload)
+      return this.handleSuccess(message, response.headers?.get('x-message-id') ?? undefined)
+    }
+    catch (error) {
+      return this.handleError(error, message)
+    }
+  }
+
+  private formatSendGridAddresses(addresses: string | string[] | EmailAddress[] | undefined): Array<{ email: string, name?: string }> {
+    if (!addresses)
+      return []
+
+    if (typeof addresses === 'string') {
+      return [{ email: addresses }]
+    }
+
+    return addresses.map((addr) => {
+      if (typeof addr === 'string')
+        return { email: addr }
+      return { email: addr.address, ...(addr.name && { name: addr.name }) }
+    })
+  }
+
+  /**
+   * Extract the first SendGrid-shape `{ email, name? }` from a single
+   * or array reply-to value. Returns undefined when nothing usable was
+   * passed. (stacksjs/stacks#1871 M-4.)
+   */
+  private firstSendGridAddress(value: EmailMessage['replyTo']): { email: string, name?: string } | undefined {
+    if (!value) return undefined
+    if (typeof value === 'string') return { email: value }
+    if (Array.isArray(value)) {
+      const first = value[0]
+      if (first === undefined) return undefined
+      if (typeof first === 'string') return { email: first }
+      return { email: first.address, ...(first.name && { name: first.name }) }
+    }
+    // Single EmailAddress
+    return { email: value.address, ...(value.name && { name: value.name }) }
+  }
+
+  // `filterStringHeaders` moved to `../validation` and is shared across
+  // every driver that accepts a `message.headers` map.
+
+  private arrayBufferToBase64(buffer: Uint8Array): string {
+    let binary = ''
+    const bytes = new Uint8Array(buffer)
+    const len = bytes.byteLength
+
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i] ?? 0)
+    }
+
+    return typeof btoa === 'function'
+      ? btoa(binary)
+      : Buffer.from(binary).toString('base64')
+  }
+
+  private async sendWithRetry(payload: Record<string, unknown>, attempt = 1): Promise<Response> {
+    try {
+      const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.getApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        const err = new Error(`SendGrid API error: ${response.status} - ${JSON.stringify(errorData)}`) as Error & { status?: number }
+        err.status = response.status
+        throw err
+      }
+
+      log.info(`[${this.name}] Email sent successfully`, { attempt })
+      return response
+    }
+    catch (error: unknown) {
+      // Don't retry deterministic failures. 401/403 mean the API key is
+      // bad or revoked; 400 means the request shape is wrong; 422 means
+      // SendGrid validated the payload as malformed. Retrying any of
+      // those wastes the retry budget and floods their abuse log with
+      // identical bad requests. We DO retry on 5xx, 429 (rate-limited),
+      // and unknown network errors.
+      const status = (error as { status?: number })?.status
+      const nonRetryable = typeof status === 'number' && status >= 400 && status < 500 && status !== 429
+      if (!nonRetryable && attempt < (config.services.sendgrid?.maxRetries ?? 3)) {
+        const retryTimeout = config.services.sendgrid?.retryTimeout ?? 1000
+        log.warn(`[${this.name}] Email send failed, retrying (${attempt}/${config.services.sendgrid?.maxRetries ?? 3})`)
+        await new Promise(resolve => setTimeout(resolve, retryTimeout))
+        return this.sendWithRetry(payload, attempt + 1)
+      }
+      throw error
+    }
+  }
+}
+
+export default SendGridDriver

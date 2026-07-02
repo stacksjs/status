@@ -1,0 +1,265 @@
+import type { UserModel } from '@stacksjs/orm'
+import type Stripe from 'stripe'
+import { db } from '@stacksjs/database'
+import { HttpError } from '@stacksjs/error-handling'
+import { isUniqueViolation } from '@stacksjs/orm'
+
+type SubscriptionsTable = Record<string, unknown>
+
+import { manageCustomer, managePrice, stripe } from '..'
+import { stacksIdempotencyKey } from '../idempotency'
+
+export interface SubscriptionManager {
+  create: (user: UserModel, type: string, lookupKey: string, params: Partial<Stripe.SubscriptionCreateParams>) => Promise<Stripe.Response<Stripe.Subscription>>
+  update: (user: UserModel, type: string, lookupKey: string, params: Partial<Stripe.SubscriptionUpdateParams>) => Promise<Stripe.Response<Stripe.Subscription>>
+  cancel: (subscriptionId: string, params?: Partial<Stripe.SubscriptionCreateParams>) => Promise<Stripe.Response<Stripe.Subscription>>
+  retrieve: (user: UserModel, subscriptionId: string) => Promise<Stripe.Response<Stripe.Subscription>>
+  isValid: (user: UserModel, type: string) => Promise<boolean>
+  isIncomplete: (user: UserModel, type: string) => Promise<boolean>
+}
+
+export const manageSubscription: SubscriptionManager = (() => {
+  async function create(
+    user: UserModel,
+    type: string,
+    lookupKey: string,
+    params: Partial<Stripe.SubscriptionCreateParams>,
+  ): Promise<Stripe.Response<Stripe.Subscription>> {
+    const price = await managePrice.retrieveByLookupKey(lookupKey)
+
+    if (!price) {
+      throw new Error('Price does not exist in Stripe')
+    }
+
+    const subscriptionItems = [
+      {
+        price: price.id,
+        quantity: 1,
+      },
+    ]
+
+    const customerId = await manageCustomer.createOrGetStripeUser(user, {}).then((customer) => {
+      if (!customer || !customer.id) {
+        throw new Error('Customer does not exist in Stripe')
+      }
+      return customer.id
+    })
+
+    const defaultParams: Stripe.SubscriptionCreateParams = {
+      customer: customerId,
+      payment_behavior: 'allow_incomplete', // or omit this line entirely
+      expand: ['latest_invoice.payment_intent'],
+      items: subscriptionItems,
+    }
+
+    const mergedParams = { ...defaultParams, ...params }
+
+    // Idempotency-key the subscription create (stacksjs/stacks#1876 X-1).
+    // The most common failure mode without this: the Stripe call
+    // succeeds, the local `storeSubscription` insert fails, the user
+    // retries the same request — and Stripe creates a SECOND
+    // subscription, double-charging the customer. With a deterministic
+    // key per (user, type, lookupKey), Stripe returns the original
+    // subscription on retry and we re-attempt the local insert.
+    const subscription = await stripe.subscriptions.create(mergedParams, {
+      idempotencyKey: stacksIdempotencyKey('subscription.create', user.id, type, lookupKey),
+    })
+
+    await storeSubscription(user, type, lookupKey, subscription)
+
+    return subscription
+  }
+
+  async function update(
+    user: UserModel,
+    type: string,
+    lookupKey: string,
+    _params: Partial<Stripe.SubscriptionUpdateParams> = {},
+  ): Promise<Stripe.Response<Stripe.Subscription>> {
+    const newPrice = await managePrice.retrieveByLookupKey(lookupKey)
+
+    const activeSubscription = await (user as unknown as { activeSubscription: () => Promise<{ subscription?: { provider_id?: string, id?: number } } | undefined> })?.activeSubscription()
+
+    if (!newPrice)
+      throw new Error('New price does not exist in Stripe')
+
+    if (!activeSubscription)
+      throw new Error('No active subscription for user!')
+
+    const subscriptionId = activeSubscription.subscription?.provider_id
+    if (!subscriptionId) {
+      throw new Error('Active subscription has no provider ID')
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+
+    if (!subscription) {
+      throw new Error('Subscription does not exist in Stripe')
+    }
+
+    const subscriptionItemId = subscription.items.data[0]?.id
+
+    if (!subscriptionItemId) {
+      throw new Error('No subscription items found in the subscription')
+    }
+
+    // Update via the parent subscription so we can pass proration_behavior.
+    // Without create_prorations, switching mid-cycle either (a) charges
+    // the full new price immediately while still inside the previous
+    // billing period, or (b) bills the new price at the next renewal
+    // with no credit for the partial month — both of which surprise
+    // customers and trigger chargebacks. create_prorations is the
+    // Stripe-recommended default for plan-switch flows.
+    await stripe.subscriptions.update(subscriptionId, {
+      items: [{ id: subscriptionItemId, price: newPrice.id, quantity: 1 }],
+      proration_behavior: 'create_prorations',
+    }, {
+      // Idempotency-keyed against (subscription, new price) so a retry
+      // doesn't accidentally apply two prorations for the same swap.
+      idempotencyKey: stacksIdempotencyKey('subscription.update', subscriptionId, newPrice.id),
+    })
+
+    const updatedSubscription = await stripe.subscriptions.retrieve(subscriptionId)
+
+    if (!activeSubscription.subscription?.id) {
+      throw new Error('Active subscription has no database ID')
+    }
+
+    await updateSubscription(activeSubscription.subscription.id, type, updatedSubscription)
+
+    return updatedSubscription
+  }
+
+  async function cancel(
+    subscriptionId: string,
+    params?: Partial<Stripe.SubscriptionCancelParams>,
+  ): Promise<Stripe.Response<Stripe.Subscription>> {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+
+    if (!subscription) {
+      throw new Error('Subscription does not exist or does not belong to the user')
+    }
+
+    const updatedSubscription = await stripe.subscriptions.cancel(subscriptionId, params, {
+      // Cancel is naturally idempotent on Stripe's side (a second
+      // cancel of an already-canceled sub is a no-op), but the key
+      // still pairs the retry to the original response shape for
+      // downstream consumers that diff against it.
+      idempotencyKey: stacksIdempotencyKey('subscription.cancel', subscriptionId),
+    })
+
+    await updateStoredSubscription(subscriptionId)
+
+    return updatedSubscription
+  }
+
+  async function retrieve(user: UserModel, subscriptionId: string): Promise<Stripe.Response<Stripe.Subscription>> {
+    if (!user.hasStripeId()) {
+      throw new Error('Customer does not exist in Stripe')
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+
+    return subscription
+  }
+
+  async function updateStoredSubscription(subscriptionId: string): Promise<void> {
+    await db.updateTable('subscriptions').set({ provider_status: 'canceled' }).where('provider_id', '=', subscriptionId).executeTakeFirst()
+  }
+
+  function isActive(subscription: SubscriptionsTable): boolean {
+    return (subscription as Record<string, unknown>).provider_status === 'active'
+  }
+
+  function isTrial(subscription: SubscriptionsTable): boolean {
+    return (subscription as Record<string, unknown>).provider_status === 'trialing'
+  }
+
+  async function isIncomplete(user: UserModel, type: string): Promise<boolean> {
+    const subscription = await db.selectFrom('subscriptions').where('user_id', '=', user.id).where('type', '=', type).selectAll().executeTakeFirst()
+
+    if (!subscription)
+      return false
+
+    return (subscription as Record<string, unknown>).provider_status === 'incomplete'
+  }
+
+  async function isValid(user: UserModel, type: string): Promise<boolean> {
+    const subscription = await db.selectFrom('subscriptions').where('user_id', '=', user.id).where('type', '=', type).selectAll().executeTakeFirst()
+
+    if (!subscription)
+      return false
+
+    const active = await isActive(subscription as unknown as SubscriptionsTable)
+    const trial = await isTrial(subscription as unknown as SubscriptionsTable)
+
+    return active || trial
+  }
+
+  async function storeSubscription(user: UserModel, type: string, _lookupKey: string, options: Stripe.Subscription): Promise<SubscriptionsTable | undefined> {
+    const firstItem = options.items.data[0]
+    if (!firstItem)
+      throw new Error('Stripe subscription contains no line items — cannot store subscription')
+
+    const data = removeNullValues({
+      user_id: user.id,
+      type,
+      unit_price: Number(firstItem.price.unit_amount),
+      provider_id: options.id,
+      provider_status: options.status,
+      provider_price_id: firstItem.price.id,
+      quantity: firstItem.quantity,
+      trial_ends_at: options.trial_end != null ? String(options.trial_end) : undefined,
+      ends_at: (options as unknown as Record<string, unknown>).current_period_end != null ? String((options as unknown as Record<string, unknown>).current_period_end) : undefined,
+      provider_type: 'stripe',
+      last_used_at: (options as unknown as Record<string, unknown>).current_period_end != null ? String((options as unknown as Record<string, unknown>).current_period_end) : undefined,
+    })
+
+    // A duplicate provider_id (e.g. a retried Stripe webhook delivery) hits
+    // the subscriptions.provider_id unique index — surface it as a 409 rather
+    // than a raw 500 (#1957). 409 is the conservative mapping; idempotent
+    // return-existing semantics are deferred as a product call.
+    let subscriptionModelCreated: { insertId?: unknown } | undefined
+    try {
+      subscriptionModelCreated = await db.insertInto('subscriptions').values(data).executeTakeFirst()
+    }
+    catch (error) {
+      if (isUniqueViolation(error))
+        throw new HttpError(409, 'A subscription with this provider ID already exists')
+      throw error
+    }
+    if (!subscriptionModelCreated)
+      throw new Error('Failed to insert subscription record')
+
+    const subscriptionModel = await db.selectFrom('subscriptions').where('id', '=', Number(subscriptionModelCreated.insertId)).selectAll().executeTakeFirst()
+
+    return subscriptionModel as unknown as SubscriptionsTable | undefined
+  }
+
+  async function updateSubscription(activeSubId: number, type: string, options: Stripe.Subscription): Promise<SubscriptionsTable | undefined> {
+    const subscription = await db.selectFrom('subscriptions').where('id', '=', activeSubId).selectAll().executeTakeFirst()
+
+    const firstItem = options.items.data[0]
+    if (!firstItem)
+      throw new Error('Stripe subscription contains no line items — cannot update subscription')
+
+    await db?.updateTable('subscriptions')
+      .set({
+        type,
+        provider_price_id: firstItem.price.id,
+        unit_price: Number(firstItem.price.unit_amount),
+      })
+      .where('id', '=', activeSubId)
+      .executeTakeFirst()
+
+    return subscription as unknown as SubscriptionsTable | undefined
+  }
+
+  function removeNullValues<T extends Record<string, any>>(obj: T): Partial<T> {
+    return Object.fromEntries(
+      Object.entries(obj).filter(([_, value]) => value != null), // Filters out both `null` and `undefined`
+    ) as Partial<T>
+  }
+
+  return { create, update, isValid, isIncomplete, cancel, retrieve }
+})()

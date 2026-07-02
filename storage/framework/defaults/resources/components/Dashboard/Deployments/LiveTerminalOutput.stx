@@ -1,0 +1,18 @@
+<script>
+interface LiveTerminalOutputProps {
+  live?: boolean
+}
+
+const { live = true } = defineProps<LiveTerminalOutputProps>()
+</script>
+<div class="pt-12 px-4 sm:px-6 lg:px-8">
+    <div class="flow-root mt-8">
+      <div class="overflow-x-auto -mx-4 -my-2 sm:-mx-6 lg:-mx-8">
+        <div class="inline-block py-2 sm:px-6 lg:px-8 min-w-full align-middle">
+          <div class="overflow-hidden">
+            <slot />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>

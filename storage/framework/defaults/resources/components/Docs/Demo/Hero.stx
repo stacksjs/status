@@ -1,0 +1,100 @@
+<script>
+interface HeroProps {
+  title?: string
+  description?: string
+  link?: string
+}
+
+const { title = '', description = '', link = '' } = defineProps<HeroProps>()
+</script>
+<div class="flex flex-col gap-3 items-center">
+  <div class="dropdownWrapper">
+    <div class="toast"></div>
+    <div class="toast"></div>
+    <div class="toast"></div>
+  </div>
+  <h1 class="-mt-5 mb-3 font-bold text-5xl text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-blue-700 dark:to-blue-300">
+    {{ title }}
+  </h1>
+  <p class="mb-3 mt-0 text-lg">
+    {{ description }}
+  </p>
+
+  <a
+    class="btn-secondary button"
+    href="{{ link }}"
+    target="_blank"
+  >
+    Github
+  </a>
+</div>
+<style>
+.dropdownWrapper {
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  width: 400px;
+  height: 100px;
+  position: relative;
+  -webkit-mask-image: linear-gradient(to top, transparent 0%, black 35%);
+  mask-image: linear-gradient(to top, transparent 0%, black 35%);
+  opacity: 1;
+}
+
+.toast {
+  width: 356px;
+  height: 40px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px #00000068;
+  border: 1px solid #f5f5f5;
+  border-radius: 6px;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.toast:nth-child(1) {
+  transform: translateY(-60%) translateX(-50%) scale(0.9);
+}
+
+.toast:nth-child(2) {
+  transform: translateY(-30%) translateX(-50%) scale(0.95);
+}
+
+.button {
+  height: 40px;
+  border-radius: 6px;
+  border: none;
+  padding: 0 30px;
+  font-weight: 600;
+  flex-shrink: 0;
+  font-family: inherit;
+  box-shadow: 0px 0px 0px 1px rgba(0, 0, 0, 0.06),
+    0px 1px 0px 0px rgba(0, 0, 0, 0.08), 0px 2px 2px 0px rgba(0, 0, 0, 0.04),
+    0px 3px 3px 0px rgba(0, 0, 0, 0.02), 0px 4px 4px 0px rgba(0, 0, 0, 0.01);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  text-decoration: none;
+  color: hsl(0, 0%, 9%);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  transition: box-shadow 200ms, background 200ms;
+}
+
+.btn-secondary {
+  background: linear-gradient(
+    156deg,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(240, 240, 240, 1) 100%
+  );
+}
+
+@media (max-width: 600px) {
+  .dropdownWrapper {
+    width: 100%;
+  }
+}
+</style>

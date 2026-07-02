@@ -1,0 +1,160 @@
+@extends('layouts/default')
+
+@section('content')
+<script client>
+// Dashboard home (stacksjs/stacks#1838). Static demo data — replace with
+// a real `/api/dashboard/home` fetch when the endpoint lands. The
+// previous `<script server>` block had three `{{ }} <var>` typos in the
+// template (empty interpolation + bare identifier) — converted those to
+// proper `:class` bindings below at the same time.
+const stats = [
+  { title: 'Total Users', value: '0', trend: 0, trendLabel: 'vs last period', icon: 'i-hugeicons-user-group' },
+  { title: 'Active Projects', value: '0', trend: 0, trendLabel: 'vs last period', icon: 'i-hugeicons-folder-02' },
+  { title: 'Cloud Uptime', value: '99.9%', trend: 0, trendLabel: 'vs last period', icon: 'i-hugeicons-cloud' },
+  { title: 'Response Time', value: '45ms', trend: 0, trendLabel: 'vs last period', icon: 'i-hugeicons-time-02' },
+]
+
+const recentActivity = [
+  { type: 'deployment', title: 'Production deployment completed', time: 'Just now', status: 'success' },
+  { type: 'blog', title: 'New blog post published', time: '2 hours ago', status: 'success' },
+  { type: 'error', title: 'Queue worker timeout', time: '5 hours ago', status: 'error' },
+  { type: 'commerce', title: 'New order received', time: '1 day ago', status: 'success' },
+]
+
+const systemHealth = [
+  { name: 'API', status: 'healthy', latency: '12ms', uptime: '99.9%' },
+  { name: 'Database', status: 'healthy', latency: '3ms', uptime: '99.9%' },
+  { name: 'Storage', status: 'healthy', latency: '8ms', uptime: '99.9%' },
+  { name: 'Cache', status: 'healthy', latency: '1ms', uptime: '99.9%' },
+  { name: 'Queue', status: 'healthy', latency: '45ms', uptime: '99.9%' },
+  { name: 'Notifications', status: 'healthy', latency: '120ms', uptime: '99.5%' },
+]
+
+const quickLinks = [
+  { name: 'Blog', description: 'Manage your blog posts', href: '/content/dashboard', color: 'bg-blue-500' },
+  { name: 'Commerce', description: 'View orders and products', href: '/commerce/dashboard', color: 'bg-green-500' },
+  { name: 'Cloud', description: 'Monitor infrastructure', href: '/cloud', color: 'bg-purple-500' },
+  { name: 'Settings', description: 'Configure your app', href: '/settings', color: 'bg-neutral-500' },
+]
+
+function getStatusDotClass(status) {
+  if (status === 'healthy') return 'bg-green-500'
+  if (status === 'degraded') return 'bg-amber-500'
+  if (status === 'critical') return 'bg-red-500'
+  return 'bg-gray-500'
+}
+
+function getActivityStatusClass(status) {
+  if (status === 'success') return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30'
+  if (status === 'error') return 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30'
+  if (status === 'warning') return 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30'
+  return 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30'
+}
+</script>
+
+<div class="mx-auto p-6 max-w-7xl">
+  <!-- Header -->
+  <PageHeader title="Dashboard" description="Welcome back! Here's an overview of your system." />
+
+  <!-- Stats Grid -->
+  <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <template :for="stat in stats">
+      <div class="p-5 bg-white dark:bg-neutral-800 border border-neutral-200 rounded-xl dark:border-neutral-700">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="font-medium text-neutral-500 text-sm dark:text-neutral-400">{{ stat.title }}</p>
+            <p class="mt-1 font-semibold text-2xl text-neutral-900 dark:text-white">{{ stat.value }}</p>
+            <p class="mt-1 text-neutral-500 text-xs dark:text-neutral-400">{{ stat.trendLabel }}</p>
+          </div>
+          <div class="flex-shrink-0 p-3 bg-neutral-100 dark:bg-neutral-700 rounded-xl">
+            <div :class="stat.icon" class="h-6 w-6 text-neutral-500 dark:text-neutral-400"></div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="mb-8">
+    <h2 class="mb-4 font-semibold text-base text-neutral-900 dark:text-white">Quick Links</h2>
+    <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <template :for="link in quickLinks">
+        <a :href="link.href" data-stx-link class="block p-5 no-underline bg-white dark:bg-neutral-800 border border-neutral-200 rounded-xl dark:border-neutral-700 hover:shadow-md transition-shadow">
+          <div class="flex gap-4 items-center">
+            <div :class="link.color" class="flex-shrink-0 p-3 rounded-xl">
+              <div class="h-5 w-5 text-white"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-neutral-900 text-sm dark:text-white">{{ link.name }}</p>
+              <p class="mt-0.5 text-neutral-500 text-xs dark:text-neutral-400">{{ link.description }}</p>
+            </div>
+          </div>
+        </a>
+      </template>
+    </div>
+  </div>
+
+  <!-- System Health + Recent Activity -->
+  <div class="grid gap-6 grid-cols-1 lg:grid-cols-2">
+    <!-- System Health -->
+    <div class="bg-white dark:bg-neutral-800 border border-neutral-200 rounded-xl dark:border-neutral-700">
+      <div class="flex items-center justify-between p-5 border-b border-neutral-200 dark:border-neutral-700">
+        <h3 class="font-semibold text-base text-neutral-900 dark:text-white">System Health</h3>
+        <StxLink to="/health" class="text-neutral-500 text-sm hover:text-neutral-700 dark:hover:text-neutral-300">View all</StxLink>
+      </div>
+      <div class="divide-neutral-100 divide-y dark:divide-neutral-700">
+        <template :for="service in systemHealth">
+          <div class="flex items-center justify-between px-5 py-3.5">
+            <div class="flex gap-3 items-center">
+              <span :class="getStatusDotClass(service.status)" class="h-2.5 w-2.5 rounded-full"></span>
+              <span class="font-medium text-neutral-700 text-sm dark:text-neutral-200">{{ service.name }}</span>
+            </div>
+            <div class="flex gap-4 items-center">
+              <span class="text-neutral-500 text-sm dark:text-neutral-400">{{ service.latency }}</span>
+              <span class="text-neutral-500 text-sm dark:text-neutral-400">{{ service.uptime }}</span>
+              <span class="px-2 py-0.5 font-medium text-green-700 text-xs dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded-full">{{ service.status }}</span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-white dark:bg-neutral-800 border border-neutral-200 rounded-xl dark:border-neutral-700">
+      <div class="flex items-center justify-between p-5 border-b border-neutral-200 dark:border-neutral-700">
+        <h3 class="font-semibold text-base text-neutral-900 dark:text-white">Recent Activity</h3>
+        <StxLink to="/data/activity" class="text-neutral-500 text-sm hover:text-neutral-700 dark:hover:text-neutral-300">View all</StxLink>
+      </div>
+      <div class="divide-neutral-100 divide-y dark:divide-neutral-700">
+        <template :for="activity in recentActivity">
+          <div class="flex gap-4 items-center px-5 py-3.5">
+            <div :class="getActivityStatusClass(activity.status)" class="flex-shrink-0 p-2 rounded-lg">
+              <div class="h-4 w-4"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-neutral-900 text-sm truncate dark:text-white">{{ activity.title }}</p>
+              <p class="text-neutral-500 text-xs dark:text-neutral-400">{{ activity.time }}</p>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resources -->
+  <div class="grid gap-4 grid-cols-1 sm:grid-cols-3 mt-8">
+    <a href="https://docs.stacksjs.org" target="_blank" class="p-5 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:shadow-md transition-shadow">
+      <h4 class="font-semibold text-blue-900 text-sm dark:text-blue-200">Documentation</h4>
+      <p class="mt-1 text-blue-700 text-xs dark:text-blue-300">Guides and API references</p>
+    </a>
+    <a href="https://discord.gg/stacksjs" target="_blank" class="p-5 bg-purple-50 dark:bg-purple-900/20 rounded-xl hover:shadow-md transition-shadow">
+      <h4 class="font-semibold text-purple-900 text-sm dark:text-purple-200">Community</h4>
+      <p class="mt-1 text-purple-700 text-xs dark:text-purple-300">Join our Discord</p>
+    </a>
+    <a href="https://github.com/stacksjs/stacks" target="_blank" class="p-5 bg-green-50 dark:bg-green-900/20 rounded-xl hover:shadow-md transition-shadow">
+      <h4 class="font-semibold text-green-900 text-sm dark:text-green-200">GitHub</h4>
+      <p class="mt-1 text-green-700 text-xs dark:text-green-300">Star us on GitHub</p>
+    </a>
+  </div>
+</div>
+@endsection

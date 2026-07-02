@@ -1,0 +1,343 @@
+{
+  "name": "stacks",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "The Stacks framework.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/stacks#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "fullstack",
+    "framework",
+    "typescript",
+    "component",
+    "composables",
+    "functions",
+    "headless",
+    "api",
+    "ssg",
+    "pwa",
+    "modern",
+    "library",
+    "vue",
+    "web components",
+    "serverless",
+    "cloud",
+    "typescript",
+    "javascript",
+    "starter kit"
+  ],
+  "exports": {
+    ".": {
+      "types": "./buddy/dist/index.d.ts",
+      "import": "./buddy/dist/index.js"
+    },
+    "./actions": {
+      "types": "./actions/dist/index.d.ts",
+      "import": "./actions/dist/index.js"
+    },
+    "./ai": {
+      "types": "./ai/dist/index.d.ts",
+      "import": "./ai/dist/index.js"
+    },
+    "./api": {
+      "types": "./api/dist/index.d.ts",
+      "import": "./api/dist/index.js"
+    },
+    "./alias": {
+      "types": "./alias/dist/index.d.ts",
+      "import": "./alias/dist/index.js"
+    },
+    "./analytics": {
+      "types": "./analytics/dist/index.d.ts",
+      "import": "./analytics/dist/index.js"
+    },
+    "./arrays": {
+      "types": "./arrays/dist/index.d.ts",
+      "import": "./arrays/dist/index.js"
+    },
+    "./auth": {
+      "types": "./auth/dist/index.d.ts",
+      "import": "./auth/dist/index.js"
+    },
+    "./buddy": {
+      "types": "./buddy/dist/index.d.ts",
+      "import": "./buddy/dist/index.js"
+    },
+    "./build": {
+      "types": "./build/dist/index.d.ts",
+      "import": "./build/dist/index.js"
+    },
+    "./cache": {
+      "types": "./cache/dist/index.d.ts",
+      "import": "./cache/dist/index.js"
+    },
+    "./chat": {
+      "types": "./chat/dist/index.d.ts",
+      "import": "./chat/dist/index.js"
+    },
+    "./cli": {
+      "types": "./cli/dist/index.d.ts",
+      "import": "./cli/dist/index.js"
+    },
+    "./cloud": {
+      "types": "./cloud/dist/index.d.ts",
+      "import": "./cloud/dist/index.js"
+    },
+    "./collections": {
+      "types": "./collections/dist/index.d.ts",
+      "import": "./collections/dist/index.js"
+    },
+    "./cms": {
+      "types": "./cms/dist/index.d.ts",
+      "import": "./cms/dist/index.js"
+    },
+    "./commerce": {
+      "types": "./commerce/dist/index.d.ts",
+      "import": "./commerce/dist/index.js"
+    },
+    "./config": {
+      "types": "./config/dist/index.d.ts",
+      "import": "./config/dist/index.js"
+    },
+    "./database": {
+      "types": "./database/dist/index.d.ts",
+      "import": "./database/dist/index.js"
+    },
+    "./datetime": {
+      "types": "./datetime/dist/index.d.ts",
+      "import": "./datetime/dist/index.js"
+    },
+    "./desktop": {
+      "types": "./desktop/dist/index.d.ts",
+      "import": "./desktop/dist/index.js"
+    },
+    "./development": {
+      "types": "./development/dist/index.d.ts",
+      "import": "./development/dist/index.js"
+    },
+    "./dns": {
+      "types": "./dns/dist/index.d.ts",
+      "import": "./dns/dist/index.js"
+    },
+    "./docs": {
+      "types": "./docs/dist/index.d.ts",
+      "import": "./docs/dist/index.js"
+    },
+    "./email": {
+      "types": "./email/dist/index.d.ts",
+      "import": "./email/dist/index.js"
+    },
+    "./enums": {
+      "types": "./enums/dist/index.d.ts",
+      "import": "./enums/dist/index.js"
+    },
+    "./error-handling": {
+      "types": "./error-handling/dist/index.d.ts",
+      "import": "./error-handling/dist/index.js"
+    },
+    "./events": {
+      "types": "./events/dist/index.d.ts",
+      "import": "./events/dist/index.js"
+    },
+    "./faker": {
+      "types": "./faker/dist/index.d.ts",
+      "import": "./faker/dist/index.js"
+    },
+    "./git": {
+      "types": "./git/dist/index.d.ts",
+      "import": "./git/dist/index.js"
+    },
+    "./health": {
+      "types": "./health/dist/index.d.ts",
+      "import": "./health/dist/index.js"
+    },
+    "./lint": {
+      "types": "./lint/dist/index.d.ts",
+      "import": "./lint/dist/index.js"
+    },
+    "./logging": {
+      "types": "./logging/dist/index.d.ts",
+      "import": "./logging/dist/index.js"
+    },
+    "./notifications": {
+      "types": "./notifications/dist/index.d.ts",
+      "import": "./notifications/dist/index.js"
+    },
+    "./objects": {
+      "types": "./objects/dist/index.d.ts",
+      "import": "./objects/dist/index.js"
+    },
+    "./orm": {
+      "types": "./orm/dist/src/index.d.ts",
+      "import": "./orm/dist/index.js"
+    },
+    "./path": {
+      "types": "./path/dist/index.d.ts",
+      "import": "./path/dist/index.js"
+    },
+    "./payments": {
+      "types": "./payments/dist/index.d.ts",
+      "import": "./payments/dist/index.js"
+    },
+    "./push": {
+      "types": "./push/dist/index.d.ts",
+      "import": "./push/dist/index.js"
+    },
+    "./query-builder": {
+      "types": "./query-builder/dist/index.d.ts",
+      "import": "./query-builder/dist/index.js"
+    },
+    "./queue": {
+      "types": "./queue/dist/index.d.ts",
+      "import": "./queue/dist/index.js"
+    },
+    "./realtime": {
+      "types": "./realtime/dist/index.d.ts",
+      "import": "./realtime/dist/index.js"
+    },
+    "./repl": {
+      "types": "./repl/dist/index.d.ts",
+      "import": "./repl/dist/index.js"
+    },
+    "./router": {
+      "types": "./router/dist/index.d.ts",
+      "import": "./router/dist/index.js"
+    },
+    "./scheduler": {
+      "types": "./scheduler/dist/index.d.ts",
+      "import": "./scheduler/dist/index.js"
+    },
+    "./search-engine": {
+      "types": "./search-engine/dist/index.d.ts",
+      "import": "./search-engine/dist/index.js"
+    },
+    "./security": {
+      "types": "./security/dist/index.d.ts",
+      "import": "./security/dist/index.js"
+    },
+    "./server": {
+      "types": "./server/dist/index.d.ts",
+      "import": "./server/dist/index.js"
+    },
+    "./slug": {
+      "types": "./slug/dist/index.d.ts",
+      "import": "./slug/dist/index.js"
+    },
+    "./sms": {
+      "types": "./sms/dist/index.d.ts",
+      "import": "./sms/dist/index.js"
+    },
+    "./storage": {
+      "types": "./storage/dist/index.d.ts",
+      "import": "./storage/dist/index.js"
+    },
+    "./strings": {
+      "types": "./strings/dist/index.d.ts",
+      "import": "./strings/dist/index.js"
+    },
+    "./testing": {
+      "types": "./testing/dist/index.d.ts",
+      "import": "./testing/dist/index.js"
+    },
+    "./tinker": {
+      "types": "./tinker/dist/index.d.ts",
+      "import": "./tinker/dist/index.js"
+    },
+    "./tunnel": {
+      "types": "./tunnel/dist/index.d.ts",
+      "import": "./tunnel/dist/index.js"
+    },
+    "./types": {
+      "types": "./types/dist/index.d.ts",
+      "import": "./types/dist/index.js"
+    },
+    "./ui": {
+      "types": "./ui/dist/index.d.ts",
+      "import": "./ui/dist/index.js"
+    },
+    "./utils": {
+      "types": "./utils/dist/index.d.ts",
+      "import": "./utils/dist/index.js"
+    },
+    "./validation": {
+      "types": "./validation/dist/index.d.ts",
+      "import": "./validation/dist/index.js"
+    },
+    "./skills": {
+      "types": "./skills/dist/index.d.ts",
+      "import": "./skills/dist/index.js"
+    }
+  },
+  "types": "./types/dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "buddy": "bun run ./buddy/src/cli.ts",
+    "build": "bun ./build.ts",
+    "up": "bun update",
+    "up:latest": "bun update --latest"
+  },
+  "web-types": "./web-types.json",
+  "dependencies": {
+    "@stacksjs/actions": "workspace:*",
+    "@stacksjs/ai": "workspace:*",
+    "@stacksjs/alias": "workspace:*",
+    "@stacksjs/arrays": "workspace:*",
+    "@stacksjs/auth": "workspace:*",
+    "@stacksjs/buddy": "workspace:*",
+    "@stacksjs/build": "workspace:*",
+    "@stacksjs/cache": "workspace:*",
+    "@stacksjs/cli": "workspace:*",
+    "@stacksjs/cloud": "workspace:*",
+    "@stacksjs/collections": "workspace:*",
+    "@stacksjs/config": "workspace:*",
+    "@stacksjs/database": "workspace:*",
+    "@stacksjs/desktop": "workspace:*",
+    "better-dx": "^0.2.12",
+    "@stacksjs/dns": "workspace:*",
+    "@stacksjs/email": "workspace:*",
+    "@stacksjs/enums": "workspace:*",
+    "@stacksjs/env": "workspace:*",
+    "@stacksjs/error-handling": "workspace:*",
+    "@stacksjs/events": "workspace:*",
+    "@stacksjs/git": "workspace:*",
+    "@stacksjs/health": "workspace:*",
+    "@stacksjs/lint": "workspace:*",
+    "@stacksjs/logging": "workspace:*",
+    "@stacksjs/notifications": "workspace:*",
+    "@stacksjs/objects": "workspace:*",
+    "@stacksjs/orm": "workspace:*",
+    "@stacksjs/path": "workspace:*",
+    "@stacksjs/payments": "workspace:*",
+    "@stacksjs/realtime": "workspace:*",
+    "@stacksjs/router": "workspace:*",
+    "@stacksjs/search-engine": "workspace:*",
+    "@stacksjs/security": "workspace:*",
+    "@stacksjs/server": "workspace:*",
+    "@stacksjs/storage": "workspace:*",
+    "@stacksjs/strings": "workspace:*",
+    "@stacksjs/tlsx": "^0.13.0",
+    "@stacksjs/tunnel": "workspace:*",
+    "@stacksjs/types": "workspace:*",
+    "@stacksjs/ui": "workspace:*",
+    "@stacksjs/utils": "workspace:*",
+    "@stacksjs/skills": "workspace:*",
+    "@stacksjs/validation": "workspace:*",
+    "bun-query-builder": "^0.1.26"
+  }
+}

@@ -1,0 +1,71 @@
+<script>
+interface ForumPostProps {
+  id?: string
+  authorName?: string
+  authorAvatar?: string
+  createdAt?: string
+  likeCount?: number
+  isOriginalPost?: boolean
+  title?: string
+  isSolved?: boolean
+}
+
+const { id = '', authorName = '', authorAvatar = '', createdAt = '', likeCount = 0, isOriginalPost = false, title = '', isSolved = false } = defineProps<ForumPostProps>()
+</script>
+<div id="post-{{ id }}" class="mb-6 border rounded-md">
+  <div class="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-t-md">
+    <div class="flex gap-2 items-center">
+      <img src="{{ authorAvatar }}" alt="{{ authorName }}" class="h-6 w-6 rounded-full">
+      <span class="font-medium">{{ authorName }}</span>
+      <span class="text-gray-500 text-xs">{{ createdAt }}</span>
+    </div>
+
+    <div class="flex gap-2 items-center">
+      @if(isOriginalPost)
+        <button class="px-2 py-1 text-xs hover:bg-gray-100 border rounded" data-action="bookmark">
+          <span class="mr-1 i-hugeicons-bookmark"></span>
+          Bookmark
+        </button>
+      @endif
+      <button class="px-2 py-1 text-xs hover:bg-gray-100 border rounded" data-action="share">
+        <span class="mr-1 i-hugeicons-share"></span>
+        Share
+      </button>
+    </div>
+  </div>
+
+  <div class="p-4">
+    @if(isOriginalPost)
+      <h1 class="mb-4 font-bold text-xl">{{ title }}</h1>
+    @endif
+    <div class="max-w-none prose">
+      <slot />
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-b-md">
+    <div class="flex gap-3 items-center text-gray-500">
+      <button class="flex gap-1 items-center hover:text-primary" data-action="like" data-post-id="{{ id }}">
+        <span class="i-hugeicons-heart"></span>
+        <span>{{ likeCount }}</span>
+      </button>
+
+      <button class="flex gap-1 items-center hover:text-primary" data-action="reply" data-post-id="{{ id }}">
+        <span class="i-hugeicons-chat"></span>
+        <span>Reply</span>
+      </button>
+    </div>
+
+    <div class="flex gap-2 items-center">
+      @if(isOriginalPost && !isSolved)
+        <button class="px-2 py-1 text-dark text-xs bg-success rounded hover:opacity-90" data-action="mark-solution" data-post-id="{{ id }}">
+          Mark as Solution
+        </button>
+      @endif
+      <button class="px-2 py-1 text-xs hover:bg-gray-100 border rounded" data-action="report" data-post-id="{{ id }}">
+        <span class="mr-1 i-hugeicons-flag"></span>
+        Report
+      </button>
+    </div>
+  </div>
+</div>

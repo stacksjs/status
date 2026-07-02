@@ -1,0 +1,76 @@
+<script>
+interface ForumReplyFormProps {
+  replyContent?: string
+  notifyOnReply?: boolean
+}
+
+const { replyContent = '', notifyOnReply = true } = defineProps<ForumReplyFormProps>()
+
+function canSubmit(content) {
+  return content.trim().length > 0
+}
+</script>
+<div class="mb-6 border rounded-md">
+    <div class="flex items-center px-4 py-3 bg-gray-50 rounded-t-md">
+      <h3 class="font-medium">Post a Reply</h3>
+    </div>
+
+    <div class="p-4">
+      <div class="mb-4">
+        <div class="flex gap-2 mb-2">
+          <button class="px-2 py-1 text-sm hover:bg-gray-100 border rounded" title="Bold" data-action="format" data-format="bold">B</button>
+          <button class="px-2 py-1 text-sm hover:bg-gray-100 border rounded" title="Italic" data-action="format" data-format="italic">I</button>
+          <button class="px-2 py-1 text-sm hover:bg-gray-100 border rounded" title="Link" data-action="format" data-format="link">
+            <span class="i-hugeicons-link"></span>
+          </button>
+          <button class="px-2 py-1 text-sm hover:bg-gray-100 border rounded" title="Code" data-action="format" data-format="code">
+            <span class="i-hugeicons-code"></span>
+          </button>
+          <button class="px-2 py-1 text-sm hover:bg-gray-100 border rounded" title="Image" data-action="format" data-format="image">
+            <span class="i-hugeicons-image"></span>
+          </button>
+          <button class="px-2 py-1 text-sm hover:bg-gray-100 border rounded" title="Quote" data-action="format" data-format="quote">
+            <span class="i-hugeicons-quote"></span>
+          </button>
+          <button class="px-2 py-1 text-sm hover:bg-gray-100 border rounded" title="List" data-action="format" data-format="list">
+            <span class="i-hugeicons-list"></span>
+          </button>
+        </div>
+        <textarea
+          name="replyContent"
+          class="p-3 min-h-32 w-full border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          placeholder="Write your reply here..."
+        >{{ replyContent }}</textarea>
+        <div class="flex justify-between mt-1 text-gray-500 text-xs">
+          <span>Markdown formatting supported</span>
+          <span class="character-count">0 characters</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <div class="flex gap-4 items-center">
+          <label class="flex items-center text-gray-600 text-sm">
+            <input type="checkbox" class="mr-2" name="notifyOnReply" {{ notifyOnReply ? 'checked' : '' }}>
+            Notify me of follow-up replies
+          </label>
+
+          <button class="text-gray-600 text-sm hover:text-primary" data-action="formatting-help">
+            Formatting Help
+          </button>
+        </div>
+
+        <div class="flex gap-2">
+          <button class="px-3 py-2 hover:bg-gray-100 border rounded-md" data-action="preview">
+            Preview
+          </button>
+          <button
+            class="px-4 py-2 text-white bg-primary rounded-md hover:opacity-90 cursor-not-allowed' : ? '' 'opacity-50 {{ }} canSubmit(replyContent)"
+            data-action="submit-reply"
+            {{ canSubmit(replyContent) ? '' : 'disabled' }}
+          >
+            Post Reply
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>

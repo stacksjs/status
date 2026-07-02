@@ -1,0 +1,285 @@
+import { faker as baseFaker } from '@stacksjs/ts-faker'
+import type { Faker as BaseFaker } from '@stacksjs/ts-faker'
+
+/**
+ * Compatibility layer for @faker-js/faker API
+ * @stacksjs/ts-faker uses different module names, so we create aliases
+ */
+
+// datatype module for boolean, number generation (compatibility with @faker-js/faker)
+const datatype = {
+  boolean(): boolean {
+    return baseFaker.random.boolean()
+  },
+  number(options?: { min?: number; max?: number }): number {
+    return baseFaker.number.int({ min: options?.min ?? 0, max: options?.max ?? 100 })
+  },
+  float(options?: { min?: number; max?: number; precision?: number }): number {
+    return baseFaker.number.float({ min: options?.min ?? 0, max: options?.max ?? 1, precision: options?.precision ?? 2 })
+  },
+  uuid(): string {
+    return baseFaker.string.uuid()
+  },
+  string(length?: number): string {
+    return baseFaker.string.alphanumeric({ length: length ?? 10 })
+  },
+  array<T>(generator: () => T, length?: number): T[] {
+    const arr: T[] = []
+    const len = length ?? baseFaker.number.int({ min: 1, max: 10 })
+    for (let i = 0; i < len; i++) {
+      arr.push(generator())
+    }
+    return arr
+  },
+}
+
+// location module (alias to address for @faker-js/faker compatibility)
+const location = {
+  street(): string {
+    return baseFaker.address.street()
+  },
+  streetAddress(useFullAddress?: boolean): string {
+    return baseFaker.address.streetAddress({ useFullAddress })
+  },
+  city(): string {
+    return baseFaker.address.city()
+  },
+  state(): string {
+    return baseFaker.address.state()
+  },
+  stateAbbr(): string {
+    return baseFaker.address.stateAbbr()
+  },
+  country(): string {
+    return baseFaker.address.country()
+  },
+  countryCode(): string {
+    return baseFaker.address.countryCode()
+  },
+  zipCode(): string {
+    return baseFaker.address.zipCode()
+  },
+  latitude(options?: { min?: number; max?: number; precision?: number }): number {
+    return baseFaker.address.latitude(options)
+  },
+  longitude(options?: { min?: number; max?: number; precision?: number }): number {
+    return baseFaker.address.longitude(options)
+  },
+  direction(): string {
+    return baseFaker.address.direction()
+  },
+  buildingNumber(): string {
+    return baseFaker.address.buildingNumber()
+  },
+}
+
+// company module enhancements
+const company = {
+  ...baseFaker.company,
+  name(): string {
+    return baseFaker.company.name()
+  },
+  catchPhrase(): string {
+    // @stacksjs/ts-faker might not have catchPhrase, generate similar content
+    const co = baseFaker.company as { buzzPhrase?: () => string; catchphrase?: () => string }
+    return co.buzzPhrase?.() ?? co.catchphrase?.() ?? `${baseFaker.word.adjective()} ${baseFaker.word.noun()}`
+  },
+  buzzPhrase(): string {
+    const co = baseFaker.company as { buzzPhrase?: () => string }
+    return co.buzzPhrase?.() ?? baseFaker.lorem.sentence(3)
+  },
+}
+
+// vehicle module enhancements
+const vehicle = {
+  ...baseFaker.vehicle,
+  vrm(): string {
+    // UK Vehicle Registration Mark - generate a pattern like "AB12 CDE"
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    const numbers = '0123456789'
+    return `${letters[Math.floor(Math.random() * 26)]}${letters[Math.floor(Math.random() * 26)]}${numbers[Math.floor(Math.random() * 10)]}${numbers[Math.floor(Math.random() * 10)]} ${letters[Math.floor(Math.random() * 26)]}${letters[Math.floor(Math.random() * 26)]}${letters[Math.floor(Math.random() * 26)]}`
+  },
+  vehicle(): string {
+    // Generate a vehicle description like "Toyota Camry" or "Ford F-150"
+    const makes = ['Toyota', 'Honda', 'Ford', 'Chevrolet', 'BMW', 'Mercedes', 'Audi', 'Tesla', 'Nissan', 'Hyundai']
+    const models = ['Sedan', 'SUV', 'Truck', 'Coupe', 'Hatchback', 'Wagon', 'Van', 'Crossover']
+    return `${makes[Math.floor(Math.random() * makes.length)]} ${models[Math.floor(Math.random() * models.length)]}`
+  },
+  type(): string {
+    const types = ['Sedan', 'SUV', 'Truck', 'Van', 'Coupe', 'Convertible', 'Wagon', 'Hatchback']
+    return types[Math.floor(Math.random() * types.length)] ?? 'Sedan'
+  },
+  manufacturer(): string {
+    const manufacturers = ['Toyota', 'Honda', 'Ford', 'Chevrolet', 'BMW', 'Mercedes-Benz', 'Audi', 'Tesla', 'Nissan', 'Hyundai', 'Kia', 'Volkswagen']
+    return manufacturers[Math.floor(Math.random() * manufacturers.length)] ?? 'Toyota'
+  },
+  model(): string {
+    const models = ['Camry', 'Accord', 'F-150', 'Silverado', '3 Series', 'C-Class', 'A4', 'Model 3', 'Altima', 'Elantra']
+    return models[Math.floor(Math.random() * models.length)] ?? 'Camry'
+  },
+  fuel(): string {
+    const fuels = ['Gasoline', 'Diesel', 'Electric', 'Hybrid', 'Plug-in Hybrid']
+    return fuels[Math.floor(Math.random() * fuels.length)] ?? 'Gasoline'
+  },
+  vin(): string {
+    // Generate a 17-character VIN
+    const chars = '0123456789ABCDEFGHJKLMNPRSTUVWXYZ'
+    let vin = ''
+    for (let i = 0; i < 17; i++) {
+      vin += chars[Math.floor(Math.random() * chars.length)]
+    }
+    return vin
+  },
+  color(): string {
+    const colors = ['Black', 'White', 'Silver', 'Gray', 'Red', 'Blue', 'Green', 'Brown', 'Orange', 'Yellow']
+    return colors[Math.floor(Math.random() * colors.length)] ?? 'Black'
+  },
+}
+
+// helpers module enhancements for @faker-js/faker compatibility
+const helpers = {
+  ...baseFaker.helpers,
+  arrayElement<T>(array: T[]): T {
+    if (array.length === 0) throw new Error('arrayElement: cannot pick from an empty array')
+    return array[Math.floor(Math.random() * array.length)] as T
+  },
+  arrayElements<T>(array: T[], count?: number): T[] {
+    const n = count ?? Math.floor(Math.random() * array.length) + 1
+    return helpers.shuffle(array).slice(0, Math.min(n, array.length))
+  },
+  /**
+   * Fisher-Yates shuffle. Returns a new array; the input is not mutated.
+   *
+   * Why not `[...array].sort(() => Math.random() - 0.5)`: that idiom is
+   * heavily biased — V8 / JSC's stable sort calls the comparator a
+   * variable number of times depending on input length, which means
+   * elements near the start are ~3x more likely to remain near the start
+   * than elements in the middle. Real Fisher-Yates is unbiased.
+   */
+  shuffle<T>(array: T[]): T[] {
+    const a = [...array]
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      const ai = a[i] as T
+      const aj = a[j] as T
+      a[i] = aj
+      a[j] = ai
+    }
+    return a
+  },
+  maybe<T>(callback: () => T, options?: { probability?: number }): T | undefined {
+    const probability = options?.probability ?? 0.5
+    return Math.random() < probability ? callback() : undefined
+  },
+  objectKey<T extends object>(obj: T): keyof T {
+    const keys = Object.keys(obj) as (keyof T)[]
+    if (keys.length === 0) throw new Error('objectKey: object has no keys')
+    return keys[Math.floor(Math.random() * keys.length)] as keyof T
+  },
+  objectValue<T extends object>(obj: T): T[keyof T] {
+    const values = Object.values(obj)
+    if (values.length === 0) throw new Error('objectValue: object has no values')
+    return values[Math.floor(Math.random() * values.length)] as T[keyof T]
+  },
+}
+
+/**
+ * Enhanced lorem module with better API
+ */
+const enhancedLorem = {
+  ...baseFaker.lorem,
+
+  /**
+   * Generate a random word
+   */
+  word(): string {
+    return baseFaker.lorem.word()
+  },
+
+  /**
+   * Generate random words
+   * @param count - Number of words (default: 3)
+   */
+  words(count?: number): string {
+    return baseFaker.lorem.words(count ?? 3)
+  },
+
+  /**
+   * Generate a sentence with random words
+   * @param maxWords - Maximum number of words in the sentence (default: random 3-10)
+   */
+  sentence(maxWords?: number): string {
+    if (maxWords !== undefined) {
+      // Generate random word count between 3 and maxWords
+      const minWords = Math.min(3, maxWords)
+      const wordCount = Math.floor(Math.random() * (maxWords - minWords + 1)) + minWords
+      return baseFaker.lorem.sentence(wordCount)
+    }
+    return baseFaker.lorem.sentence()
+  },
+
+  /**
+   * Generate multiple sentences
+   * @param count - Number of sentences (default: 3)
+   * @param separator - Separator between sentences (default: ' ')
+   */
+  sentences(count?: number, separator?: string): string {
+    return baseFaker.lorem.sentences(count ?? 3, separator ?? ' ')
+  },
+
+  /**
+   * Generate a paragraph
+   * @param sentenceCount - Number of sentences in the paragraph
+   */
+  paragraph(sentenceCount?: number): string {
+    return baseFaker.lorem.paragraph(sentenceCount)
+  },
+
+  /**
+   * Generate multiple paragraphs
+   * @param count - Number of paragraphs (default: 3)
+   * @param separator - Separator between paragraphs (default: '\n\n')
+   */
+  paragraphs(count?: number, separator?: string): string {
+    return baseFaker.lorem.paragraphs(count ?? 3, separator ?? '\n\n')
+  },
+
+  /**
+   * Generate lorem text of specified length
+   * @param length - Target character length (default: 200)
+   */
+  text(length?: number): string {
+    return baseFaker.lorem.text(length)
+  },
+
+  /**
+   * Generate a slug from lorem words
+   * @param wordCount - Number of words in the slug (default: 3)
+   */
+  slug(wordCount?: number): string {
+    return baseFaker.lorem.slug(wordCount ?? 3)
+  },
+
+  /**
+   * Generate multiple lines of sentences
+   * @param count - Number of lines (default: 3)
+   */
+  lines(count?: number): string {
+    return baseFaker.lorem.lines(count ?? 3)
+  },
+}
+
+/**
+ * Enhanced faker instance with improved lorem API and @faker-js/faker compatibility
+ */
+export const faker = {
+  ...baseFaker,
+  lorem: enhancedLorem,
+  datatype,
+  location,
+  company,
+  vehicle,
+  helpers,
+}
+
+export type Faker = BaseFaker

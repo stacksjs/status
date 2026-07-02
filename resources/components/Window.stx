@@ -1,0 +1,44 @@
+<script server>
+import { defineProps, withDefaults } from 'stx'
+
+interface WindowProps {
+  id: string
+  icon?: string
+  title: string
+  left?: string
+  top?: string
+  width?: string
+  height?: string
+  style?: string
+}
+
+const { id, icon, title, left, top, width, height, style } = withDefaults(
+  defineProps<WindowProps>(),
+  {
+    icon: '📄',
+    left: '100px',
+    top: '80px',
+    width: '600px',
+    height: '500px',
+    style: ''
+  }
+)
+
+</script>
+
+<template>
+  <div id="window-{{ id }}" class="window" style="@if(style){{ style }}@else left: {{ left }}; top: {{ top }}; width: {{ width }}; height: {{ height }};@endif">
+    <div class="window-titlebar">
+      <div class="window-icon">{{ icon }}</div>
+      <div class="window-title">{{ title }}</div>
+      <div class="window-controls">
+        <button class="minimize window-control" onclick="minimizeWindow('{{ id }}')">_</button>
+        <button class="maximize window-control" onclick="toggleMaximizeWindow('{{ id }}')">□</button>
+        <button class="close window-control" onclick="closeWindow('{{ id }}')">×</button>
+      </div>
+    </div>
+    <div class="window-content">
+      <slot />
+    </div>
+  </div>
+</template>

@@ -1,0 +1,28 @@
+<script>
+interface SwitchDemoProps {
+  enabled?: boolean
+}
+
+const { enabled = false } = defineProps<SwitchDemoProps>()
+</script>
+<div class="max-w-4xl">
+    <DocsPlayground>
+      <div class="flex gap-2 items-center justify-center my-3">
+        <button
+          class="inline-flex relative shrink-0 h-[38px] w-[74px] border-2 border-transparent rounded-full focus-visible:ring-2 focus-visible:ring-white/75 focus:outline-none duration-200 ease-in-out transition-colors cursor-pointer : ? 'bg-blue-500' 'bg-gray-400' {{ }} enabled"
+          data-action="toggle-switch"
+        >
+          <span class="sr-only">Use setting</span>
+          <span
+            aria-hidden="true"
+            class="inline-block h-[34px] w-[34px] bg-white ring-0 rounded-full shadow-lg duration-200 ease-in-out transition transform pointer-events-none : ? 'translate-x-0' 'translate-x-9' {{ }} enabled"
+          ></span>
+        </button>
+      </div>
+
+      <!-- Code slot placeholder -->
+      <div slot="code">
+        <!-- SwitchCode component would be rendered here -->
+      </div>
+    </DocsPlayground>
+  </div>

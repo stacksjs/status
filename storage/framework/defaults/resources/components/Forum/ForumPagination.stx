@@ -1,0 +1,39 @@
+<script>
+interface ForumPaginationProps {
+  currentPage?: number
+  totalPages?: number
+  pages?: any[]
+}
+
+const { currentPage = 1, totalPages = 1, pages = [] } = defineProps<ForumPaginationProps>()
+</script>
+<div class="flex items-center justify-center mt-8">
+    <nav class="flex gap-1 items-center">
+      <a
+        href="#"
+        class="flex items-center justify-center h-10 w-10 hover:bg-gray-100 border rounded-md cursor-not-allowed' : ? '' 'opacity-50 {{ }} == 1 currentPage"
+        data-action="prev-page"
+      >
+        <span class="i-hugeicons-arrow-left"></span>
+      </a>
+
+      @foreach(pages as page)
+        <a
+          href="#"
+          class="flex items-center justify-center h-10 w-10 text-white' hover:bg-gray-100' rounded-md : ? 'bg-primary 'border {{ }} == currentPage page"
+          data-action="go-to-page"
+          data-page="{{ page }}"
+        >
+          {{ page }}
+        </a>
+      @endforeach
+
+      <a
+        href="#"
+        class="flex items-center justify-center h-10 w-10 hover:bg-gray-100 border rounded-md cursor-not-allowed' : ? '' 'opacity-50 {{ }} == currentPage totalPages"
+        data-action="next-page"
+      >
+        <span class="i-hugeicons-arrow-right"></span>
+      </a>
+    </nav>
+  </div>

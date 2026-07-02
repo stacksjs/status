@@ -1,0 +1,68 @@
+{
+  "name": "@stacksjs/strings",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "The Stacks string utilities.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/strings#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/strings"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "strings",
+    "camel case",
+    "capital case",
+    "constant case",
+    "dot case",
+    "header case",
+    "no case",
+    "param case",
+    "kebab case",
+    "pascal case",
+    "path case",
+    "sentence case",
+    "snake case",
+    "utilities",
+    "functions",
+    "stacks"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "import": "./dist/*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "test": "bun test",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@stacksjs/alias": "workspace:*",
+    "better-dx": "^0.2.12",
+    "@stacksjs/types": "workspace:*"
+  },
+  "sideEffects": false
+}

@@ -1,0 +1,84 @@
+<script server>
+interface SelectProps {
+  value?: string
+  options?: any[]
+  placeholder?: string
+  label?: string
+  error?: string
+  hint?: string
+  disabled?: boolean
+  required?: boolean
+  size?: 'xs' | 'sm' | 'md' | 'lg'
+  name?: string
+  id?: string
+}
+
+const { value = '', options = [], placeholder = 'Select an option', label = '', error = '', hint = '', disabled = false, required = false, size = 'md', name = '', id = '' } = defineProps<SelectProps>()
+
+const sizeClasses = {
+  xs: 'h-6 text-[11px] px-2',
+  sm: 'h-7 text-[12px] px-2.5',
+  md: 'h-8 text-[13px] px-3',
+  lg: 'h-9 text-[14px] px-3.5'
+}
+
+const borderClass = error
+  ? 'border-red-400/60 dark:border-red-500/60 focus:ring-red-500/30 focus:border-red-500'
+  : 'border-black/10 dark:border-white/15 focus:ring-blue-500/40 focus:border-blue-500/50 hover:border-black/20 dark:hover:border-white/25'
+
+const disabledClass = disabled
+  ? 'bg-black/5 dark:bg-white/5 text-neutral-400 cursor-not-allowed border-black/5 dark:border-white/10 opacity-40'
+  : 'bg-white dark:bg-white/10'
+
+const selectClass = [
+  'w-full flex items-center justify-between gap-2 rounded-md border transition-all duration-150',
+  'focus:outline-none focus:ring-2',
+  sizeClasses[size],
+  borderClass,
+  disabledClass
+].join(' ')
+
+const selectId = id || 'select-' + Math.random().toString(36).slice(2, 11)
+</script>
+<div class="relative">
+    @if(label)
+      <label for="{{ selectId }}" class="block mb-1.5 font-medium text-[13px] text-neutral-600 tracking-tight dark:text-neutral-400">
+        {{ label }}
+        @if(required)
+          <span class="text-red-500">*</span>
+        @endif
+      </label>
+    @endif
+
+    <div class="relative">
+      <select
+        id="{{ selectId }}"
+        name="{{ name }}"
+        class="{{ selectClass }} appearance-none pr-8"
+        @if(disabled) disabled @endif
+        @if(required) required @endif
+      >
+        @if(placeholder)
+          <option value="" disabled @if(!value) selected @endif>{{ placeholder }}</option>
+        @endif
+        @foreach(options as option)
+          <option
+            value="{{ typeof option === 'object' && option !== null ? (option.value ?? option.id ?? option.label ?? '') : option }}"
+            @if(option && option.disabled) disabled @endif
+            @if((typeof option === 'object' && option !== null ? option.value : option) == value) selected @endif
+          >
+            {{ typeof option === 'object' && option !== null ? (option.label ?? option.text ?? option.value ?? '') : option }}
+          </option>
+        @endforeach
+      </select>
+      <div class="flex absolute inset-y-0 right-0 items-center pr-2 pointer-events-none">
+        <div class="h-3.5 w-3.5 text-neutral-400 i-hugeicons-arrow-down-01"></div>
+      </div>
+    </div>
+
+    @if(error)
+      <p class="mt-1.5 text-[12px] text-red-600 dark:text-red-400">{{ error }}</p>
+    @elseif(hint)
+      <p class="mt-1.5 text-[12px] text-neutral-500 dark:text-neutral-400">{{ hint }}</p>
+    @endif
+  </div>

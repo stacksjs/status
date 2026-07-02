@@ -1,0 +1,664 @@
+import type { CLI, MakeOptions } from '@stacksjs/types'
+import process from 'node:process'
+import {
+  createMiddleware,
+  createMigration,
+  createModel,
+  createNotification,
+  createPage,
+  invoke,
+  makeAction,
+  makeCertificate,
+  makeCommand,
+  makeComponent,
+  makeDatabase,
+  makeFunction,
+  makeJob,
+  makeLanguage,
+  makeMail,
+  makePage,
+  makePolicy,
+  makeQueueTable,
+  makeResource,
+  makeStack,
+  setDryRun,
+} from '@stacksjs/actions'
+import { intro, italic, onUnknownSubcommand, outro } from "@stacksjs/cli"
+import { log } from '@stacksjs/logging'
+
+import { ExitCode } from '@stacksjs/types'
+
+export function make(buddy: CLI): void {
+  const descriptions = {
+    action: 'Create a new action',
+    command: 'Create a new CLI command',
+    model: 'Create a new model',
+    middleware: 'Create a new middleware',
+    component: 'Create a new component',
+    page: 'Create a new page',
+    function: 'Create a new function',
+    job: 'Create a new job',
+    language: 'Create a new language',
+    database: 'Create a new database',
+    migration: 'Create a new migration',
+    factory: 'Create a new factory',
+    notification: 'Create a new notification',
+    mail: 'Create a new Mailable + companion stx template',
+    policy: 'Create a new authorization policy',
+    resource: 'Create a new API resource',
+    name: 'The name of the action',
+    queue: 'Make queue migration',
+    stack: 'Create a new stack',
+    certificate: 'Create a new SSL Certificate',
+    select: 'What are you trying to make?',
+    project: 'Target a specific project',
+    verbose: 'Enable verbose output',
+  }
+
+  buddy
+    .command('make [make]', 'The make command')
+    .option('-a, --action [action]', descriptions.action, { default: false })
+    .option('-c, --component [component]', descriptions.component, { default: false })
+    .option('-d, --database [database]', descriptions.database, { default: false })
+    .option('-f, --factory [factory]', descriptions.factory, { default: false })
+    .option('-f, --function [function]', descriptions.function, { default: false })
+    .option('-l, --language [language]', descriptions.language, { default: false })
+    .option('-m, --model [model]', descriptions.model, { default: false })
+    .option('-mw, --middleware [middleware]', descriptions.middleware, { default: false })
+    .option('-p, --page [page]', descriptions.page, { default: false })
+    .option('-m, --migration [migration]', descriptions.migration, { default: false })
+    .option('-n, --notification [notification]', descriptions.notification, { default: false })
+    .option('-qt, --queue-table', descriptions.queue, { default: false })
+    .option('-s, --stack [stack]', descriptions.stack, { default: false })
+    .option('--dry-run', 'Preview the files that would be generated without writing', { default: false })
+    .option('--with-validation', 'Include a validation rules block in the generated stub', { default: false })
+    .option('--with-auth', 'Include auth-aware boilerplate in the generated stub', { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (make: string | undefined, options: MakeOptions) => {
+      log.debug('Running `buddy make` ...', options)
+
+      const name = buddy.args[0]
+
+      if (!name) {
+        log.error('You need to specify a name. Read more about the documentation here.')
+        process.exit(ExitCode.FatalError)
+      }
+
+      // Flip the global dry-run gate before any scaffolder runs. Reset
+      // afterwards so back-to-back invocations in the same process
+      // (rare, but possible inside tests) don't leak state.
+      setDryRun(Boolean((options as any).dryRun || (options as any)['dry-run']))
+
+      if (make) {
+        options.name = buddy.args[1]
+
+        switch (make) {
+          case 'action':
+            await makeAction(options)
+            break
+          case 'certificate':
+            await makeCertificate()
+            break
+          case 'command':
+            await makeCommand(options)
+            break
+          case 'component':
+            await makeComponent(options)
+            break
+          case 'database':
+            makeDatabase(options)
+            break
+          case 'function':
+            await makeFunction(options)
+            break
+          case 'job':
+            await makeJob(options)
+            break
+          case 'language':
+            await makeLanguage(options)
+            break
+          case 'mail':
+            await makeMail(options as any)
+            break
+          case 'migration':
+            await createMigration(options)
+            break
+          case 'middleware':
+            await createMiddleware(options)
+            break
+          case 'model':
+            await createModel(options)
+            break
+          case 'page':
+            await createPage(options)
+            break
+          case 'notification':
+            await createNotification(options)
+            break
+          case 'policy':
+            await makePolicy(options as any)
+            break
+          case 'resource':
+            await makeResource(options as any)
+            break
+          case 'queue-table':
+            await makeQueueTable()
+            break
+          case 'stack':
+            await makeStack(options)
+            break
+          default:
+        }
+      }
+
+      // TODO: uncomment this when prompt is ready
+      // if (hasNoOptions(options)) {
+      //   let answers = await prompt.require()
+      //     .multiselect(descriptions.select, {
+      //       options: [
+      //         { label: 'Page', value: 'page' },
+      //         { label: 'Function', value: 'function' },
+      //         { label: 'Component', value: 'component' },
+      //         { label: 'Notification', value: 'notification' },
+      //         { label: 'Language', value: 'language' },
+      //         { label: 'Database', value: 'database' },
+      //         { label: 'Migration', value: 'migration' },
+      //         { label: 'Factory', value: 'factory' },
+      //         { label: 'Stack', value: 'stack' },
+      //       ],
+      //     })
+      //
+      //   if (answers !== null)
+      //     process.exit(ExitCode.InvalidArgument)
+      //
+      //   if (isString(answers))
+      //     answers = [answers]
+      //
+      //   // creates an object out of array and sets answers to true
+      //   options = answers.reduce((a: any, v: any) => ({ ...a, [v]: true }), {})
+      // }
+
+      await invoke(options)
+
+      process.exit(ExitCode.Success)
+    })
+
+  buddy
+    .command('make:action [name]', descriptions.action)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--dry-run', 'Preview the file without writing', { default: false })
+    .option('--with-validation', 'Generate a stub that calls validate()', { default: false })
+    .option('--with-auth', 'Generate a stub that requires an authenticated user', { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (name: string, options: MakeOptions) => {
+      log.info('Running `buddy make:action` ...')
+      log.debug('Running `buddy make:action` ...', name, options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a name. Read more about the documentation here.')
+        process.exit(ExitCode.FatalError)
+      }
+
+      setDryRun(Boolean((options as any).dryRun || (options as any)['dry-run']))
+      await makeAction(options)
+    })
+
+  buddy
+    .command('make:certificate', descriptions.certificate)
+    .alias('make:cert')
+    .example('buddy make:certificate')
+    .action(async (options: MakeOptions) => {
+      log.debug('Running `buddy make:certificate` ...', options)
+
+      await makeCertificate()
+    })
+
+  // CRUD scaffolding — generates model + migration + 5 actions in one shot.
+  // Mirrors `rails generate scaffold` ergonomics. Honors --dry-run via
+  // the shared dry-run flag so the user can preview the entire stack
+  // before committing to disk.
+  buddy
+    .command('scaffold:crud [name]', 'Generate model, migration, and CRUD actions')
+    .alias('make:crud')
+    .alias('make:scaffold')
+    .option('-n, --name [name]', 'Resource name (PascalCase)', { default: false })
+    .option('-f, --fields [fields]', 'Comma-separated field list, e.g. title:string,body:text,published:boolean', { default: '' })
+    .option('--dry-run', 'Preview the generated files without writing', { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .example('buddy scaffold:crud Post --fields=title:string,body:text,published:boolean')
+    .action(async (name: string, options: MakeOptions & { fields?: string }) => {
+      name = name ?? options.name
+      if (!name) {
+        log.error('scaffold:crud requires a resource name. Example: buddy scaffold:crud Post --fields=title:string,body:text')
+        process.exit(ExitCode.FatalError)
+      }
+
+      const { scaffoldCrud } = await import('@stacksjs/actions')
+      setDryRun(Boolean((options as any).dryRun || (options as any)['dry-run']))
+      try {
+        await scaffoldCrud(name, options)
+      }
+      catch (err) {
+        log.error('scaffold:crud failed:', err)
+        process.exit(ExitCode.FatalError)
+      }
+    })
+
+  buddy
+    .command('make:command [name]', descriptions.command)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-s, --signature [signature]', 'The command signature (CLI name)', { default: false })
+    .option('-d, --description [description]', 'The command description', { default: false })
+    .option('--no-register', 'Do not register in Commands.ts')
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .example('buddy make:command SendEmails')
+    .example('buddy make:command SendEmails --signature=send-emails')
+    .action(async (name: string, options: MakeOptions & { signature?: string, description?: string, register?: boolean }) => {
+      log.debug('Running `buddy make:command` ...', options)
+
+      const perf = await intro('buddy make:command')
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a command name.')
+        log.info('Example: buddy make:command SendEmails')
+        process.exit(ExitCode.FatalError)
+      }
+
+      const result = await makeCommand(options)
+
+      if (!result) {
+        await outro('While running the make:command command, there was an issue', {
+          startTime: perf,
+          useSeconds: true,
+        })
+        process.exit(ExitCode.FatalError)
+      }
+
+      await outro(`Created your ${italic(name)} command.`, {
+        startTime: perf,
+        useSeconds: true,
+      })
+      process.exit(ExitCode.Success)
+    })
+
+  buddy
+    .command('make:component [name]', descriptions.component)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:component` ...', options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a name. Read more about the documentation here.')
+        process.exit(ExitCode.FatalError)
+      }
+
+      await makeComponent(options)
+    })
+
+  buddy
+    .command('make:database [name]', descriptions.database)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action((name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:database` ...', options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a database name via the `--name` option, or as the command’s argument.')
+        log.info('Example: `buddy make:database my-cool-database`')
+        log.info('Or: `buddy make:database --name=my-cool-database`')
+        log.info('Read more about the documentation here: https://stacksjs.com/docs/make/database')
+        process.exit(ExitCode.FatalError)
+      }
+
+      makeDatabase(options)
+    })
+
+  buddy
+    .command('make:factory [name]', descriptions.factory)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action((name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:factory` ...', options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a name. Read more about the documentation here.')
+        process.exit(ExitCode.FatalError)
+      }
+
+      // makeFactory(options)
+    })
+
+  buddy
+    .command('make:function [name]', descriptions.function)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (options: MakeOptions) => {
+      log.debug('Running `buddy make:function` ...', options)
+
+      await makeFunction(options)
+    })
+
+  buddy
+    .command('make:lang [name]', descriptions.language)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:lang` ...', options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a name. Read more about the documentation here.')
+        process.exit(ExitCode.FatalError)
+      }
+
+      await makeLanguage(options)
+    })
+
+  buddy
+    .command('make:migration [name]', descriptions.migration)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action((name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:migration` ...', options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a migration name')
+        process.exit(ExitCode.FatalError)
+      }
+
+      // log.info(path)
+    })
+
+  buddy
+    .command('make:model [name]', descriptions.model)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:model` ...', options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a model name')
+        process.exit(ExitCode.FatalError)
+      }
+
+      await createModel(options)
+    })
+
+  buddy
+    .command('make:mail [name]', descriptions.mail)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-f, --force', 'Overwrite existing files', { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .example('buddy make:mail OrderShipped')
+    .example('buddy make:mail welcome-back  // PascalCases to WelcomeBack, kebab-cases to welcome-back')
+    .example('buddy make:mail Welcome --force  // overwrite existing files')
+    .action(async (name: string, options: MakeOptions & { force?: boolean }) => {
+      log.debug('Running `buddy make:mail` ...', options)
+
+      const perf = await intro('buddy make:mail')
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a name (e.g. `buddy make:mail OrderShipped`).')
+        process.exit(ExitCode.FatalError)
+      }
+
+      await makeMail(options as any)
+
+      await outro(`Created your ${italic(name)} mailable.`, {
+        startTime: perf,
+        useSeconds: true,
+      })
+      process.exit(ExitCode.Success)
+    })
+
+  buddy
+    .command('make:notification [name]', descriptions.notification)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-e, --email', 'Is it an email notification?', { default: true })
+    .option('-c, --chat', 'Is it a chat notification?', { default: false })
+    .option('-s, --sms', 'Is it a SMS notification?', { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:notification` ...', options)
+
+      const perf = await intro('buddy make:notification')
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a name. Read more about the documentation here.')
+        process.exit(ExitCode.FatalError)
+      }
+
+      const result = await createNotification(options)
+
+      if (!result) {
+        await outro('While running the make:notification command, there was an issue', {
+          startTime: perf,
+          useSeconds: true,
+        })
+        process.exit(ExitCode.FatalError)
+      }
+
+      await outro(`Created your ${italic(name)} notification.`, {
+        startTime: perf,
+        useSeconds: true,
+      })
+      process.exit(ExitCode.Success)
+    })
+
+  buddy
+    .command('make:policy [name]', descriptions.policy)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-m, --model [model]', 'The model this policy is for', { default: false })
+    .option('--no-register', 'Do not register in Gates.ts', { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .example('buddy make:policy PostPolicy')
+    .example('buddy make:policy CommentPolicy --model=Comment')
+    .action(async (name: string, options: MakeOptions & { model?: string, register?: boolean }) => {
+      log.debug('Running `buddy make:policy` ...', options)
+
+      const perf = await intro('buddy make:policy')
+
+      name = name ?? (options as any).name
+      ;(options as any).name = name
+
+      if (!name) {
+        log.error('You need to specify a policy name.')
+        log.info('Example: buddy make:policy PostPolicy')
+        process.exit(ExitCode.FatalError)
+      }
+
+      const result = await makePolicy(options as any)
+
+      if (!result) {
+        await outro('While running the make:policy command, there was an issue', {
+          startTime: perf,
+          useSeconds: true,
+        })
+        process.exit(ExitCode.FatalError)
+      }
+
+      await outro(`Created your ${italic(name)} policy.`, {
+        startTime: perf,
+        useSeconds: true,
+      })
+      process.exit(ExitCode.Success)
+    })
+
+  buddy
+    .command('make:resource [name]', descriptions.resource)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-m, --model [model]', 'The model this resource is for', { default: false })
+    .option('-c, --collection', 'Create a collection resource', { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .example('buddy make:resource UserResource')
+    .example('buddy make:resource PostResource --model=Post')
+    .example('buddy make:resource PostCollection --collection')
+    .action(async (name: string, options: MakeOptions & { model?: string, collection?: boolean }) => {
+      log.debug('Running `buddy make:resource` ...', options)
+
+      const perf = await intro('buddy make:resource')
+
+      name = name ?? (options as any).name
+      ;(options as any).name = name
+
+      if (!name) {
+        log.error('You need to specify a resource name.')
+        log.info('Example: buddy make:resource UserResource')
+        process.exit(ExitCode.FatalError)
+      }
+
+      const result = await makeResource(options as any)
+
+      if (!result) {
+        await outro('While running the make:resource command, there was an issue', {
+          startTime: perf,
+          useSeconds: true,
+        })
+        process.exit(ExitCode.FatalError)
+      }
+
+      await outro(`Created your ${italic(name)} resource.`, {
+        startTime: perf,
+        useSeconds: true,
+      })
+      process.exit(ExitCode.Success)
+    })
+
+  buddy
+    .command('make:queue-table', descriptions.migration)
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (options: MakeOptions) => {
+      log.debug('Running `buddy make queue:table` ...', options)
+
+      await makeQueueTable()
+    })
+
+  buddy
+    .command('make:stack [name]', descriptions.stack)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:stack` ...', options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a name. Read more about the documentation here.')
+        process.exit(ExitCode.FatalError)
+      }
+
+      await makeStack(options)
+    })
+
+  buddy
+    .command('make:view [name]', descriptions.page)
+    .alias('make:page [name]')
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:view` ...', options)
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a name. Read more about the documentation here.')
+        process.exit(ExitCode.FatalError)
+      }
+
+      await makePage(options)
+    })
+
+  buddy
+    .command('make:job [name]', descriptions.job)
+    .option('-n, --name [name]', descriptions.name, { default: false })
+    .option('-q, --queue [queue]', 'The queue to dispatch to', { default: 'default' })
+    .option('-c, --class', 'Create a class-based job', { default: false })
+    .option('-t, --tries [tries]', 'Number of retry attempts', { default: 3 })
+    .option('-b, --backoff [backoff]', 'Backoff delay in seconds', { default: 3 })
+    .option('-p, --project [project]', descriptions.project, { default: false })
+    .option('--verbose', descriptions.verbose, { default: false })
+    .action(async (name: string, options: MakeOptions) => {
+      log.debug('Running `buddy make:job` ...', options)
+
+      const perf = await intro('buddy make:job')
+
+      name = name ?? options.name
+      options.name = name
+
+      if (!name) {
+        log.error('You need to specify a job name.')
+        log.info('Example: buddy make:job SendWelcomeEmail')
+        process.exit(ExitCode.FatalError)
+      }
+
+      const result = await makeJob(options)
+
+      if (!result) {
+        await outro('While running the make:job command, there was an issue', {
+          startTime: perf,
+          useSeconds: true,
+        })
+        process.exit(ExitCode.FatalError)
+      }
+
+      await outro(`Created your ${italic(name)} job.`, {
+        startTime: perf,
+        useSeconds: true,
+      })
+      process.exit(ExitCode.Success)
+    })
+
+  onUnknownSubcommand(buddy, "make")
+}
+
+// function hasNoOptions(options: MakeOptions) {
+//   return !options.component && !options.page && !options.function && !options.language && !options.database && !options.migration && !options.notification && !options.stack
+// }

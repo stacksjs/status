@@ -1,0 +1,461 @@
+/*
+ * Stacks Blog - custom BunPress theme, "national-park" outdoors look.
+ *
+ * Re-skins BunPress's VitePress theme (driven by --vp-c-* vars) to the Stacks
+ * park palette + NPS fonts, and adds outdoors chrome (topography texture, a
+ * ridge + river footer, a wooden trail-sign masthead). Three themes via
+ * `data-theme` on <html>: colored (DEFAULT - warm NPS brochure, cream + pine),
+ * light (clean neutral paper-white), dark (forest-floor near-black).
+ */
+
+/* ── NPS fonts (see ~/Code/nps-fonts) ──────────────────────────────────── */
+@font-face { font-family: 'Campmate Script'; src: url('/assets/fonts/nps/CampmateScript-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'NPS 2026'; src: url('/assets/fonts/nps/NPS_2026-variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: 'Sequoia Sans'; src: url('/assets/fonts/nps/SequoiaSans-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Redwood Serif'; src: url('/assets/fonts/nps/RedwoodSerif-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+
+/*
+ * Three themes, switched via `data-theme` on <html>:
+ *   - colored (DEFAULT) - the warm NPS-brochure look: cream paper + pine green.
+ *     This is the signature Stacks blog palette.
+ *   - light - a clean, neutral paper-white reading mode (green accents).
+ *   - dark - near-black forest-floor mode.
+ */
+
+/* ── Themes ─────────────────────────────────────────────────────────────── */
+:root,
+:root[data-theme='colored'] {
+  --vp-c-bg: #fbf3df;
+  --vp-c-bg-alt: #fff8e7;
+  --vp-c-bg-soft: #f3e7c8;
+  --vp-c-bg-elv: #fff8e7;
+  --vp-c-text-1: #1f3026;
+  --vp-c-text-2: #4c5a49;
+  --vp-c-text-3: #7c8a74;
+  --vp-c-brand-1: #275f3c;
+  --vp-c-brand-2: #a85f35;
+  --vp-c-brand-3: #163824;
+  --vp-c-brand-soft: rgba(39, 95, 60, 0.12);
+  --vp-c-divider: #e0cfa3;
+  --vp-c-gutter: #ead9b1;
+  --vp-code-color: #a85f35;
+  --vp-code-bg: #f0e2bf;
+  --vp-code-block-bg: #15241a;
+  --park-ridge: #275f3c;
+  --park-river: #3f8e88;
+  --park-wood: #8a5a35;
+  --park-flag: #df9a2f;
+  --topo-color: #275f3c;
+  --topo-opacity: 0.05;
+  --park-poster-a: #f5dfb8;
+  --park-poster-b: #e8d6ac;
+}
+
+:root[data-theme='light'] {
+  --vp-c-bg: #fcfdfb;
+  --vp-c-bg-alt: #f4f6f1;
+  --vp-c-bg-soft: #ecefe7;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-text-1: #1a2620;
+  --vp-c-text-2: #46514a;
+  --vp-c-text-3: #79837b;
+  --vp-c-brand-1: #1f6a40;
+  --vp-c-brand-2: #b06a38;
+  --vp-c-brand-3: #14532b;
+  --vp-c-brand-soft: rgba(31, 106, 64, 0.10);
+  --vp-c-divider: #e4e7df;
+  --vp-c-gutter: #edefe8;
+  --vp-code-color: #b06a38;
+  --vp-code-bg: #eef1ea;
+  --vp-code-block-bg: #15241a;
+  --park-ridge: #1f6a40;
+  --park-river: #3f8e88;
+  --park-wood: #8a5a35;
+  --park-flag: #d98f2a;
+  --topo-color: #1f6a40;
+  --topo-opacity: 0.04;
+  --park-poster-a: #eef1ea;
+  --park-poster-b: #e2e6dc;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --vp-c-bg: #0b1310;
+  --vp-c-bg-alt: #111c16;
+  --vp-c-bg-soft: #17241b;
+  --vp-c-bg-elv: #111c16;
+  --vp-c-text-1: #eef1e7;
+  --vp-c-text-2: #b9c4b2;
+  --vp-c-text-3: #7e8b78;
+  --vp-c-brand-1: #8fd6a6;
+  --vp-c-brand-2: #e0a84f;
+  --vp-c-brand-3: #7fb8ae;
+  --vp-c-brand-soft: rgba(143, 214, 166, 0.14);
+  --vp-c-divider: #26332a;
+  --vp-c-gutter: #1c271f;
+  --vp-code-color: #e0a84f;
+  --vp-code-bg: #17241b;
+  --vp-code-block-bg: #050907;
+  --park-ridge: #050907;
+  --park-river: #5fa39b;
+  --park-wood: #c98a4a;
+  --park-flag: #e0a84f;
+  --topo-color: #8fd6a6;
+  --topo-opacity: 0.05;
+  --park-poster-a: #17241b;
+  --park-poster-b: #101911;
+}
+
+/*
+ * Font roles. The NPS faces are display/signage cuts:
+ *   - Campmate Script - the hero (cursive, has lowercase)
+ *   - NPS 2026 - headings (art-deco, has true lowercase)
+ *   - Sequoia Sans / Redwood Serif - CAPS-ONLY; only for signage-style labels
+ * Long-form body copy stays on a clean system humanist sans for readability.
+ */
+:root {
+  --font-body: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-hero: 'Campmate Script', ui-serif, Georgia, serif;
+  --font-head: 'NPS 2026', var(--font-body);
+  --font-label: 'Sequoia Sans', var(--font-body);
+}
+
+/* ── Base + topography texture ──────────────────────────────────────────── */
+/* Page background lives on <html> so the fixed topography layer (body::before,
+ * z-index -1) shows above it but behind content; keep the layout chrome
+ * transparent so both read through. */
+html { background-color: var(--vp-c-bg); }
+body, .Layout, .BPContent, .BPPage { background-color: transparent; }
+.BPNavBar { background-color: var(--vp-c-bg-alt); border-bottom: 1px solid var(--vp-c-divider); }
+.BPNavBar .title, .BPNavBar a { color: var(--vp-c-text-1); }
+.BPNavBar a:hover { color: var(--vp-c-brand-1); }
+body {
+  font-family: var(--font-body);
+  color: var(--vp-c-text-1);
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--topo-color);
+  -webkit-mask: url('/assets/images/topography.svg') center / 620px auto;
+  mask: url('/assets/images/topography.svg') center / 620px auto;
+  opacity: var(--topo-opacity);
+}
+
+.bp-doc {
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.78;
+}
+.bp-doc h1, .bp-doc h2, .bp-doc h3, .bp-doc h4 {
+  font-family: var(--font-head);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.bp-doc a.blog-card,
+.bp-doc a.blog-card:hover,
+.bp-doc a.blog-back,
+.bp-doc a.blog-back:hover { text-decoration: none; }
+
+/* ── Theme toggle ───────────────────────────────────────────────────────── */
+.blog-theme-toggle {
+  position: fixed;
+  bottom: 1.1rem;
+  right: 1.1rem;
+  z-index: 60;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  background: var(--vp-c-bg-alt);
+  box-shadow: 0 6px 18px -12px rgba(0, 0, 0, 0.5);
+}
+.blog-theme-toggle button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vp-c-text-2);
+  font-size: 15px;
+  cursor: pointer;
+  line-height: 1;
+}
+.blog-theme-toggle button:hover { color: var(--vp-c-text-1); }
+:root[data-theme='light'] .blog-theme-toggle button[data-t='light'],
+:root[data-theme='colored'] .blog-theme-toggle button[data-t='colored'],
+:root[data-theme='dark'] .blog-theme-toggle button[data-t='dark'] {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+/* ── Masthead (wooden trail sign) ───────────────────────────────────────── */
+.blog-listing-head { margin: 1rem 0 2.75rem; text-align: center; }
+.blog-listing-head .sign {
+  display: block;
+  width: 320px;
+  max-width: 82%;
+  height: 132px;
+  margin: 0 auto 0.2rem;
+  background-color: var(--park-wood);
+  -webkit-mask: url('/assets/images/wood-sign.svg') center / contain no-repeat;
+  mask: url('/assets/images/wood-sign.svg') center / contain no-repeat;
+  filter: drop-shadow(0 8px 16px rgba(11, 19, 16, 0.16));
+}
+.blog-listing-head h1 {
+  margin: 0 0 0.55rem;
+  font-family: var(--font-hero);
+  font-weight: 400;
+  font-size: clamp(2.6rem, 5.5vw, 4.4rem);
+  line-height: 0.98;
+  letter-spacing: 0;
+  color: var(--vp-c-text-1);
+}
+.blog-listing-head p {
+  margin: 0 auto;
+  max-width: 38rem;
+  color: var(--vp-c-text-2);
+  font-size: 1.08rem;
+  line-height: 1.6;
+}
+
+/* ── Post header ────────────────────────────────────────────────────────── */
+.blog-post-head { margin: 0 0 1.5rem; }
+.blog-post-head h1 {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-hero);
+  font-weight: 400;
+  font-size: clamp(2.6rem, 5vw, 4rem);
+  line-height: 1.02;
+  letter-spacing: 0;
+  color: var(--vp-c-text-1);
+}
+.blog-post-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  margin: 0; color: var(--vp-c-text-2); font-size: 0.95rem;
+}
+.blog-post-meta .dot { color: var(--vp-c-divider); }
+.blog-post-meta .author { font-weight: 650; color: var(--vp-c-text-1); }
+
+/* The poster is a self-framed NPS print (rounded, transparent corners), so we
+ * float it as a centered hero rather than boxing it in a mat - a drop-shadow
+ * follows its rounded edge and gives it a "pinned print" feel. */
+.blog-post-poster {
+  margin: 2rem auto 0.75rem;
+  max-width: 360px;
+  border: 0;
+  background: none;
+}
+.blog-post-poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.6rem;
+  filter: drop-shadow(0 24px 44px rgba(11, 19, 16, 0.3));
+}
+
+.blog-back {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  margin-bottom: 1.5rem; font-size: 0.9rem; font-weight: 600; color: var(--vp-c-brand-1);
+}
+.blog-back:hover { color: var(--vp-c-brand-2); }
+
+.blog-author-card {
+  display: flex; gap: 1rem; align-items: flex-start;
+  margin: 3rem 0 0; padding: 1.4rem 1.5rem;
+  border: 1px solid var(--vp-c-divider); border-left: 4px solid var(--park-flag);
+  border-radius: 0.6rem; background: var(--vp-c-bg-alt);
+}
+.blog-author-card .avatar {
+  flex: 0 0 auto; width: 3rem; height: 3rem; display: grid; place-items: center;
+  border-radius: 50%; background: var(--vp-c-brand-1); color: var(--vp-c-bg); font-weight: 800; font-size: 1.2rem;
+}
+.blog-author-card .name { font-weight: 700; color: var(--vp-c-text-1); }
+.blog-author-card .bio { margin: 0.25rem 0 0; color: var(--vp-c-text-2); line-height: 1.55; }
+
+/* ── Listing cards ──────────────────────────────────────────────────────── */
+.blog-cards { display: grid; gap: 1.75rem; }
+.blog-card {
+  display: grid; grid-template-columns: 188px 1fr; gap: 1.75rem; align-items: center;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--vp-c-divider); border-left: 4px solid var(--vp-c-brand-1);
+  border-radius: 0.7rem; background: var(--vp-c-bg-alt); text-decoration: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.blog-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--vp-c-brand-1);
+  box-shadow: 0 22px 44px -28px rgba(0, 0, 0, 0.6);
+}
+.blog-card.is-featured { border-left-color: var(--park-flag); }
+.blog-card.is-featured:hover { border-color: var(--park-flag); }
+/* Poster shows as a small floating print - its own NPS frame supplies the
+ * border, so we skip the mat and just lift it with a shadow. */
+.blog-card-media { align-self: center; }
+.blog-card-media img {
+  display: block; width: 100%; height: auto;
+  border-radius: 0.45rem;
+  filter: drop-shadow(0 12px 24px rgba(11, 19, 16, 0.22));
+  transition: transform 0.18s ease;
+}
+.blog-card:hover .blog-card-media img { transform: scale(1.02); }
+.blog-card-title {
+  margin: 0.1rem 0 0.45rem; font-family: var(--font-head);
+  font-size: 1.5rem; font-weight: 600; color: var(--vp-c-text-1); line-height: 1.16; letter-spacing: -0.01em;
+}
+.blog-card:hover .blog-card-title { color: var(--vp-c-brand-1); }
+.blog-card-excerpt { margin: 0 0 0.85rem; color: var(--vp-c-text-2); line-height: 1.6; }
+.blog-card-meta { color: var(--vp-c-text-3); font-size: 0.875rem; }
+.blog-card-flag {
+  display: inline-block; margin-bottom: 0.5rem; padding: 0.2rem 0.65rem; border-radius: 999px;
+  background: var(--vp-c-brand-soft); color: var(--park-wood);
+  font-family: var(--font-label); font-size: 0.74rem; font-weight: 400;
+  letter-spacing: 0.12em; text-transform: uppercase;
+}
+.bp-doc .blog-card-title,
+.bp-doc .blog-listing-head h1,
+.bp-doc .blog-post-head h1 { border-top: 0; padding-top: 0; }
+
+/* ── Post footer: share + read-next ─────────────────────────────────────── */
+.blog-share {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;
+  margin: 2.5rem 0 0; padding-top: 1.5rem; border-top: 1px solid var(--vp-c-divider); font-size: 0.95rem;
+}
+.blog-share-label { font-weight: 700; color: var(--vp-c-text-1); }
+.blog-share a { color: var(--vp-c-brand-1); font-weight: 600; }
+.blog-share a:hover { color: var(--vp-c-brand-2); }
+.blog-more { margin: 2.5rem 0 0; }
+.blog-more h2 {
+  display: flex; align-items: center; gap: 0.55rem;
+  margin: 0 0 0.75rem; font-family: var(--font-head); font-size: 1.2rem;
+  font-weight: 600; color: var(--vp-c-text-1); border-top: 0; padding-top: 0;
+}
+.blog-more h2::before {
+  content: ''; flex: 0 0 auto;
+  width: 24px; height: 20px;
+  background-color: var(--vp-c-brand-1);
+  -webkit-mask: url('/assets/images/park-emblem.svg') center / contain no-repeat;
+  mask: url('/assets/images/park-emblem.svg') center / contain no-repeat;
+  opacity: 0.75;
+}
+.bp-doc .blog-more h2 { border-top: 0; padding-top: 0; margin: 0 0 0.75rem; }
+.blog-more ul { list-style: none; margin: 0; padding: 0; }
+.blog-more li { margin: 0.35rem 0; }
+.blog-more a { color: var(--vp-c-brand-1); font-weight: 600; }
+.blog-more a:hover { color: var(--vp-c-brand-2); }
+
+/* ── Footer landscape: ridge + river ────────────────────────────────────── */
+.blog-landscape { position: relative; margin-top: 4rem; padding-top: 2rem; }
+.blog-landscape .ridge {
+  display: block; width: 100%; height: 90px; background: var(--park-ridge);
+  -webkit-mask: url('/assets/images/park-ridge.svg') bottom center / cover no-repeat;
+  mask: url('/assets/images/park-ridge.svg') bottom center / cover no-repeat;
+  opacity: 0.85;
+}
+.blog-landscape .river {
+  display: block; width: 100%; height: 70px; margin-top: -12px;
+  background-color: var(--park-river);
+  -webkit-mask: url('/assets/images/river.svg') center / 1200px 140px repeat-x;
+  mask: url('/assets/images/river.svg') center / 1200px 140px repeat-x;
+  opacity: 0.85;
+}
+.blog-landscape .colophon {
+  text-align: center; margin-top: 0.75rem; color: var(--vp-c-text-3);
+  font-size: 0.82rem; letter-spacing: 0.04em;
+}
+.blog-landscape .colophon::before {
+  content: ''; display: inline-block; vertical-align: -3px;
+  width: 17px; height: 17px; margin-right: 0.5rem;
+  background-color: var(--vp-c-text-3);
+  -webkit-mask: url('/assets/images/park-bison.svg') center / contain no-repeat;
+  mask: url('/assets/images/park-bison.svg') center / contain no-repeat;
+}
+.blog-landscape .colophon a { color: var(--vp-c-brand-1); }
+
+/* ── Long-form prose polish (park-themed markdown body) ─────────────────── */
+.bp-doc blockquote {
+  margin: 1.75rem 0;
+  padding: 0.85rem 1.35rem;
+  border-left: 4px solid var(--park-flag);
+  border-radius: 0 0.4rem 0.4rem 0;
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-text-1);
+  font-style: italic;
+}
+.bp-doc blockquote p { margin: 0; }
+.bp-doc blockquote p + p { margin-top: 0.6rem; }
+
+/* Trail-green list markers. */
+.bp-doc ul { list-style: none; padding-left: 1.4rem; }
+.bp-doc ul > li { position: relative; }
+.bp-doc ul > li::before {
+  content: '';
+  position: absolute;
+  left: -1.2rem; top: 0.62em;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--vp-c-brand-1);
+}
+.bp-doc li + li { margin-top: 0.35rem; }
+.bp-doc ol { padding-left: 1.4rem; }
+.bp-doc ol > li::marker { color: var(--vp-c-brand-1); font-weight: 700; }
+
+/* Section rules read like a trail divider, with a small NPS wing emblem set
+ * into the middle of the line. (line in the bg, a bg-coloured chip breaks the
+ * line, the emblem mask sits on top.) */
+.bp-doc hr {
+  position: relative;
+  height: 1px; border: 0; margin: 3rem 0; overflow: visible;
+  background: linear-gradient(to right, transparent, var(--vp-c-divider) 18%, var(--vp-c-divider) 82%, transparent);
+}
+.bp-doc hr::after,
+.bp-doc hr::before {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.bp-doc hr::after { width: 54px; height: 24px; background: var(--vp-c-bg); }
+.bp-doc hr::before {
+  z-index: 1; width: 30px; height: 24px;
+  background-color: var(--vp-c-brand-1);
+  -webkit-mask: url('/assets/images/park-emblem.svg') center / contain no-repeat;
+  mask: url('/assets/images/park-emblem.svg') center / contain no-repeat;
+  opacity: 0.8;
+}
+
+/* ── Off-trail (404) ────────────────────────────────────────────────────── */
+.blog-404 { text-align: center; margin: 2.5rem auto 1rem; max-width: 32rem; }
+.blog-404-art {
+  display: block; width: 116px; height: 116px; margin: 0 auto 1.25rem;
+  background-color: var(--vp-c-brand-1);
+  -webkit-mask: url('/assets/images/park-hiker.svg') center / contain no-repeat;
+  mask: url('/assets/images/park-hiker.svg') center / contain no-repeat;
+  opacity: 0.9;
+}
+.bp-doc .blog-404 h1 {
+  margin: 0 0 0.5rem; border-top: 0; padding-top: 0;
+  font-family: var(--font-hero); font-weight: 400;
+  font-size: clamp(2rem, 5vw, 3rem); color: var(--vp-c-text-1);
+}
+.blog-404 p { margin: 0; color: var(--vp-c-text-2); }
+
+/* Headings get a little more air above them than the base theme gives. */
+.bp-doc h2 { margin-top: 2.6rem; }
+.bp-doc h3 { margin-top: 1.9rem; }
+
+@media (max-width: 640px) {
+  .blog-card {
+    grid-template-columns: 1fr;
+    gap: 1.1rem;
+    padding: 1.1rem;
+  }
+  .blog-card-media { max-width: 240px; margin: 0.2rem auto 0.3rem; }
+  .blog-post-poster { max-width: 300px; }
+  .blog-listing-head { margin-bottom: 1.5rem; }
+}

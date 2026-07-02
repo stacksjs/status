@@ -1,0 +1,63 @@
+{
+  "name": "@stacksjs/ui",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "The Stacks UI engine.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/ui#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/ui"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "css",
+    "atomic",
+    "ui",
+    "engine",
+    "styles",
+    "stacks",
+    "crosswind",
+    "tailwind"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./components": {
+      "types": "./dist/components.d.ts",
+      "bun": "./src/components.ts",
+      "import": "./dist/components.js"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@stacksjs/build": "workspace:*",
+    "@stacksjs/config": "workspace:*",
+    "better-dx": "^0.2.12",
+    "@stacksjs/router": "workspace:*",
+    "@stacksjs/stx": "^0.2.40"
+  }
+}

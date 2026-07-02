@@ -1,0 +1,73 @@
+<script server>
+/**
+ * Default storefront layout.
+ *
+ * Pages extend "layouts/storefront" and the framework wires in
+ * the announcement bar, sticky header (with live cart-count badge),
+ * footer, and slide-in cart drawer. To customize the brand, copy this
+ * file to `resources/views/layouts/storefront.stx` in your project and
+ * pass the props you want — the STX layout resolver walks up from the
+ * calling file looking for a `layouts/` directory, so the project
+ * copy wins for any view also under `resources/views/`.
+ *
+ * Note: framework-default pages (cart.stx, checkout/*.stx, orders/
+ * [id].stx) live under storage/framework/defaults/resources/views/, so
+ * they resolve THIS layout by the upward walk — not the project's.
+ * Stick to real STX directives only (if / yield / section / stack);
+ * unrecognized at-directives are scanned even inside script-server
+ * comments and can leave structural mismatches downstream that hang
+ * the request handler.
+ *
+ * The cart count is read from the storefront's session cookie so the
+ * badge is correct on first paint, before any client-side JS runs.
+ */
+
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+
+let cartCount = 0
+try {
+  const sessionToken = (typeof requestContext !== 'undefined') ? requestContext.cookie('stacks_cart') : null
+  if (sessionToken) {
+    const db = new Database(dbPath, { readonly: true })
+    const cart = db.query(`SELECT total_items FROM carts WHERE session_token = ?1 AND status = 'active' LIMIT 1`).get(sessionToken)
+    if (cart && cart.total_items)
+      cartCount = Number(cart.total_items) || 0
+    db.close()
+  }
+}
+catch { /* schema not migrated yet, or db missing — render an empty header */ }
+</script>
+
+<!DOCTYPE html>
+<html lang="en" class="text-stone-900 bg-stone-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>@yield('title', 'Stacks Store')</title>
+  <meta name="description" content="@yield('description', 'A storefront powered by Stacks.')">
+  {{-- Constrain the SPA router to swap only <main>; @stacksjs/stx auto-
+      injects __stxRouterConfig with container:'body', which would erase
+      the header/footer on every navigation. STX_ROUTER_OPTIONS is checked
+      last by the router's Object.assign, so this wins. --}}
+  <script>window.STX_ROUTER_OPTIONS = { container: 'main' };</script>
+</head>
+<body class="antialiased font-serif text-stone-900 bg-stone-50">
+
+  <AnnouncementBar />
+
+  <Header :cartCount="cartCount" />
+
+  <main>
+    @yield('content')
+  </main>
+
+  <Footer />
+
+  <CartDrawer />
+
+  @stack('scripts')
+</body>
+</html>

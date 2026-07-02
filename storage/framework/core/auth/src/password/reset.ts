@@ -1,0 +1,360 @@
+import { randomBytes } from 'node:crypto'
+import { config } from '@stacksjs/config'
+import { db } from '@stacksjs/database'
+import { mail, template } from '@stacksjs/email'
+import { log } from '@stacksjs/logging'
+import { formatDate } from '@stacksjs/orm'
+import { makeHash, verifyHash } from '@stacksjs/security'
+import { sessionDestroyAll } from '../session-auth'
+import { revokeAllTokens } from '../tokens'
+
+export interface PasswordResetResult {
+  success: boolean
+  message?: string
+}
+
+export interface PasswordResetActions {
+  sendEmail: () => Promise<void>
+  verifyToken: (token: string) => Promise<boolean>
+  resetPassword: (token: string, newPassword: string) => Promise<PasswordResetResult>
+}
+
+// Get token expiration from config (default: 60 minutes)
+function getTokenExpireMinutes(): number {
+  return config.auth.passwordReset?.expire ?? 60
+}
+
+/**
+ * True when the given password_resets row is still valid. Prefers
+ * the explicit `expires_at` column (set at insert time by
+ * `createResetToken`) and falls back to clock-arithmetic against
+ * `created_at` so rows inserted before the column existed continue
+ * to verify correctly (stacksjs/stacks#1861 A-5 + M-2).
+ */
+function isWithinExpiry(row: Record<string, unknown>): boolean {
+  const explicit = row.expires_at
+  if (typeof explicit === 'string' || explicit instanceof Date) {
+    return new Date(explicit).getTime() > Date.now()
+  }
+  const created = row.created_at
+  if (typeof created === 'string' || created instanceof Date) {
+    const expireMinutes = getTokenExpireMinutes()
+    return new Date(created).getTime() + expireMinutes * 60_000 > Date.now()
+  }
+  // No timestamp at all — refuse to verify rather than leak forever.
+  return false
+}
+
+/**
+ * Send a notification email when password has been changed
+ * This is a security feature to alert users of password changes
+ */
+async function sendPasswordChangedNotification(userEmail: string): Promise<void> {
+  const appName = config.app.name || 'Stacks'
+  const supportEmail = config.app.supportEmail || config.email?.from?.address || ''
+  const changedAt = new Date().toLocaleString('en-US', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  })
+
+  try {
+    const { html, text } = await template('password-changed', {
+      subject: `Your ${appName} password has been changed`,
+      variables: {
+        changedAt,
+        supportEmail,
+      },
+    })
+
+    // template() swallows missing-template and STX-render failures into
+    // empty strings instead of throwing (template.ts returns
+    // { html: '', text: '' }), which would mail a blank notification with
+    // no information. Send a plain-text notification instead.
+    if (!html && !text) {
+      await mail.send({
+        to: userEmail,
+        subject: `Your ${appName} password has been changed`,
+        text: `Your ${appName} password was changed on ${changedAt}.${supportEmail ? ` If this wasn't you, contact ${supportEmail}.` : ''}`,
+      })
+      return
+    }
+
+    await mail.send({
+      to: userEmail,
+      subject: `Your ${appName} password has been changed`,
+      text,
+      html,
+    })
+  }
+  catch (error) {
+    // Log error but don't throw - the password was already changed successfully
+    console.error('[PasswordReset] Failed to send password changed notification:', error)
+  }
+}
+
+export function passwordResets(email: string): PasswordResetActions {
+  function generateResetToken(): string {
+    return randomBytes(32).toString('hex')
+  }
+
+  async function createResetToken(): Promise<string> {
+    const token = generateResetToken()
+    const hashedToken = await makeHash(token, { algorithm: 'bcrypt' })
+    const expireMinutes = getTokenExpireMinutes()
+    const expiresAt = new Date(Date.now() + expireMinutes * 60_000).toISOString()
+
+    // Delete any existing reset row for this email before inserting
+    // the new one so a second reset request invalidates any prior
+    // outstanding token. The schema's unique index on `email` enforces
+    // single-outstanding-token-per-email at the DB layer; this delete
+    // makes the rotation work even when the unique constraint hasn't
+    // been applied yet (older installs). See stacksjs/stacks#1861 A-5.
+    await db
+      .deleteFrom('password_resets')
+      .where('email', '=', email)
+      .execute()
+
+    await db
+      .insertInto('password_resets')
+      .values({
+        email,
+        token: hashedToken,
+        expires_at: expiresAt,
+      } as never)
+      .executeTakeFirst()
+
+    return token // Return unhashed token for email
+  }
+
+  async function sendEmail(): Promise<void> {
+    // Anti-enumeration: only proceed for a registered account. An unknown
+    // email is a silent no-op — no token row, no send — so the calling
+    // action can always return a uniform "if an account exists, we sent a
+    // link" response without leaking which addresses are registered.
+    const user = await db
+      .selectFrom('users')
+      .where('email', '=', email)
+      .selectAll()
+      .executeTakeFirst()
+    if (!user)
+      return
+
+    const token = await createResetToken()
+
+    const expireMinutes = getTokenExpireMinutes()
+    const appName = config.app.name || 'Stacks'
+
+    // Reset URL. Configurable via `config.auth.passwordReset.url` — a
+    // template with `{token}` / `{email}` placeholders — so apps whose
+    // reset page lives on a custom route (e.g. `/reset-password?token=…`)
+    // can reuse this whole flow instead of hand-rolling the send. Falls
+    // back to the framework convention. Absolute templates are used as-is;
+    // path templates are prefixed with the app URL.
+    const base = config.app.url ? `https://${config.app.url}` : `http://localhost:${process.env.PORT || '3000'}`
+    const tpl = config.auth.passwordReset?.url
+      ?? '/password/reset/{token}?email={email}'
+    const filled = tpl.replace('{token}', token).replace('{email}', encodeURIComponent(email))
+    const resetUrl = /^https?:\/\//.test(filled) ? filled : `${base}${filled.startsWith('/') ? '' : '/'}${filled}`
+
+    try {
+      const { html, text } = await template('password-reset', {
+        subject: `Reset Your ${appName} Password`,
+        variables: {
+          resetUrl,
+          expireMinutes,
+        },
+      })
+
+      // template() swallows missing-template and STX-render failures into
+      // empty strings instead of throwing (template.ts returns
+      // { html: '', text: '' }), which would mail a blank email with no
+      // reset link. Treat an empty render as failure so the plain-text
+      // fallback below actually fires — guards against a deleted/broken
+      // template (template() now resolves the shipped defaults too,
+      // see stacksjs/stacks#1944).
+      if (!html && !text)
+        throw new Error('password-reset template missing or rendered empty')
+
+      await mail.send({
+        to: email,
+        subject: `Reset Your ${appName} Password`,
+        text,
+        html,
+      })
+    }
+    catch (templateError) {
+      // Template missing → plain-text fallback so the reset still works
+      // without a configured `password-reset` template (mirrors
+      // sendVerificationEmail). A hard mail-driver failure still throws.
+      const msg = templateError instanceof Error ? templateError.message : String(templateError)
+      console.warn(`[PasswordReset] template render failed, sending plain-text fallback: ${msg}`)
+      await mail.send({
+        to: email,
+        subject: `Reset Your ${appName} Password`,
+        text: `Reset your password by visiting: ${resetUrl}\n\nThis link expires in ${expireMinutes} minutes. If you didn't request this, you can safely ignore this email.`,
+      })
+    }
+  }
+
+  async function verifyToken(token: string): Promise<boolean> {
+    const result = await db
+      .selectFrom('password_resets')
+      .where('email', '=', email)
+      .selectAll()
+      .executeTakeFirst()
+
+    if (!result)
+      return false
+
+    // Prefer the explicit `expires_at` column when present (it's set
+    // at insert time). Fall back to clock-arithmetic against
+    // `created_at` for rows inserted before the column existed
+    // (stacksjs/stacks#1861 A-5 + M-2).
+    if (!isWithinExpiry(result)) {
+      await db
+        .deleteFrom('password_resets')
+        .where('email', '=', email)
+        .execute()
+      return false
+    }
+
+    // Verify the hashed token
+    const hashedToken = result.token as string
+    return await verifyHash(token, hashedToken)
+  }
+
+  async function resetPassword(token: string, newPassword: string): Promise<PasswordResetResult> {
+    const result = await db.transaction(async (rawTrx) => {
+      // The transaction callback receives bun-query-builder's raw `QueryBuilder<DB>`,
+      // which marks chained fluent methods like `selectAll` as optional. We mirror
+      // the typing of the top-level `db` proxy so chained calls type-check the same way.
+      const trx = rawTrx as unknown as typeof db
+      // First verify the token exists
+      const resetRecord = await trx
+        .selectFrom('password_resets')
+        .where('email', '=', email)
+        .selectAll()
+        .executeTakeFirst()
+
+      // If no reset record, return generic error (don't leak if user exists)
+      if (!resetRecord) {
+        return { success: false as const, message: 'Invalid or expired reset token' }
+      }
+
+      // Check token expiration first (before verifying hash to save compute).
+      // Same expires_at-or-created_at logic as `verifyToken` above.
+      if (!isWithinExpiry(resetRecord)) {
+        await trx
+          .deleteFrom('password_resets')
+          .where('email', '=', email)
+          .execute()
+
+        return { success: false as const, message: 'This password reset link has expired. Please request a new one.' }
+      }
+
+      // Verify the hashed token
+      const hashedToken = resetRecord.token as string
+      const isValid = await verifyHash(token, hashedToken)
+
+      if (!isValid) {
+        return { success: false as const, message: 'Invalid or expired reset token' }
+      }
+
+      // Update the user's password
+      const user = await trx
+        .selectFrom('users')
+        .where('email', '=', email)
+        .selectAll()
+        .executeTakeFirst()
+
+      // If no user, return generic error (don't leak user existence)
+      if (!user) {
+        return { success: false as const, message: 'Invalid or expired reset token' }
+      }
+
+      const hashedPassword = await makeHash(newPassword, { algorithm: 'bcrypt' })
+
+      // Update password AND stamp password_changed_at so every token /
+      // refresh token issued before this moment is rejected at use-time,
+      // not merely by the post-commit sweep (stacksjs/stacks#1957). The
+      // stamp is UTC 'YYYY-MM-DD HH:MM:SS' (formatDate), the same clock
+      // family as the token rows' CURRENT_TIMESTAMP so comparisons stay
+      // coherent. A future authenticated change-password endpoint MUST
+      // stamp this column too. If the column doesn't exist yet (DB not
+      // migrated), retry the update without the stamp — account recovery
+      // must never break on an un-migrated database (the sweep still runs
+      // post-commit; the binding is simply inert until `buddy migrate`).
+      try {
+        await trx
+          .updateTable('users')
+          .set({ password: hashedPassword, password_changed_at: formatDate(new Date()) } as never)
+          .where('email', '=', email)
+          .executeTakeFirst()
+      }
+      catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        if (/password_changed_at|no such column|unknown column/i.test(message)) {
+          log.warn('[PasswordReset] password_changed_at column missing — run `buddy migrate`; resetting without the credential-version stamp')
+          await trx
+            .updateTable('users')
+            .set({ password: hashedPassword })
+            .where('email', '=', email)
+            .executeTakeFirst()
+        }
+        else {
+          throw err
+        }
+      }
+
+      // Delete the used reset token
+      await trx
+        .deleteFrom('password_resets')
+        .where('email', '=', email)
+        .execute()
+
+      return { success: true as const, userId: Number(user.id) }
+    })
+
+    // Post-commit side effects: revocation + notification.
+    if (result.success) {
+      // Evict every existing session for the account. Password reset is
+      // the canonical account-recovery action; without this, a previously
+      // stolen refresh token keeps minting fresh access tokens for up to
+      // 30 days after the victim "secures" the account. Must be the
+      // standalone tokens.ts primitive (NOT Auth.revokeAllTokens): the
+      // /auth/refresh exchange checks only the refresh row's `revoked`
+      // flag, so revoking access tokens alone leaves the refresh chain
+      // alive. Awaited un-caught deliberately — if revocation fails, the
+      // request fails loud rather than reporting a "successful" reset
+      // that left the attacker logged in. Runs after the transaction
+      // commits: it uses the global connection (risking SQLITE_BUSY
+      // against a held write lock) and must not fire on rollback.
+      // See stacksjs/stacks#1947.
+      await revokeAllTokens(result.userId)
+
+      // Session cookies are a parallel credential: `sessions` rows are
+      // validated on existence + expires_at alone, never re-checked
+      // against the password hash, so they'd survive the reset for up
+      // to 24h. Same fail-loud, post-commit rationale as above.
+      await sessionDestroyAll(result.userId)
+
+      // Send password changed notification (async, non-blocking)
+      // This runs after the transaction is committed to ensure the password was actually changed
+      sendPasswordChangedNotification(email).catch((err) => {
+        console.error('[PasswordReset] Failed to send notification:', err)
+      })
+
+      // Strip the internal userId so the public PasswordResetResult
+      // shape stays unchanged.
+      return { success: true }
+    }
+
+    return result
+  }
+
+  return {
+    sendEmail,
+    verifyToken,
+    resetPassword,
+  }
+}

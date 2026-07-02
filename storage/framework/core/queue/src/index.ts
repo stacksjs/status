@@ -1,0 +1,201 @@
+/**
+ * @stacksjs/queue
+ *
+ * A thin wrapper around bun-queue that integrates with Stacks conventions.
+ * Core Stacks queue exports are always available. For advanced bun-queue
+ * features (Queue, Worker, dispatch, etc.), import from '@stacksjs/queue/bun-queue'.
+ */
+
+// =============================================================================
+// Stacks Job class for file-based jobs (app/Jobs/*.ts)
+// =============================================================================
+export { Job } from './action'
+
+// =============================================================================
+// Stacks job helper for dispatching file-based jobs
+// =============================================================================
+export { Jobs, job, jobBatch, runJob } from './job'
+
+// =============================================================================
+// Job dispatch idempotency (stacksjs/stacks#1872 Q-8)
+// =============================================================================
+export { hasDispatchedKey, recordDispatchedKey } from './idempotency'
+
+// =============================================================================
+// Dead-letter queue + poison detection + circuit breaker
+// (stacksjs/stacks#1885, Q-13 from #1872)
+// =============================================================================
+export {
+  listDeadLetterJobs,
+  moveToDeadLetter,
+  purgeDeadLetterJobs,
+  retryDeadLetterJob,
+} from './dead-letter'
+export type { DeadLetterReason, DeadLetterRecord, ListDeadLetterFilter } from './dead-letter'
+export {
+  hashPayload,
+  isQuarantined,
+  listQuarantined,
+  quarantineJob,
+  recordFailureForPoison,
+  unquarantineJob,
+} from './poison'
+export type { PoisonConfig } from './poison'
+export {
+  isCircuitOpen,
+  listCircuitState,
+  pauseQueue,
+  recordCircuitFailure,
+  recordCircuitSuccess,
+  resumeQueue,
+} from './circuit-breaker'
+export type { CircuitBreakerConfig } from './circuit-breaker'
+
+// =============================================================================
+// Unified job envelope (stacksjs/stacks#1884 — Q-6 from #1872)
+// Single shape across database + redis drivers; back-compat parser
+// handles the pre-#1884 implicit-v0 shape and the Laravel-import
+// legacy `{ job, data }` form.
+// =============================================================================
+export {
+  clearEnvelopeWarnings,
+  createEnvelope,
+  JOB_ENVELOPE_VERSION,
+  parseEnvelope,
+} from './envelope'
+export type { JobEnvelope, JobEnvelopeOptions, ParsedEnvelope } from './envelope'
+
+// =============================================================================
+// Per-job progress + cancellation (cache-backed; safe across processes)
+// =============================================================================
+export { setJobProgress, getJobProgress, cancelJob, isJobCancelled, clearJobState } from './job-progress'
+
+// =============================================================================
+// Job discovery (for app/Jobs directory)
+// =============================================================================
+export {
+  discoverJobs,
+  executeJob,
+  getAllJobs,
+  getJob,
+  getScheduledJobs,
+  jobRegistry,
+  toJobOptions,
+  type DiscoveredJob,
+  type JobConfig,
+} from './discovery'
+
+// =============================================================================
+// Stacks scheduler (integrates with job discovery)
+// =============================================================================
+export {
+  getRegisteredJobs,
+  getSchedulerStatus,
+  isSchedulerRunning,
+  startScheduler,
+  stopScheduler,
+  triggerJob,
+} from './scheduler'
+
+// =============================================================================
+// Stacks queue events (integrates with Stacks logging)
+// =============================================================================
+export {
+  emitQueueEvent,
+  getGlobalMetrics,
+  getQueueEvents,
+  getWorkerTracker,
+  onQueueEvent,
+  OnQueueEvent,
+  QueueEvents,
+  QueueMetrics,
+  withEvents,
+  type QueueEventHandler,
+  type QueueEventPayload,
+  type QueueEventType,
+  type TrackedWorker,
+} from './events'
+
+// =============================================================================
+// Health checks
+// =============================================================================
+export {
+  checkQueueHealth,
+  createHealthCheckHandler,
+  isQueueHealthy,
+  type HealthAlert,
+  type HealthCheckConfig,
+  type HealthStatus,
+  type QueueHealthResult,
+  type QueueMetrics as HealthQueueMetrics,
+  type QueueStatus,
+  type WorkerStatus,
+} from './health'
+
+// =============================================================================
+// Failed job notifications
+// =============================================================================
+export {
+  configureFailedJobNotifications,
+  FailedJobNotifier,
+  getFailedJobNotifier,
+  notifyJobFailed,
+  type FailedJobInfo,
+  type FailedJobNotificationConfig,
+  type NotificationChannel,
+} from './notifications'
+
+// =============================================================================
+// Testing utilities
+// =============================================================================
+export {
+  createQueueTester,
+  expectJobToFail,
+  fake,
+  getFakeQueue,
+  isFaked,
+  QueueTester,
+  restore,
+  runJob as runTestJob,
+  type DispatchedJob,
+} from './testing'
+
+// =============================================================================
+// Job batches
+// =============================================================================
+export {
+  Batch,
+  DispatchedBatch,
+  PendingBatch,
+  getBatchCallbacks,
+  isBatchCancelled,
+  recordBatchJobCompletion,
+  recordBatchJobFailure,
+  type BatchableJob,
+  type BatchOptions,
+  type BatchRecord,
+  type BatchStatus,
+} from './batch'
+
+// =============================================================================
+// Worker functions (for queue:work command)
+// =============================================================================
+export {
+  executeFailedJobs,
+  getActiveJobCount,
+  isWorkerRunning,
+  retryFailedJob,
+  startProcessor,
+  stopProcessor,
+} from './worker'
+
+// =============================================================================
+// Redis queue driver
+// =============================================================================
+// Redis driver is lazily loaded to avoid requiring bun-queue when not using Redis.
+// Use: const { RedisQueue } = await import('@stacksjs/queue/drivers/redis')
+// Or access via the queue manager which dynamically imports the driver.
+export async function getRedisQueue() {
+  const { RedisQueue } = await import('./drivers/redis')
+  return RedisQueue
+}

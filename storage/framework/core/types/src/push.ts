@@ -1,0 +1,143 @@
+/**
+ * Push Notification Configuration Types
+ * Supports APNs (Apple) and FCM (Firebase/Google)
+ */
+
+/**
+ * Apple Push Notification Service (APNs) configuration
+ */
+export interface APNsProviderConfig {
+  /** APNs Key ID from Apple Developer Portal */
+  keyId: string
+  /** Team ID from Apple Developer Portal */
+  teamId: string
+  /** Path to the private key file (p8) or the key content */
+  privateKey: string
+  /** iOS app bundle ID (e.g., com.example.app) */
+  bundleId: string
+  /** Use production APNs server (default: false for sandbox) */
+  production?: boolean
+}
+
+/**
+ * Firebase Cloud Messaging (FCM) configuration
+ */
+export interface FCMProviderConfig {
+  /** Firebase project ID */
+  projectId: string
+  /** Service account client email */
+  clientEmail: string
+  /** Service account private key (PEM format) */
+  privateKey: string
+}
+
+/**
+ * Push notification provider configuration
+ */
+export interface PushProviderOptions {
+  /** APNs configuration (optional) */
+  apns?: APNsProviderConfig
+  /** FCM configuration (optional) */
+  fcm?: FCMProviderConfig
+}
+
+/**
+ * Push notification options
+ */
+export interface PushOptions {
+  /** Enable push notifications */
+  enabled: boolean
+  /** Default provider to use */
+  defaultProvider?: 'apns' | 'fcm'
+  /** Provider configurations */
+  providers: PushProviderOptions
+}
+
+/**
+ * Push notification configuration type
+ */
+export type PushConfig = Partial<PushOptions>
+
+// Legacy types for backwards compatibility
+export interface FCMPushNotificationOptions {
+  eventName: string
+  to: {
+    subscriberId: string
+  }
+  payload: {
+    deviceTokens: Array<string>
+    badge: boolean
+    clickAction: string
+    color: string
+    icon: string
+    sound: string
+  }
+}
+
+export interface ExpoPushNotificationOptions {
+  eventName: string
+  to: {
+    subscriberId: string
+  }
+  payload: {
+    to: string[]
+    data: object
+    title: string
+    body: string
+    ttl: number
+    expiration: number
+    priority: 'default' | 'normal' | 'high'
+    subtitle: string
+    sound: 'default' | null
+    badge: number
+    channelId: string
+    categoryId: string
+    mutableContent: boolean
+  }
+}
+
+/**
+ * Result from a push notification operation
+ */
+export interface PushResult {
+  /** Whether the operation was successful */
+  success: boolean
+  /** The provider that handled the notification */
+  provider: string
+  /** Human-readable message about the result */
+  message: string
+  /** Message ID returned from the provider */
+  messageId?: string
+  /** Additional provider-specific data */
+  data?: Record<string, any>
+}
+
+/**
+ * Push message structure
+ */
+export interface PushMessage {
+  /** Device token(s) to send to */
+  to: string | string[]
+  /** Notification title */
+  title?: string
+  /** Notification body */
+  body: string
+  /** Additional data payload */
+  data?: Record<string, any>
+  /** Badge count */
+  badge?: number
+  /** Sound to play */
+  sound?: 'default' | null
+  /** Message priority */
+  priority?: 'default' | 'normal' | 'high'
+}
+
+/**
+ * Push ticket from Expo
+ */
+export interface PushTicket {
+  id?: string
+  status: 'ok' | 'error'
+  message?: string
+  details?: Record<string, any>
+}

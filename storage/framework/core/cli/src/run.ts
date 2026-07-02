@@ -1,0 +1,113 @@
+import type { Ok, Result } from '@stacksjs/error-handling'
+import type { CliOptions, CommandError, Readable, Subprocess, Writable } from '@stacksjs/types'
+import { handleError } from '@stacksjs/error-handling'
+import { exec, execSync } from './exec'
+import { log } from '@stacksjs/logging'
+
+/**
+ * Run a command.
+ *
+ * @param command The command to run.
+ * @param options The options to pass to the command.
+ * @returns The result of the command.
+ * @example
+ * ```ts
+ * const result = await runCommand('ls')
+ *
+ * if (result.isErr)
+ *   console.error(result.error)
+ * else
+ *   console.log(result)
+ * ```
+ * @example
+ * ```ts
+ * const result = await runCommand('ls', { cwd: '/home' })
+ *
+ * if (result.isErr)
+ *   console.error(result.error)
+ * else
+ *   console.log(result)
+ * ```
+ */
+export async function runCommand(command: string, options?: CliOptions): Promise<Result<Subprocess, CommandError>> {
+  const opts: CliOptions = {
+    ...options,
+    // Don't override stdin if it's explicitly set
+    stdin: options?.stdin ?? 'inherit',
+    verbose: options?.verbose ?? false,
+  }
+
+  return await exec(command, opts)
+}
+
+export async function runProcess(command: string, options?: CliOptions): Promise<Result<Subprocess, CommandError>> {
+  const opts: CliOptions = {
+    ...options,
+    stdio: [options?.stdin ?? 'inherit', 'pipe', 'pipe'],
+    verbose: options?.verbose ?? false,
+  }
+
+  return await exec(command, opts)
+}
+
+/**
+ * Run a command.
+ *
+ * @param command The command to run.
+ * @param options The options to pass to the command.
+ * @returns The result of the command.
+ * @example
+ * ```ts
+ * const result = runCommandSync('ls')
+ *
+ * if (result.isErr)
+ *   console.error(result.error)
+ * else
+ *   console.log(result)
+ * ```
+ * @example
+ * ```ts
+ * const result = runCommandSync('ls', { cwd: '/home' })
+ *
+ * if (result.isErr)
+ *   console.error(result.error)
+ * else
+ *   console.log(result)
+ * ```
+ */
+export async function runCommandSync(command: string, options?: CliOptions): Promise<string> {
+  const opts: CliOptions = {
+    ...options,
+    stdio: [options?.stdin ?? 'inherit', 'pipe', 'pipe'],
+    verbose: options?.verbose ?? false,
+  }
+
+  return await execSync(command, opts)
+}
+
+/**
+ * Run many commands.
+ *
+ * @param commands The command to run.
+ * @param options The options to pass to the command.
+ * @returns The result of the command.
+ */
+export async function runCommands(
+  commands: string[],
+  options?: CliOptions,
+): Promise<Ok<Subprocess<Writable, Readable, Readable>, Error>[]> {
+  const results = []
+
+  for (const command of commands) {
+    const result = await runCommand(command, options)
+
+    if (result.isErr) {
+      handleError('Error during runCommands', result.error)
+      throw result.error
+    }
+
+    results.push(result as any)
+  }
+
+  return results
+}

@@ -1,0 +1,13 @@
+<script server>
+const title = ''
+const description = ''
+const image = ''
+</script>
+
+<article class="area-card">
+  <div class="area-icon">
+    <img src="{{ image }}" alt="">
+  </div>
+  <h3>{{ title }}</h3>
+  <p>{{ description }}</p>
+</article>

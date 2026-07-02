@@ -1,0 +1,79 @@
+<script>
+interface TeamMemberProps {
+  data?: string
+}
+
+const { data = { } = defineProps<TeamMemberProps>()
+
+name: '',
+  avatar: '',
+  description: '',
+  github: '',
+  sponsors: false,
+  functions: [],
+  packages: []
+}
+</script>
+<div class="text-center">
+    <img
+      loading="lazy"
+      width="100"
+      height="100"
+      class="m-auto h-25 min-h-25 min-w-25 w-25 rounded-full"
+      src="{{ data.avatar }}"
+      alt="{{ data.name }}'s avatar"
+    >
+    <div class="mb-1 mt-2 text-xl">
+      {{ data.name }}
+    </div>
+    <div class="h-80px op60">
+      {!! data.description !!}
+    </div>
+
+    <div class="flex inline gap-2 py-2 text-2xl">
+      <a
+        class="inline-block text-current duration-200 transition i-carbon-logo-github mya op30 hover:op100"
+        href="https://github.com/{{ data.github }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="{{ data.name }} on GitHub"
+      ></a>
+
+      @if(data.sponsors)
+        <a
+          class="inline-block text-current duration-200 transition i-carbon-favorite-filled mya op30 hover:op100"
+          href="https://github.com/sponsors/{{ data.github }}"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Sponsor {{ data.name }}"
+          aria-label="Sponsor {{ data.name }}"
+        ></a>
+      @endif
+    </div>
+
+    @if(data.functions.length > 0 || data.packages.length > 0)
+      <div class="grid gap-x-1 gap-y-2 grid-cols-[20px_1fr] items-start mb-2 mx-auto p-3 w-5/6 bg-gray-100 rounded">
+        @if(data.functions.length > 0)
+          <div class="ma op50 i-carbon:function-math" title="Functions"></div>
+          <div class="flex flex-row flex-wrap gap-2 text-left text-sm">
+            @foreach(data.functions as func)
+              <a href="/{{ func }}" target="_blank">
+                <code>{{ func }}</code>
+              </a>
+            @endforeach
+          </div>
+        @endif
+
+        @if(data.packages.length > 0)
+          <div class="i-carbon-cube ma op50" title="Packages"></div>
+          <div class="flex flex-row flex-wrap gap-2 text-left text-sm">
+            @foreach(data.packages as pkg)
+              <a href="/add-ons">
+                <code>{{ pkg }}</code>
+              </a>
+            @endforeach
+          </div>
+        @endif
+      </div>
+    @endif
+  </div>

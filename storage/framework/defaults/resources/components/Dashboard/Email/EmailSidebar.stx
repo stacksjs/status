@@ -1,0 +1,133 @@
+<script>
+interface EmailSidebarProps {
+  activeFolder?: string
+  folders?: any[]
+  unreadCounts?: Record<string, any>
+}
+
+const { activeFolder = 'inbox', folders = [], unreadCounts = {} } = defineProps<EmailSidebarProps>()
+
+// User info
+  const userInfo = {
+    name: 'Alicia Koch',
+    email: 'alicia@example.com',
+    initial: 'A'
+  }
+
+  function getUnreadCount(folderId) {
+    return unreadCounts[folderId] || 0
+  }
+</script>
+<div class="flex flex-col w-64 bg-white dark:bg-neutral-800 border-gray-200 border-r dark:border-neutral-600">
+    <!-- User dropdown -->
+    <div class="p-3 border-b border-gray-200 dark:border-neutral-600">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <div class="flex items-center justify-center h-8 w-8 text-gray-700 dark:text-white bg-gray-200 dark:bg-neutral-700 rounded">
+            <i class="text-sm i-hugeicons-alert-02"></i>
+          </div>
+          <span class="font-medium text-gray-900 text-sm dark:text-white">{{ userInfo.name }}</span>
+        </div>
+        <button class="text-gray-500 dark:text-neutral-400">
+          <i class="text-sm i-hugeicons-arrow-down-02"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Folders -->
+    <div class="overflow-y-auto flex-1">
+      <nav class="mt-1">
+        <ul>
+          @foreach(folders as folder)
+            <li class="mb-1">
+              <button
+                class="w-full flex items-center justify-between px-4 py-2 text-sm {{ activeFolder == folder.id ? 'bg-gray-100 dark:bg-neutral-700 text-gray-900 dark:text-white font-medium' : 'text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700' }}"
+                data-action="set-folder"
+                data-folder-id="{{ folder.id }}"
+              >
+                <div class="flex items-center">
+                  @if(folder.id == 'inbox')
+                    <i class="mr-3 text-lg i-hugeicons-inbox"></i>
+                  @elseif(folder.id == 'drafts')
+                    <i class="mr-3 text-lg i-hugeicons-edit-01"></i>
+                  @elseif(folder.id == 'sent')
+                    <i class="mr-3 text-lg i-hugeicons-sent"></i>
+                  @elseif(folder.id == 'trash')
+                    <i class="mr-3 text-lg i-hugeicons-waste"></i>
+                  @elseif(folder.id == 'archive')
+                    <i class="mr-3 text-lg i-hugeicons-archive"></i>
+                  @elseif(folder.id == 'spam')
+                    <i class="mr-3 text-lg i-hugeicons-spam"></i>
+                  @elseif(folder.id == 'starred')
+                    <i class="mr-3 text-lg i-hugeicons-star"></i>
+                  @endif
+                  <span>{{ folder.name }}</span>
+                </div>
+                @if(getUnreadCount(folder.id) > 0)
+                  <span class="px-2 font-medium text-gray-800 text-xs dark:text-neutral-200 bg-gray-200 dark:bg-neutral-600 rounded-full">
+                    {{ getUnreadCount(folder.id) }}
+                  </span>
+                @endif
+              </button>
+            </li>
+          @endforeach
+        </ul>
+      </nav>
+
+      <!-- Categories -->
+      <div class="mt-6 px-4">
+        <h3 class="font-semibold text-gray-500 text-xs tracking-wider uppercase dark:text-neutral-400">
+          Categories
+        </h3>
+        <nav class="mt-2">
+          <ul>
+            <li class="mb-1">
+              <button class="flex items-center px-2 py-2 w-full text-gray-700 text-sm dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 rounded">
+                <i class="mr-3 text-lg i-hugeicons-user"></i>
+                <span>Social</span>
+                <span class="ml-auto px-2 font-medium text-gray-800 text-xs dark:text-neutral-200 bg-gray-200 dark:bg-neutral-600 rounded-full">
+                  972
+                </span>
+              </button>
+            </li>
+            <li class="mb-1">
+              <button class="flex items-center px-2 py-2 w-full text-gray-700 text-sm dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 rounded">
+                <i class="mr-3 text-lg i-hugeicons-notification-03"></i>
+                <span>Updates</span>
+                <span class="ml-auto px-2 font-medium text-gray-800 text-xs dark:text-neutral-200 bg-gray-200 dark:bg-neutral-600 rounded-full">
+                  342
+                </span>
+              </button>
+            </li>
+            <li class="mb-1">
+              <button class="flex items-center px-2 py-2 w-full text-gray-700 text-sm dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 rounded">
+                <i class="mr-3 text-lg i-hugeicons-chatting-01"></i>
+                <span>Forums</span>
+                <span class="ml-auto px-2 font-medium text-gray-800 text-xs dark:text-neutral-200 bg-gray-200 dark:bg-neutral-600 rounded-full">
+                  128
+                </span>
+              </button>
+            </li>
+            <li class="mb-1">
+              <button class="flex items-center px-2 py-2 w-full text-gray-700 text-sm dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 rounded">
+                <i class="mr-3 text-lg i-hugeicons-shopping-cart-02"></i>
+                <span>Shopping</span>
+                <span class="ml-auto px-2 font-medium text-gray-800 text-xs dark:text-neutral-200 bg-gray-200 dark:bg-neutral-600 rounded-full">
+                  8
+                </span>
+              </button>
+            </li>
+            <li class="mb-1">
+              <button class="flex items-center px-2 py-2 w-full text-gray-700 text-sm dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 rounded">
+                <i class="mr-3 text-lg i-hugeicons-tag-01"></i>
+                <span>Promotions</span>
+                <span class="ml-auto px-2 font-medium text-gray-800 text-xs dark:text-neutral-200 bg-gray-200 dark:bg-neutral-600 rounded-full">
+                  21
+                </span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+  </div>

@@ -1,0 +1,67 @@
+{
+  "name": "@stacksjs/database",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "The Stacks database integration.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/database#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/database"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "database",
+    "orm",
+    "sqlite",
+    "mysql",
+    "postgres",
+    "bun",
+    "stacks"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "import": "./dist/*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "bun-query-builder": "^0.1.38"
+  },
+  "devDependencies": {
+    "@stacksjs/cli": "workspace:*",
+    "@stacksjs/config": "workspace:*",
+    "@stacksjs/logging": "workspace:*",
+    "@stacksjs/router": "workspace:*",
+    "better-dx": "^0.2.12",
+    "@stacksjs/path": "workspace:*",
+    "@stacksjs/query-builder": "workspace:*",
+    "@stacksjs/storage": "workspace:*",
+    "@stacksjs/strings": "workspace:*",
+    "@stacksjs/utils": "workspace:*"
+  }
+}

@@ -1,0 +1,356 @@
+import { timingSafeEqual } from 'node:crypto'
+import { base64Decode, base64Encode, hashPassword, md5, verifyPassword } from 'ts-security-crypto'
+
+/**
+ * Lazy-load hashing config to avoid circular dependency issues.
+ * Cached after first successful load.
+ */
+let _hashingConfigCache: { driver?: string, bcrypt?: { rounds?: number }, argon2?: { memory?: number, time?: number } } | null = null
+
+function getHashingConfig(): {
+  driver?: string
+  bcrypt?: { rounds?: number }
+  argon2?: { memory?: number, time?: number }
+} {
+  if (_hashingConfigCache)
+    return _hashingConfigCache
+
+  try {
+    // Dynamic import to avoid circular dependency
+    // eslint-disable-next-line ts/no-require-imports
+    const { hashing } = require('@stacksjs/config')
+    _hashingConfigCache = hashing || {}
+    return _hashingConfigCache!
+  }
+  catch {
+    console.warn('[Security] Failed to load hashing config, using defaults')
+    _hashingConfigCache = {
+      driver: 'bcrypt',
+      bcrypt: { rounds: 12 },
+      argon2: { memory: 65536, time: 2 },
+    }
+    return _hashingConfigCache
+  }
+}
+
+/**
+ * Supported hashing algorithms
+ */
+export type HashAlgorithm = 'bcrypt' | 'argon2' | 'argon2id' | 'argon2i' | 'argon2d'
+
+/**
+ * Options for creating a hash
+ */
+export interface HashMakeOptions {
+  /** The hashing algorithm to use */
+  algorithm?: HashAlgorithm
+  /** Bcrypt cost factor (4-31) */
+  rounds?: number
+  /** Argon2 memory cost in kibibytes */
+  memory?: number
+  /** Argon2 time cost (iterations) */
+  time?: number
+}
+
+/**
+ * Information about a hashed value
+ */
+export interface HashInfo {
+  /** The algorithm used */
+  algorithm: HashAlgorithm | 'unknown'
+  /** Algorithm-specific options extracted from the hash */
+  options: {
+    /** Bcrypt cost or Argon2 time cost */
+    rounds?: number
+    /** Argon2 memory cost */
+    memory?: number
+    /** Argon2 parallelism */
+    parallelism?: number
+    /** Argon2 version */
+    version?: number
+  }
+}
+
+/**
+ * Detect the hashing algorithm from a hash string
+ * Laravel-compatible hash detection
+ */
+export function detectAlgorithm(hash: string): HashAlgorithm | 'unknown' {
+  if (!hash || typeof hash !== 'string') {
+    return 'unknown'
+  }
+
+  // Bcrypt hashes start with $2a$, $2b$, or $2y$
+  if (hash.startsWith('$2a$') || hash.startsWith('$2b$') || hash.startsWith('$2y$')) {
+    return 'bcrypt'
+  }
+
+  // Argon2 hashes start with $argon2id$, $argon2i$, or $argon2d$
+  if (hash.startsWith('$argon2id$')) {
+    return 'argon2id'
+  }
+  if (hash.startsWith('$argon2i$')) {
+    return 'argon2i'
+  }
+  if (hash.startsWith('$argon2d$')) {
+    return 'argon2d'
+  }
+
+  return 'unknown'
+}
+
+/**
+ * Extract information from a hash string
+ * Similar to Laravel's Hash::info()
+ */
+export function info(hash: string): HashInfo {
+  const algorithm = detectAlgorithm(hash)
+  const options: HashInfo['options'] = {}
+
+  if (algorithm === 'bcrypt') {
+    // Bcrypt format: $2a$XX$... where XX is the cost
+    const match = hash.match(/^\$2[aby]\$(\d{2})\$/)
+    if (match && match[1] !== undefined) {
+      options.rounds = Number.parseInt(match[1], 10)
+    }
+  }
+  else if (algorithm === 'argon2id' || algorithm === 'argon2i' || algorithm === 'argon2d') {
+    // Argon2 format: $argon2id$v=XX$m=XXXX,t=XX,p=XX$...
+    const versionMatch = hash.match(/v=(\d+)/)
+    const memoryMatch = hash.match(/m=(\d+)/)
+    const timeMatch = hash.match(/t=(\d+)/)
+    const parallelismMatch = hash.match(/p=(\d+)/)
+
+    if (versionMatch && versionMatch[1] !== undefined) options.version = Number.parseInt(versionMatch[1], 10)
+    if (memoryMatch && memoryMatch[1] !== undefined) options.memory = Number.parseInt(memoryMatch[1], 10)
+    if (timeMatch && timeMatch[1] !== undefined) options.rounds = Number.parseInt(timeMatch[1], 10)
+    if (parallelismMatch && parallelismMatch[1] !== undefined) options.parallelism = Number.parseInt(parallelismMatch[1], 10)
+  }
+
+  return { algorithm, options }
+}
+
+/**
+ * Check if a hash needs to be rehashed
+ * Similar to Laravel's Hash::needsRehash()
+ *
+ * Returns true if:
+ * - The algorithm doesn't match the configured default
+ * - The cost/rounds don't match the configured values
+ */
+export function needsRehash(hash: string, options?: HashMakeOptions): boolean {
+  const hashInfo = info(hash)
+  const config = getHashingConfig()
+  const configuredDriver = options?.algorithm || config.driver || 'bcrypt'
+
+  // Normalize algorithm names for comparison
+  const normalizeAlgorithm = (alg: string): string => {
+    if (alg === 'argon2') return 'argon2id'
+    return alg
+  }
+
+  const currentAlgorithm = normalizeAlgorithm(hashInfo.algorithm)
+  const targetAlgorithm = normalizeAlgorithm(configuredDriver)
+
+  // Different algorithm means rehash needed
+  if (currentAlgorithm !== targetAlgorithm) {
+    return true
+  }
+
+  // Check cost/rounds for bcrypt
+  if (currentAlgorithm === 'bcrypt') {
+    const configuredRounds = options?.rounds || config.bcrypt?.rounds || 10
+    if (hashInfo.options.rounds !== configuredRounds) {
+      return true
+    }
+  }
+
+  // Check parameters for argon2
+  if (currentAlgorithm.startsWith('argon2')) {
+    const configuredMemory = options?.memory || config.argon2?.memory || 65536
+    const configuredTime = options?.time || config.argon2?.time || 2
+
+    if (hashInfo.options.memory !== configuredMemory || hashInfo.options.rounds !== configuredTime) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Hash a value using the configured or specified algorithm
+ * Similar to Laravel's Hash::make()
+ */
+export async function make(value: string, options?: HashMakeOptions): Promise<string> {
+  const config = getHashingConfig()
+  const algorithm = options?.algorithm || config.driver || 'bcrypt'
+
+  if (algorithm === 'bcrypt') {
+    return await bcryptEncode(value, options?.rounds)
+  }
+
+  if (algorithm === 'argon2' || algorithm === 'argon2id' || algorithm === 'argon2i' || algorithm === 'argon2d') {
+    const type = algorithm === 'argon2' ? 'argon2id' : algorithm
+    return await argon2Encode(value, {
+      type,
+      memory: options?.memory,
+      time: options?.time,
+    })
+  }
+
+  throw new Error(`Unsupported hashing algorithm: ${algorithm}`)
+}
+
+/**
+ * Verify a value against a hash
+ * Similar to Laravel's Hash::check()
+ *
+ * Auto-detects the algorithm from the hash format
+ */
+export async function check(value: string, hash: string): Promise<boolean> {
+  if (!value || !hash) {
+    return false
+  }
+
+  const algorithm = detectAlgorithm(hash)
+
+  if (algorithm === 'unknown') {
+    // Try to verify anyway - the underlying library might handle it
+    try {
+      return await verifyPassword(value, hash)
+    }
+    catch {
+      return false
+    }
+  }
+
+  return await verifyPassword(value, hash)
+}
+
+/**
+ * Encode a password using bcrypt
+ * Laravel uses $2y$ prefix, rounds 10-12 by default
+ */
+export async function bcryptEncode(password: string, rounds?: number): Promise<string> {
+  const config = getHashingConfig()
+  const cost = rounds || config.bcrypt?.rounds || 12
+
+  return await hashPassword(password, {
+    algorithm: 'bcrypt',
+    cost,
+  })
+}
+
+/**
+ * Encode a password using Argon2
+ */
+export async function argon2Encode(
+  password: string,
+  options?: {
+    type?: 'argon2id' | 'argon2i' | 'argon2d'
+    memory?: number
+    time?: number
+  },
+): Promise<string> {
+  const config = getHashingConfig()
+  const type = options?.type || 'argon2id'
+  const memory = options?.memory || config.argon2?.memory || 65536
+  const time = options?.time || config.argon2?.time || 2
+
+  return await hashPassword(password, {
+    algorithm: type,
+    memoryCost: memory,
+    timeCost: time,
+  })
+}
+
+/**
+ * Verify a password against an Argon2 hash.
+ *
+ * Refuses to verify hashes that aren't actually Argon2 — `Bun.password.verify`
+ * auto-detects the algorithm from the hash prefix, which means a stray
+ * call `argon2Verify(password, bcryptHash)` would return `true` if the
+ * password matched. The algorithm guard restores the function-name
+ * contract (stacksjs/stacks#1861 H-8).
+ *
+ * @deprecated Use check() instead which auto-detects the algorithm
+ */
+export async function argon2Verify(password: string, hash: string): Promise<boolean> {
+  const algorithm = detectAlgorithm(hash)
+  if (algorithm !== 'argon2' && algorithm !== 'argon2i' && algorithm !== 'argon2id' && algorithm !== 'argon2d')
+    return false
+  return await verifyPassword(password, hash)
+}
+
+/**
+ * Verify a password against a bcrypt hash.
+ *
+ * Refuses to verify hashes that aren't actually bcrypt — see the note
+ * on {@link argon2Verify} (stacksjs/stacks#1861 H-8).
+ *
+ * @deprecated Use check() instead which auto-detects the algorithm
+ */
+export async function bcryptVerify(password: string, hash: string): Promise<boolean> {
+  if (detectAlgorithm(hash) !== 'bcrypt') return false
+  return await verifyPassword(password, hash)
+}
+
+/**
+ * Verify a password against a base64 encoded string
+ * Note: base64 is NOT a secure password hash - only for legacy support
+ */
+export function base64Verify(password: string, hash: string): boolean {
+  const decoded = base64Decode(hash)
+  const a = Buffer.from(decoded)
+  const b = Buffer.from(password)
+  if (a.length !== b.length)
+    return false
+  return timingSafeEqual(a, b)
+}
+
+/**
+ * Create an MD5 hash (NOT secure for passwords)
+ */
+export function md5Encode(password: string): string {
+  return md5(password)
+}
+
+/**
+ * Constant-time string comparison.
+ *
+ * Use this to compare opaque tokens (CSRF tokens, signed URL signatures,
+ * webhook HMACs, API keys). A naive `a === b` compares character-by-
+ * character and short-circuits on the first mismatch, so the time the
+ * comparison takes leaks information about how many leading characters
+ * matched — enough for a remote attacker to brute-force the rest.
+ *
+ * Strings of different lengths are reported as unequal in constant time
+ * so length itself doesn't leak.
+ */
+export function timingSafeEqualString(a: string, b: string): boolean {
+  // Equalize length first so the timingSafeEqual call below sees buffers
+  // of identical length even when `a.length !== b.length`. We still
+  // return false in that case — the equal-length comparison is just to
+  // keep the work-shape constant.
+  const ab = Buffer.from(a)
+  const bb = Buffer.from(b)
+  if (ab.length !== bb.length) {
+    // Compare against itself to keep timing constant, then return false.
+    timingSafeEqual(ab, ab)
+    return false
+  }
+  return timingSafeEqual(ab, bb)
+}
+
+// Function-based exports (preferred API)
+export {
+  make as hashMake,
+  check as hashCheck,
+  needsRehash as hashNeedsRehash,
+  info as hashInfo,
+  detectAlgorithm as hashDetectAlgorithm,
+}
+
+// Legacy exports for backwards compatibility
+export { make as makeHash, check as verifyHash, base64Encode }

@@ -1,0 +1,63 @@
+{
+  "name": "@stacksjs/error-handling",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "Type safe error handling.",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/error-handling#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/error-handling"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "errors",
+    "error-handling",
+    "neverthrow",
+    "type safe",
+    "stacks"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@stacksjs/stx": "^0.2.67",
+    "ts-error-handling": "^0.1.1",
+    "ts-syntax-highlighter": "^0.2.1"
+  },
+  "devDependencies": {
+    "@stacksjs/cli": "workspace:*",
+    "@stacksjs/config": "workspace:*",
+    "better-dx": "^0.2.12",
+    "@stacksjs/path": "workspace:*",
+    "@stacksjs/types": "workspace:*",
+    "@stacksjs/validation": "workspace:*"
+  },
+  "sideEffects": false
+}

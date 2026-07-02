@@ -1,0 +1,292 @@
+import type { CLI } from '@stacksjs/types'
+
+/**
+ * Lazy Command Registry
+ *
+ * This module provides lazy loading for Buddy commands to optimize cold start performance.
+ * Commands are only loaded when actually needed, reducing initial bundle size and startup time.
+ */
+
+interface CommandLoader {
+  path: string
+  exportName: string
+}
+
+// Map of command names to their lazy loaders
+const commandRegistry: Record<string, CommandLoader> = {
+  'about': { path: './commands/about.ts', exportName: 'about' },
+  'add': { path: './commands/add.ts', exportName: 'add' },
+  'auth': { path: './commands/auth.ts', exportName: 'auth' },
+  'build': { path: './commands/build.ts', exportName: 'build' },
+  'cd': { path: './commands/cd.ts', exportName: 'cd' },
+  'changelog': { path: './commands/changelog.ts', exportName: 'changelog' },
+  'clean': { path: './commands/clean.ts', exportName: 'clean' },
+  'cloud': { path: './commands/cloud.ts', exportName: 'cloud' },
+  'commit': { path: './commands/commit.ts', exportName: 'commit' },
+  'completion': { path: './commands/completion.ts', exportName: 'completion' },
+  'config:migrate': { path: './commands/config-migrate.ts', exportName: 'configMigrate' },
+  'configure': { path: './commands/configure.ts', exportName: 'configure' },
+  'create': { path: './commands/create.ts', exportName: 'create' },
+  'deploy': { path: './commands/deploy.ts', exportName: 'deploy' },
+  'dev': { path: './commands/dev.ts', exportName: 'dev' },
+  'dns': { path: './commands/dns.ts', exportName: 'dns' },
+  'doctor': { path: './commands/doctor.ts', exportName: 'doctor' },
+  'domains': { path: './commands/domains.ts', exportName: 'domains' },
+  'email': { path: './commands/email.ts', exportName: 'email' },
+  'env': { path: './commands/env.ts', exportName: 'env' },
+  // Feature install / uninstall — single file registers all pairs.
+  'dashboard:install': { path: './commands/features.ts', exportName: 'features' },
+  'dashboard:uninstall': { path: './commands/features.ts', exportName: 'features' },
+  'commerce:install': { path: './commands/features.ts', exportName: 'features' },
+  'commerce:uninstall': { path: './commands/features.ts', exportName: 'features' },
+  'cms:install': { path: './commands/features.ts', exportName: 'features' },
+  'cms:uninstall': { path: './commands/features.ts', exportName: 'features' },
+  'marketing:install': { path: './commands/features.ts', exportName: 'features' },
+  'marketing:uninstall': { path: './commands/features.ts', exportName: 'features' },
+  'monitoring:install': { path: './commands/features.ts', exportName: 'features' },
+  'monitoring:uninstall': { path: './commands/features.ts', exportName: 'features' },
+  'realtime:install': { path: './commands/features.ts', exportName: 'features' },
+  'realtime:uninstall': { path: './commands/features.ts', exportName: 'features' },
+  'queue:install': { path: './commands/features.ts', exportName: 'features' },
+  'queue:uninstall': { path: './commands/features.ts', exportName: 'features' },
+  'fresh': { path: './commands/fresh.ts', exportName: 'fresh' },
+  'generate': { path: './commands/generate.ts', exportName: 'generate' },
+  'http': { path: './commands/http.ts', exportName: 'http' },
+  'install': { path: './commands/install.ts', exportName: 'install' },
+  'key': { path: './commands/key.ts', exportName: 'key' },
+  'lint': { path: './commands/lint.ts', exportName: 'lint' },
+  'list': { path: './commands/list.ts', exportName: 'list' },
+  'mail': { path: './commands/mail.ts', exportName: 'mailCommands' },
+  'mail:preview': { path: './commands/mail.ts', exportName: 'mailCommands' },
+  'maintenance': { path: './commands/maintenance.ts', exportName: 'maintenance' },
+  'down': { path: './commands/maintenance.ts', exportName: 'maintenance' },
+  'up': { path: './commands/maintenance.ts', exportName: 'maintenance' },
+  'status': { path: './commands/maintenance.ts', exportName: 'maintenance' },
+  'make': { path: './commands/make.ts', exportName: 'make' },
+  'migrate': { path: './commands/migrate.ts', exportName: 'migrate' },
+  'migrate:fresh': { path: './commands/migrate.ts', exportName: 'migrate' },
+  'migrate:switch': { path: './commands/migrate.ts', exportName: 'migrate' },
+  'migrate:dns': { path: './commands/migrate.ts', exportName: 'migrate' },
+  'migrate:project': { path: './commands/migrate-project.ts', exportName: 'migrateProject' },
+  'outdated': { path: './commands/outdated.ts', exportName: 'outdated' },
+  'package': { path: './commands/package.ts', exportName: 'packageCommands' },
+  'phone': { path: './commands/phone.ts', exportName: 'phone' },
+  'ports': { path: './commands/ports.ts', exportName: 'ports' },
+  'prepublish': { path: './commands/prepublish.ts', exportName: 'prepublish' },
+  'projects': { path: './commands/projects.ts', exportName: 'projects' },
+  'publish': { path: './commands/publish.ts', exportName: 'publish' },
+  'publish:model': { path: './commands/publish.ts', exportName: 'publish' },
+  'publish:controller': { path: './commands/publish.ts', exportName: 'publish' },
+  'publish:middleware': { path: './commands/publish.ts', exportName: 'publish' },
+  'publish:action': { path: './commands/publish.ts', exportName: 'publish' },
+  'publish:core': { path: './commands/publish.ts', exportName: 'publish' },
+  'queue': { path: './commands/queue.ts', exportName: 'queue' },
+  'release': { path: './commands/release.ts', exportName: 'release' },
+  'route': { path: './commands/route.ts', exportName: 'route' },
+  'saas': { path: './commands/saas.ts', exportName: 'saas' },
+  'schedule': { path: './commands/schedule.ts', exportName: 'schedule' },
+  'search': { path: './commands/search.ts', exportName: 'search' },
+  'seed': { path: './commands/seed.ts', exportName: 'seed' },
+  // `seed:roles` alias also lazy-loads commands/seed.ts (which registers
+  // both `seed` and `seed:roles` subcommands when its exported `seed()`
+  // function runs). Single export, two callable commands.
+  'seed:roles': { path: './commands/seed.ts', exportName: 'seed' },
+  'roles:seed': { path: './commands/seed.ts', exportName: 'seed' },
+  'serve': { path: './commands/serve.ts', exportName: 'serve' },
+  'setup': { path: './commands/setup.ts', exportName: 'setup' },
+  'share': { path: './commands/share.ts', exportName: 'share' },
+  'stack': { path: './commands/stacks.ts', exportName: 'stacks' },
+  'sms': { path: './commands/sms.ts', exportName: 'sms' },
+  'telemetry': { path: './commands/telemetry.ts', exportName: 'telemetryCommand' },
+  'test': { path: './commands/test.ts', exportName: 'test' },
+  'tinker': { path: './commands/tinker.ts', exportName: 'tinker' },
+  'types': { path: './commands/types.ts', exportName: 'types' },
+  'undeploy': { path: './commands/cloud.ts', exportName: 'cloud' }, // Alias for cloud:remove
+  'upgrade': { path: './commands/upgrade.ts', exportName: 'upgrade' },
+  'version': { path: './commands/version.ts', exportName: 'version' },
+}
+
+// Commands that are commonly used together (for batch loading optimization)
+const commandGroups = {
+  'minimal': ['version', 'help'],
+  'development': ['dev', 'build', 'test', 'lint'],
+  'database': ['migrate', 'seed', 'fresh'],
+  'scaffolding': ['make', 'generate'],
+  'deployment': ['deploy', 'release', 'cloud'],
+  'info': ['about', 'doctor', 'list'],
+}
+
+// Per-CLI-instance set of loader keys we've already invoked. Prevents
+// double-registration when the same module is referenced under multiple aliases
+// (e.g. `down`/`up`/`status`/`maintenance`) or when cli.ts loads a module
+// directly (setup, key) before delegating the rest to the registry.
+const loadedRegistrars = new WeakMap<CLI, Set<string>>()
+
+function loaderKey(loader: CommandLoader): string {
+  return `${loader.path}#${loader.exportName}`
+}
+
+/** Mark a registrar as already invoked for this CLI so loadCommand skips it. */
+export function markLoaded(buddy: CLI, commandName: string): void {
+  const loader = commandRegistry[commandName]
+  if (!loader)
+    return
+  let set = loadedRegistrars.get(buddy)
+  if (!set) {
+    set = new Set()
+    loadedRegistrars.set(buddy, set)
+  }
+  set.add(loaderKey(loader))
+}
+
+/**
+ * Load a specific command lazily
+ */
+export async function loadCommand(commandName: string, buddy: CLI): Promise<boolean> {
+  const loader = commandRegistry[commandName]
+
+  if (!loader) {
+    // Don't warn for unknown commands - they may be dynamically loaded later
+    return false
+  }
+
+  let set = loadedRegistrars.get(buddy)
+  if (!set) {
+    set = new Set()
+    loadedRegistrars.set(buddy, set)
+  }
+  const key = loaderKey(loader)
+  if (set.has(key))
+    return true
+  set.add(key)
+
+  try {
+    const module = await import(loader.path)
+    const commandFunction = module[loader.exportName]
+
+    if (typeof commandFunction === 'function') {
+      commandFunction(buddy)
+      return true
+    }
+    else {
+      // Silent fail - don't spam the console during list
+      return false
+    }
+  }
+  catch {
+    // Silent fail - command will not be available but won't crash the CLI
+    return false
+  }
+}
+
+/**
+ * Load multiple commands with timeout.
+ *
+ * Many registry entries point at the same module (e.g. `down`, `up`, `status`,
+ * `maintenance` all share `./commands/maintenance.ts`, and `cloud:*` aliases
+ * share `./commands/cloud.ts`). Calling each registrar more than once would
+ * register the same sub-commands multiple times, which is what produces
+ * duplicate rows in `buddy list`. Dedupe by loader identity so each module's
+ * registrar runs at most once per CLI instance.
+ */
+export async function loadCommands(commandNames: string[], buddy: CLI): Promise<void> {
+  const timeout = (ms: number) => new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('timeout')), ms))
+
+  const seen = new Set<string>()
+  const unique: string[] = []
+  for (const name of commandNames) {
+    const loader = commandRegistry[name]
+    const key = loader ? `${loader.path}#${loader.exportName}` : `name:${name}`
+    if (seen.has(key))
+      continue
+    seen.add(key)
+    unique.push(name)
+  }
+
+  await Promise.all(unique.map(async (name) => {
+    try {
+      await Promise.race([
+        loadCommand(name, buddy),
+        timeout(5000), // 5 second timeout per command
+      ])
+    }
+    catch {
+      // Command timed out or failed, continue
+    }
+  }))
+}
+
+/**
+ * Load a group of related commands
+ */
+export async function loadCommandGroup(groupName: keyof typeof commandGroups, buddy: CLI): Promise<void> {
+  const commands = commandGroups[groupName]
+  if (commands) {
+    await loadCommands(commands, buddy)
+  }
+}
+
+/**
+ * Load all commands (for interactive mode or list command)
+ */
+export async function loadAllCommands(buddy: CLI): Promise<void> {
+  const allCommands = Object.keys(commandRegistry)
+  await loadCommands(allCommands, buddy)
+}
+
+/**
+ * Get command names for autocomplete/suggestions
+ * (without actually loading the commands)
+ */
+export function getCommandNames(): string[] {
+  return Object.keys(commandRegistry)
+}
+
+/**
+ * Determine which commands to load based on CLI arguments.
+ *
+ * Help / no-command paths must load the full registry so the rendered help
+ * lists every command. Pure version flags only need `version`. A specific
+ * command (with or without `--help`) only needs that command's loader.
+ */
+export function getCommandsToLoad(args: string[]): string[] {
+  const requestedCommand = args[0]
+  const isVersionFlag = requestedCommand === '--version' || requestedCommand === '-v'
+  const isHelpFlag = requestedCommand === '--help' || requestedCommand === '-h'
+  const isHelpWord = requestedCommand === 'help'
+
+  if (isVersionFlag)
+    return ['version']
+
+  // No command, or help requested without a target command — load everything
+  // so help output reflects the full surface.
+  if (!requestedCommand || isHelpFlag || isHelpWord)
+    return Object.keys(commandRegistry)
+
+  // Extract base command (before ':')
+  const baseCommand = requestedCommand.split(':')[0]
+
+  // Special case: 'list' command needs all commands to display them
+  if (baseCommand === 'list') {
+    // Load list first, then other commands
+    return ['list', ...Object.keys(commandRegistry).filter(k => k !== 'list')]
+  }
+
+  // Check if it's a known command
+  if (commandRegistry[baseCommand]) {
+    return [baseCommand]
+  }
+
+  // Check if it's a namespaced command like 'make:model'
+  if (requestedCommand.includes(':')) {
+    const namespace = baseCommand
+    if (commandRegistry[namespace]) {
+      return [namespace]
+    }
+  }
+
+  // Unknown command — load full surface so the user sees every option in the
+  // "did you mean?" / help fallback.
+  return Object.keys(commandRegistry)
+}

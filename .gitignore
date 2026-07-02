@@ -1,0 +1,90 @@
+# Dev tooling
+# (put individual local dev tooling stuff here)
+
+# Environment files
+.env
+.env.local
+.env.keys
+*.local
+.env.keys
+
+# Encrypted, safe to commit
+!.env.production
+!.env.staging
+!.env.ci
+
+# Dependencies
+node_modules
+/pantry
+
+# QA
+test-results
+tests/unit/coverage
+dist*
+
+# IDE files
+.fleet
+.idea
+.vscode
+.cursor
+.zed
+
+# Git files
+!.gitkeep
+
+# Database files
+database/stacks_testing.sqlite
+database/stacks.sqlite
+database/*.sqlite-wal
+database/*.sqlite-shm
+
+# OS files
+.DS_Store
+.DS_STORE
+
+# Build files
+.cache
+temp
+.temp
+data.ms
+generated/*
+.stx
+.stx-serve
+custom-cli
+*bun-build
+discovered-packages.json
+
+# Stub workspace packages (temporary)
+/ts-auth
+/ts-cloud
+/ts-craft
+/ts-md
+/ts-open-api
+/ts-pantry
+/ts-security-crypto
+/bun-queue
+/headwind
+/bun-plugin-stx
+pantry
+
+# Build artifact directory used by docs/build steps — never tracked.
+storage/framework/cache/
+
+# Persisted by `buddy update` to remember whether the project is following the
+# `stable` or `canary` channel. Local preference only — the channel choice
+# doesn't need to be shared across team members or CI.
+.stacks-channel
+
+# Persisted by `buddy update`: last-synced channel + commit sha for the
+# up-to-date short-circuit. Local-only — like the channel, it's per-checkout.
+.stacks-version
+
+# Temp directory used during a `buddy update` GitHub fetch. Cleaned up by the
+# upgrade action on success but listed here to keep stray copies (e.g. from a
+# kill -9'd run) out of commits.
+.tmp-upgrade/
+.claude/scheduled_tasks.lock
+/storage/framework/frontend-dist
+/.stacks
+/.ts-cloud
+.claude/settings.local.json

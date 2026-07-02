@@ -1,0 +1,98 @@
+<script>
+interface PrimaryFeatures2Props {
+  backgroundImage?: string
+  screenshotPayroll?: string
+  features?: string
+  selectedIndex?: number
+  tabOrientation?: string
+}
+
+const { backgroundImage = '/images/screenshots/background-features.jpg', screenshotPayroll = '/images/screenshots/payroll.webp', features = [, selectedIndex = 0, tabOrientation = 'vertical' } = defineProps<PrimaryFeatures2Props>()
+
+{
+    title: 'Payroll',
+    description: "Keep track of everyone's salaries and whether or not they've been paid. Direct deposit not supported.",
+    image: screenshotPayroll,
+  },
+  {
+    title: 'Claim expenses',
+    description: "All of your receipts organized into one place, as long as you don't mind typing in the data by hand.",
+    image: '',
+  },
+  {
+    title: 'VAT handling',
+    description: "We only sell our software to companies who don't deal with VAT at all, so technically we do all the VAT stuff they need.",
+    image: '',
+  },
+  {
+    title: 'Reporting',
+    description: 'Easily export your data into an Excel spreadsheet where you can do whatever the hell you want with it.',
+    image: '',
+  },
+]
+</script>
+<section
+  id="features"
+  aria-label="Features for running your books"
+  class="overflow-hidden relative pb-28 pt-20 sm:py-32 bg-blue-600"
+>
+  <img
+    class="absolute left-1/2 top-1/2 max-w-none translate-x-[-44%] translate-y-[-42%]"
+    src="{{ backgroundImage }}"
+    alt=""
+    width="2245"
+    height="1636"
+  >
+  <Container class="relative">
+    <div class="md:mx-auto max-w-2xl xl:max-w-none md:text-center">
+      <h2 class="font-display text-3xl text-white tracking-tight sm:text-4xl md:text-5xl">
+        Everything you need to run your books.
+      </h2>
+      <p class="mt-6 text-blue-100 text-lg tracking-tight">
+        Well everything you need if you aren't that picky about minor
+        details like tax compliance.
+      </p>
+    </div>
+
+    <div class="grid gap-y-2 grid-cols-1 items-center sm:gap-y-6 lg:grid-cols-12 mt-16 pt-10 md:mt-20 lg:pt-0">
+      <div class="flex overflow-x-auto sm:overflow-visible lg:col-span-5 -mx-4 pb-4 sm:mx-0 sm:pb-0">
+        <div class="flex lg:block relative z-10 gap-x-4 lg:gap-x-0 lg:gap-y-1 px-4 sm:mx-auto sm:px-0 lg:mx-0 whitespace-nowrap lg:whitespace-normal">
+          @foreach(features as feature)
+            <div class="relative px-4 py-1 lg:p-6 'hover:bg-white/10 lg:bg-white/10 lg:hover:bg-white/5' rounded-full lg:ring-1 lg:ring-inset lg:ring-white/10' lg:rounded-l-xl lg:rounded-r-none selectedIndex : ? 'bg-white {{ }} == group loop.index">
+              <h3>
+                <button class="font-display text-lg lg:text-white' lg:text-white' hover:text-white selectedIndex : ? 'text-blue-100 'text-blue-600 {{ }} == loop.index" data-action="select-tab" data-index="{{ loop.index }}">
+                  <span class="absolute inset-0 rounded-full lg:rounded-l-xl lg:rounded-r-none"></span>
+                  {{ feature.title }}
+                </button>
+              </h3>
+              @if(tabOrientation == 'vertical')
+                <p class="hidden lg:block mt-2 text-sm group-hover:text-white' selectedIndex : ? 'text-blue-100 'text-white' {{ }} == loop.index">
+                  {{ feature.description }}
+                </p>
+              @endif
+            </div>
+          @endforeach
+        </div>
+      </div>
+
+      <div class="lg:col-span-7">
+        @foreach(features as feature)
+          <div class="selectedIndex : != ? '' 'hidden' {{ }} loop.index">
+            <div class="lg:hidden relative sm:px-6">
+              <div class="absolute bottom-[-4.25rem] top-[-6.5rem] sm:inset-x-0 bg-white/10 ring-1 ring-inset ring-white/10 sm:rounded-t-xl -inset-x-4"></div>
+              <p class="relative mx-auto max-w-2xl text-base text-white sm:text-center">
+                {{ feature.description }}
+              </p>
+            </div>
+
+            <div class="overflow-hidden mt-10 lg:mt-0 w-[45rem] sm:w-auto lg:w-[67.8125rem] bg-slate-50 rounded-xl shadow-blue-900/20 shadow-xl">
+              @if(feature.image)
+                <img class="w-full" src="{{ feature.image }}" alt="">
+              @endif
+            </div>
+          </div>
+        @endforeach
+      </div>
+    </div>
+  </Container>
+</section>

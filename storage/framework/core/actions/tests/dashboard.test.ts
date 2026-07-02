@@ -1,0 +1,613 @@
+import { afterEach, describe, expect, it } from 'bun:test'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import {
+  buildDashboardUrl,
+  buildManifest,
+  buildSidebarConfig,
+  dedicatedPages,
+  discoverModels,
+  excludeModels,
+  getModelIcon,
+  iconMap,
+  modelNameToId,
+  scanModelsDir,
+  waitForServer,
+} from '../src/dev/dashboard-utils'
+
+// Temp directory for model file tests
+const testDir = join(tmpdir(), `dashboard-test-${Date.now()}`)
+
+afterEach(() => {
+  try {
+    if (existsSync(testDir)) rmSync(testDir, { recursive: true })
+  }
+  catch {}
+})
+
+describe('dashboard-utils', () => {
+  describe('modelNameToId', () => {
+    it('should convert PascalCase to kebab-case', () => {
+      expect(modelNameToId('User')).toBe('user')
+      expect(modelNameToId('PaymentMethod')).toBe('payment-method')
+      expect(modelNameToId('OrderItem')).toBe('order-item')
+    })
+
+    it('should handle single-word names', () => {
+      expect(modelNameToId('Post')).toBe('post')
+      expect(modelNameToId('Tag')).toBe('tag')
+    })
+
+    it('should handle multi-word PascalCase', () => {
+      expect(modelNameToId('WaitlistRestaurant')).toBe('waitlist-restaurant')
+      expect(modelNameToId('DigitalDelivery')).toBe('digital-delivery')
+      expect(modelNameToId('LoyaltyPoint')).toBe('loyalty-point')
+    })
+
+    it('should handle already lowercase names', () => {
+      expect(modelNameToId('user')).toBe('user')
+    })
+
+    it('should not start with a dash', () => {
+      const result = modelNameToId('User')
+      expect(result.startsWith('-')).toBe(false)
+    })
+  })
+
+  describe('getModelIcon', () => {
+    it('should return correct icon for known models', () => {
+      expect(getModelIcon('User')).toBe('person.fill')
+      expect(getModelIcon('team')).toBe('person.2.fill')
+      expect(getModelIcon('Post')).toBe('doc.text.fill')
+      expect(getModelIcon('Payment')).toBe('creditcard.fill')
+    })
+
+    it('should be case-insensitive', () => {
+      expect(getModelIcon('USER')).toBe('person.fill')
+      expect(getModelIcon('user')).toBe('person.fill')
+      expect(getModelIcon('User')).toBe('person.fill')
+    })
+
+    it('should return default icon for unknown models', () => {
+      expect(getModelIcon('UnknownModel')).toBe('tablecells.fill')
+      expect(getModelIcon('CustomThing')).toBe('tablecells.fill')
+    })
+  })
+
+  describe('iconMap', () => {
+    it('should have a default icon', () => {
+      expect(iconMap.default).toBe('tablecells.fill')
+    })
+
+    it('should have icons for common models', () => {
+      expect(iconMap.user).toBeDefined()
+      expect(iconMap.team).toBeDefined()
+      expect(iconMap.post).toBeDefined()
+      expect(iconMap.product).toBeDefined()
+      expect(iconMap.order).toBeDefined()
+      expect(iconMap.customer).toBeDefined()
+    })
+
+    it('should have icons for all commerce models', () => {
+      expect(iconMap.payment).toBeDefined()
+      expect(iconMap.coupon).toBeDefined()
+      expect(iconMap.giftcard).toBeDefined()
+      expect(iconMap.cart).toBeDefined()
+      expect(iconMap.taxrate).toBeDefined()
+    })
+  })
+
+  describe('excludeModels', () => {
+    it('should exclude system models', () => {
+      expect(excludeModels.has('activity')).toBe(true)
+      expect(excludeModels.has('request')).toBe(true)
+      expect(excludeModels.has('error')).toBe(true)
+      expect(excludeModels.has('failedjob')).toBe(true)
+    })
+
+    it('should not exclude user-facing models', () => {
+      expect(excludeModels.has('user')).toBe(false)
+      expect(excludeModels.has('post')).toBe(false)
+      expect(excludeModels.has('product')).toBe(false)
+    })
+  })
+
+  describe('dedicatedPages', () => {
+    it('should include core data models', () => {
+      expect(dedicatedPages.has('user')).toBe(true)
+      expect(dedicatedPages.has('team')).toBe(true)
+      expect(dedicatedPages.has('post')).toBe(true)
+      expect(dedicatedPages.has('product')).toBe(true)
+    })
+
+    it('should include commerce models', () => {
+      expect(dedicatedPages.has('order')).toBe(true)
+      expect(dedicatedPages.has('customer')).toBe(true)
+      expect(dedicatedPages.has('payment')).toBe(true)
+      expect(dedicatedPages.has('coupon')).toBe(true)
+    })
+
+    it('should not include models without dedicated pages', () => {
+      expect(dedicatedPages.has('cart')).toBe(false)
+      expect(dedicatedPages.has('websocket')).toBe(false)
+    })
+  })
+
+  describe('scanModelsDir', () => {
+    it('should discover TypeScript model files', async () => {
+      mkdirSync(testDir, { recursive: true })
+      writeFileSync(join(testDir, 'User.ts'), 'export default {}')
+      writeFileSync(join(testDir, 'Post.ts'), 'export default {}')
+
+      const models: Array<{ name: string, icon: string, id: string }> = []
+      const seen = new Set<string>()
+      await scanModelsDir(testDir, seen, models)
+
+      expect(models.length).toBe(2)
+      expect(seen.has('user')).toBe(true)
+      expect(seen.has('post')).toBe(true)
+    })
+
+    it('should skip .d.ts and README files', async () => {
+      mkdirSync(testDir, { recursive: true })
+      writeFileSync(join(testDir, 'User.ts'), 'export default {}')
+      writeFileSync(join(testDir, 'User.d.ts'), 'declare {}')
+      writeFileSync(join(testDir, 'README.ts'), '')
+
+      const models: Array<{ name: string, icon: string, id: string }> = []
+      await scanModelsDir(testDir, new Set(), models)
+
+      expect(models.length).toBe(1)
+      expect(models[0].name).toBe('User')
+    })
+
+    it('should skip excluded models', async () => {
+      mkdirSync(testDir, { recursive: true })
+      writeFileSync(join(testDir, 'User.ts'), 'export default {}')
+      writeFileSync(join(testDir, 'Activity.ts'), 'export default {}')
+      writeFileSync(join(testDir, 'Error.ts'), 'export default {}')
+
+      const models: Array<{ name: string, icon: string, id: string }> = []
+      await scanModelsDir(testDir, new Set(), models)
+
+      expect(models.length).toBe(1)
+      expect(models[0].name).toBe('User')
+    })
+
+    it('should deduplicate by lowercase name', async () => {
+      mkdirSync(testDir, { recursive: true })
+      writeFileSync(join(testDir, 'User.ts'), 'export default {}')
+
+      const models: Array<{ name: string, icon: string, id: string }> = []
+      const seen = new Set<string>(['user']) // Already seen
+      await scanModelsDir(testDir, seen, models)
+
+      expect(models.length).toBe(0)
+    })
+
+    it('should handle non-existent directories gracefully', async () => {
+      const models: Array<{ name: string, icon: string, id: string }> = []
+      await scanModelsDir('/non/existent/path', new Set(), models)
+
+      expect(models.length).toBe(0)
+    })
+
+    it('should scan subdirectories', async () => {
+      const subDir = join(testDir, 'Commerce')
+      mkdirSync(subDir, { recursive: true })
+      writeFileSync(join(subDir, 'Product.ts'), 'export default {}')
+
+      const models: Array<{ name: string, icon: string, id: string }> = []
+      await scanModelsDir(testDir, new Set(), models)
+
+      expect(models.length).toBe(1)
+      expect(models[0].name).toBe('Product')
+      expect(models[0].icon).toBe('cube.box.fill')
+      expect(models[0].id).toBe('product')
+    })
+
+    it('should assign correct icons and IDs', async () => {
+      mkdirSync(testDir, { recursive: true })
+      writeFileSync(join(testDir, 'PaymentMethod.ts'), 'export default {}')
+
+      const models: Array<{ name: string, icon: string, id: string }> = []
+      await scanModelsDir(testDir, new Set(), models)
+
+      expect(models[0].name).toBe('PaymentMethod')
+      expect(models[0].icon).toBe('creditcard.and.123')
+      expect(models[0].id).toBe('payment-method')
+    })
+
+    // ─── Per-model dashboard config loading (stacksjs/stacks#1843) ──────
+
+    it('reads the per-model dashboard config when the file exports one', async () => {
+      mkdirSync(testDir, { recursive: true })
+      writeFileSync(
+        join(testDir, 'AuditLog.ts'),
+        `export default {
+          name: 'AuditLog',
+          table: 'audit_logs',
+          dashboard: {
+            label: 'Audit Trail',
+            icon: 'shield.fill',
+            section: 'management',
+            roles: ['admin'],
+          },
+          attributes: {},
+        }`,
+      )
+
+      const models: Array<{ name: string, icon: string, id: string, dashboard?: any }> = []
+      await scanModelsDir(testDir, new Set(), models)
+
+      expect(models.length).toBe(1)
+      expect(models[0].dashboard).toBeDefined()
+      expect(models[0].dashboard.label).toBe('Audit Trail')
+      expect(models[0].dashboard.section).toBe('management')
+      expect(models[0].dashboard.roles).toEqual(['admin'])
+      // dashboard.icon should win over the auto-derived icon
+      expect(models[0].icon).toBe('shield.fill')
+    })
+
+    it('falls back to filename-only metadata when a model file fails to import', async () => {
+      mkdirSync(testDir, { recursive: true })
+      // Syntax error — import throws, helper must swallow and return undefined.
+      writeFileSync(join(testDir, 'Broken.ts'), 'this is not valid typescript {{{ }}}')
+
+      const models: Array<{ name: string, icon: string, id: string, dashboard?: any }> = []
+      await scanModelsDir(testDir, new Set(), models)
+
+      expect(models.length).toBe(1)
+      expect(models[0].name).toBe('Broken')
+      expect(models[0].dashboard).toBeUndefined()
+    })
+
+    it('leaves dashboard undefined for models without a dashboard field', async () => {
+      mkdirSync(testDir, { recursive: true })
+      writeFileSync(join(testDir, 'Plain.ts'), `export default {
+        name: 'Plain',
+        table: 'plains',
+        attributes: {},
+      }`)
+
+      const models: Array<{ name: string, icon: string, id: string, dashboard?: any }> = []
+      await scanModelsDir(testDir, new Set(), models)
+
+      expect(models[0].dashboard).toBeUndefined()
+    })
+  })
+
+  describe('discoverModels', () => {
+    it('should return sorted models from both directories', async () => {
+      const dir1 = join(testDir, 'user')
+      const dir2 = join(testDir, 'default')
+      mkdirSync(dir1, { recursive: true })
+      mkdirSync(dir2, { recursive: true })
+      writeFileSync(join(dir1, 'Zebra.ts'), 'export default {}')
+      writeFileSync(join(dir2, 'Apple.ts'), 'export default {}')
+
+      const models = await discoverModels(dir1, dir2)
+
+      expect(models.length).toBe(2)
+      expect(models[0].name).toBe('Apple')
+      expect(models[1].name).toBe('Zebra')
+    })
+
+    it('should deduplicate across directories', async () => {
+      const dir1 = join(testDir, 'user')
+      const dir2 = join(testDir, 'default')
+      mkdirSync(dir1, { recursive: true })
+      mkdirSync(dir2, { recursive: true })
+      writeFileSync(join(dir1, 'User.ts'), 'export default {}')
+      writeFileSync(join(dir2, 'User.ts'), 'export default {}')
+
+      const models = await discoverModels(dir1, dir2)
+
+      expect(models.length).toBe(1)
+    })
+
+    it('should handle empty directories', async () => {
+      const dir1 = join(testDir, 'empty1')
+      const dir2 = join(testDir, 'empty2')
+      mkdirSync(dir1, { recursive: true })
+      mkdirSync(dir2, { recursive: true })
+
+      const models = await discoverModels(dir1, dir2)
+
+      expect(models.length).toBe(0)
+    })
+
+    it('should handle non-existent directories', async () => {
+      const models = await discoverModels('/no/such/path/a', '/no/such/path/b')
+      expect(models.length).toBe(0)
+    })
+  })
+
+  describe('buildManifest', () => {
+    it('should mark models with dedicated pages', () => {
+      const models = [
+        { name: 'User', icon: 'person.fill', id: 'user' },
+        { name: 'CustomWidget', icon: 'tablecells.fill', id: 'custom-widget' },
+      ]
+
+      const manifest = buildManifest(models)
+
+      expect(manifest[0].hasDedicatedPage).toBe(true)
+      expect(manifest[1].hasDedicatedPage).toBe(false)
+    })
+
+    it('should preserve model fields', () => {
+      const models = [{ name: 'Post', icon: 'doc.text.fill', id: 'post' }]
+      const manifest = buildManifest(models)
+
+      expect(manifest[0].id).toBe('post')
+      expect(manifest[0].name).toBe('Post')
+      expect(manifest[0].icon).toBe('doc.text.fill')
+    })
+
+    it('should handle empty input', () => {
+      expect(buildManifest([])).toEqual([])
+    })
+  })
+
+  describe('buildSidebarConfig', () => {
+    it('should have all 10 sections', () => {
+      const config = buildSidebarConfig('http://localhost:3456/pages', [])
+      expect(config.sections.length).toBe(10)
+    })
+
+    it('should have correct section IDs', () => {
+      const config = buildSidebarConfig('http://localhost:3456/pages', [])
+      const sectionIds = config.sections.map(s => s.id)
+
+      expect(sectionIds).toContain('home')
+      expect(sectionIds).toContain('library')
+      expect(sectionIds).toContain('content')
+      expect(sectionIds).toContain('app')
+      expect(sectionIds).toContain('data')
+      expect(sectionIds).toContain('commerce')
+      expect(sectionIds).toContain('marketing')
+      expect(sectionIds).toContain('analytics')
+      expect(sectionIds).toContain('management')
+      expect(sectionIds).toContain('utilities')
+    })
+
+    it('should use baseRoute for all URLs', () => {
+      const base = 'http://localhost:9999/pages'
+      const config = buildSidebarConfig(base, [])
+
+      for (const section of config.sections) {
+        for (const item of section.items) {
+          expect(item.url).toContain(base)
+        }
+      }
+    })
+
+    it('should include userland models in data section', () => {
+      const models = [
+        { name: 'Widget', icon: 'tablecells.fill', id: 'widget', category: 'userland' as const },
+        { name: 'Gadget', icon: 'tablecells.fill', id: 'gadget', category: 'userland' as const },
+      ]
+      const config = buildSidebarConfig('http://localhost:3456/pages', models)
+      const dataSection = config.sections.find(s => s.id === 'data')!
+
+      const modelItems = dataSection.items.filter(i => i.id.startsWith('model-'))
+      expect(modelItems.length).toBe(2)
+      expect(modelItems.find(i => i.id === 'model-widget')!.label).toBe('Widget')
+      expect(modelItems.find(i => i.id === 'model-widget')!.url).toBe('http://localhost:3456/pages/models/widget')
+      expect(modelItems.find(i => i.id === 'model-gadget')).toBeDefined()
+    })
+
+    it('should keep commerce-categorized models out of data section', () => {
+      const models = [
+        { name: 'Cart', icon: 'cart.fill', id: 'cart', category: 'commerce' as const },
+        { name: 'WidgetUser', icon: 'tablecells.fill', id: 'widget-user', category: 'userland' as const },
+      ]
+      const config = buildSidebarConfig('http://localhost:3456/pages', models)
+      const dataSection = config.sections.find(s => s.id === 'data')!
+      const commerceSection = config.sections.find(s => s.id === 'commerce')!
+
+      const dataModelIds = dataSection.items.filter(i => i.id.startsWith('model-')).map(i => i.id)
+      const commerceModelIds = commerceSection.items.filter(i => i.id.startsWith('model-')).map(i => i.id)
+
+      expect(dataModelIds).toContain('model-widget-user')
+      expect(dataModelIds).not.toContain('model-cart')
+      expect(commerceModelIds).toContain('model-cart')
+
+      // Even though Cart visually lives under Commerce, its URL must point
+      // at /models/<id> — that's the dashboard's dynamic ORM viewer.
+      const cartItem = commerceSection.items.find(i => i.id === 'model-cart')!
+      expect(cartItem.url).toBe('http://localhost:3456/pages/models/cart')
+    })
+
+    it('should drop the commerce section when disabled', () => {
+      const models = [
+        { name: 'Cart', icon: 'cart.fill', id: 'cart', category: 'commerce' as const },
+      ]
+      const config = buildSidebarConfig('http://localhost:3456/pages', models, { commerce: false })
+
+      expect(config.sections.find(s => s.id === 'commerce')).toBeUndefined()
+      // The cart model should not leak back into data when commerce is off.
+      const dataSection = config.sections.find(s => s.id === 'data')!
+      const dataModelIds = dataSection.items.filter(i => i.id.startsWith('model-')).map(i => i.id)
+      expect(dataModelIds).not.toContain('model-cart')
+    })
+
+    it('should include static data items before models', () => {
+      const config = buildSidebarConfig('http://localhost:3456/pages', [])
+      const dataSection = config.sections.find(s => s.id === 'data')!
+
+      expect(dataSection.items[0].id).toBe('data-dashboard')
+      expect(dataSection.items[1].id).toBe('activity')
+    })
+
+    it('should set min/max width', () => {
+      const config = buildSidebarConfig('http://localhost:3456/pages', [])
+      expect(config.minWidth).toBe(200)
+      expect(config.maxWidth).toBe(280)
+    })
+
+    it('should have home dashboard as first item', () => {
+      const config = buildSidebarConfig('http://localhost:3456/pages', [])
+      const homeSection = config.sections.find(s => s.id === 'home')!
+
+      expect(homeSection.items[0].id).toBe('home')
+      expect(homeSection.items[0].icon).toBe('house.fill')
+    })
+
+    it('omits the CI row by default (stacksjs/stacks#1844 — opt-in)', () => {
+      const config = buildSidebarConfig('http://localhost:3456/pages', [])
+      const homeSection = config.sections.find(s => s.id === 'home')!
+      expect(homeSection.items.some(i => i.id === 'ci')).toBe(false)
+    })
+
+    it('appends a CI row to the home section when toggles.ci is true', () => {
+      const config = buildSidebarConfig('http://localhost:3456/pages', [], { ci: true })
+      const homeSection = config.sections.find(s => s.id === 'home')!
+      const ci = homeSection.items.find(i => i.id === 'ci')
+      expect(ci).toBeDefined()
+      expect(ci!.url).toBe('http://localhost:3456/pages/ci')
+    })
+
+    // ─── Per-model dashboard config (stacksjs/stacks#1843) ─────────────
+
+    it('hides models whose dashboard.enabled is false', () => {
+      const models = [
+        { name: 'Widget', icon: 'tablecells.fill', id: 'widget', category: 'userland' as const },
+        { name: 'Secret', icon: 'tablecells.fill', id: 'secret', category: 'userland' as const, dashboard: { enabled: false } },
+      ]
+      const config = buildSidebarConfig('http://localhost:3456/pages', models)
+      const dataSection = config.sections.find(s => s.id === 'data')!
+      expect(dataSection.items.find(i => i.id === 'model-widget')).toBeDefined()
+      expect(dataSection.items.find(i => i.id === 'model-secret')).toBeUndefined()
+    })
+
+    it('honours dashboard.label as the sidebar display name', () => {
+      const models = [
+        { name: 'AuditLog', icon: 'tablecells.fill', id: 'audit-log', category: 'userland' as const, dashboard: { label: 'Audit Trail' } },
+      ]
+      const config = buildSidebarConfig('http://localhost:3456/pages', models)
+      const dataSection = config.sections.find(s => s.id === 'data')!
+      const row = dataSection.items.find(i => i.id === 'model-audit-log')
+      expect(row).toBeDefined()
+      expect(row!.label).toBe('Audit Trail')
+    })
+
+    it('pins a userland model to a different section via dashboard.section', () => {
+      const models = [
+        { name: 'AuditLog', icon: 'tablecells.fill', id: 'audit-log', category: 'userland' as const, dashboard: { section: 'management' as const } },
+      ]
+      const config = buildSidebarConfig('http://localhost:3456/pages', models)
+
+      const dataSection = config.sections.find(s => s.id === 'data')!
+      expect(dataSection.items.find(i => i.id === 'model-audit-log')).toBeUndefined()
+      // No `management` section currently builds dynamic model rows out
+      // of the box (the management section is static); but the model
+      // should no longer leak into Data.
+    })
+
+    it('passes through dashboard.roles as item metadata for role gating', () => {
+      const models = [
+        { name: 'AuditLog', icon: 'tablecells.fill', id: 'audit-log', category: 'userland' as const, dashboard: { roles: ['admin', 'dev'] } },
+      ]
+      const config = buildSidebarConfig('http://localhost:3456/pages', models)
+      const dataSection = config.sections.find(s => s.id === 'data')!
+      const row = dataSection.items.find(i => i.id === 'model-audit-log') as { id: string, label: string, icon: string, url: string, roles?: string[] }
+      expect(row).toBeDefined()
+      expect(row.roles).toEqual(['admin', 'dev'])
+    })
+
+    it('omits the roles property entirely when no roles are configured', () => {
+      const models = [
+        { name: 'Widget', icon: 'tablecells.fill', id: 'widget', category: 'userland' as const },
+      ]
+      const config = buildSidebarConfig('http://localhost:3456/pages', models)
+      const dataSection = config.sections.find(s => s.id === 'data')!
+      const row = dataSection.items.find(i => i.id === 'model-widget') as { id: string, roles?: string[] }
+      expect(row.roles).toBeUndefined()
+    })
+
+    it('should have correct items in each section', () => {
+      const config = buildSidebarConfig('http://localhost:3456/pages', [])
+
+      const library = config.sections.find(s => s.id === 'library')!
+      expect(library.items.length).toBe(2)
+
+      const commerce = config.sections.find(s => s.id === 'commerce')!
+      expect(commerce.items.length).toBe(9)
+
+      const utilities = config.sections.find(s => s.id === 'utilities')!
+      expect(utilities.items.length).toBe(4)
+    })
+  })
+
+  describe('buildDashboardUrl', () => {
+    it('should include native-sidebar parameter', () => {
+      const url = buildDashboardUrl(3456)
+      expect(url).toBe('http://localhost:3456/?native-sidebar=1')
+    })
+
+    it('should use the specified port', () => {
+      const url = buildDashboardUrl(8080)
+      expect(url).toContain(':8080/')
+    })
+
+    it('should open the dashboard root path', () => {
+      const url = buildDashboardUrl(3456)
+      expect(url).toContain('/?native-sidebar=1')
+    })
+  })
+
+  describe('waitForServer', () => {
+    it('should return false when server is not running', async () => {
+      // Use a port that's unlikely to be in use
+      const result = await waitForServer(59999, 100)
+      expect(result).toBe(false)
+    })
+
+    it('should return true when server is running', async () => {
+      // Start a simple Bun server
+      const server = Bun.serve({
+        port: 0, // Random available port
+        fetch() {
+          return new Response('ok')
+        },
+      })
+
+      try {
+        const result = await waitForServer(server.port, 1000)
+        expect(result).toBe(true)
+      }
+      finally {
+        server.stop()
+      }
+    })
+
+    it('should accept 404 as ready', async () => {
+      const server = Bun.serve({
+        port: 0,
+        fetch() {
+          return new Response('not found', { status: 404 })
+        },
+      })
+
+      try {
+        const result = await waitForServer(server.port, 1000)
+        expect(result).toBe(true)
+      }
+      finally {
+        server.stop()
+      }
+    })
+
+    it('should respect maxWait timeout', async () => {
+      const start = Date.now()
+      await waitForServer(59998, 150)
+      const elapsed = Date.now() - start
+
+      expect(elapsed).toBeGreaterThanOrEqual(100)
+      expect(elapsed).toBeLessThan(500)
+    })
+  })
+})

@@ -1,0 +1,152 @@
+@extends('layouts/default')
+
+@section('content')
+<div class="min-h-screen bg-neutral-50 p-6 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-100">
+  <div class="mx-auto flex max-w-6xl flex-col gap-6">
+    <header class="flex flex-col gap-4 border-b border-neutral-200 pb-5 dark:border-neutral-800 md:flex-row md:items-end md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">CMS</p>
+        <h1 class="mt-1 text-2xl font-semibold tracking-tight">Pages</h1>
+        <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Manage static CMS pages alongside your blog content.</p>
+      </div>
+      <button id="new-page-button" type="button" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">
+        <span class="i-hugeicons-plus-sign h-4 w-4"></span>
+        New Page
+      </button>
+    </header>
+
+    <section class="grid gap-4 md:grid-cols-3">
+      <div class="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">Total Pages</p>
+        <p id="page-total" class="mt-2 text-3xl font-semibold">0</p>
+      </div>
+      <div class="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">Views</p>
+        <p id="page-views" class="mt-2 text-3xl font-semibold">0</p>
+      </div>
+      <div class="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">Newest</p>
+        <p id="page-newest" class="mt-2 truncate text-2xl font-semibold">-</p>
+      </div>
+    </section>
+
+    <section class="rounded-lg border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+      <div class="border-b border-neutral-200 p-4 dark:border-neutral-800">
+        <input id="page-search" type="search" placeholder="Search pages..." class="w-full max-w-md rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-neutral-700 dark:bg-neutral-950" />
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-800">
+          <thead class="bg-neutral-50 text-left text-xs font-semibold uppercase text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
+            <tr>
+              <th class="px-4 py-3">Title</th>
+              <th class="px-4 py-3">Template</th>
+              <th class="px-4 py-3">Views</th>
+              <th class="px-4 py-3">Published</th>
+              <th class="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="pages-table" class="divide-y divide-neutral-200 dark:divide-neutral-800"></tbody>
+        </table>
+      </div>
+      <div id="pages-empty" class="hidden p-10 text-center text-sm text-neutral-500 dark:text-neutral-400">No pages found.</div>
+    </section>
+  </div>
+</div>
+
+<dialog id="page-dialog" class="w-full max-w-lg rounded-lg border border-neutral-200 bg-white p-0 text-neutral-950 shadow-xl backdrop:bg-black/40 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100">
+  <form id="page-form" method="dialog">
+    <div class="border-b border-neutral-200 px-5 py-4 dark:border-neutral-800">
+      <h2 class="text-lg font-semibold">New Page</h2>
+    </div>
+    <div class="grid gap-4 p-5">
+      <label class="grid gap-1 text-sm font-medium">Title <input id="page-title" required class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950" /></label>
+      <label class="grid gap-1 text-sm font-medium">Template
+        <select id="page-template" class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950">
+          <option value="default">Default</option>
+          <option value="landing">Landing</option>
+          <option value="blog">Blog</option>
+          <option value="contact">Contact</option>
+        </select>
+      </label>
+    </div>
+    <div class="flex justify-end gap-2 border-t border-neutral-200 px-5 py-4 dark:border-neutral-800">
+      <button id="page-cancel" type="button" class="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium dark:border-neutral-700">Cancel</button>
+      <button type="submit" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-500">Create Page</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+;(function () {
+  var api = '/api/dashboard/cms'
+  var pages = []
+  var table = document.getElementById('pages-table')
+  var empty = document.getElementById('pages-empty')
+  var dialog = document.getElementById('page-dialog')
+  var search = document.getElementById('page-search')
+  function $(id) { return document.getElementById(id) }
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]
+    })
+  }
+  function fmtDate(value) {
+    if (!value) return '-'
+    var date = new Date(value)
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString()
+  }
+  function render() {
+    var q = search.value.toLowerCase()
+    var rows = pages.filter(function (page) {
+      return !q || [page.title, page.template].join(' ').toLowerCase().indexOf(q) !== -1
+    })
+    $('page-total').textContent = String(pages.length)
+    $('page-views').textContent = pages.reduce(function (sum, p) { return sum + Number(p.views || 0) }, 0).toLocaleString()
+    $('page-newest').textContent = pages[0] ? pages[0].title : '-'
+    empty.classList.toggle('hidden', rows.length > 0)
+    table.innerHTML = rows.map(function (page) {
+      return '<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-950/70">' +
+        '<td class="px-4 py-3 font-medium">' + escapeHtml(page.title) + '</td>' +
+        '<td class="px-4 py-3 text-neutral-600 dark:text-neutral-300">' + escapeHtml(page.template) + '</td>' +
+        '<td class="px-4 py-3 text-neutral-600 dark:text-neutral-300">' + Number(page.views || 0).toLocaleString() + '</td>' +
+        '<td class="px-4 py-3 text-neutral-600 dark:text-neutral-300">' + fmtDate(page.published_at || page.created_at) + '</td>' +
+        '<td class="px-4 py-3 text-right"><button type="button" data-id="' + page.id + '" class="rounded p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"><span class="block h-4 w-4 i-hugeicons-waste"></span></button></td>' +
+      '</tr>'
+    }).join('')
+  }
+  async function load() {
+    var res = await fetch(api)
+    var json = await res.json()
+    pages = Array.isArray(json.pages) ? json.pages : []
+    render()
+  }
+  document.getElementById('new-page-button').addEventListener('click', function () {
+    $('page-title').value = ''
+    $('page-template').value = 'default'
+    dialog.showModal()
+  })
+  $('page-cancel').addEventListener('click', function () { dialog.close() })
+  document.getElementById('page-form').addEventListener('submit', async function (event) {
+    event.preventDefault()
+    var res = await fetch(api + '/pages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: $('page-title').value, template: $('page-template').value }),
+    })
+    if (!res.ok) return alert('Could not create page')
+    dialog.close()
+    await load()
+  })
+  table.addEventListener('click', async function (event) {
+    var button = event.target.closest('button[data-id]')
+    if (!button || !confirm('Delete this page?')) return
+    var res = await fetch(api + '/pages/' + button.getAttribute('data-id'), { method: 'DELETE' })
+    if (!res.ok) return alert('Could not delete page')
+    await load()
+  })
+  search.addEventListener('input', render)
+  load()
+})()
+</script>
+
+@endsection

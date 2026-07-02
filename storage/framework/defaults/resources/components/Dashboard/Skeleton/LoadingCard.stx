@@ -1,0 +1,15 @@
+<script>
+interface LoadingCardProps {
+  width?: number
+  height?: number
+}
+
+const { width = 16, height = 4 } = defineProps<LoadingCardProps>()
+</script>
+<div class="mx-auto w-full rounded-md shadow">
+  <div class="flex space-x-4 animate-pulse">
+    <div class="flex-1 space-y-6">
+      <div class="bg-slate-300 rounded-md" style="height: {{ height }}rem"></div>
+    </div>
+  </div>
+</div>

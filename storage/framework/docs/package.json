@@ -1,0 +1,19 @@
+{
+  "name": "stacks-docs",
+  "type": "module",
+  "version": "0.70.45",
+  "scripts": {
+    "dev": "bunpress dev",
+    "build": "bunpress build",
+    "preview": "bunpress preview"
+  },
+  "dependencies": {
+    "@stacksjs/alias": "workspace:*",
+    "@stacksjs/cli": "workspace:*",
+    "@stacksjs/config": "workspace:*",
+    "@stacksjs/env": "workspace:*",
+    "@stacksjs/path": "workspace:*",
+    "@stacksjs/server": "workspace:*",
+    "@stacksjs/storage": "workspace:*"
+  }
+}

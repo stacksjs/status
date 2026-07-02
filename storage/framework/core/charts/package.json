@@ -1,0 +1,59 @@
+{
+  "name": "@stacksjs/charts",
+  "type": "module",
+  "version": "0.70.45",
+  "description": "Chart rendering for Stacks. Built on ts-charts (D3 in TypeScript).",
+  "author": "Chris Breuer",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.com>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/core/charts#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/charts"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "keywords": [
+    "charts",
+    "visualization",
+    "canvas",
+    "stacks",
+    "ts-charts",
+    "d3"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "import": "./dist/*"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@ts-charts/format": "^0.2.0",
+    "@ts-charts/scale": "^0.2.0",
+    "@ts-charts/shape": "^0.2.0"
+  },
+  "devDependencies": {
+    "better-dx": "^0.2.12"
+  }
+}

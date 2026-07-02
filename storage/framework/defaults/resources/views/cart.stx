@@ -1,0 +1,149 @@
+@extends('layouts/storefront')
+
+@section('title', 'Your cart')
+
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const token = (typeof requestContext !== 'undefined') ? requestContext.cookie('stacks_cart') : null
+let items = []
+let cart = null
+
+if (token) {
+  cart = db.query(`SELECT * FROM carts WHERE session_token = ?1 AND status = 'active' LIMIT 1`).get(token)
+  if (cart) {
+    items = db.query(`
+      SELECT ci.id, ci.quantity, ci.unit_price, ci.total_price, ci.product_name,
+            ci.product_image, ci.product_sku, p.weight_grams
+      FROM cart_items ci
+      LEFT JOIN products p ON p.slug = ci.product_sku
+      WHERE ci.cart_id = ?1
+      ORDER BY ci.id ASC
+    `).all(cart.id).map((row) => {
+      const qty = Number(row.quantity)
+      const price = Number(row.unit_price)
+      const lineTotal = Number(row.total_price)
+      return {
+        id: row.id,
+        slug: row.product_sku,
+        name: row.product_name,
+        weight: row.weight_grams ? `${row.weight_grams}g` : '',
+        qty,
+        priceLabel: `$${price.toFixed(2)}`,
+        lineTotal,
+        lineTotalLabel: `$${lineTotal.toFixed(2)}`,
+        image: row.product_image,
+      }
+    })
+  }
+}
+
+// Mirror the rule used by PlaceOrderAction so the price the shopper
+// sees in their cart matches the total they're actually charged. Both
+// sides read STOREFRONT_FREE_SHIPPING_THRESHOLD / STOREFRONT_FLAT_SHIPPING
+// from the environment with the same defaults — keep them in sync via
+// app/Actions/Storefront/_shipping.ts when changing.
+const FREE_SHIPPING_THRESHOLD = Number(process.env.STOREFRONT_FREE_SHIPPING_THRESHOLD ?? 40) || 40
+const FLAT_SHIPPING = Number(process.env.STOREFRONT_FLAT_SHIPPING ?? 5) || 5
+const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0)
+const shipping = subtotal <= 0 ? 0 : (subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : FLAT_SHIPPING)
+const total = subtotal + shipping
+const remainingForFree = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal)
+
+// Pre-format every numeric so the OrderSummary component template doesn't
+// have to call .toFixed() on a defineProps local — STX's SSR pass doesn't
+// reliably expose those locals, so callers do the formatting.
+const subtotalLabel = `$${subtotal.toFixed(2)}`
+const shippingLabel = shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`
+const totalLabel = `$${total.toFixed(2)}`
+const freeShippingNote = (shipping > 0 && remainingForFree > 0)
+  ? `Add $${remainingForFree.toFixed(2)} more for free shipping.`
+  : ''
+</script>
+
+@section('content')
+  <div class="mx-auto px-6 py-12 max-w-5xl">
+
+    <p class="font-medium text-stone-500 text-xs tracking-wider uppercase">Your bowl</p>
+    <h1 class="mt-2 font-bold text-4xl text-stone-900 tracking-tight">Cart</h1>
+    <p class="mt-2 text-stone-600">{{ items.length }} item{{ items.length === 1 ? '' : 's' }}{{ items.length > 0 ? ' ready to ship' : '' }}.</p>
+
+    @if (items.length === 0)
+      <div class="mt-12 p-12 md:p-16 text-center bg-stone-50 border border-dashed border-stone-300 rounded-3xl">
+        <div class="inline-flex items-center justify-center mx-auto h-14 w-14 bg-stone-100 rounded-full">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-stone-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c.51 0 .956-.343 1.087-.835l1.872-7.024A1.125 1.125 0 0019.797 5.25H5.106M7.5 14.25L5.106 5.25M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
+        </div>
+        <p class="mt-5 font-medium text-base text-stone-700">Your cart is empty.</p>
+        <p class="mt-1 text-sm text-stone-500">Pick a treat and we'll start your bowl.</p>
+        <a href="/products" class="inline-flex gap-2 items-center mt-6 px-6 py-3 font-semibold text-sm text-stone-50 bg-stone-900 hover:bg-stone-800 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 focus-visible:ring-stone-900 transition-colors">
+          Browse the shop
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+        </a>
+      </div>
+    @else
+      <div class="grid gap-10 items-start lg:gap-12 lg:grid-cols-[2fr_1fr] mt-10">
+
+        <div class="space-y-4">
+          @foreach (items as item)
+            <article class="flex gap-4 p-4 bg-stone-50 border border-stone-200 rounded-2xl hover:border-stone-300 transition-colors">
+              <a
+                href="/products/{{ item.slug }}"
+                class="block overflow-hidden flex-shrink-0 h-24 w-24 bg-stone-200 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 focus-visible:ring-stone-900"
+                aria-label="View {{ item.name }}"
+              >
+                <img src="{{ item.image }}" alt="" class="object-cover h-full w-full">
+              </a>
+              <div class="flex flex-1 flex-col min-w-0">
+                <div class="flex gap-3 items-start justify-between">
+                  <div class="min-w-0">
+                    <a href="/products/{{ item.slug }}" class="block font-semibold text-stone-900 truncate hover:underline">{{ item.name }}</a>
+                    @if (item.weight)
+                      <p class="mt-0.5 text-stone-500 text-xs">{{ item.weight }} · {{ item.priceLabel }} each</p>
+                    @else
+                      <p class="mt-0.5 text-stone-500 text-xs">{{ item.priceLabel }} each</p>
+                    @endif
+                  </div>
+                  <p class="font-semibold text-stone-900 whitespace-nowrap">{{ item.lineTotalLabel }}</p>
+                </div>
+                <div class="flex gap-3 items-end justify-between mt-auto pt-3">
+                  <form action="/api/cart/update" method="POST" class="inline-flex overflow-hidden items-center border border-stone-300 rounded-full" data-cart-row>
+                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                    <button type="submit" name="quantity" value="{{ item.qty - 1 }}" class="px-3 py-1.5 text-stone-600 hover:text-stone-900 focus-visible:bg-stone-100 hover:bg-stone-100 focus-visible:outline-none transition-colors" aria-label="Decrease quantity">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14"/></svg>
+                    </button>
+                    <span class="px-2 min-w-[1.5rem] font-semibold tabular-nums text-center text-sm text-stone-900">{{ item.qty }}</span>
+                    <button type="submit" name="quantity" value="{{ item.qty + 1 }}" class="px-3 py-1.5 text-stone-600 hover:text-stone-900 focus-visible:bg-stone-100 hover:bg-stone-100 focus-visible:outline-none transition-colors" aria-label="Increase quantity">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/></svg>
+                    </button>
+                  </form>
+                  <form action="/api/cart/update" method="POST">
+                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                    <input type="hidden" name="quantity" value="0">
+                    <button type="submit" class="font-medium text-stone-500 text-xs underline-offset-4 focus-visible:text-stone-900 focus-visible:underline hover:text-stone-900 hover:underline focus-visible:outline-none transition-colors" aria-label="Remove {{ item.name }}">Remove</button>
+                  </form>
+                </div>
+              </div>
+            </article>
+          @endforeach
+        </div>
+
+        <OrderSummary
+          subtotalLabel="{{ subtotalLabel }}"
+          shippingLabel="{{ shippingLabel }}"
+          totalLabel="{{ totalLabel }}"
+          freeShippingNote="{{ freeShippingNote }}"
+          ctaHref="/checkout/contact"
+          ctaLabel="Checkout"
+          secondaryHref="/products"
+          secondaryLabel="Keep shopping"
+          :sticky="true"
+        />
+
+      </div>
+    @endif
+  </div>
+@endsection

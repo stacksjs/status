@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+
+set -u
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+workspace_root="$script_dir/.."
+normalize_package="$script_dir/normalize-workspace-deps-for-publish"
+publish_flags="--access public --ignore-scripts"
+
+if [ "${PUBLISH_DRY_RUN:-}" = "1" ]; then
+  publish_flags="$publish_flags --dry-run"
+fi
+roots=(
+  "$script_dir/../libs/components"
+  "$script_dir/../libs/functions"
+)
+
+package_files=()
+for root in "${roots[@]}"; do
+  if [ ! -d "$root" ]; then
+    continue
+  fi
+
+  while IFS= read -r package_file; do
+    package_files+=("$package_file")
+  done < <(find "$root" -path '*/node_modules' -prune -o -name package.json -print)
+done
+
+if [ ${#package_files[@]} -eq 0 ]; then
+  echo "No dummy libraries found"
+  exit 0
+fi
+
+for package_file in "${package_files[@]}"; do
+  dir="$(dirname "$package_file")"
+
+  echo ""
+  echo "🏗️  Releasing dummy library"
+  echo "📦 $dir"
+
+  if grep -q '"private"[[:space:]]*:[[:space:]]*true' "$package_file"; then
+    echo "↪ Skipping private package"
+    continue
+  fi
+
+  package_name=$(node -e "const p = require(process.argv[1]); process.stdout.write(p.name || '')" "$package_file")
+  package_version=$(node -e "const p = require(process.argv[1]); process.stdout.write(p.version || '')" "$package_file")
+
+  if [ -z "$package_name" ] || [ -z "$package_version" ]; then
+    echo "⚠️  Dummy library publish skipped: missing package name or version"
+    continue
+  fi
+
+  if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
+    echo "↪ $package_name@$package_version already exists on npm; skipping"
+    continue
+  fi
+
+  package_backup=$(mktemp)
+  cp "$package_file" "$package_backup"
+
+  if ! node "$normalize_package" "$package_file" "$workspace_root"; then
+    echo "⚠️  Dummy library publish skipped: unable to resolve workspace dependencies"
+    cp "$package_backup" "$package_file"
+    rm -f "$package_backup"
+    continue
+  fi
+
+  (
+    cd "$dir"
+    bun run build
+    bun publish $publish_flags
+  )
+
+  status=$?
+  cp "$package_backup" "$package_file"
+  rm -f "$package_backup"
+
+  if [ $status -ne 0 ]; then
+    echo "⚠️  Dummy library publish skipped after failure ($status): $dir"
+    continue
+  fi
+
+  if [ "${PUBLISH_DRY_RUN:-}" = "1" ]; then
+    echo "✅ Dummy library publish dry-run completed"
+  else
+    echo "✅ Dummy library published"
+  fi
+done
+
+exit 0

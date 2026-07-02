@@ -1,0 +1,46 @@
+@extends('layouts/guest')
+
+@section('content')
+<script client>
+// Register form (stacksjs/stacks#1838) — see comment on login.stx; same
+// shape, same broken-`const`-reassignment fix.
+import { useAuth } from '../../functions/auth'
+
+const { register } = useAuth()
+
+const isLoading = state(false)
+const error = state('')
+
+async function handleRegister(credentials) {
+  isLoading.set(true)
+  error.set('')
+
+  try {
+    const result = await register(credentials)
+
+    if (result && 'errors' in result) {
+      error.set(result.message || 'Registration failed')
+      return
+    }
+
+    navigate('/')
+  }
+  catch (err) {
+    error.set(err.message || 'An error occurred during registration')
+    // eslint-disable-next-line no-console
+    console.error(err)
+  }
+  finally {
+    isLoading.set(false)
+  }
+}
+</script>
+
+@title('Register - Stacks Dashboard')
+<Register
+  @submit="handleRegister"
+  :isLoading="isLoading()"
+  :error="error()"
+/>
+
+@endsection

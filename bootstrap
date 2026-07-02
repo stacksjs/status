@@ -1,0 +1,76 @@
+#!/bin/sh
+set -e
+
+## To learn more, visit https://stacksjs.com/docs/guide/bootstrap
+## Usage:
+##   curl -fsSL https://stacksjs.com/install | bash                # bootstrap in current dir
+##   curl -fsSL https://stacksjs.com/install | bash -s my-project  # clone + bootstrap
+##   ./bootstrap                                                   # local bootstrap
+
+# --- Pantry installer (inlined so it works via curl-pipe-bash before clone) ---
+ensure_pantry() {
+  if command -v pantry >/dev/null 2>&1; then
+    return
+  fi
+
+  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  ARCH=$(uname -m)
+  case "$ARCH" in
+    x86_64|amd64) ARCH="x64" ;;
+    arm64|aarch64) ARCH="arm64" ;;
+  esac
+
+  INSTALL_DIR="${HOME}/.local/bin"
+  mkdir -p "$INSTALL_DIR"
+
+  ZIP="pantry-${OS}-${ARCH}.zip"
+  URL="https://github.com/home-lang/pantry/releases/latest/download/${ZIP}"
+
+  echo "Downloading Pantry from ${URL}..."
+  TMP=$(mktemp -d)
+  curl -fsSL -o "${TMP}/${ZIP}" "$URL"
+  unzip -o "${TMP}/${ZIP}" -d "$INSTALL_DIR"
+  chmod +x "${INSTALL_DIR}/pantry"
+  rm -rf "$TMP"
+
+  export PATH="${INSTALL_DIR}:${PATH}"
+  echo "Pantry installed to ${INSTALL_DIR}/pantry"
+}
+
+# --- Main ---
+
+# If a project name is passed, download and extract the project
+if [ -n "$1" ]; then
+  if [ -d "$1" ]; then
+    echo "Directory '$1' already exists. Please use a different name."
+    exit 1
+  fi
+
+  echo "Downloading Stacks..."
+  TMP=$(mktemp -d)
+  curl -fsSL -o "${TMP}/stacks.zip" "https://github.com/stacksjs/stacks/archive/refs/heads/main.zip"
+  unzip -q "${TMP}/stacks.zip" -d "$TMP"
+  mv "${TMP}/stacks-main" "$1"
+  rm -rf "$TMP"
+  cd "$1"
+fi
+
+# Detect if we're in a Stacks project
+if [ ! -d "storage/framework/core" ]; then
+  echo "Error: not inside a Stacks project. Run with a project name to clone one:"
+  echo "  curl -fsSL https://stacksjs.com/install | bash -s my-project"
+  exit 1
+fi
+
+PROJECT_ROOT=$(pwd)
+
+ensure_pantry
+
+echo "Bootstrapping Stacks project..."
+"${PROJECT_ROOT}/buddy" setup --skip-aws
+
+echo ""
+echo "Project bootstrapped successfully!"
+if [ -n "$1" ]; then
+  echo "Run 'cd $1 && ./buddy dev' to start the dev server."
+fi

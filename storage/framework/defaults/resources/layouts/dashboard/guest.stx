@@ -1,0 +1,10 @@
+<!-- macOS-style guest layout with subtle background -->
+<div class="min-h-screen bg-neutral-100 dark:bg-neutral-950">
+  <slot />
+</div>
+
+<style>
+body {
+  @apply bg-neutral-100 dark:bg-neutral-950;
+}
+</style>

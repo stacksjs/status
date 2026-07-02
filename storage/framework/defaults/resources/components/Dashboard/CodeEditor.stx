@@ -1,0 +1,41 @@
+<script>
+interface CodeEditorProps {
+  live?: boolean
+  lang?: string
+  theme?: string
+  content?: string
+}
+
+const { live = false, lang = 'typescript', theme = 'github_dark', content = `echo 'Hello World!' } = defineProps<CodeEditorProps>()
+
+mv ./test/test.ts ./jello
+cp`
+</script>
+<header class="flex items-center justify-between p-4 bg-[#1f2428] border-[#30363d] border-b rounded-t-lg">
+    <div class="flex gap-2 items-center">
+      <div class="h-3 w-3 bg-[#f85149] rounded-full"></div>
+      <div class="h-3 w-3 bg-[#db9d16] rounded-full"></div>
+      <div class="h-3 w-3 bg-[#2ea043] rounded-full"></div>
+    </div>
+
+    @if(!live)
+      <span class="font-mono text-[#c9d1d9] text-sm">Deploy Script</span>
+    @else
+      <span class="font-mono text-[#c9d1d9] text-sm">Live Terminal Output</span>
+    @endif
+  </header>
+
+  <div class="bg-[#0d1117] rounded-b-lg vue-ace-editor" style="height: 300px; font-size: 14px;">
+    <pre class="p-4 font-mono text-[#c9d1d9] text-sm">{{ content }}</pre>
+  </div>
+<style>
+select {
+  margin-right: 15px;
+}
+
+.vue-ace-editor {
+  font-size: 14px;
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+}
+</style>

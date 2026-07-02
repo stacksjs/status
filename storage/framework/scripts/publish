@@ -1,0 +1,112 @@
+#!/bin/sh
+
+# Publishes every framework/core/* package to npm, skipping anything marked
+# `"private": true` (deploy/, development/, etc.) so we don't waste a CI cycle
+# on a publish that would fail. Each `bun publish` runs the package's own
+# `prepublishOnly` script — so dist gets rebuilt right before it ships.
+#
+# Tracks per-package outcomes and exits non-zero if any non-private package
+# fails to publish, so the GH Actions release workflow surfaces the breakage
+# instead of silently shipping a partial release.
+
+set -u
+
+script_dir=$(realpath $(dirname "$0"))
+core_dir="$script_dir/../core"
+workspace_root="$script_dir/.."
+normalize_package="$script_dir/normalize-workspace-deps-for-publish"
+publish_flags="--access public --ignore-scripts"
+
+if [ "${PUBLISH_DRY_RUN:-}" = "1" ]; then
+  publish_flags="$publish_flags --dry-run"
+fi
+
+# `find -maxdepth 1 -type d` would also list core/ itself; trim with -mindepth.
+dirs=$(find "$core_dir" -mindepth 1 -maxdepth 1 -type d)
+
+if [ -z "$dirs" ]; then
+  echo "No core packages found at $core_dir"
+  exit 1
+fi
+
+published=""
+skipped=""
+failed=""
+
+for dir in $dirs; do
+  pkg="$dir/package.json"
+  [ -f "$pkg" ] || continue
+
+  name=$(basename "$dir")
+
+  # `bun publish` rejects private packages with a helpful error, but skipping
+  # them here keeps the release log clean and avoids the GH Actions step
+  # showing a forest of red `Failed to publish development` lines.
+  if grep -q '"private"[[:space:]]*:[[:space:]]*true' "$pkg"; then
+    skipped="$skipped $name"
+    continue
+  fi
+
+  package_name=$(node -e "const p = require(process.argv[1]); process.stdout.write(p.name || '')" "$pkg")
+  package_version=$(node -e "const p = require(process.argv[1]); process.stdout.write(p.version || '')" "$pkg")
+
+  if [ -z "$package_name" ] || [ -z "$package_version" ]; then
+    failed="$failed $name"
+    printf '❌ %s is missing a package name or version\n\n' "$name"
+    continue
+  fi
+
+  # Release jobs can be retried after a partial publish. Treat packages that
+  # already exist on npm as a successful no-op so reruns converge instead of
+  # repeatedly failing on the first package that made it out.
+  if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
+    skipped="$skipped $name(already-published)"
+    printf '↪ %s@%s already exists on npm; skipping\n' "$package_name" "$package_version"
+    continue
+  fi
+
+  printf '\n🏗️  Releasing %s\n' "$name"
+  printf '📦 %s\n' "$dir"
+
+  log_file="${TMPDIR:-/tmp}/stacks-publish-$name-$$.log"
+  package_backup=$(mktemp)
+  cp "$pkg" "$package_backup"
+
+  if ! node "$normalize_package" "$pkg" "$workspace_root" >"$log_file" 2>&1; then
+    failed="$failed $name"
+    printf 'Failed to prepare %s for publishing:\n' "$name"
+    cat "$log_file"
+    printf '❌ %s failed to publish\n\n' "$name"
+    cp "$package_backup" "$pkg"
+    rm -f "$package_backup" "$log_file"
+    continue
+  fi
+
+  if (cd "$dir" && bun run build && bun publish $publish_flags) >"$log_file" 2>&1; then
+    if [ "${PUBLISH_DRY_RUN:-}" = "1" ]; then
+      published="$published $name(dry-run)"
+      printf '✅ %s publish dry-run completed\n\n' "$name"
+    else
+      published="$published $name"
+      printf '✅ %s published\n\n' "$name"
+    fi
+  else
+    failed="$failed $name"
+    printf 'Publish output for %s (last 160 lines):\n' "$name"
+    tail -n 160 "$log_file"
+    printf '❌ %s failed to publish\n\n' "$name"
+  fi
+
+  cp "$package_backup" "$pkg"
+  rm -f "$package_backup" "$log_file"
+done
+
+printf '\n────── Publish summary ──────\n'
+[ -n "$published" ] && printf 'Published:%s\n' "$published"
+[ -n "$skipped" ]   && printf 'Skipped:%s\n' "$skipped"
+[ -n "$failed" ]    && printf 'Failed:%s\n' "$failed"
+
+# Exit non-zero so CI marks the job as failed when any non-private publish
+# breaks. The previous behaviour (always exit 0) silently shipped partial
+# releases — see the i18n version drift fixed in this same change.
+[ -z "$failed" ]

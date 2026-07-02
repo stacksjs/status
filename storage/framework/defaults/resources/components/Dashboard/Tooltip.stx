@@ -1,0 +1,166 @@
+<script>
+interface TooltipProps {
+  label?: string
+  position?: string
+  dark?: boolean
+  alignment?: string
+}
+
+// `label` (was `text`) holds the tooltip body. The original `text` prop
+// collided with the auto-imported text() validator from @stacksjs/validation,
+// which leaked the validator function source into the rendered tooltip.
+const { label = '', position = 'bottom', dark = false, alignment = 'center' } = defineProps<TooltipProps>()
+</script>
+<div
+    class="tooltip-container"
+    data-tooltip
+  >
+    <slot />
+
+    <span
+      class="tooltip {{ position }} {{ dark ? 'dark-tooltip' : '' }} align-{{ alignment }}"
+      data-tooltip-text
+    >
+      {{ label }}
+    </span>
+  </div>
+<style>
+.tooltip-container {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip {
+  visibility: hidden;
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.2s, visibility 0.2s;
+}
+
+.tooltip-container:hover .tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Position variations */
+.tooltip.bottom {
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tooltip.bottom.align-left {
+  left: 0;
+  transform: none;
+}
+
+.tooltip.bottom.align-right {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.tooltip.top {
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tooltip.top.align-left {
+  left: 0;
+  transform: none;
+}
+
+.tooltip.top.align-right {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.tooltip.left {
+  left: -8px;
+  top: 50%;
+  transform: translate(-100%, -50%);
+}
+
+.tooltip.right {
+  right: -8px;
+  top: 50%;
+  transform: translate(100%, -50%);
+}
+
+/* Arrows for each position */
+.tooltip.bottom::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent rgba(0, 0, 0, 0.8) transparent;
+}
+
+.tooltip.top::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+}
+
+.tooltip.left::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent transparent rgba(0, 0, 0, 0.8);
+}
+
+.tooltip.right::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent rgba(0, 0, 0, 0.8) transparent transparent;
+}
+
+/* Dark mode adjustments */
+.dark-tooltip {
+  background-color: rgba(255, 255, 255, 0.8);
+  color: #1e293b;
+}
+
+.dark-tooltip.bottom::after {
+  border-bottom-color: rgba(255, 255, 255, 0.8);
+}
+
+.dark-tooltip.top::after {
+  border-top-color: rgba(255, 255, 255, 0.8);
+}
+
+.dark-tooltip.left::after {
+  border-left-color: rgba(255, 255, 255, 0.8);
+}
+
+.dark-tooltip.right::after {
+  border-right-color: rgba(255, 255, 255, 0.8);
+}
+</style>
