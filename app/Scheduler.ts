@@ -16,6 +16,11 @@ export default function () {
     .hourly()
     .setTimeZone('America/Los_Angeles')
 
+  // Fan out due monitor checks every minute (stacksjs/status#1 Phase 1)
+  schedule
+    .job('DispatchDueChecks')
+    .everyMinute()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 
