@@ -5,6 +5,7 @@ import RunCrawl from './RunCrawl'
 import RunDnsCheck from './RunDnsCheck'
 import RunDomainCheck from './RunDomainCheck'
 import RunHealthCheck from './RunHealthCheck'
+import RunLighthouseAudit from './RunLighthouseAudit'
 import RunPingCheck from './RunPingCheck'
 import RunSslCheck from './RunSslCheck'
 import RunTcpPortCheck from './RunTcpPortCheck'
@@ -29,6 +30,11 @@ import RunUptimeCheck from './RunUptimeCheck'
  */
 const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }>> = {
   uptime: RunUptimeCheck,
+  // 'performance' monitors run the same HTTP check as uptime — the
+  // response times it records are exactly what CheckPerformanceTrends
+  // (running on its own schedule) analyzes for degradation. The
+  // distinction is intent (why the monitor exists), not the check itself.
+  performance: RunUptimeCheck,
   ssl: RunSslCheck,
   ping: RunPingCheck,
   tcp_port: RunTcpPortCheck,
@@ -36,6 +42,7 @@ const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: numb
   domain: RunDomainCheck,
   health: RunHealthCheck,
   broken_links: RunCrawl,
+  lighthouse: RunLighthouseAudit,
 }
 
 export default new Job({

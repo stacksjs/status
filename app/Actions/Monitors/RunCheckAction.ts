@@ -5,6 +5,7 @@ import RunCrawl from '../../Jobs/RunCrawl'
 import RunDnsCheck from '../../Jobs/RunDnsCheck'
 import RunDomainCheck from '../../Jobs/RunDomainCheck'
 import RunHealthCheck from '../../Jobs/RunHealthCheck'
+import RunLighthouseAudit from '../../Jobs/RunLighthouseAudit'
 import RunPingCheck from '../../Jobs/RunPingCheck'
 import RunSslCheck from '../../Jobs/RunSslCheck'
 import RunTcpPortCheck from '../../Jobs/RunTcpPortCheck'
@@ -12,6 +13,7 @@ import RunUptimeCheck from '../../Jobs/RunUptimeCheck'
 
 const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }>> = {
   uptime: RunUptimeCheck,
+  performance: RunUptimeCheck,
   ssl: RunSslCheck,
   ping: RunPingCheck,
   tcp_port: RunTcpPortCheck,
@@ -19,6 +21,7 @@ const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: numb
   domain: RunDomainCheck,
   health: RunHealthCheck,
   broken_links: RunCrawl,
+  lighthouse: RunLighthouseAudit,
 }
 
 /**

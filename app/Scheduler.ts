@@ -27,6 +27,14 @@ export default function () {
     .job('CheckOverdueHeartbeats')
     .everyMinute()
 
+  // Response-time trend analysis needs enough history per window to be
+  // meaningful — no value in running it every minute. No everyFifteenMinutes
+  // on the scheduler API, so everyTenMinutes is the closest fit
+  // (stacksjs/status#1 Phase 4)
+  schedule
+    .job('CheckPerformanceTrends')
+    .everyTenMinutes()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 
