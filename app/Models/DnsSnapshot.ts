@@ -1,0 +1,56 @@
+import { defineModel } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation'
+
+export default defineModel({
+  name: 'DnsSnapshot',
+  table: 'dns_snapshots',
+  primaryKey: 'id',
+  autoIncrement: true,
+
+  traits: {
+    useUuid: true,
+    useTimestamps: true,
+    useSeeder: {
+      count: 10,
+    },
+    useApi: {
+      uri: 'dns-snapshots',
+      routes: ['index', 'show'],
+    },
+  },
+
+  belongsTo: ['Monitor'],
+
+  attributes: {
+    recordType: {
+      order: 1,
+      fillable: true,
+      required: true,
+      validation: {
+        rule: schema.enum(['A', 'AAAA', 'MX', 'TXT', 'NS', 'CAA', 'CNAME']),
+      },
+      factory: faker => faker.helpers.arrayElement(['A', 'AAAA', 'MX', 'TXT', 'NS']),
+    },
+
+    // JSON-stringified array of record values, same convention as
+    // Monitor.config.
+    values: {
+      order: 2,
+      fillable: true,
+      validation: {
+        rule: schema.string(),
+      },
+      factory: () => JSON.stringify([]),
+    },
+
+    checkedAt: {
+      order: 3,
+      fillable: true,
+      required: true,
+      validation: {
+        rule: schema.string().required(),
+      },
+      factory: faker => faker.date.recent().toISOString(),
+    },
+  },
+} as const)
