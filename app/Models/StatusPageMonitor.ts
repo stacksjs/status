@@ -17,7 +17,7 @@ export default defineModel({
     useTimestamps: true,
   },
 
-  belongsTo: ['StatusPage', 'Monitor'],
+  belongsTo: ['StatusPage', 'Monitor', 'StatusPageComponentGroup'],
 
   attributes: {
     displayName: {

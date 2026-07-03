@@ -91,7 +91,7 @@ const monitors = statusPage
   ? db.query(`
       SELECT
         m.id, m.name, m.url, m.type, m.status,
-        spm.display_name, spm.display_order
+        spm.display_name, spm.display_order, spm.status_page_component_group_id
       FROM status_page_monitors spm
       JOIN monitors m ON m.id = spm.monitor_id
       WHERE spm.status_page_id = ?1
@@ -100,7 +100,35 @@ const monitors = statusPage
       id: row.id,
       name: row.display_name || row.name,
       status: row.status || 'unknown',
+      groupId: row.status_page_component_group_id,
     }))
+  : []
+
+// Component groups (stacksjs/status#1 Phase 12) — a status page with no
+// groups at all renders the plain flat monitor list exactly as before
+// (see `monitorGroups.length === 0` in the template below); grouping is
+// opt-in per status page, not a required migration for existing ones.
+const componentGroups = statusPage
+  ? db.query(`
+      SELECT id, name, display_order
+      FROM status_page_component_groups
+      WHERE status_page_id = ?1
+      ORDER BY display_order ASC, name ASC
+    `).all(statusPage.id)
+  : []
+
+// Only build the grouped view when at least one monitor is actually
+// assigned to a group — otherwise `monitorGroups` stays empty and the
+// template falls back to the flat list.
+const monitorGroups = componentGroups.length > 0 && monitors.some((m) => m.groupId)
+  ? [
+      ...componentGroups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        monitors: monitors.filter((m) => m.groupId === g.id),
+      })),
+      { id: null, name: 'Other', monitors: monitors.filter((m) => !m.groupId) },
+    ].filter((g) => g.monitors.length > 0)
   : []
 
 const monitorIds = monitors.map((m) => m.id)
@@ -278,20 +306,41 @@ function bannerDotClass(tone) {
         </section>
       @endif
 
-      <section class="mb-10">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors</h2>
-        <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
-          @foreach (monitors as monitor)
-            <div class="flex items-center justify-between gap-4 px-4 py-3">
-              <p class="text-gray-900">{{ monitor.name }}</p>
-              <div class="flex items-center gap-2">
-                <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
-                <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+      @if (monitorGroups.length === 0)
+        <section class="mb-10">
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors</h2>
+          <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+            @foreach (monitors as monitor)
+              <div class="flex items-center justify-between gap-4 px-4 py-3">
+                <p class="text-gray-900">{{ monitor.name }}</p>
+                <div class="flex items-center gap-2">
+                  <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
+                  <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+                </div>
               </div>
+            @endforeach
+          </div>
+        </section>
+      @endif
+
+      @if (monitorGroups.length > 0)
+        @foreach (monitorGroups as group)
+          <section class="mb-10">
+            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ group.name }}</h2>
+            <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+              @foreach (group.monitors as monitor)
+                <div class="flex items-center justify-between gap-4 px-4 py-3">
+                  <p class="text-gray-900">{{ monitor.name }}</p>
+                  <div class="flex items-center gap-2">
+                    <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
+                    <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+                  </div>
+                </div>
+              @endforeach
             </div>
-          @endforeach
-        </div>
-      </section>
+          </section>
+        @endforeach
+      @endif
 
       @if (resolvedIncidents.length > 0)
         <section>
