@@ -170,6 +170,20 @@ const activeMaintenanceWindows = monitorIds.length > 0
     `).all(...monitorIds)
   : []
 
+// Status reports (stacksjs/status#1 Phase 12) — manually-authored
+// announcements, never opened automatically by a check (unlike
+// Incident). Rendered in their own "Announcements" section so a
+// planned/informational post doesn't read as an automated outage.
+const activeStatusReports = monitorIds.length > 0
+  ? db.query(`
+      SELECT DISTINCT sr.id, sr.title, sr.body, sr.status, sr.started_at
+      FROM status_reports sr
+      JOIN status_report_monitors srm ON srm.status_report_id = sr.id
+      WHERE srm.monitor_id IN (${placeholders}) AND sr.status != 'resolved'
+      ORDER BY sr.started_at DESC
+    `).all(...monitorIds)
+  : []
+
 const hasDown = monitors.some((m) => m.status === 'down')
 const hasDegraded = monitors.some((m) => m.status === 'degraded')
 
@@ -282,6 +296,24 @@ function bannerDotClass(tone) {
                 <p class="font-medium text-gray-900">{{ mw.title }}</p>
                 <p class="mt-1 text-sm text-gray-600">{{ mw.description }}</p>
                 <p class="mt-1 text-xs text-gray-400">{{ formatDate(mw.starts_at) }} — {{ formatDate(mw.ends_at) }}</p>
+              </div>
+            @endforeach
+          </div>
+        </section>
+      @endif
+
+      @if (activeStatusReports.length > 0)
+        <section class="mb-10">
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Announcements</h2>
+          <div class="space-y-3">
+            @foreach (activeStatusReports as report)
+              <div class="rounded-lg border border-gray-200 bg-white p-4">
+                <div class="flex items-center justify-between gap-4">
+                  <p class="font-medium text-gray-900">{{ report.title }}</p>
+                  <span class="text-xs font-medium uppercase tracking-wide text-gray-500">{{ report.status }}</span>
+                </div>
+                <p class="mt-1 text-sm text-gray-600">{{ report.body }}</p>
+                <p class="mt-1 text-xs text-gray-400">Posted {{ formatDate(report.started_at) }}</p>
               </div>
             @endforeach
           </div>

@@ -96,6 +96,16 @@ const hostActiveMaintenanceWindows = hostMonitorIds.length > 0
     `).all(...hostMonitorIds)
   : []
 
+const hostActiveStatusReports = hostMonitorIds.length > 0
+  ? statusDb.query(`
+      SELECT DISTINCT sr.id, sr.title, sr.body, sr.status, sr.started_at
+      FROM status_reports sr
+      JOIN status_report_monitors srm ON srm.status_report_id = sr.id
+      WHERE srm.monitor_id IN (${hostPlaceholders}) AND sr.status != 'resolved'
+      ORDER BY sr.started_at DESC
+    `).all(...hostMonitorIds)
+  : []
+
 const hostHasDown = hostMonitors.some((m) => m.status === 'down')
 const hostHasDegraded = hostMonitors.some((m) => m.status === 'degraded')
 const hostOverallLabel = hostHasDown ? 'Major Outage' : hostHasDegraded ? 'Partial Outage' : 'All Systems Operational'
@@ -1328,6 +1338,24 @@ const stackLayers = [
                   <p class="font-medium text-gray-900">{{ mw.title }}</p>
                   <p class="mt-1 text-sm text-gray-600">{{ mw.description }}</p>
                   <p class="mt-1 text-xs text-gray-400">{{ hostFormatDate(mw.starts_at) }} — {{ hostFormatDate(mw.ends_at) }}</p>
+                </div>
+              @endforeach
+            </div>
+          </section>
+        @endif
+
+        @if (hostActiveStatusReports.length > 0)
+          <section class="mb-10">
+            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Announcements</h2>
+            <div class="space-y-3">
+              @foreach (hostActiveStatusReports as report)
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                  <div class="flex items-center justify-between gap-4">
+                    <p class="font-medium text-gray-900">{{ report.title }}</p>
+                    <span class="text-xs font-medium uppercase tracking-wide text-gray-500">{{ report.status }}</span>
+                  </div>
+                  <p class="mt-1 text-sm text-gray-600">{{ report.body }}</p>
+                  <p class="mt-1 text-xs text-gray-400">Posted {{ hostFormatDate(report.started_at) }}</p>
                 </div>
               @endforeach
             </div>
