@@ -103,3 +103,28 @@ single HTTP check) are counted.
   for the pipeline itself (`WORKER_HEARTBEAT_URL`), complementary to but
   distinct from the scaling concerns here: it tells you the pipeline
   *stopped*, not that it's under-provisioned.
+
+## Custom status page domains
+
+A team can point a CNAME at this app and serve their status page at their
+own domain instead of `/status/{slug}` (stacksjs/status#1 Phase 7):
+
+1. Set `StatusPage.customDomain` to the desired hostname (e.g.
+   `status.acme.com`).
+2. The customer adds a CNAME record for that hostname pointing at wherever
+   this app is deployed.
+3. TLS for the custom domain is the deployer's responsibility (e.g. a
+   reverse proxy or load balancer terminating TLS for the additional
+   hostname) — this app does not provision certificates per custom domain.
+
+**How resolution works:** `resources/views/index.stx` (the file that owns
+the app's own `/` route) checks the incoming request's `host` — exposed to
+every `<script server>` block as an ambient variable added specifically for
+this feature (see `~/Code/Tools/stx` `packages/bun-plugin/src/serve.ts`,
+`activeServeHost`) — against `StatusPage.customDomain`. On a match it
+renders that team's status page instead of the marketing landing page; any
+other host renders the landing page as before. This has to live in
+`index.stx` rather than a dedicated route because this router's static
+file-based views take priority over programmatic `route.get()` registrations
+at the same path — a `route.get('/', ...)` action is simply never reached
+for `/`.

@@ -1,4 +1,78 @@
 <script server>
+// Custom status page domains (stacksjs/status#1 Phase 7): a customer
+// points a CNAME at this app and sets StatusPage.customDomain to their
+// hostname. `host` is the ambient Host-header variable stx exposes to
+// every `<script server>` block (see ~/Code/Tools/stx
+// packages/bun-plugin/src/serve.ts, activeServeHost/injectServeRequestContext
+// — added for this feature). The root path ('/') is the only entry point
+// that can intercept an arbitrary custom domain, since the file router
+// resolves purely by path and a custom domain always requests '/'; that's
+// why this lives here instead of a dedicated route (a route.get('/', ...)
+// registration is shadowed by this very file — static views win over
+// programmatic routes at the same path in this router).
+//
+// The query/markup below intentionally mirrors resources/views/status/[slug].stx
+// rather than sharing a helper — same convention as that file (each view
+// is self-contained), and the two entry points render independently
+// (this one for a custom domain hit on '/', that one for the app's own
+// /status/{slug} URLs).
+const StatusDb = require('bun:sqlite').Database
+const statusDbPath = require('path').resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const statusDb = new StatusDb(statusDbPath, { readonly: true })
+
+const requestHost = (typeof host !== 'undefined' && host) ? String(host).split(':')[0] : ''
+
+const statusPageForHost = requestHost
+  ? statusDb.query(`SELECT * FROM status_pages WHERE custom_domain = ?1 AND is_public = 1 LIMIT 1`).get(requestHost)
+  : null
+
+const hostMonitors = statusPageForHost
+  ? statusDb.query(`
+      SELECT
+        m.id, m.name, m.url, m.type, m.status,
+        spm.display_name, spm.display_order
+      FROM status_page_monitors spm
+      JOIN monitors m ON m.id = spm.monitor_id
+      WHERE spm.status_page_id = ?1
+      ORDER BY spm.display_order ASC, m.name ASC
+    `).all(statusPageForHost.id).map((row) => ({
+      id: row.id,
+      name: row.display_name || row.name,
+      status: row.status || 'unknown',
+    }))
+  : []
+
+const hostMonitorIds = hostMonitors.map((m) => m.id)
+const hostPlaceholders = hostMonitorIds.map((_, i) => `?${i + 1}`).join(', ')
+
+const hostActiveIncidents = hostMonitorIds.length > 0
+  ? statusDb.query(`
+      SELECT i.id, i.cause, i.status, i.started_at, m.name AS monitor_name
+      FROM incidents i
+      JOIN monitors m ON m.id = i.monitor_id
+      WHERE i.monitor_id IN (${hostPlaceholders}) AND i.status != 'resolved'
+      ORDER BY i.started_at DESC
+    `).all(...hostMonitorIds)
+  : []
+
+const hostHasDown = hostMonitors.some((m) => m.status === 'down')
+const hostHasDegraded = hostMonitors.some((m) => m.status === 'degraded')
+const hostOverallLabel = hostHasDown ? 'Major Outage' : hostHasDegraded ? 'Partial Outage' : 'All Systems Operational'
+
+function hostMonitorDotClass(status) {
+  if (status === 'up') return 'bg-emerald-500'
+  if (status === 'degraded') return 'bg-amber-500'
+  if (status === 'down') return 'bg-red-500'
+  return 'bg-gray-300'
+}
+
+function hostMonitorLabel(status) {
+  if (status === 'up') return 'Operational'
+  if (status === 'degraded') return 'Degraded'
+  if (status === 'down') return 'Down'
+  return 'Unknown'
+}
+
 const appName = 'Stacks'
 const appVersion = '0.1.0'
 const siteMode = 'coming-soon'
@@ -1180,6 +1254,51 @@ const stackLayers = [
     </style>
   </head>
   <body data-site-mode="{{ siteMode }}" data-coming-soon-bypass-enabled="{{ comingSoonBypassEnabled }}" data-coming-soon-bypass="{{ comingSoonBypassToken }}">
+    @if (statusPageForHost)
+      <div class="mx-auto max-w-3xl px-6 py-16">
+        <header class="mb-10">
+          <h1 class="text-2xl font-semibold text-gray-900">{{ statusPageForHost.title }}</h1>
+        </header>
+
+        <div class="mb-8 flex items-center gap-3 rounded-xl border px-5 py-4 border-gray-200 bg-gray-50">
+          <p class="font-medium text-gray-900">{{ hostOverallLabel }}</p>
+        </div>
+
+        @if (hostActiveIncidents.length > 0)
+          <section class="mb-10">
+            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Active incidents</h2>
+            <div class="space-y-3">
+              @foreach (hostActiveIncidents as incident)
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                  <div class="flex items-center justify-between gap-4">
+                    <p class="font-medium text-gray-900">{{ incident.monitor_name }}</p>
+                    <span class="text-xs font-medium uppercase tracking-wide text-amber-600">{{ incident.status }}</span>
+                  </div>
+                  <p class="mt-1 text-sm text-gray-600">{{ incident.cause }}</p>
+                </div>
+              @endforeach
+            </div>
+          </section>
+        @endif
+
+        <section>
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors</h2>
+          <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+            @foreach (hostMonitors as monitor)
+              <div class="flex items-center justify-between gap-4 px-4 py-3">
+                <p class="text-gray-900">{{ monitor.name }}</p>
+                <div class="flex items-center gap-2">
+                  <span class="h-2 w-2 rounded-full {{ hostMonitorDotClass(monitor.status) }}"></span>
+                  <span class="text-sm text-gray-500">{{ hostMonitorLabel(monitor.status) }}</span>
+                </div>
+              </div>
+            @endforeach
+          </div>
+        </section>
+      </div>
+    @endif
+
+    @if (!statusPageForHost)
     <section class="mode-screen" aria-labelledby="coming-soon-heading">
       <div class="mode-card">
         <span class="mode-sun" aria-hidden="true"></span>
@@ -1400,5 +1519,6 @@ Marketing, docs, blog, CMS, API, mail, and cloud.</div>
       </footer>
     </div>
     <script src="/assets/scripts/site-mode.js" defer></script>
+    @endif
   </body>
 </html>
