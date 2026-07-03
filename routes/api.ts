@@ -50,6 +50,10 @@ route.post('/ping/{token}', 'Actions/Heartbeats/ReceivePingAction')
 // same pattern as CreateMonitorAction, to enforce the team's plan limit.
 route.post('/status-pages', 'Actions/StatusPages/CreateStatusPageAction')
 
+// One-time migration from an existing Better Stack/Instatus/Statuspage.io
+// page (stacksjs/status#1 Phase 12).
+route.post('/status-pages/import', 'Actions/StatusPages/ImportStatusPageAction')
+
 // Password/email-domain gate for access-controlled status pages
 // (stacksjs/status#1 Phase 12) — public, no auth (this route IS the auth).
 route.post('/status/{slug}/unlock', 'Actions/StatusPages/UnlockStatusPageAction')
