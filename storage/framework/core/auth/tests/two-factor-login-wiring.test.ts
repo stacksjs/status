@@ -32,6 +32,15 @@ describe('TOTP login-challenge wiring', () => {
     expect(source).toMatch(/Auth\.loginUsingId\(userId\)/)
   })
 
+  test('setup Actions never trust a client-supplied secret', () => {
+    const generateSource = readFileSync(resolve(DEFAULTS_ROOT, 'app/Actions/Auth/GenerateTwoFactorSecretAction.ts'), 'utf-8')
+    const enableSource = readFileSync(resolve(DEFAULTS_ROOT, 'app/Actions/Auth/EnableTwoFactorAction.ts'), 'utf-8')
+
+    expect(generateSource).toMatch(/stashPendingTwoFactorSecret\(user\.id as number, secret\)/)
+    expect(enableSource).toMatch(/consumePendingTwoFactorSecret\(user\.id as number\)/)
+    expect(enableSource).not.toMatch(/request\.get\('secret'\)/)
+  })
+
   test('routes/dashboard.ts gates setup/enable/disable behind auth, leaves verify-two-factor-login open', () => {
     const source = readFileSync(resolve(DEFAULTS_ROOT, 'routes/dashboard.ts'), 'utf-8')
     const lines = source.split('\n')

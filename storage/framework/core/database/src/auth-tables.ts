@@ -267,6 +267,23 @@ export async function migrateAuthTables(options: { verbose?: boolean } = {}): Pr
       // Index might already exist
     }
 
+    // `two_factor_pending_secrets` — a freshly generated TOTP secret,
+    // stashed server-side while the user scans/enters it into their
+    // authenticator app. EnableTwoFactorAction verifies the submitted
+    // code against this stashed value, never a client-supplied secret
+    // (stacksjs/status#1 Phase 9) — same rationale as
+    // two_factor_challenges/webauthn_challenges above. One row per
+    // user; a fresh generate replaces any unconfirmed prior attempt.
+    if (options.verbose) log.info('Creating two_factor_pending_secrets table...')
+    await db.unsafe(`
+      CREATE TABLE IF NOT EXISTS two_factor_pending_secrets (
+        user_id INTEGER PRIMARY KEY,
+        secret VARCHAR(255) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).execute()
+
     // users.email_verified_at / password_changed_at / two_factor_* — see
     // {@link ensureUsersAuthColumns}. This first attempt runs before
     // `users` exists on a `buddy migrate`/`migrate:fresh` (the numbered

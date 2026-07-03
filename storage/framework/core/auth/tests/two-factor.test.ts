@@ -27,12 +27,14 @@ process.env.APP_ENV = 'testing'
 
 const { db, ensureDatabaseConfigLoaded, initializeDbConfig } = await import('@stacksjs/database')
 const {
+  consumePendingTwoFactorSecret,
   consumeTwoFactorChallenge,
   createTwoFactorChallenge,
   disableTwoFactor,
   enableTwoFactor,
   generateTwoFactorSetup,
   getTwoFactorState,
+  stashPendingTwoFactorSecret,
   verifyTwoFactorLoginCode,
 } = await import('../src/two-factor')
 const { generateTwoFactorToken } = await import('../src/authenticator')
@@ -73,6 +75,15 @@ beforeAll(async () => {
     CREATE TABLE IF NOT EXISTS two_factor_challenges (
       id VARCHAR(255) PRIMARY KEY,
       user_id INTEGER NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `).execute()
+
+  await db.unsafe(`
+    CREATE TABLE IF NOT EXISTS two_factor_pending_secrets (
+      user_id INTEGER PRIMARY KEY,
+      secret VARCHAR(255) NOT NULL,
       expires_at TIMESTAMP NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -148,6 +159,36 @@ describe('TOTP setup + enable/disable', () => {
     const state = await getTwoFactorState(userId)
     expect(state.enabled).toBe(false)
     expect(state.secret).toBeNull()
+  })
+})
+
+describe('pending secret stash (bridges GenerateTwoFactorSecretAction -> EnableTwoFactorAction)', () => {
+  test('a stashed secret consumes exactly once', async () => {
+    const userId = await seedUser('pending-once@example.com')
+    await stashPendingTwoFactorSecret(userId, 'SECRETVALUE1234')
+
+    expect(await consumePendingTwoFactorSecret(userId)).toBe('SECRETVALUE1234')
+    expect(await consumePendingTwoFactorSecret(userId)).toBeNull()
+  })
+
+  test('an expired pending secret is rejected', async () => {
+    const userId = await seedUser('pending-expired@example.com')
+    await stashPendingTwoFactorSecret(userId, 'SECRETVALUE1234', -1)
+
+    expect(await consumePendingTwoFactorSecret(userId)).toBeNull()
+  })
+
+  test('stashing a new secret for the same user replaces the previous pending one', async () => {
+    const userId = await seedUser('pending-replace@example.com')
+    await stashPendingTwoFactorSecret(userId, 'FIRSTSECRET1234')
+    await stashPendingTwoFactorSecret(userId, 'SECONDSECRET1234')
+
+    expect(await consumePendingTwoFactorSecret(userId)).toBe('SECONDSECRET1234')
+  })
+
+  test('a user with no pending secret gets null', async () => {
+    const userId = await seedUser('pending-none@example.com')
+    expect(await consumePendingTwoFactorSecret(userId)).toBeNull()
   })
 })
 

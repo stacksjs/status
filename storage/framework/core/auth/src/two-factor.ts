@@ -8,15 +8,20 @@
  * VerifyTwoFactorLoginAction (code verified, tokens minted).
  *
  * Setup flow (stacksjs/status#1 Phase 9):
- *   1. GenerateTwoFactorSecretAction returns a fresh secret + otpauth
- *      URI. Nothing is persisted yet — a secret the user never
- *      actually saved to their authenticator app would otherwise lock
- *      them out with `two_factor_enabled` on and no way to produce a
- *      valid code.
- *   2. EnableTwoFactorAction receives that same secret back plus a
- *      code the user's authenticator app produced from it. Only once
- *      the code verifies does the secret get persisted and
- *      `two_factor_enabled` flip to true.
+ *   1. GenerateTwoFactorSecretAction generates a fresh secret + otpauth
+ *      URI, stashes the secret server-side (two_factor_pending_secrets,
+ *      not yet the real `users.two_factor_secret`), and returns both to
+ *      the client for QR/manual-entry display.
+ *   2. EnableTwoFactorAction takes only a `code` from the client — the
+ *      secret it verifies against is the server-stashed pending one,
+ *      never a client-supplied value, so a client that echoes back a
+ *      stale or tampered secret can't silently enable 2FA against
+ *      something other than what generate-step actually issued. Same
+ *      "don't trust the client for security material" rule
+ *      passkey.ts's WebAuthn challenges follow (stacksjs/stacks#1866).
+ *      Only once the code verifies does the pending secret get
+ *      promoted to `users.two_factor_secret` and `two_factor_enabled`
+ *      flip to true.
  *
  * Login flow:
  *   1. LoginAction verifies the password (Auth.attempt), and if
@@ -71,6 +76,56 @@ export function generateTwoFactorSetup(email: string, serviceName?: string): { s
   const secret = generateTwoFactorSecret()
   const uri = generateTwoFactorUri(email, serviceName, secret)
   return { secret, uri }
+}
+
+const PENDING_SECRET_TTL_SECONDS = 10 * 60
+
+/**
+ * Stash a freshly generated secret server-side while the user goes
+ * scan/enter it into their authenticator app. Single pending secret
+ * per user — generating a new one invalidates any prior unconfirmed
+ * attempt, same delete-then-insert shape as storeWebAuthnChallenge.
+ */
+export async function stashPendingTwoFactorSecret(userId: number, secret: string, ttlSeconds: number = PENDING_SECRET_TTL_SECONDS): Promise<void> {
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString()
+
+  await db
+    .deleteFrom('two_factor_pending_secrets')
+    .where('user_id', '=', userId)
+    .execute()
+
+  await db
+    .insertInto('two_factor_pending_secrets')
+    .values({
+      user_id: userId,
+      secret,
+      expires_at: expiresAt,
+    } as never)
+    .execute()
+}
+
+/**
+ * Consume (delete-on-read) the pending secret stashed for a user, or
+ * null if none exists / it expired.
+ */
+export async function consumePendingTwoFactorSecret(userId: number): Promise<string | null> {
+  const row = await db
+    .selectFrom('two_factor_pending_secrets')
+    .where('user_id', '=', userId)
+    .selectAll()
+    .executeTakeFirst()
+
+  if (!row) return null
+
+  await db
+    .deleteFrom('two_factor_pending_secrets')
+    .where('user_id', '=', userId)
+    .execute()
+
+  const expiresAt = row.expires_at ? new Date(String(row.expires_at)).getTime() : 0
+  if (Date.now() > expiresAt) return null
+
+  return String(row.secret)
 }
 
 /**
@@ -164,6 +219,8 @@ export const TwoFactor = {
   isEnabled: isTwoFactorEnabled,
   getState: getTwoFactorState,
   generateSetup: generateTwoFactorSetup,
+  stashPendingSecret: stashPendingTwoFactorSecret,
+  consumePendingSecret: consumePendingTwoFactorSecret,
   enable: enableTwoFactor,
   disable: disableTwoFactor,
   verifyLoginCode: verifyTwoFactorLoginCode,

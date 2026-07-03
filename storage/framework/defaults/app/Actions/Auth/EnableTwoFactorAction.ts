@@ -1,18 +1,14 @@
 import { Action } from '@stacksjs/actions'
-import { enableTwoFactor } from '@stacksjs/auth'
+import { consumePendingTwoFactorSecret, enableTwoFactor } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
 
 export default new Action({
   name: 'EnableTwoFactorAction',
-  description: 'Verify a TOTP setup code and, if valid, persist the secret and enable 2FA',
+  description: 'Verify a TOTP setup code against the server-stashed pending secret and, if valid, enable 2FA',
   method: 'POST',
 
   validations: {
-    secret: {
-      rule: schema.string().min(16),
-      message: 'A valid TOTP secret is required.',
-    },
     code: {
       rule: schema.string().min(6).max(6),
       message: 'Code must be a 6-digit TOTP code.',
@@ -24,10 +20,15 @@ export default new Action({
     if (!user)
       return response.unauthorized('Unauthorized')
 
-    const secret = request.get('secret')
     const code = request.get('code')
 
-    const enabled = await enableTwoFactor(user.id as number, secret, code)
+    // The secret is never taken from the client — see
+    // GenerateTwoFactorSecretAction / two-factor.ts's doc comment.
+    const pendingSecret = await consumePendingTwoFactorSecret(user.id as number)
+    if (!pendingSecret)
+      return response.unauthorized('No pending setup found — please generate a new QR code and try again.')
+
+    const enabled = await enableTwoFactor(user.id as number, pendingSecret, code)
     if (!enabled)
       return response.unauthorized('Invalid code — please check your authenticator app and try again.')
 
