@@ -42,18 +42,22 @@ export default new Job({
 
       const subscribers = await StatusPageSubscriber.where('status_page_id', statusPage.id).get()
       for (const subscriber of subscribers) {
-        try {
-          await mail.send({
-            to: subscriber.email,
-            subject: payload.subject,
-            text: `${payload.message}\n\nUnsubscribe: /status/${statusPage.slug}/unsubscribe/${subscriber.unsubscribe_token}`,
-            html: `<p>${payload.message}</p><p><a href="/status/${statusPage.slug}/unsubscribe/${subscriber.unsubscribe_token}">Unsubscribe</a></p>`,
-          })
+        // mail.send never throws on transport failure — drivers catch
+        // internally and resolve { success: false } — so the result must
+        // be inspected or failed sends count as delivered. Deliberately
+        // NOT rethrown for the queue to retry: a retry would re-email
+        // every subscriber that already got the announcement.
+        const result = await mail.send({
+          to: subscriber.email,
+          subject: payload.subject,
+          text: `${payload.message}\n\nUnsubscribe: /status/${statusPage.slug}/unsubscribe/${subscriber.unsubscribe_token}`,
+          html: `<p>${payload.message}</p><p><a href="/status/${statusPage.slug}/unsubscribe/${subscriber.unsubscribe_token}">Unsubscribe</a></p>`,
+        })
+
+        if (result.success)
           emailed++
-        }
-        catch (error) {
-          log.warn(`[job] NotifyStatusReportSubscribers: failed to email ${subscriber.email}: ${error instanceof Error ? error.message : String(error)}`)
-        }
+        else
+          log.warn(`[job] NotifyStatusReportSubscribers: failed to email ${subscriber.email}: ${result.message}`)
       }
     }
 

@@ -31,7 +31,9 @@ export default new Action({
           invited_at: new Date().toISOString(),
         })
 
-        await SendTeamInviteEmail.dispatch({ email, teamId, role, inviteUuid: member.uuid })
+        // Best-effort, same as InviteTeamMemberAction — the row exists;
+        // a sync-driver mail failure must not break the form redirect.
+        await SendTeamInviteEmail.dispatch({ email, teamId, role, inviteUuid: member.uuid }).catch(() => {})
       }
     }
 

@@ -34,7 +34,14 @@ export default new Job({
     const teamName = team?.name || 'a team'
     const appName = config.app.name || 'Status'
 
-    await mail.send({
+    // mail.send never throws on transport failure — drivers catch
+    // internally and resolve { success: false } — so without this check a
+    // failed send would complete the job "successfully", `tries: 3` would
+    // never engage, and the acceptance token (whose only delivery channel
+    // is this email) would be silently lost. Throwing hands the failure to
+    // the queue layer for retry; the dispatching actions catch it so an
+    // invite request never 500s over a mail hiccup on the sync driver.
+    const result = await mail.send({
       to: email,
       subject: `You've been invited to join ${teamName} on ${appName}`,
       text: [
@@ -52,6 +59,9 @@ export default new Job({
         `<p>If you weren't expecting this invite, you can ignore this email.</p>`,
       ].join('\n'),
     })
+
+    if (!result.success)
+      throw new Error(`[job] SendTeamInviteEmail: send to ${email} failed: ${result.message}`)
 
     log.debug(`[job] SendTeamInviteEmail: invite for team ${teamId} sent to ${email}`)
   },

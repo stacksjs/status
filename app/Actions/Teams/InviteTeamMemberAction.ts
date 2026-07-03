@@ -40,7 +40,10 @@ export default new Action({
       invited_at: new Date().toISOString(),
     })
 
-    await SendTeamInviteEmail.dispatch({ email, teamId, role, inviteUuid: member.uuid })
+    // Best-effort on the sync queue driver: the invite row already exists,
+    // so a mail-transport failure (the job throws for the queue layer's
+    // retries) must not 500 the request — same choice as SubscribeAction.
+    await SendTeamInviteEmail.dispatch({ email, teamId, role, inviteUuid: member.uuid }).catch(() => {})
 
     return response.json(member, { status: 201 })
   },
