@@ -222,11 +222,10 @@ export const tsCloud: TsCloudConfig = {
       webServer: 'rpx',
       proxy: {
         engine: 'rpx',
-        // No domain configured yet (uptime-status.org DNS not wired up)
-        // — on-demand TLS needs a resolvable domain to complete the
-        // Let's Encrypt HTTP-01 challenge. Re-enable once DNS points
-        // uptime-status.org at this box.
-        onDemandTls: false,
+        // uptime-status.org's A record now resolves to this box's IP
+        // (confirmed via `dig`), so the Let's Encrypt HTTP-01 challenge
+        // can complete.
+        onDemandTls: true,
         onDemandTlsEmail: 'admin@uptime-status.org',
       },
       // Uncomment for auto-scaling:
@@ -557,13 +556,13 @@ export const tsCloud: TsCloudConfig = {
    *  - no `start` (has `root`) → server-static, built locally and shipped to
    *    `/var/www/<siteName>`
    *
-   * `main`'s `domain` is intentionally commented out: DNS for
-   * uptime-status.org isn't pointed at this box yet (see infrastructure.dns
-   * above — no PORKBUN_API_KEY/PORKBUN_SECRET_KEY configured, so ts-cloud
-   * won't create the record automatically). Deploying without a domain
-   * serves the app directly on the box's public IP (http://<ip>:3000) for
-   * e2e verification; uncomment once DNS is confirmed and redeploy to pick
-   * up the domain + enable infrastructure.compute.proxy.onDemandTls.
+   * `main`'s `domain` is now set: PORKBUN_API_KEY/PORKBUN_SECRET_KEY are
+   * configured (see infrastructure.dns above), so `reconcileHetznerDns`
+   * creates the A records automatically on deploy. `onDemandTls` in
+   * infrastructure.compute.proxy stays `false` for this deploy — Let's
+   * Encrypt's HTTP-01 challenge needs DNS to already resolve, so flip it to
+   * `true` and redeploy once `dig uptime-status.org` confirms the A record
+   * has propagated to the box's IP.
    */
   sites: {
     main: {
@@ -571,10 +570,13 @@ export const tsCloud: TsCloudConfig = {
       // and install on the server via preStart, matching the Forge-style deploy.
       root: '.',
       path: '/',
-      // domain: env.APP_DOMAIN || 'uptime-status.org',
+      domain: env.APP_DOMAIN || 'uptime-status.org',
       start: 'bun storage/framework/core/buddy/src/cli.ts serve',
       port: 3000,
-      preStart: ['bun install'],
+      // `buddy migrate` only applies pending schema changes, so running it
+      // on every deploy is safe/idempotent — this is the one site that
+      // owns migrations for the shared DB_DATABASE_PATH sqlite file.
+      preStart: ['bun install', 'bun buddy migrate'],
     },
 
     // API (bun-router) behind `buddy serve`'s same-origin /api proxy.
