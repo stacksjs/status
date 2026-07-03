@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { awaitConfig, config } from '@stacksjs/config'
 import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture.ts'
+import DashboardInviteTeamMemberAction from '../../app/Actions/Teams/DashboardInviteTeamMemberAction'
 import InviteTeamMemberAction from '../../app/Actions/Teams/InviteTeamMemberAction'
 import TeamMember from '../../app/Models/TeamMember'
 
@@ -62,6 +63,31 @@ describe('Team invite email delivery (stacksjs/status#1 Phase 9 follow-up)', () 
 
     const second = await InviteTeamMemberAction.handle(request as any)
     expect(second.status).toBe(200)
+    expect(CaptureEmailDriver.all()).toHaveLength(1)
+  })
+
+  test('a dashboard form invite emails the token and redirects back to the same team', async () => {
+    const request = { get: (key: string) => ({ id: String(TEAM_ID), email: 'form-invitee@example.com', role: 'member' } as Record<string, string>)[key] }
+
+    const response = await DashboardInviteTeamMemberAction.handle(request as any)
+    expect(response.status).toBe(302)
+    // The redirect must carry the team context — a bare Location here was
+    // the bug fixed alongside this feature (team.stx defaults TEAM_ID to 1).
+    expect(response.headers.get('Location')).toBe(`/dashboard/settings/team?team_id=${TEAM_ID}`)
+
+    const member = await TeamMember.where('team_id', TEAM_ID).where('invited_email', 'form-invitee@example.com').first()
+    expect(member).toBeTruthy()
+    createdIds.push(member!.id)
+
+    const sent = CaptureEmailDriver.all()
+    expect(sent).toHaveLength(1)
+    expect(sent[0]!.to).toBe('form-invitee@example.com')
+    expect(String(sent[0]!.text)).toContain(member!.uuid)
+
+    // Re-submitting the form neither duplicates the row nor re-sends.
+    const again = await DashboardInviteTeamMemberAction.handle(request as any)
+    expect(again.status).toBe(302)
+    expect((await TeamMember.where('team_id', TEAM_ID).where('invited_email', 'form-invitee@example.com').get()).length).toBe(1)
     expect(CaptureEmailDriver.all()).toHaveLength(1)
   })
 })
