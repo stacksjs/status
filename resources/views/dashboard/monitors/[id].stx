@@ -18,6 +18,8 @@ const path = require('path')
 const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
 const db = new Database(dbPath, { readonly: true })
 
+const appUrl = process.env.APP_URL || 'http://localhost:3000'
+
 const monitorId = (typeof id !== 'undefined' && id) ? Number(id) : 0
 const monitor = monitorId ? db.query(`SELECT * FROM monitors WHERE id = ?1 LIMIT 1`).get(monitorId) : null
 
@@ -90,6 +92,62 @@ const sparklineHeight = 80
 const sparklinePath = buildSparkline(chartChecks.map((c) => c.response_time_ms), sparklineWidth, sparklineHeight)
 const latestResponseTime = chartChecks.length > 0 ? chartChecks[chartChecks.length - 1].response_time_ms : null
 const avgResponseTime = chartChecks.length > 0 ? Math.round(chartChecks.reduce((sum, c) => sum + c.response_time_ms, 0) / chartChecks.length) : null
+
+// Time-range filter + request-volume/CPU/RAM aggregation. `range` picks
+// both the lookback window and the bucket granularity (hourly buckets for
+// 24h so the chart isn't just 1 bar, daily buckets for the wider windows).
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const range = query.get('range') || '24h'
+const RANGE_CONFIG = {
+  '24h': { sinceMs: 24 * 60 * 60 * 1000, bucketExpr: `strftime('%Y-%m-%d %H:00', checked_at)` },
+  '7d': { sinceMs: 7 * 24 * 60 * 60 * 1000, bucketExpr: `date(checked_at)` },
+  '30d': { sinceMs: 30 * 24 * 60 * 60 * 1000, bucketExpr: `date(checked_at)` },
+}
+const { sinceMs, bucketExpr } = RANGE_CONFIG[range] || RANGE_CONFIG['24h']
+const since = new Date(Date.now() - sinceMs).toISOString()
+
+function rangeUrl(r) {
+  const p = new URLSearchParams(query)
+  p.set('range', r)
+  return '/dashboard/monitors/' + monitorId + '?' + p.toString()
+}
+
+const volumeBuckets = monitor
+  ? db.query(`
+      SELECT ${bucketExpr} as bucket, COUNT(*) as request_count,
+             AVG(json_extract(metadata, '$.cpuPercent')) as avg_cpu,
+             AVG(json_extract(metadata, '$.ramPercent')) as avg_ram
+      FROM check_results
+      WHERE monitor_id = ?1 AND checked_at >= ?2
+      GROUP BY bucket ORDER BY bucket ASC
+    `).all(monitor.id, since)
+  : []
+
+const totalChecksInRange = volumeBuckets.reduce((sum, b) => sum + b.request_count, 0)
+
+function buildBarChart(values, width, height) {
+  if (values.length === 0) return []
+  const max = Math.max(...values, 1)
+  const barWidth = width / values.length
+  return values.map((v, i) => ({
+    x: (i * barWidth).toFixed(1),
+    y: (height - (v / max) * height).toFixed(1),
+    w: (barWidth * 0.8).toFixed(1),
+    h: ((v / max) * height || 0).toFixed(1),
+  }))
+}
+
+const volumeChartWidth = 600
+const volumeChartHeight = 80
+const volumeBars = buildBarChart(volumeBuckets.map((b) => b.request_count), volumeChartWidth, volumeChartHeight)
+
+// CPU/RAM line paths — only meaningful when this monitor reports metrics.
+const cpuPath = monitor && monitor.reports_metrics
+  ? buildSparkline(volumeBuckets.map((b) => b.avg_cpu || 0), volumeChartWidth, volumeChartHeight)
+  : ''
+const ramPath = monitor && monitor.reports_metrics
+  ? buildSparkline(volumeBuckets.map((b) => b.avg_ram || 0), volumeChartWidth, volumeChartHeight)
+  : ''
 
 // 90-day uptime bar: one segment per day, 'up'/'degraded'/'down'/'unknown'.
 const dailyRows = monitor
@@ -207,6 +265,52 @@ if (latestPortScan) {
         <p class="mt-1 text-2xl font-semibold text-gray-900">{{ avgResponseTime !== null ? avgResponseTime + 'ms' : '—' }}</p>
       </div>
     </section>
+
+    <section class="mb-8 flex items-center gap-2">
+      <span class="text-xs font-medium uppercase tracking-wide text-gray-400">Range</span>
+      <a href="{{ rangeUrl('24h') }}" class="rounded-full px-3 py-1 text-xs {{ range === '24h' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">24h</a>
+      <a href="{{ rangeUrl('7d') }}" class="rounded-full px-3 py-1 text-xs {{ range === '7d' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">7d</a>
+      <a href="{{ rangeUrl('30d') }}" class="rounded-full px-3 py-1 text-xs {{ range === '30d' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">30d</a>
+    </section>
+
+    <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Total checks ({{ range }})</h2>
+      <p class="text-2xl font-semibold text-gray-900">{{ totalChecksInRange }}</p>
+    </section>
+
+    @if (volumeBars.length > 0)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Request volume ({{ range }})</h2>
+        <svg viewBox="0 0 {{ volumeChartWidth }} {{ volumeChartHeight }}" class="h-20 w-full">
+          @foreach (volumeBars as bar)
+            <rect x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.w }}" height="{{ bar.h }}" fill="#3b82f6"></rect>
+          @endforeach
+        </svg>
+      </section>
+    @endif
+
+    @if (monitor.reports_metrics && volumeBars.length > 0)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">CPU / RAM usage ({{ range }})</h2>
+        <svg viewBox="0 0 {{ volumeChartWidth }} {{ volumeChartHeight }}" class="h-20 w-full">
+          <path d="{{ cpuPath }}" fill="none" stroke="#f59e0b" stroke-width="2"></path>
+          <path d="{{ ramPath }}" fill="none" stroke="#8b5cf6" stroke-width="2"></path>
+        </svg>
+        <p class="mt-2 text-xs text-gray-400"><span class="text-amber-500">&#9679;</span> CPU &nbsp; <span class="text-purple-500">&#9679;</span> RAM</p>
+      </section>
+    @endif
+
+    @if (monitor.reports_metrics)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Agent setup</h2>
+        <p class="mb-3 text-sm text-gray-500">Push CPU/RAM samples from this server on a cron schedule:</p>
+        <pre class="overflow-x-auto rounded-lg bg-gray-900 p-3 text-xs text-gray-100">CPU=$(top -bn1 | grep Cpu | awk '{print $2}')
+read TOTAL USED &lt; &lt;(free -m | awk '/Mem:/{print $2, $3}')
+curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
+  -H 'Content-Type: application/json' \
+  -d "{\"cpuPercent\":$CPU,\"ramPercent\":$(( USED * 100 / TOTAL )),\"ramUsedMb\":$USED,\"ramTotalMb\":$TOTAL}"</pre>
+      </section>
+    @endif
 
     <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
       <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">90-day uptime</h2>
