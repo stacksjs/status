@@ -1,24 +1,37 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import { DEFAULT_PLAN, PLAN_LIMITS } from '../../../config/plans'
+import Subscription from '../../../storage/framework/defaults/app/Models/Subscription'
 import Monitor from '../../Models/Monitor'
+import TeamMember from '../../Models/TeamMember'
 
 /**
- * Overrides the useApi-generated `POST /monitors` (user-defined routes in
- * routes/ take priority over auto-generated ones — see
- * storage/framework/core/orm/routes.ts) to enforce the plan's monitor
- * limit before creating.
+ * The built-in Subscription model is `belongsTo: ['User']`, not Team —
+ * there's no such thing as "a team's plan" in the billing schema itself.
+ * The product decision this app makes (stacksjs/status#1 Phase 9): a
+ * team's plan is its *owner's* most recent Subscription. TeamMember (see
+ * app/Models/TeamMember.ts) is what makes "who is this team's owner" a
+ * real, queryable fact — it didn't exist before this phase, so this used
+ * to be an unconditional DEFAULT_PLAN stub.
  *
- * Every team is treated as being on DEFAULT_PLAN for now — there's no
- * billing integration wiring a team to a real Subscription yet (the
- * built-in Subscription model is `belongsTo: ['User']`, not Team, so
- * mapping "this team's active plan" needs a product decision — team
- * owner's subscription? a separate TeamSubscription pivot? — before it's
- * worth building. This function is the single place that decision plugs
- * into once made; everything else in this action is plan-agnostic.
+ * Falls back to DEFAULT_PLAN whenever the chain is incomplete (no active
+ * owner membership yet, or the owner has no Subscription row) — a team
+ * mid-checkout or pre-billing-integration is treated as free-tier, not as
+ * an error.
  */
-async function planLimitFor(_teamId: number): Promise<number> {
-  return PLAN_LIMITS[DEFAULT_PLAN]!.monitors
+async function planLimitFor(teamId: number): Promise<number> {
+  const owner = await TeamMember.where('team_id', teamId).where('role', 'owner').where('status', 'active').first()
+  if (!owner || !owner.user_id)
+    return PLAN_LIMITS[DEFAULT_PLAN]!.monitors
+
+  // Subscription has no useTimestamps trait (see its model definition) —
+  // order by id (autoIncrement) as the "most recent" proxy instead.
+  const subscription = await Subscription.where('user_id', owner.user_id).orderByDesc('id').first()
+  const plan = subscription?.plan
+  if (!plan || !(plan in PLAN_LIMITS))
+    return PLAN_LIMITS[DEFAULT_PLAN]!.monitors
+
+  return PLAN_LIMITS[plan]!.monitors
 }
 
 export default new Action({
