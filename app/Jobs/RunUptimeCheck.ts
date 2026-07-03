@@ -1,6 +1,7 @@
 import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
 import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import IncidentUpdate from '../Models/IncidentUpdate'
@@ -44,6 +45,27 @@ export default new Job({
       statusCode = response.status
       status = response.status >= 200 && response.status < 400 ? 'up' : 'down'
       message = status === 'up' ? 'OK' : `Unexpected status code ${response.status}`
+
+      // Assertions (stacksjs/status#1 Phase 12) only run when the base
+      // HTTP check already passed — a 500 is already "down" regardless of
+      // what the body says. Body is read in full for keyword/JSONPath-ish
+      // matching; fine for typical monitored health/API/HTML endpoints,
+      // not meant for streaming huge payloads.
+      if (status === 'up') {
+        const headers: Record<string, string> = {}
+        response.headers.forEach((value, key) => { headers[key.toLowerCase()] = value })
+        const body = await response.text().catch(() => '')
+
+        const evaluation = await EvaluateAssertionsAction.handle({
+          monitorId: monitor.id,
+          subject: { statusCode: response.status, headers, body, responseTimeMs: Math.round(performance.now() - startedAt) },
+        })
+
+        if (!evaluation.passed) {
+          status = 'down'
+          message = evaluation.failures.join('; ')
+        }
+      }
     }
     catch (error) {
       status = 'down'

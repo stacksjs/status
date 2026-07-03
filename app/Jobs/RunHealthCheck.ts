@@ -1,6 +1,7 @@
 import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
 import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
@@ -50,7 +51,11 @@ export default new Job({
 
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
-      const body = await response.json().catch(() => null) as { status?: string, checks?: Record<string, boolean> } | null
+      const rawBody = await response.text().catch(() => '')
+      const body = ((): { status?: string, checks?: Record<string, boolean> } | null => {
+        try { return JSON.parse(rawBody) }
+        catch { return null }
+      })()
 
       if (!response.ok || !body?.status) {
         status = 'down'
@@ -69,6 +74,24 @@ export default new Job({
         message = `Reported status: ${body.status}`
       }
       metadata = body?.checks ? { checks: body.checks } : {}
+
+      // Assertions (stacksjs/status#1 Phase 12) layer on top of the health
+      // contract above — only evaluated when the endpoint itself already
+      // reported healthy, same reasoning as RunUptimeCheck.
+      if (status === 'up') {
+        const headers: Record<string, string> = {}
+        response.headers.forEach((value, key) => { headers[key.toLowerCase()] = value })
+
+        const evaluation = await EvaluateAssertionsAction.handle({
+          monitorId: monitor.id,
+          subject: { statusCode: response.status, headers, body: rawBody, responseTimeMs: Math.round(performance.now() - startedAt) },
+        })
+
+        if (!evaluation.passed) {
+          status = 'down'
+          message = evaluation.failures.join('; ')
+        }
+      }
     }
     catch (error) {
       status = 'down'
