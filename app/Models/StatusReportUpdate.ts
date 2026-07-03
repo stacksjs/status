@@ -20,6 +20,13 @@ export default defineModel({
       uri: 'status-report-updates',
       routes: ['index', 'store', 'show'],
     },
+
+    // Posting an update is what emails status page subscribers about an
+    // announcement — see Notifications/SendStatusReportUpdateNotification,
+    // registered against 'statusreportupdate:created' in app/Events.ts
+    // (model name lowercased with no separator, same convention as
+    // 'checkresult:created').
+    observe: ['create'],
   },
 
   belongsTo: ['StatusReport'],

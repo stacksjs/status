@@ -23,4 +23,12 @@ export default {
   // define-model.ts: `definition.name.toLowerCase()`), NOT snake_case —
   // 'checkresult:created', not 'check_result:created'.
   'checkresult:created': ['Webhooks/DeliverCheckResultWebhooks'],
+
+  // StatusReportUpdate has `observe: ['create']` — posting an update to a
+  // status report emails the subscribers of every status page showing a
+  // covered monitor (stacksjs/status#1 Phase 12 follow-up). Report
+  // creation itself deliberately does not notify: monitors can only be
+  // attached after the report exists, so the audience at create time is
+  // always empty (see the listener's docblock).
+  'statusreportupdate:created': ['Notifications/SendStatusReportUpdateNotification'],
 } satisfies Events
