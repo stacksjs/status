@@ -1,3 +1,4 @@
+import process from 'node:process'
 import Subscription from '../storage/framework/defaults/app/Models/Subscription'
 import TeamMember from '../app/Models/TeamMember'
 
@@ -34,6 +35,19 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
 export const DEFAULT_PLAN = 'free'
 
 /**
+ * Paid-tier Stripe Price IDs (stacksjs/status#1 Phase 9 billing
+ * checkout). Env-driven rather than hardcoded — every Stacks install
+ * has its own Stripe account, so these can't ship as literal values.
+ * A plan slug with no configured price ID (unset env var, or `free`
+ * itself, which has no Stripe price at all) can't be checked out —
+ * see CreateCheckoutSessionAction.
+ */
+export const PLAN_STRIPE_PRICE_IDS: Partial<Record<string, string>> = {
+  starter: process.env.STRIPE_PRICE_STARTER,
+  pro: process.env.STRIPE_PRICE_PRO,
+}
+
+/**
  * The built-in Subscription model is `belongsTo: ['User']`, not Team —
  * there's no such thing as "a team's plan" in the billing schema itself.
  * The product decision this app makes: a team's plan is its *active
@@ -46,21 +60,27 @@ export const DEFAULT_PLAN = 'free'
  * Single source of truth for this resolution — every plan-gated create
  * action (monitors, status pages, ...) calls this rather than
  * re-deriving it, so the owner/subscription lookup can't drift between
- * call sites.
+ * call sites. CreateCheckoutSessionAction reuses getTeamOwnerUserId
+ * below rather than duplicating the TeamMember lookup.
  */
 export async function planLimitsForTeam(teamId: number): Promise<PlanLimits> {
-  const owner = await TeamMember.where('team_id', teamId).where('role', 'owner').where('status', 'active').first()
-  if (!owner || !owner.user_id)
+  const ownerUserId = await getTeamOwnerUserId(teamId)
+  if (!ownerUserId)
     return PLAN_LIMITS[DEFAULT_PLAN]!
 
   // Subscription has no useTimestamps trait (see its model definition) —
   // order by id (autoIncrement) as the "most recent" proxy instead.
-  const subscription = await Subscription.where('user_id', owner.user_id).orderByDesc('id').first()
+  const subscription = await Subscription.where('user_id', ownerUserId).orderByDesc('id').first()
   const plan = subscription?.plan
   if (!plan || !(plan in PLAN_LIMITS))
     return PLAN_LIMITS[DEFAULT_PLAN]!
 
   return PLAN_LIMITS[plan]!
+}
+
+export async function getTeamOwnerUserId(teamId: number): Promise<number | null> {
+  const owner = await TeamMember.where('team_id', teamId).where('role', 'owner').where('status', 'active').first()
+  return owner?.user_id ?? null
 }
 
 export default PLAN_LIMITS
