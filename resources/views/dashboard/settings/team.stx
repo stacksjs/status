@@ -7,12 +7,44 @@
 <script server>
 const Database = require('bun:sqlite').Database
 const path = require('path')
+const { config } = require('@stacksjs/config')
+const { Auth, sessionUser } = require('@stacksjs/auth')
 
 const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
 const db = new Database(dbPath, { readonly: true })
 
-const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
-const TEAM_ID = Number(query.get('team_id')) || 1
+// Auth + team resolution — see resources/views/dashboard/monitors/
+// index.stx's copy of this block for the full rationale. This page
+// used to trust a client-supplied `?team_id=` query param outright,
+// letting any signed-in user view (and, via the forms below, invite
+// into / remove members from) any team by editing the URL.
+async function resolveAuthTeam() {
+  const guardName = config.auth?.default || 'api'
+  const guard = config.auth?.guards?.[guardName] || {}
+  const driver = guard.driver || 'token'
+  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
+
+  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
+    ? globalThis.requestContext.cookie(cookieName)
+    : null
+  if (!cookieValue) return null
+
+  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
+  if (!user || !user.id) return null
+
+  const membership = db.query(`
+    SELECT team_id FROM team_members
+    WHERE user_id = ?1 AND status = 'active'
+    ORDER BY CASE WHEN role = 'owner' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END
+    LIMIT 1
+  `).get(user.id)
+
+  return { user, teamId: membership ? membership.team_id : null }
+}
+
+const AUTH = await resolveAuthTeam()
+const AUTH_USER = AUTH ? AUTH.user : null
+const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
 
 const team = db.query(`SELECT id, name FROM teams WHERE id = ?1 LIMIT 1`).get(TEAM_ID)
 const members = db.query(`SELECT id, invited_email, role, status, invited_at, joined_at FROM team_members WHERE team_id = ?1 ORDER BY role ASC, invited_email ASC`).all(TEAM_ID)
@@ -25,6 +57,14 @@ function roleTone(role) {
 </script>
 
 <div class="mx-auto max-w-3xl px-6 py-10">
+  @if (!AUTH_USER)
+    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
+      <h3 class="font-medium text-gray-900">Sign in required</h3>
+      <p class="mt-1 text-sm text-gray-500">You need an authenticated session to view this page.</p>
+    </div>
+  @endif
+
+  @if (AUTH_USER)
   <header class="mb-6">
     <h1 class="text-xl font-semibold text-gray-900">Team settings</h1>
     <p class="mt-1 text-sm text-gray-500">{{ team ? team.name : 'Team #' + TEAM_ID }} &middot; {{ members.length }} member{{ members.length === 1 ? '' : 's' }}</p>
@@ -69,4 +109,5 @@ function roleTone(role) {
     </form>
     <p class="mt-3 text-xs text-gray-400">Invites are emailed with their acceptance token. Accepting still happens via the API until dashboard sign-in lands.</p>
   </section>
+  @endif
 </div>

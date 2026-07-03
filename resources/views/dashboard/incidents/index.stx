@@ -5,9 +5,42 @@
 <script server>
 const Database = require('bun:sqlite').Database
 const path = require('path')
+const { config } = require('@stacksjs/config')
+const { Auth, sessionUser } = require('@stacksjs/auth')
 
 const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
 const db = new Database(dbPath, { readonly: true })
+
+// Auth + team resolution — see monitors/index.stx's copy of this block
+// for the full rationale. This feed previously joined across ALL
+// monitors regardless of team.
+async function resolveAuthTeam() {
+  const guardName = config.auth?.default || 'api'
+  const guard = config.auth?.guards?.[guardName] || {}
+  const driver = guard.driver || 'token'
+  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
+
+  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
+    ? globalThis.requestContext.cookie(cookieName)
+    : null
+  if (!cookieValue) return null
+
+  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
+  if (!user || !user.id) return null
+
+  const membership = db.query(`
+    SELECT team_id FROM team_members
+    WHERE user_id = ?1 AND status = 'active'
+    ORDER BY CASE WHEN role = 'owner' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END
+    LIMIT 1
+  `).get(user.id)
+
+  return { user, teamId: membership ? membership.team_id : null }
+}
+
+const AUTH = await resolveAuthTeam()
+const AUTH_USER = AUTH ? AUTH.user : null
+const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
 
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
 const filterStatus = query.get('status') || ''
@@ -16,9 +49,9 @@ let sql = `
   SELECT i.id, i.cause, i.status, i.started_at, i.resolved_at, m.id AS monitor_id, m.name AS monitor_name
   FROM incidents i
   JOIN monitors m ON m.id = i.monitor_id
-  WHERE 1=1
+  WHERE m.team_id = ?1
 `
-const params = []
+const params = [TEAM_ID]
 if (filterStatus) {
   sql += ` AND i.status = ?${params.length + 1}`
   params.push(filterStatus)
@@ -27,7 +60,10 @@ sql += ` ORDER BY i.started_at DESC LIMIT 100`
 
 const incidents = db.query(sql).all(...params)
 
-const openCount = db.query(`SELECT COUNT(*) as c FROM incidents WHERE status != 'resolved'`).get().c
+const openCount = db.query(`
+  SELECT COUNT(*) as c FROM incidents i JOIN monitors m ON m.id = i.monitor_id
+  WHERE i.status != 'resolved' AND m.team_id = ?1
+`).get(TEAM_ID).c
 
 function toneClass(status) {
   if (status === 'resolved') return 'text-emerald-600 bg-emerald-50'
@@ -52,10 +88,18 @@ function statusUrl(s) {
 </script>
 
 <div class="mx-auto max-w-4xl px-6 py-10">
+  @if (!AUTH_USER)
+    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
+      <h3 class="font-medium text-gray-900">Sign in required</h3>
+      <p class="mt-1 text-sm text-gray-500">You need an authenticated session to view this page.</p>
+    </div>
+  @endif
+
+  @if (AUTH_USER)
   <header class="mb-6 flex items-center justify-between">
     <div>
       <h1 class="text-xl font-semibold text-gray-900">Incidents</h1>
-      <p class="mt-1 text-sm text-gray-500">{{ openCount }} open across all monitors</p>
+      <p class="mt-1 text-sm text-gray-500">{{ openCount }} open across your team's monitors</p>
     </div>
   </header>
 
@@ -86,5 +130,6 @@ function statusUrl(s) {
         </a>
       @endforeach
     </div>
+  @endif
   @endif
 </div>

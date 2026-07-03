@@ -121,6 +121,14 @@ route.post('/billing-forms/checkout', 'Actions/Billing/CreateCheckoutSessionActi
 route.post('/billing-forms/cancel', 'Actions/Billing/CancelSubscriptionAction')
 route.post('/billing-forms/webhook', 'Actions/Billing/StripeWebhookAction').name('billing.webhook').skipCsrf()
 
+// Auth overrides — user routes win over storage/framework/defaults/
+// routes/dashboard.ts's copies. Same login/2FA/logout flow, plus
+// mirroring the bearer into an HttpOnly cookie so the server-rendered
+// dashboard (resources/views/dashboard/*.stx) can resolve the current
+// user/team during SSR — see Actions/Auth/LoginAction's doc comment.
+route.post('/login', 'Actions/Auth/LoginAction').rateLimit(5, 'minute')
+route.post('/logout', 'Actions/Auth/LogoutAction').middleware('auth')
+
 // `/coming-soon` is served as an STX view from
 // `storage/framework/defaults/resources/views/coming-soon.stx`. The
 // view auto-resolves through stx-serve, so no route registration is
