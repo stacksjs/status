@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
+import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
 import StatusPage from '../../Models/StatusPage'
 
 /**
@@ -11,14 +12,23 @@ import StatusPage from '../../Models/StatusPage'
  * index.stx's header comment), and plain HTML forms can't submit PATCH.
  * Redirects back to the edit page rather than returning JSON, since
  * this is a browser form post, not an API call.
+ *
+ * Previously looked up the status page by `id` alone with no ownership
+ * check — any signed-in user could edit any other team's status page
+ * (title, custom domain, access type) by guessing its id. Now requires
+ * it to belong to the requester's own team (see config/auth-team.ts).
  */
 export default new Action({
   name: 'UpdateStatusPageAction',
   description: 'Update a status page from a dashboard form post',
 
   async handle(request) {
+    const authTeamId = await resolveAuthenticatedTeamId(request)
+    if (!authTeamId)
+      return response.unauthorized('Authentication required')
+
     const id = Number(request.get('id'))
-    const statusPage = await StatusPage.find(id)
+    const statusPage = await StatusPage.where('id', id).where('team_id', authTeamId).first()
     if (!statusPage) return response.json({ error: 'Status page not found' }, { status: 404 })
 
     const fields: Record<string, unknown> = {}

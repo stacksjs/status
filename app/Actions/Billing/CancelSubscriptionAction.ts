@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { manageSubscription } from '@stacksjs/payments'
 import { response } from '@stacksjs/router'
+import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
 import { getTeamOwnerUserId } from '../../../config/plans'
 
 /**
@@ -17,16 +18,27 @@ import { getTeamOwnerUserId } from '../../../config/plans'
  * subscription id, not a model instance — sidesteps the billable-trait
  * instance-method gap CreateCheckoutSessionAction's doc comment
  * describes.
+ *
+ * team_id used to be taken from a form field with no verification at
+ * all — any signed-in user could cancel another team's subscription by
+ * posting a different team_id. It's now derived from the requester's
+ * own session/token (see config/auth-team.ts); the form field is only
+ * checked for parity with it.
  */
 export default new Action({
   name: 'CancelSubscriptionAction',
   description: "Cancel the team owner's active paid subscription",
 
   async handle(request) {
-    const teamId = Number(request.get('team_id'))
-    if (!teamId)
-      return response.json({ error: 'team_id is required' }, { status: 422 })
+    const authTeamId = await resolveAuthenticatedTeamId(request)
+    if (!authTeamId)
+      return response.json({ error: 'Authentication required' }, { status: 401 })
 
+    const requestedTeamId = Number(request.get('team_id'))
+    if (requestedTeamId && requestedTeamId !== authTeamId)
+      return response.json({ error: 'You do not have access to this team' }, { status: 403 })
+
+    const teamId = authTeamId
     const ownerUserId = await getTeamOwnerUserId(teamId)
     if (!ownerUserId)
       return new Response(null, { status: 302, headers: { Location: `/dashboard/settings/billing?team_id=${teamId}&error=no_owner` } })

@@ -3,6 +3,7 @@ import { Action } from '@stacksjs/actions'
 import { config } from '@stacksjs/config'
 import { manageCustomer, stripe } from '@stacksjs/payments'
 import { response } from '@stacksjs/router'
+import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
 import { PAID_PLAN, PAID_PLAN_PRICE_USD_CENTS, PLAN_STRIPE_PRICE_ID, getTeamOwnerUserId } from '../../../config/plans'
 import User from '../../Models/User'
 
@@ -22,21 +23,27 @@ import User from '../../Models/User'
  * PLAN_STRIPE_PRICE_ID is configured (stacksjs/status#1 Phase 9) so
  * checkout works immediately with nothing more than STRIPE_SECRET_KEY.
  *
- * team_id is taken from a form field rather than an authenticated
- * session, matching every other dashboard action in this app — see
- * team.stx's TEAM_ID comment. This should move to `request.user()`
- * once real dashboard session auth exists; a real payment flow keyed
- * off a client-supplied team_id is a known, documented gap until then.
+ * team_id used to be taken from a form field with no verification at
+ * all — any signed-in user could start (and, on success, become the
+ * billing contact for) another team's checkout by posting a different
+ * team_id. It's now derived from the requester's own session/token
+ * (see config/auth-team.ts); the form field is only checked for parity
+ * with it.
  */
 export default new Action({
   name: 'CreateCheckoutSessionAction',
   description: 'Start a Stripe subscription checkout for the paid plan',
 
   async handle(request) {
-    const teamId = Number(request.get('team_id'))
-    if (!teamId)
-      return response.json({ error: 'team_id is required' }, { status: 422 })
+    const authTeamId = await resolveAuthenticatedTeamId(request)
+    if (!authTeamId)
+      return response.json({ error: 'Authentication required' }, { status: 401 })
 
+    const requestedTeamId = Number(request.get('team_id'))
+    if (requestedTeamId && requestedTeamId !== authTeamId)
+      return response.json({ error: 'You do not have access to this team' }, { status: 403 })
+
+    const teamId = authTeamId
     const ownerUserId = await getTeamOwnerUserId(teamId)
     if (!ownerUserId)
       return new Response(null, { status: 302, headers: { Location: `/dashboard/settings/billing?team_id=${teamId}&error=no_owner` } })
