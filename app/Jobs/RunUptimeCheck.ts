@@ -64,7 +64,8 @@ export default new Job({
     })
 
     const previousStatus = monitor.status
-    await monitor.update({ status, last_checked_at: checkedAt })
+    const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
+    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
 
     if (previousStatus !== 'down' && status === 'down') {
       await Incident.create({

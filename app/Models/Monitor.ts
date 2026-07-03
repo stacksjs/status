@@ -138,6 +138,21 @@ export default defineModel({
       },
       factory: faker => faker.date.recent().toISOString(),
     },
+
+    // Consecutive failed checks, reset to 0 on any 'up' result. Drives
+    // exponential backoff in DispatchDueChecks (stacksjs/status#1
+    // Phase 11) so a monitor stuck down doesn't get hammered at its normal
+    // interval forever — a site returning 500s every 30s for a week is 20k
+    // wasted requests against a host that's already struggling.
+    consecutiveFailures: {
+      order: 9,
+      fillable: true,
+      default: 0,
+      validation: {
+        rule: schema.number().min(0),
+      },
+      factory: () => 0,
+    },
   },
 
   dashboard: {
