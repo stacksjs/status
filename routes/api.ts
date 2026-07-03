@@ -63,6 +63,21 @@ route.post('/status/{slug}/subscribe', 'Actions/StatusPages/SubscribeAction')
 route.get('/status/{slug}/unsubscribe/{token}', 'Actions/StatusPages/UnsubscribeAction')
 route.get('/status/{slug}/feed', 'Actions/StatusPages/IncidentFeedAction')
 
+// Dashboard status-page builder form posts (stacksjs/status#1 Phase 8) —
+// plain POST + redirect, not the JSON-returning API actions above, since
+// these back native HTML <form> elements with no client JS (see
+// Actions/StatusPages/UpdateStatusPageAction for why). Deliberately NOT
+// under /dashboard/status-pages/* — that collides with the dynamic file
+// route resources/views/dashboard/status-pages/[id].stx (e.g. a POST to
+// .../create matches [id]="create" as a GET-only view route first and
+// 405s) — same "static/dynamic views win over routes at the same path"
+// behavior documented at the top of this file, just for a dynamic [id]
+// route instead of a static one this time.
+route.post('/status-page-forms/create', 'Actions/StatusPages/DashboardCreateStatusPageAction')
+route.post('/status-page-forms/{id}/update', 'Actions/StatusPages/UpdateStatusPageAction')
+route.post('/status-page-forms/{id}/monitors/add', 'Actions/StatusPages/DashboardAssignMonitorAction')
+route.post('/status-page-forms/{id}/monitors/remove', 'Actions/StatusPages/DashboardRemoveMonitorAction')
+
 // `/coming-soon` is served as an STX view from
 // `storage/framework/defaults/resources/views/coming-soon.stx`. The
 // view auto-resolves through stx-serve, so no route registration is

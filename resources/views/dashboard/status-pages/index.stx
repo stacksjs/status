@@ -1,0 +1,63 @@
+<!--
+  Status page list + create form — dashboard page (stacksjs/status#1
+  Phase 8). Same server-rendered convention as monitors/index.stx. The
+  create form is a native HTML POST (no client JS) to
+  Actions/StatusPages/DashboardCreateStatusPageAction.
+-->
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+// No auth/session wiring yet (stacksjs/status#1 Phase 9 follow-up) — the
+// dashboard is single-team for now, same simplification used elsewhere
+// in this app (CreateMonitorAction etc. take team_id explicitly).
+const TEAM_ID = 1
+
+const statusPages = db.query(`SELECT id, slug, title, is_public, access_type, custom_domain FROM status_pages WHERE team_id = ?1 ORDER BY title ASC`).all(TEAM_ID)
+
+const limitError = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? __stxServeSearch.includes('error=limit') : false
+</script>
+
+<div class="mx-auto max-w-3xl px-6 py-10">
+  <header class="mb-6">
+    <h1 class="text-xl font-semibold text-gray-900">Status pages</h1>
+    <p class="mt-1 text-sm text-gray-500">{{ statusPages.length }} status page{{ statusPages.length === 1 ? '' : 's' }}</p>
+  </header>
+
+  @if (limitError)
+    <p class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">Status page limit reached for the current plan. Upgrade to add more.</p>
+  @endif
+
+  @if (statusPages.length > 0)
+    <div class="mb-8 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+      @foreach (statusPages as page)
+        <a href="/dashboard/status-pages/{{ page.id }}" class="flex items-center justify-between gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+          <div>
+            <p class="font-medium text-gray-900">{{ page.title }}</p>
+            <p class="text-sm text-gray-500">/status/{{ page.slug }} @if (page.custom_domain) &middot; {{ page.custom_domain }} @endif</p>
+          </div>
+          <span class="text-xs text-gray-400">{{ page.access_type }}</span>
+        </a>
+      @endforeach
+    </div>
+  @endif
+
+  <section class="rounded-xl border border-gray-200 bg-white p-5">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Create a status page</h2>
+    <form method="POST" action="/status-page-forms/create" class="space-y-3">
+      <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+      <div>
+        <label class="mb-1 block text-xs text-gray-500">Title</label>
+        <input type="text" name="title" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Acme Status" />
+      </div>
+      <div>
+        <label class="mb-1 block text-xs text-gray-500">Slug</label>
+        <input type="text" name="slug" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="acme" />
+      </div>
+      <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Create</button>
+    </form>
+  </section>
+</div>

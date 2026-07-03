@@ -1,0 +1,163 @@
+<!--
+  Status page builder/editor — dashboard page (stacksjs/status#1 Phase
+  8). Native HTML forms (no client JS) posting to plain-POST dashboard
+  actions — see Actions/StatusPages/UpdateStatusPageAction for why.
+-->
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const TEAM_ID = 1
+const pageId = (typeof id !== 'undefined' && id) ? Number(id) : 0
+const statusPage = pageId ? db.query(`SELECT * FROM status_pages WHERE id = ?1 LIMIT 1`).get(pageId) : null
+
+const assignedMonitors = statusPage
+  ? db.query(`
+      SELECT spm.id AS pivot_id, m.id AS monitor_id, m.name, m.type, m.status, spm.display_name
+      FROM status_page_monitors spm
+      JOIN monitors m ON m.id = spm.monitor_id
+      WHERE spm.status_page_id = ?1
+      ORDER BY spm.display_order ASC, m.name ASC
+    `).all(statusPage.id)
+  : []
+
+const assignedIds = assignedMonitors.map((m) => m.monitor_id)
+// Two separate placeholder strings: the first query's bound params start
+// at position 2 (TEAM_ID occupies position 1), the second's start at
+// position 1 (no leading TEAM_ID bind) — reusing one string for both
+// caused a bind-parameter-index mismatch that crashed the page render.
+const availablePlaceholders = assignedIds.map((_, i) => `?${i + 2}`).join(', ')
+const availableMonitors = statusPage
+  ? db.query(`SELECT id, name, type FROM monitors WHERE team_id = ?1 ${assignedIds.length > 0 ? `AND id NOT IN (${availablePlaceholders})` : ''} ORDER BY name ASC`).all(TEAM_ID, ...assignedIds)
+  : []
+
+const componentGroups = statusPage
+  ? db.query(`SELECT id, name FROM status_page_component_groups WHERE status_page_id = ?1 ORDER BY display_order ASC, name ASC`).all(statusPage.id)
+  : []
+
+const maintenancePlaceholders = assignedIds.map((_, i) => `?${i + 1}`).join(', ')
+const maintenanceWindows = statusPage && assignedIds.length > 0
+  ? db.query(`
+      SELECT DISTINCT mw.id, mw.title, mw.status, mw.starts_at, mw.ends_at
+      FROM maintenance_windows mw
+      JOIN maintenance_window_monitors mwm ON mwm.maintenance_window_id = mw.id
+      WHERE mwm.monitor_id IN (${maintenancePlaceholders})
+      ORDER BY mw.starts_at DESC LIMIT 10
+    `).all(...assignedIds)
+  : []
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+</script>
+
+<div class="mx-auto max-w-3xl px-6 py-10">
+  @if (!statusPage)
+    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
+      <h3 class="font-medium text-gray-900">Status page not found</h3>
+      <p class="mt-1 text-sm text-gray-500"><a href="/dashboard/status-pages" class="underline">Back to status pages</a></p>
+    </div>
+  @endif
+
+  @if (statusPage)
+    <header class="mb-6">
+      <a href="/dashboard/status-pages" class="text-sm text-gray-500 hover:text-gray-700">&larr; Status pages</a>
+      <div class="mt-2 flex items-center justify-between">
+        <h1 class="text-xl font-semibold text-gray-900">{{ statusPage.title }}</h1>
+        <a href="/status/{{ statusPage.slug }}" target="_blank" class="text-sm text-blue-600 hover:underline">View public page &rarr;</a>
+      </div>
+    </header>
+
+    <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Settings</h2>
+      <form method="POST" action="/status-page-forms/{{ statusPage.id }}/update" class="space-y-3">
+        <div>
+          <label class="mb-1 block text-xs text-gray-500">Title</label>
+          <input type="text" name="title" value="{{ statusPage.title }}" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs text-gray-500">Custom domain</label>
+          <input type="text" name="custom_domain" value="{{ statusPage.custom_domain }}" placeholder="status.acme.com" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs text-gray-500">Access</label>
+          <select name="access_type" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <option value="public">Public</option>
+            <option value="password">Password protected</option>
+            <option value="email_domain">Email-domain restricted</option>
+            <option value="ip_allowlist">IP allowlisted</option>
+          </select>
+        </div>
+        <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Save</button>
+      </form>
+    </section>
+
+    <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors on this page</h2>
+
+      @if (assignedMonitors.length === 0)
+        <p class="mb-4 text-sm text-gray-500">No monitors added yet.</p>
+      @endif
+
+      @if (assignedMonitors.length > 0)
+        <div class="mb-4 divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200">
+          @foreach (assignedMonitors as monitor)
+            <div class="flex items-center justify-between gap-4 px-4 py-3">
+              <div>
+                <p class="text-sm text-gray-900">{{ monitor.display_name || monitor.name }}</p>
+                <p class="text-xs text-gray-400">{{ monitor.type }} &middot; {{ monitor.status }}</p>
+              </div>
+              <form method="POST" action="/status-page-forms/{{ statusPage.id }}/monitors/remove">
+                <input type="hidden" name="monitor_id" value="{{ monitor.monitor_id }}" />
+                <button type="submit" class="text-xs text-red-500 hover:underline">Remove</button>
+              </form>
+            </div>
+          @endforeach
+        </div>
+      @endif
+
+      @if (availableMonitors.length > 0)
+        <form method="POST" action="/status-page-forms/{{ statusPage.id }}/monitors/add" class="flex items-center gap-2">
+          <select name="monitor_id" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            @foreach (availableMonitors as monitor)
+              <option value="{{ monitor.id }}">{{ monitor.name }} ({{ monitor.type }})</option>
+            @endforeach
+          </select>
+          <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Add</button>
+        </form>
+      @endif
+    </section>
+
+    @if (componentGroups.length > 0)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Component groups</h2>
+        <div class="flex flex-wrap gap-2">
+          @foreach (componentGroups as group)
+            <span class="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">{{ group.name }}</span>
+          @endforeach
+        </div>
+      </section>
+    @endif
+
+    @if (maintenanceWindows.length > 0)
+      <section class="rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Maintenance windows</h2>
+        <div class="space-y-2">
+          @foreach (maintenanceWindows as mw)
+            <div class="rounded-lg bg-gray-50 p-3 text-sm">
+              <span class="font-medium text-gray-900">{{ mw.title }}</span>
+              <span class="ml-2 text-xs uppercase text-gray-400">{{ mw.status }}</span>
+              <p class="mt-1 text-xs text-gray-400">{{ formatDate(mw.starts_at) }} — {{ formatDate(mw.ends_at) }}</p>
+            </div>
+          @endforeach
+        </div>
+      </section>
+    @endif
+  @endif
+</div>
