@@ -17,6 +17,13 @@ export default defineModel({
       uri: 'check-results',
       routes: ['index', 'show'],
     },
+    // Drives the outbound webhook event stream (stacksjs/status#1 Phase 10)
+    // — see app/Actions/Webhooks/DeliverCheckResultWebhooks.ts, registered
+    // against 'checkresult:created' in app/Events.ts. Fires on every
+    // check, not just status transitions — much higher volume than
+    // Incident's observe (Phase 6), by design: this is the raw event feed
+    // for custom integrations, not a human alert channel.
+    observe: ['create'],
   },
 
   belongsTo: ['Monitor'],

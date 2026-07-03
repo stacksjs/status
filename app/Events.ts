@@ -16,4 +16,11 @@ export default {
   // these automatically on every create/update (stacksjs/status#1 Phase 6).
   'incident:created': ['Notifications/SendIncidentNotification'],
   'incident:updated': ['Notifications/SendIncidentResolvedNotification'],
+
+  // CheckResult has `observe: ['create']` (see app/Models/CheckResult.ts) —
+  // the outbound webhook event stream (stacksjs/status#1 Phase 10). Event
+  // name is the model name lowercased with no separator (see
+  // define-model.ts: `definition.name.toLowerCase()`), NOT snake_case —
+  // 'checkresult:created', not 'check_result:created'.
+  'checkresult:created': ['Webhooks/DeliverCheckResultWebhooks'],
 } satisfies Events
