@@ -1,22 +1,22 @@
 {
-  "name": "stacks",
+  "name": "status",
   "type": "module",
   "version": "0.0.0",
   "private": true,
-  "description": "Your project description",
-  "author": "your-name <your-email>",
+  "description": "A self-hostable status page & uptime monitoring platform — built as a Stacks app.",
+  "author": "Chris Breuer <chris@stacksjs.org>",
   "contributors": [
     "Chris Breuer <chris@stacksjs.org>"
   ],
   "license": "MIT",
   "funding": "https://github.com/sponsors/chrisbbreuer",
-  "homepage": "https://github.com/stacksjs/stacks#readme",
+  "homepage": "https://github.com/stacksjs/status#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stacksjs/stacks.git"
+    "url": "git+https://github.com/stacksjs/status.git"
   },
   "bugs": {
-    "url": "https://github.com/stacksjs/stacks/issues"
+    "url": "https://github.com/stacksjs/status/issues"
   },
   "scripts": {
     "build:reset": "rm -rf node_modules pantry.lock && pantry install && ./buddy generate:types && ./buddy lint:fix && cd storage/framework && bun run build && cd ../../",
