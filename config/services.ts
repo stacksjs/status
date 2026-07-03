@@ -172,5 +172,6 @@ export default {
   stripe: {
     secretKey: String(env.STRIPE_SECRET_KEY || ''),
     publicKey: String(env.STRIPE_PUBLISHABLE_KEY || ''),
+    webhookSecret: String(env.STRIPE_WEBHOOK_SECRET || ''),
   },
 } satisfies ServicesConfig

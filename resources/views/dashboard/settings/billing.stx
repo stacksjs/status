@@ -1,0 +1,139 @@
+<!--
+  Billing settings — current plan, usage vs limits, upgrade/cancel
+  (stacksjs/status#1 Phase 9). Same server-rendered, native-HTML-form
+  convention as team.stx; team_id from query param, not a real
+  session — see team.stx's TEAM_ID comment for why.
+-->
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const TEAM_ID = Number(query.get('team_id')) || 1
+const CHECKOUT_RESULT = query.get('checkout')
+const CANCELLED = query.get('cancelled')
+const ERROR = query.get('error')
+
+const PLAN_LIMITS = {
+  free: { monitors: 5, statusPages: 1, checkIntervalFloorSeconds: 300 },
+  pro: { monitors: 100, statusPages: 10, checkIntervalFloorSeconds: 30 },
+}
+const PAID_PLAN_PRICE_USD = 9
+
+const team = db.query(`SELECT id, name FROM teams WHERE id = ?1 LIMIT 1`).get(TEAM_ID)
+const owner = db.query(`SELECT user_id FROM team_members WHERE team_id = ?1 AND role = 'owner' AND status = 'active' LIMIT 1`).get(TEAM_ID)
+
+let subscription = null
+if (owner && owner.user_id) {
+  subscription = db.query(`SELECT plan, provider_status, ends_at FROM subscriptions WHERE user_id = ?1 ORDER BY id DESC LIMIT 1`).get(owner.user_id)
+}
+
+const isActivePaid = subscription && subscription.plan === 'pro' && subscription.provider_status === 'active'
+const currentPlan = isActivePaid ? 'pro' : 'free'
+const limits = PLAN_LIMITS[currentPlan]
+
+const monitorCount = db.query(`SELECT COUNT(*) as c FROM monitors WHERE team_id = ?1`).get(TEAM_ID).c
+const statusPageCount = db.query(`SELECT COUNT(*) as c FROM status_pages WHERE team_id = ?1`).get(TEAM_ID).c
+
+function usagePct(used, limit) {
+  if (!limit) return 0
+  return Math.min(100, Math.round((used / limit) * 100))
+}
+</script>
+
+<div class="mx-auto px-6 py-10 max-w-3xl">
+  <header class="mb-6">
+    <h1 class="font-semibold text-gray-900 text-xl">Billing</h1>
+    <p class="mt-1 text-gray-500 text-sm">{{ team ? team.name : 'Team #' + TEAM_ID }}</p>
+  </header>
+
+  @if (CHECKOUT_RESULT === 'success')
+    <div class="mb-6 px-4 py-3 text-green-800 text-sm bg-green-50 border border-green-200 rounded-lg">
+      Checkout complete — your plan will update within a few seconds once Stripe's webhook lands.
+    </div>
+  @endif
+  @if (CHECKOUT_RESULT === 'cancelled')
+    <div class="mb-6 px-4 py-3 text-gray-600 text-sm bg-gray-50 border border-gray-200 rounded-lg">
+      Checkout was cancelled — no changes made.
+    </div>
+  @endif
+  @if (CANCELLED === '1')
+    <div class="mb-6 px-4 py-3 text-gray-600 text-sm bg-gray-50 border border-gray-200 rounded-lg">
+      Subscription cancelled. You'll stay on Pro until the current billing period ends, then drop to Free.
+    </div>
+  @endif
+  @if (ERROR)
+    <div class="mb-6 px-4 py-3 text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg">
+      {{ ERROR === 'no_owner' ? 'This team has no active owner to bill.' : ERROR === 'no_active_subscription' ? 'No active subscription to cancel.' : ERROR }}
+    </div>
+  @endif
+
+  <section class="mb-6 p-5 bg-white border border-gray-200 rounded-xl">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="font-semibold text-gray-500 text-sm tracking-wide uppercase">Current plan</h2>
+        <p class="mt-1 font-semibold text-gray-900 text-lg">{{ currentPlan === 'pro' ? 'Pro' : 'Free' }}</p>
+      </div>
+      @if (currentPlan === 'pro')
+        <span class="px-3 py-1 font-medium text-white text-xs bg-gray-900 rounded-full">${{ PAID_PLAN_PRICE_USD }}/mo</span>
+      @else
+        <span class="px-3 py-1 font-medium text-gray-600 text-xs bg-gray-100 rounded-full">$0/mo</span>
+      @endif
+    </div>
+
+    <div class="mt-5 space-y-3">
+      <div>
+        <div class="flex justify-between mb-1 text-gray-500 text-xs">
+          <span>Monitors</span>
+          <span>{{ monitorCount }} / {{ limits.monitors }}</span>
+        </div>
+        <div class="overflow-hidden h-1.5 w-full bg-gray-100 rounded-full">
+          <div class="h-full bg-gray-900 rounded-full" style="width: {{ usagePct(monitorCount, limits.monitors) }}%"></div>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between mb-1 text-gray-500 text-xs">
+          <span>Status pages</span>
+          <span>{{ statusPageCount }} / {{ limits.statusPages }}</span>
+        </div>
+        <div class="overflow-hidden h-1.5 w-full bg-gray-100 rounded-full">
+          <div class="h-full bg-gray-900 rounded-full" style="width: {{ usagePct(statusPageCount, limits.statusPages) }}%"></div>
+        </div>
+      </div>
+      <p class="text-gray-400 text-xs">Minimum check interval: {{ limits.checkIntervalFloorSeconds }}s</p>
+    </div>
+  </section>
+
+  @if (currentPlan === 'pro')
+    <section class="p-5 bg-white border border-gray-200 rounded-xl">
+      <h2 class="mb-2 font-semibold text-gray-500 text-sm tracking-wide uppercase">Manage subscription</h2>
+      <p class="mb-4 text-gray-500 text-sm">
+        @if (subscription && subscription.ends_at)
+          Cancels at the end of the current billing period.
+        @else
+          Renews automatically each month.
+        @endif
+      </p>
+      <form method="POST" action="/billing-forms/cancel" onsubmit="return confirm('Cancel your Pro subscription? You will drop to the Free plan at the end of the current billing period.')">
+        <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+        <button type="submit" class="px-4 py-2 font-medium text-red-600 text-sm hover:bg-red-50 border border-red-200 rounded-lg">Cancel subscription</button>
+      </form>
+    </section>
+  @else
+    <section class="p-5 bg-white border border-gray-200 rounded-xl">
+      <h2 class="mb-2 font-semibold text-gray-500 text-sm tracking-wide uppercase">Upgrade to Pro</h2>
+      <ul class="mb-4 space-y-1 text-gray-600 text-sm">
+        <li>&bull; {{ PLAN_LIMITS.pro.monitors }} monitors (vs {{ PLAN_LIMITS.free.monitors }} on Free)</li>
+        <li>&bull; {{ PLAN_LIMITS.pro.statusPages }} status pages (vs {{ PLAN_LIMITS.free.statusPages }} on Free)</li>
+        <li>&bull; Checks as often as every {{ PLAN_LIMITS.pro.checkIntervalFloorSeconds }}s</li>
+      </ul>
+      <form method="POST" action="/billing-forms/checkout">
+        <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+        <button type="submit" class="px-4 py-2 font-medium text-sm text-white bg-gray-900 rounded-lg">Upgrade &mdash; ${{ PAID_PLAN_PRICE_USD }}/mo</button>
+      </form>
+    </section>
+  @endif
+</div>

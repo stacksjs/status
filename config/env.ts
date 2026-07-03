@@ -193,6 +193,23 @@ export default {
     default: '',
   },
 
+  // Signing secret for verifying inbound Stripe webhook requests
+  // (`whsec_...`, from the Stripe dashboard's webhook endpoint config).
+  STRIPE_WEBHOOK_SECRET: {
+    validation: schema.string(),
+    default: '',
+  },
+
+  // Optional: a pre-created Stripe recurring Price ID for the $9/mo
+  // paid plan (stacksjs/status#1 Phase 9). When unset,
+  // CreateCheckoutSessionAction falls back to inline `price_data` so
+  // checkout works immediately with nothing more than
+  // STRIPE_SECRET_KEY — see config/plans.ts's PLAN_STRIPE_PRICE_ID.
+  STRIPE_PRICE_PRO: {
+    validation: schema.string(),
+    default: '',
+  },
+
   MEILISEARCH_HOST: {
     validation: schema.string(),
     default: '',

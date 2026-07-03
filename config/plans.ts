@@ -20,11 +20,6 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
     statusPages: 1,
     checkIntervalFloorSeconds: 300,
   },
-  starter: {
-    monitors: 25,
-    statusPages: 3,
-    checkIntervalFloorSeconds: 60,
-  },
   pro: {
     monitors: 100,
     statusPages: 10,
@@ -34,18 +29,29 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
 
 export const DEFAULT_PLAN = 'free'
 
+/** The one paid plan slug — kept as a named constant so the checkout
+ * action, webhook handler, and billing page can't drift on the string. */
+export const PAID_PLAN = 'pro'
+
 /**
- * Paid-tier Stripe Price IDs (stacksjs/status#1 Phase 9 billing
- * checkout). Env-driven rather than hardcoded — every Stacks install
- * has its own Stripe account, so these can't ship as literal values.
- * A plan slug with no configured price ID (unset env var, or `free`
- * itself, which has no Stripe price at all) can't be checked out —
- * see CreateCheckoutSessionAction.
+ * $9/mo for the one paid plan (stacksjs/status#1 Phase 9). A literal
+ * here (not env-driven) since the price itself is a product decision
+ * this app is making, not per-install config — unlike a Stripe Price
+ * ID, which IS install-specific (see PLAN_STRIPE_PRICE_ID below).
  */
-export const PLAN_STRIPE_PRICE_IDS: Partial<Record<string, string>> = {
-  starter: process.env.STRIPE_PRICE_STARTER,
-  pro: process.env.STRIPE_PRICE_PRO,
-}
+export const PAID_PLAN_PRICE_USD_CENTS = 900
+
+/**
+ * Optional: a pre-created Stripe recurring Price ID for the paid plan.
+ * When set, checkout uses it directly (recommended for production —
+ * gives a stable Price object in the Stripe dashboard for reporting).
+ * When unset, CreateCheckoutSessionAction falls back to Stripe's
+ * inline `price_data` (dynamically creates the Price at checkout time
+ * from PAID_PLAN_PRICE_USD_CENTS) so checkout works immediately with
+ * nothing more than a valid STRIPE_SECRET_KEY — no manual Stripe
+ * dashboard setup required first.
+ */
+export const PLAN_STRIPE_PRICE_ID: string | undefined = process.env.STRIPE_PRICE_PRO
 
 /**
  * The built-in Subscription model is `belongsTo: ['User']`, not Team —

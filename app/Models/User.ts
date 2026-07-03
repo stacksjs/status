@@ -22,14 +22,13 @@ export default defineModel({
     useAuth: {
       usePasskey: true,
     },
-    // Not every app bills through the User model — leave `billable`
-    // off by default here. An app that wants checkout()/
+    // Status bills through the User model — checkout()/
     // createStripeUser()/activeSubscription() etc. (createBillableMethods
-    // in orm/define-model.ts) should `buddy publish:model User` and
-    // enable the trait on its own app/Models/User.ts override, alongside
-    // the matching users.stripe_id guarantee-ALTER already provided by
-    // ensureUsersAuthColumns() regardless of this flag.
-    billable: false,
+    // in orm/define-model.ts) back the $9/mo plan checkout in
+    // app/Actions/Billing/* (stacksjs/status#1 Phase 9). The matching
+    // users.stripe_id column is guaranteed regardless of this flag via
+    // ensureUsersAuthColumns() in storage/framework/core/database/src/auth-tables.ts.
+    billable: true,
     useUuid: true,
     useTimestamps: true, // defaults to true, `timestampable` used as an alias
     useSocials: ['github'],

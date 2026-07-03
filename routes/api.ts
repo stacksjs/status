@@ -93,6 +93,15 @@ route.post('/notification-channel-forms/monitors/{monitorId}/remove', 'Actions/N
 route.post('/team-forms/{id}/invite', 'Actions/Teams/DashboardInviteTeamMemberAction')
 route.post('/team-forms/{id}/remove', 'Actions/Teams/DashboardRemoveTeamMemberAction')
 
+// Billing (stacksjs/status#1 Phase 9). /checkout is a dashboard form
+// post, same convention as the rest of this block. /webhook is called
+// by Stripe itself — no CSRF token to satisfy (skipCsrf, matching the
+// storefront/contact-form precedent above), and its own signature
+// verification (StripeWebhookAction) is the real security control.
+route.post('/billing-forms/checkout', 'Actions/Billing/CreateCheckoutSessionAction')
+route.post('/billing-forms/cancel', 'Actions/Billing/CancelSubscriptionAction')
+route.post('/billing-forms/webhook', 'Actions/Billing/StripeWebhookAction').name('billing.webhook').skipCsrf()
+
 // `/coming-soon` is served as an STX view from
 // `storage/framework/defaults/resources/views/coming-soon.stx`. The
 // view auto-resolves through stx-serve, so no route registration is
