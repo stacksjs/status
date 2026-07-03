@@ -110,6 +110,12 @@ const hostHasDown = hostMonitors.some((m) => m.status === 'down')
 const hostHasDegraded = hostMonitors.some((m) => m.status === 'degraded')
 const hostOverallLabel = hostHasDown ? 'Major Outage' : hostHasDegraded ? 'Partial Outage' : 'All Systems Operational'
 
+// A custom-domain hit always resolves to a status page (or the marketing
+// page when no custom domain matches) — never a mix, so a single <html>
+// lang/data-theme pair covers both branches correctly.
+const docLang = statusPageForHost ? statusPageForHost.locale : 'en'
+const docTheme = statusPageForHost ? statusPageForHost.force_theme : 'system'
+
 function hostFormatDate(iso) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -203,7 +209,7 @@ const stackLayers = [
 </script>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ docLang }}" data-theme="{{ docTheme }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

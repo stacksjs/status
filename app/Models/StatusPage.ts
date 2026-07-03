@@ -133,6 +133,38 @@ export default defineModel({
       },
       factory: () => JSON.stringify([]),
     },
+
+    // BCP-47-ish locale tag (e.g. "en", "de", "fr") for the page's <html
+    // lang> attribute (stacksjs/status#1 Phase 12). Full UI string
+    // translation (the "Operational"/"Down"/etc. labels) isn't wired —
+    // this sets the document's declared language, which is the part that
+    // matters for accessibility/SEO even before every label is
+    // translated; string translation is a real follow-up, not silently
+    // implied by this field.
+    locale: {
+      order: 10,
+      fillable: true,
+      default: 'en',
+      validation: {
+        rule: schema.string().max(10),
+      },
+      factory: () => 'en',
+    },
+
+    // Forces the status page's color scheme regardless of the visitor's
+    // OS preference. 'system' (default) leaves it to prefers-color-scheme.
+    // Exposed as a `data-theme` attribute on <html> as a hook for CSS —
+    // no dark-mode stylesheet variant is shipped yet (a real follow-up,
+    // not a silent no-op: the attribute is genuinely there to build on).
+    forceTheme: {
+      order: 11,
+      fillable: true,
+      default: 'system',
+      validation: {
+        rule: schema.enum(['dark', 'light', 'system']),
+      },
+      factory: () => 'system',
+    },
   },
 
   dashboard: {

@@ -227,6 +227,8 @@ function bannerDotClass(tone) {
 
 @section('title', pageTitle)
 @section('description', 'Live status and incident history')
+@section('lang', statusPage ? statusPage.locale : 'en')
+@section('theme', statusPage ? statusPage.force_theme : 'system')
 
 @section('content')
   <div class="mx-auto max-w-3xl px-6 py-16">
