@@ -239,6 +239,34 @@ export async function migrateAuthTables(options: { verbose?: boolean } = {}): Pr
       // Index might already exist
     }
 
+    // `two_factor_challenges` — server-issued, single-use pending-login
+    // tokens for the TOTP second factor (stacksjs/status#1 Phase 9).
+    // LoginAction creates a row here once the password has verified but
+    // before minting real access tokens; VerifyTwoFactorLoginAction
+    // consumes it (delete-on-read, like webauthn_challenges) after
+    // checking the submitted TOTP code, then mints the token pack via
+    // Auth.loginUsingId(). Rows expire quickly (see two-factor.ts) since
+    // possessing a valid challenge_token plus the correct 6-digit code
+    // is what completes login.
+    if (options.verbose) log.info('Creating two_factor_challenges table...')
+    await db.unsafe(`
+      CREATE TABLE IF NOT EXISTS two_factor_challenges (
+        id VARCHAR(255) PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).execute()
+
+    try {
+      await db.unsafe(`
+        CREATE INDEX IF NOT EXISTS idx_two_factor_challenges_user_id ON two_factor_challenges(user_id)
+      `).execute()
+    }
+    catch {
+      // Index might already exist
+    }
+
     // users.email_verified_at / password_changed_at / two_factor_* — see
     // {@link ensureUsersAuthColumns}. This first attempt runs before
     // `users` exists on a `buddy migrate`/`migrate:fresh` (the numbered
