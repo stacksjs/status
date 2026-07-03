@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { config } from '@stacksjs/config'
 import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture.ts'
 import SendStatusReportUpdateNotification from '../../app/Actions/Notifications/SendStatusReportUpdateNotification'
@@ -9,26 +9,19 @@ import StatusPageSubscriber from '../../app/Models/StatusPageSubscriber'
 import StatusReport from '../../app/Models/StatusReport'
 import StatusReportMonitor from '../../app/Models/StatusReportMonitor'
 
+// Same capture-driver latch as team-invite-email.test.ts (see the
+// comment there for why this is module-level and never restored) — the
+// sync queue driver runs NotifyStatusReportSubscribers inline, so the
+// capture store fills synchronously and no SMTP socket is opened.
+;(config.email as { default: string }).default = 'capture'
+
 // See monitor-crud.test.ts's TEAM_ID comment — each feature test file
 // isolates its fixtures under its own team_id since Bun runs test files
 // concurrently by default.
 const TEAM_ID = 90006
 
 describe('Status report subscriber notifications (stacksjs/status#1 Phase 12 follow-up)', () => {
-  // Same capture-driver setup as team-invite-email.test.ts — the sync
-  // queue driver runs NotifyStatusReportSubscribers inline, so the
-  // capture store fills synchronously and no SMTP socket is opened.
-  let previousDriver: string
   const cleanup: { delete: () => Promise<unknown> }[] = []
-
-  beforeAll(() => {
-    previousDriver = config.email.default
-    ;(config.email as { default: string }).default = 'capture'
-  })
-
-  afterAll(() => {
-    ;(config.email as { default: string }).default = previousDriver
-  })
 
   afterEach(async () => {
     CaptureEmailDriver.clear()

@@ -1,8 +1,20 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { config } from '@stacksjs/config'
 import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture.ts'
 import InviteTeamMemberAction from '../../app/Actions/Teams/InviteTeamMemberAction'
 import TeamMember from '../../app/Models/TeamMember'
+
+// Swap the mail driver for the in-memory capture driver (the pattern its
+// own docblock documents) — QUEUE_DRIVER=sync runs the dispatched
+// SendTeamInviteEmail inline, so the capture store fills synchronously
+// and no SMTP socket is ever opened. Set at module level and deliberately
+// never restored: the Mail singleton latches whatever driver name
+// config.email.default holds at its FIRST send, so an afterAll restore
+// would open a window where another mail-sending test file's first send
+// constructs the singleton against the real smtp driver (Bun runs test
+// files concurrently — see the stacksjs/stacks fix serializing exactly
+// this kind of process-wide config mutation across test files).
+;(config.email as { default: string }).default = 'capture'
 
 // See monitor-crud.test.ts's TEAM_ID comment — each feature test file
 // isolates its fixtures under its own team_id since Bun runs test files
@@ -10,21 +22,7 @@ import TeamMember from '../../app/Models/TeamMember'
 const TEAM_ID = 90005
 
 describe('Team invite email delivery (stacksjs/status#1 Phase 9 follow-up)', () => {
-  // Swap the mail driver for the in-memory capture driver (the pattern
-  // its own docblock documents) — QUEUE_DRIVER=sync runs the dispatched
-  // SendTeamInviteEmail inline, so the capture store fills synchronously
-  // and no SMTP socket is ever opened.
-  let previousDriver: string
   const createdIds: number[] = []
-
-  beforeAll(() => {
-    previousDriver = config.email.default
-    ;(config.email as { default: string }).default = 'capture'
-  })
-
-  afterAll(() => {
-    ;(config.email as { default: string }).default = previousDriver
-  })
 
   afterEach(async () => {
     CaptureEmailDriver.clear()
