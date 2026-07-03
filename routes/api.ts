@@ -50,6 +50,10 @@ route.post('/ping/{token}', 'Actions/Heartbeats/ReceivePingAction')
 // same pattern as CreateMonitorAction, to enforce the team's plan limit.
 route.post('/status-pages', 'Actions/StatusPages/CreateStatusPageAction')
 
+// Password/email-domain gate for access-controlled status pages
+// (stacksjs/status#1 Phase 12) — public, no auth (this route IS the auth).
+route.post('/status/{slug}/unlock', 'Actions/StatusPages/UnlockStatusPageAction')
+
 // Status page subscriber signup/unsubscribe — public, no auth.
 route.post('/status/{slug}/subscribe', 'Actions/StatusPages/SubscribeAction')
 route.get('/status/{slug}/unsubscribe/{token}', 'Actions/StatusPages/UnsubscribeAction')

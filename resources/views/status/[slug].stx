@@ -3,6 +3,7 @@
 <script server>
 const Database = require('bun:sqlite').Database
 const path = require('path')
+const { decrypt } = require('@stacksjs/security')
 
 const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
 const db = new Database(dbPath, { readonly: true })
@@ -12,6 +13,79 @@ const pageSlug = (typeof slug !== 'undefined' && slug) ? String(slug) : ''
 const statusPage = pageSlug
   ? db.query(`SELECT * FROM status_pages WHERE slug = ?1 AND is_public = 1 LIMIT 1`).get(pageSlug)
   : null
+
+// Access control (stacksjs/status#1 Phase 12). 'public' (the default) is
+// unchanged behavior below. IPv4-only CIDR match duplicated inline here
+// rather than imported — same self-contained-per-view convention as
+// monitorDotClass/formatDate below (this file's require()s resolve real
+// published packages fine, but not TS source under app/Actions).
+function ipv4ToInt(ip) {
+  const parts = String(ip).trim().split('.')
+  if (parts.length !== 4) return null
+  let result = 0
+  for (const part of parts) {
+    const n = Number(part)
+    if (!Number.isInteger(n) || n < 0 || n > 255) return null
+    result = (result << 8) | n
+  }
+  return result >>> 0
+}
+
+function isIpAllowed(ip, ranges) {
+  if (!ip || ranges.length === 0) return false
+  // Bun's server.requestIP() reports IPv4 connections in IPv4-mapped
+  // IPv6 notation ("::ffff:127.0.0.1"), not plain dotted-quad — strip the
+  // prefix so an ordinary IPv4 allowlist entry still matches. The bare
+  // IPv6 loopback ("::1") is treated as 127.0.0.1 too — the same "this
+  // is localhost" case, just reported differently depending on how the
+  // client connected. Anything else IPv6 is genuinely unsupported (see
+  // the module doc comment) and fails closed.
+  let normalized = ip
+  if (normalized.startsWith('::ffff:')) normalized = normalized.slice(7)
+  else if (normalized === '::1') normalized = '127.0.0.1'
+  const ipInt = ipv4ToInt(normalized)
+  if (ipInt === null) return false
+  return ranges.some((range) => {
+    const trimmed = range.trim()
+    if (!trimmed) return false
+    if (!trimmed.includes('/')) return ipv4ToInt(trimmed) === ipInt
+    const [base, bitsStr] = trimmed.split('/')
+    const baseInt = ipv4ToInt(base)
+    const bits = Number(bitsStr)
+    if (baseInt === null || Number.isNaN(bits) || bits < 0 || bits > 32) return false
+    const mask = bits === 0 ? 0 : (0xFFFFFFFF << (32 - bits)) >>> 0
+    return (ipInt & mask) === (baseInt & mask)
+  })
+}
+
+let accessGranted = true
+if (statusPage && statusPage.access_type && statusPage.access_type !== 'public') {
+  if (statusPage.access_type === 'ip_allowlist') {
+    let allowedRanges = []
+    try { allowedRanges = JSON.parse(statusPage.allowed_ip_ranges || '[]') } catch {}
+    accessGranted = isIpAllowed(typeof ip !== 'undefined' ? ip : '', allowedRanges)
+  }
+  else {
+    // 'password' / 'email_domain' — gated by the unlock cookie
+    // UnlockStatusPageAction sets on success (see that action for the
+    // encrypt/decrypt contract).
+    const cookieValue = (typeof cookies !== 'undefined' && cookies) ? cookies['status_unlock_' + pageSlug] : undefined
+    accessGranted = false
+    if (cookieValue) {
+      try {
+        const decoded = await decrypt(decodeURIComponent(cookieValue))
+        accessGranted = decoded === `unlock:${statusPage.id}`
+      }
+      catch {
+        accessGranted = false
+      }
+    }
+  }
+}
+
+const unlockError = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch)
+  ? __stxServeSearch.includes('unlock_error=1')
+  : false
 
 const monitors = statusPage
   ? db.query(`
@@ -123,7 +197,45 @@ function bannerDotClass(tone) {
       </div>
     @endif
 
-    @if (statusPage)
+    @if (statusPage && !accessGranted && statusPage.access_type === 'password')
+      <div class="py-24">
+        <h1 class="mb-2 text-center text-xl font-semibold text-gray-900">{{ statusPage.title }}</h1>
+        <p class="mb-6 text-center text-sm text-gray-500">This status page is password protected.</p>
+        @if (unlockError)
+          <p class="mb-4 text-center text-sm text-red-600">Incorrect password.</p>
+        @endif
+        <form method="POST" action="/status/{{ pageSlug }}/unlock" class="mx-auto max-w-xs space-y-3">
+          <input type="hidden" name="redirect" value="/status/{{ pageSlug }}" />
+          <input type="password" name="password" placeholder="Password" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <button type="submit" class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white">Unlock</button>
+        </form>
+      </div>
+    @endif
+
+    @if (statusPage && !accessGranted && statusPage.access_type === 'email_domain')
+      <div class="py-24">
+        <h1 class="mb-2 text-center text-xl font-semibold text-gray-900">{{ statusPage.title }}</h1>
+        <p class="mb-6 text-center text-sm text-gray-500">Access is restricted to approved email domains.</p>
+        @if (unlockError)
+          <p class="mb-4 text-center text-sm text-red-600">That email address isn't on an approved domain.</p>
+        @endif
+        <form method="POST" action="/status/{{ pageSlug }}/unlock" class="mx-auto max-w-xs space-y-3">
+          <input type="hidden" name="redirect" value="/status/{{ pageSlug }}" />
+          <input type="email" name="email" placeholder="you@company.com" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <button type="submit" class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white">Continue</button>
+        </form>
+      </div>
+    @endif
+
+    @if (statusPage && !accessGranted && statusPage.access_type === 'ip_allowlist')
+      <div class="py-24 text-center">
+        <p class="text-sm font-medium uppercase tracking-wide text-gray-400">403</p>
+        <h1 class="mt-2 text-2xl font-semibold text-gray-900">Access restricted</h1>
+        <p class="mt-2 text-gray-500">This status page isn't available from your network.</p>
+      </div>
+    @endif
+
+    @if (statusPage && accessGranted)
       <header class="mb-10">
         <h1 class="text-2xl font-semibold text-gray-900">{{ statusPage.title }}</h1>
       </header>

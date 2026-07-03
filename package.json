@@ -68,11 +68,11 @@
     "sqlite": "^3.47.2"
   },
   "dependencies": {
-    "@stacksjs/stx": "^0.2.74",
+    "@stacksjs/stx": "^0.2.76",
     "@stacksjs/ts-cloud": "^0.5.29",
     "@ts-cloud/aws-types": "^0.5.29",
     "@ts-cloud/core": "^0.5.29",
-    "bun-plugin-stx": "^0.2.74",
+    "bun-plugin-stx": "^0.2.76",
     "stacks": "workspace:*"
   },
   "devDependencies": {
