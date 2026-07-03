@@ -78,6 +78,16 @@ route.post('/status-page-forms/{id}/update', 'Actions/StatusPages/UpdateStatusPa
 route.post('/status-page-forms/{id}/monitors/add', 'Actions/StatusPages/DashboardAssignMonitorAction')
 route.post('/status-page-forms/{id}/monitors/remove', 'Actions/StatusPages/DashboardRemoveMonitorAction')
 
+// Dashboard notification-channel form posts (stacksjs/status#1 Phase 8) —
+// same plain-POST convention, and same /*-forms/ naming to dodge the
+// dynamic-view-collision explained above (there's no [id].stx under
+// dashboard/settings, but keeping the convention consistent avoids
+// having to remember which pages need the workaround).
+route.post('/notification-channel-forms/create', 'Actions/Notifications/DashboardCreateChannelAction')
+route.post('/notification-channel-forms/{id}/test-send', 'Actions/Notifications/DashboardTestSendAction')
+route.post('/notification-channel-forms/monitors/{monitorId}/assign', 'Actions/Notifications/DashboardAssignChannelAction')
+route.post('/notification-channel-forms/monitors/{monitorId}/remove', 'Actions/Notifications/DashboardRemoveChannelAction')
+
 // `/coming-soon` is served as an STX view from
 // `storage/framework/defaults/resources/views/coming-soon.stx`. The
 // view auto-resolves through stx-serve, so no route registration is
