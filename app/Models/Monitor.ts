@@ -153,6 +153,34 @@ export default defineModel({
       },
       factory: () => 0,
     },
+
+    // Whether this monitor accepts pushed CPU/RAM samples from the
+    // customer's own server via POST /agent/{metricsToken}/metrics.
+    // Orthogonal to `type` (an uptime/ssl/ping/... monitor can also report
+    // metrics) rather than a new `type` value, so enabling it never touches
+    // the `type` CHECK constraint (which would force a destructive SQLite
+    // table rebuild on this live app).
+    reportsMetrics: {
+      order: 10,
+      fillable: true,
+      default: false,
+      validation: {
+        rule: schema.boolean(),
+      },
+      factory: () => false,
+    },
+
+    // Unguessable token that IS the auth for the metrics-push endpoint —
+    // same convention as HeartbeatMonitor.pingToken. Nullable: only
+    // monitors with reportsMetrics enabled have one.
+    metricsToken: {
+      order: 11,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(64),
+      },
+      factory: () => crypto.randomUUID().replace(/-/g, ''),
+    },
   },
 
   dashboard: {

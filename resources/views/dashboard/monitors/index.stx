@@ -26,6 +26,17 @@ const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? ne
 const filterType = query.get('type') || ''
 const filterStatus = query.get('status') || ''
 
+const idxRange = query.get('range') || '24h'
+const IDX_RANGE_MS = { '24h': 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000, '30d': 30 * 24 * 60 * 60 * 1000 }
+const idxSince = new Date(Date.now() - (IDX_RANGE_MS[idxRange] || IDX_RANGE_MS['24h'])).toISOString()
+const checksInRange = db.query(`SELECT COUNT(*) as c FROM check_results WHERE checked_at >= ?1`).get(idxSince).c
+
+function idxRangeUrl(r) {
+  const p = new URLSearchParams(query)
+  p.set('range', r)
+  return '/dashboard/monitors?' + p.toString()
+}
+
 const allTypes = db.query(`SELECT DISTINCT type FROM monitors ORDER BY type ASC`).all().map((r) => r.type)
 
 let sql = `SELECT id, uuid, name, url, type, status, enabled, last_checked_at FROM monitors WHERE 1=1`
@@ -77,7 +88,7 @@ function statusUrl(s) {
   <header class="mb-6 flex items-center justify-between">
     <div>
       <h1 class="text-xl font-semibold text-gray-900">Monitors</h1>
-      <p class="mt-1 text-sm text-gray-500">{{ monitors.length }} monitor{{ monitors.length === 1 ? '' : 's' }}</p>
+      <p class="mt-1 text-sm text-gray-500">{{ monitors.length }} monitor{{ monitors.length === 1 ? '' : 's' }} &middot; {{ checksInRange }} check{{ checksInRange === 1 ? '' : 's' }} ({{ idxRange }})</p>
     </div>
   </header>
 
@@ -95,6 +106,12 @@ function statusUrl(s) {
       <a href="{{ statusUrl('up') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'up' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Up</a>
       <a href="{{ statusUrl('degraded') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'degraded' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Degraded</a>
       <a href="{{ statusUrl('down') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'down' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Down</a>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-medium uppercase tracking-wide text-gray-400">Range</span>
+      <a href="{{ idxRangeUrl('24h') }}" class="rounded-full px-3 py-1 text-xs {{ idxRange === '24h' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">24h</a>
+      <a href="{{ idxRangeUrl('7d') }}" class="rounded-full px-3 py-1 text-xs {{ idxRange === '7d' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">7d</a>
+      <a href="{{ idxRangeUrl('30d') }}" class="rounded-full px-3 py-1 text-xs {{ idxRange === '30d' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">30d</a>
     </div>
   </div>
 
