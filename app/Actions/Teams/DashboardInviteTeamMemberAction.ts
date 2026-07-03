@@ -32,6 +32,9 @@ export default new Action({
       }
     }
 
-    return new Response(null, { status: 302, headers: { Location: '/dashboard/settings/team' } })
+    // Preserve the team context on the way back (same as
+    // DashboardRemoveTeamMemberAction) — a bare redirect lands on
+    // team.stx's TEAM_ID default of 1, silently switching teams.
+    return new Response(null, { status: 302, headers: { Location: `/dashboard/settings/team?team_id=${teamId || ''}` } })
   },
 })
