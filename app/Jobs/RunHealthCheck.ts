@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
@@ -83,7 +84,7 @@ export default new Job({
       status_code: null,
       message,
       metadata: JSON.stringify(metadata),
-      region: 'default',
+      region: process.env.WORKER_REGION || 'default',
       checked_at: checkedAt,
     })
 

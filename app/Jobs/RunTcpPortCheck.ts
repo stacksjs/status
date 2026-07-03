@@ -1,4 +1,5 @@
 import { connect } from 'node:net'
+import process from 'node:process'
 import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
@@ -71,7 +72,7 @@ export default new Job({
       status_code: null,
       message: result.open ? `Port ${port} open` : `Port ${port} closed or unreachable`,
       metadata: JSON.stringify({ port }),
-      region: 'default',
+      region: process.env.WORKER_REGION || 'default',
       checked_at: checkedAt,
     })
 

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import process from 'node:process'
 import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
@@ -70,7 +71,7 @@ export default new Job({
       status_code: null,
       message: result.alive ? 'Host reachable' : 'Host unreachable',
       metadata: JSON.stringify({}),
-      region: 'default',
+      region: process.env.WORKER_REGION || 'default',
       checked_at: checkedAt,
     })
 

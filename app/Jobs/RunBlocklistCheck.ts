@@ -1,4 +1,5 @@
 import { resolve4, reverse } from 'node:dns/promises'
+import process from 'node:process'
 import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
@@ -106,7 +107,7 @@ export default new Job({
       status_code: null,
       message: listedOn.length > 0 ? `Listed on: ${listedOn.join(', ')}` : 'Not listed on any checked blocklist',
       metadata: JSON.stringify({ ip, listedOn }),
-      region: 'default',
+      region: process.env.WORKER_REGION || 'default',
       checked_at: checkedAt,
     })
 
