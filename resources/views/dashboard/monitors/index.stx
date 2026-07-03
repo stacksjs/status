@@ -1,0 +1,124 @@
+<!--
+  Monitor list — dashboard page (stacksjs/status#1 Phase 8).
+
+  Server-rendered like resources/views/status/[slug].stx rather than the
+  client-reactive `<script client>` + state()/:for pattern used by some
+  framework-shipped dashboard pages: that pattern hit an unresolved
+  `:for expected an array; got empty/error for expression "monitors()"`
+  warning here that didn't reproduce in the framework's own shipped
+  example, and this simpler, already-proven-working approach (see the
+  public status pages) ships a correct page now rather than staying
+  blocked on a client-hydration issue.
+
+  "Live status dot" is the monitor's actual current status (re-fetched
+  on every page load) — not a websocket-pushed update without a reload.
+  Wiring stacks-realtime for true live push is a real follow-up, not
+  silently implied by "live" here.
+-->
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const filterType = query.get('type') || ''
+const filterStatus = query.get('status') || ''
+
+const allTypes = db.query(`SELECT DISTINCT type FROM monitors ORDER BY type ASC`).all().map((r) => r.type)
+
+let sql = `SELECT id, uuid, name, url, type, status, enabled, last_checked_at FROM monitors WHERE 1=1`
+const params = []
+if (filterType) {
+  sql += ` AND type = ?${params.length + 1}`
+  params.push(filterType)
+}
+if (filterStatus) {
+  sql += ` AND status = ?${params.length + 1}`
+  params.push(filterStatus)
+}
+sql += ` ORDER BY name ASC`
+
+const monitors = db.query(sql).all(...params)
+
+function statusDotClass(status) {
+  if (status === 'up') return 'h-2 w-2 rounded-full bg-emerald-500'
+  if (status === 'degraded') return 'h-2 w-2 rounded-full bg-amber-500'
+  if (status === 'down') return 'h-2 w-2 rounded-full bg-red-500'
+  return 'h-2 w-2 rounded-full bg-gray-300'
+}
+
+function statusLabel(status) {
+  if (status === 'up') return 'Operational'
+  if (status === 'degraded') return 'Degraded'
+  if (status === 'down') return 'Down'
+  return 'Unknown'
+}
+
+function typeUrl(t) {
+  const p = new URLSearchParams(query)
+  if (t) p.set('type', t)
+  else p.delete('type')
+  const s = p.toString()
+  return '/dashboard/monitors' + (s ? '?' + s : '')
+}
+
+function statusUrl(s) {
+  const p = new URLSearchParams(query)
+  if (s) p.set('status', s)
+  else p.delete('status')
+  const qs = p.toString()
+  return '/dashboard/monitors' + (qs ? '?' + qs : '')
+}
+</script>
+
+<div class="mx-auto max-w-4xl px-6 py-10">
+  <header class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">Monitors</h1>
+      <p class="mt-1 text-sm text-gray-500">{{ monitors.length }} monitor{{ monitors.length === 1 ? '' : 's' }}</p>
+    </div>
+  </header>
+
+  <div class="mb-6 flex flex-wrap items-center gap-4">
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-medium uppercase tracking-wide text-gray-400">Type</span>
+      <a href="{{ typeUrl('') }}" class="rounded-full px-3 py-1 text-xs {{ filterType === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">All</a>
+      @foreach (allTypes as t)
+        <a href="{{ typeUrl(t) }}" class="rounded-full px-3 py-1 text-xs {{ filterType === t ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">{{ t }}</a>
+      @endforeach
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-medium uppercase tracking-wide text-gray-400">Status</span>
+      <a href="{{ statusUrl('') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">All</a>
+      <a href="{{ statusUrl('up') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'up' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Up</a>
+      <a href="{{ statusUrl('degraded') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'degraded' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Degraded</a>
+      <a href="{{ statusUrl('down') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'down' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Down</a>
+    </div>
+  </div>
+
+  @if (monitors.length === 0)
+    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
+      <h3 class="font-medium text-gray-900">No monitors match these filters</h3>
+      <p class="mt-1 text-sm text-gray-500">Create a monitor via the API to start tracking uptime, or clear the filters above.</p>
+    </div>
+  @endif
+
+  @if (monitors.length > 0)
+    <div class="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+      @foreach (monitors as monitor)
+        <a href="/dashboard/monitors/{{ monitor.id }}" class="flex items-center justify-between gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+          <div>
+            <p class="font-medium text-gray-900">{{ monitor.name }}</p>
+            <p class="text-sm text-gray-500">{{ monitor.url }} &middot; {{ monitor.type }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="{{ statusDotClass(monitor.status) }}"></span>
+            <span class="text-sm text-gray-600">{{ statusLabel(monitor.status) }}</span>
+          </div>
+        </a>
+      @endforeach
+    </div>
+  @endif
+</div>

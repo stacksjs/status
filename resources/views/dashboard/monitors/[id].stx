@@ -1,0 +1,336 @@
+<!--
+  Monitor detail — dashboard page (stacksjs/status#1 Phase 8).
+
+  Server-rendered, same convention as monitors/index.stx and the public
+  status pages. Charts are hand-rolled inline SVG computed server-side
+  from CheckResult rows rather than @stacksjs/charts + <script client> +
+  useChart() (the framework's real, working convention elsewhere) —
+  this app's own dashboard pages hit an unresolved client-hydration bug
+  earlier in this project (see monitors/index.stx's header comment), so
+  charts here stay on the same proven server-rendered path rather than
+  re-risking that. Revisit once the underlying stx bug is confirmed
+  fixed.
+-->
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const monitorId = (typeof id !== 'undefined' && id) ? Number(id) : 0
+const monitor = monitorId ? db.query(`SELECT * FROM monitors WHERE id = ?1 LIMIT 1`).get(monitorId) : null
+
+function statusDotClass(status) {
+  if (status === 'up') return 'h-2.5 w-2.5 rounded-full bg-emerald-500'
+  if (status === 'degraded') return 'h-2.5 w-2.5 rounded-full bg-amber-500'
+  if (status === 'down') return 'h-2.5 w-2.5 rounded-full bg-red-500'
+  return 'h-2.5 w-2.5 rounded-full bg-gray-300'
+}
+
+function statusLabel(status) {
+  if (status === 'up') return 'Operational'
+  if (status === 'degraded') return 'Degraded'
+  if (status === 'down') return 'Down'
+  return 'Unknown'
+}
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+const recentChecks = monitor
+  ? db.query(`SELECT id, status, response_time_ms, status_code, message, checked_at, region FROM check_results WHERE monitor_id = ?1 ORDER BY checked_at DESC LIMIT 20`).all(monitor.id)
+  : []
+
+const incidents = monitor
+  ? db.query(`SELECT id, cause, status, started_at, resolved_at FROM incidents WHERE monitor_id = ?1 ORDER BY started_at DESC LIMIT 20`).all(monitor.id)
+  : []
+
+// Response-time sparkline: oldest -> newest, last 50 checks.
+const chartChecks = monitor
+  ? db.query(`SELECT response_time_ms, checked_at FROM check_results WHERE monitor_id = ?1 AND response_time_ms IS NOT NULL ORDER BY checked_at DESC LIMIT 50`).all(monitor.id).reverse()
+  : []
+
+function buildSparkline(values, width, height) {
+  if (values.length === 0) return ''
+  const max = Math.max(...values, 1)
+  const min = Math.min(...values, 0)
+  const range = max - min || 1
+  const stepX = values.length > 1 ? width / (values.length - 1) : 0
+  return values
+    .map((v, i) => {
+      const x = (i * stepX).toFixed(1)
+      const y = (height - ((v - min) / range) * height).toFixed(1)
+      return `${i === 0 ? 'M' : 'L'}${x},${y}`
+    })
+    .join(' ')
+}
+
+const sparklineWidth = 600
+const sparklineHeight = 80
+const sparklinePath = buildSparkline(chartChecks.map((c) => c.response_time_ms), sparklineWidth, sparklineHeight)
+const latestResponseTime = chartChecks.length > 0 ? chartChecks[chartChecks.length - 1].response_time_ms : null
+const avgResponseTime = chartChecks.length > 0 ? Math.round(chartChecks.reduce((sum, c) => sum + c.response_time_ms, 0) / chartChecks.length) : null
+
+// 90-day uptime bar: one segment per day, 'up'/'degraded'/'down'/'unknown'.
+const dailyRows = monitor
+  ? db.query(`
+      SELECT
+        date(checked_at) as day,
+        SUM(CASE WHEN status = 'down' THEN 1 ELSE 0 END) as down_count,
+        SUM(CASE WHEN status = 'degraded' THEN 1 ELSE 0 END) as degraded_count,
+        COUNT(*) as total
+      FROM check_results
+      WHERE monitor_id = ?1 AND checked_at >= date('now', '-90 days')
+      GROUP BY day
+    `).all(monitor.id)
+  : []
+const dailyMap = {}
+for (const row of dailyRows) dailyMap[row.day] = row
+
+const uptimeDays = []
+for (let i = 89; i >= 0; i--) {
+  const d = new Date()
+  d.setDate(d.getDate() - i)
+  const key = d.toISOString().slice(0, 10)
+  const row = dailyMap[key]
+  let dayStatus = 'unknown'
+  if (row) {
+    if (row.down_count > 0) dayStatus = 'down'
+    else if (row.degraded_count > 0) dayStatus = 'degraded'
+    else dayStatus = 'up'
+  }
+  uptimeDays.push({ day: key, status: dayStatus })
+}
+
+function dayBarClass(status) {
+  if (status === 'up') return 'bg-emerald-500'
+  if (status === 'degraded') return 'bg-amber-500'
+  if (status === 'down') return 'bg-red-500'
+  return 'bg-gray-200'
+}
+
+const totalDaysWithData = uptimeDays.filter((d) => d.status !== 'unknown').length
+const upDays = uptimeDays.filter((d) => d.status === 'up').length
+const uptimePercent = totalDaysWithData > 0 ? ((upDays / totalDaysWithData) * 100).toFixed(2) : null
+
+// Per-type detail panel.
+const sslCertificate = monitor && monitor.type === 'ssl'
+  ? db.query(`SELECT * FROM ssl_certificates WHERE monitor_id = ?1 ORDER BY created_at DESC LIMIT 1`).get(monitor.id)
+  : null
+
+const dnsSnapshots = monitor && monitor.type === 'dns'
+  ? db.query(`SELECT * FROM dns_snapshots WHERE monitor_id = ?1 ORDER BY checked_at DESC LIMIT 10`).all(monitor.id)
+  : []
+
+const latestCrawl = monitor && monitor.type === 'broken_links'
+  ? db.query(`SELECT * FROM crawls WHERE monitor_id = ?1 ORDER BY started_at DESC LIMIT 1`).get(monitor.id)
+  : null
+const crawlBrokenPages = latestCrawl
+  ? db.query(`SELECT url, found_on_url, status_code FROM crawled_pages WHERE crawl_id = ?1 AND is_broken_link = 1 LIMIT 20`).all(latestCrawl.id)
+  : []
+const crawlMixedContentPages = latestCrawl
+  ? db.query(`SELECT url, found_on_url FROM crawled_pages WHERE crawl_id = ?1 AND is_mixed_content = 1 LIMIT 20`).all(latestCrawl.id)
+  : []
+
+const lighthouseReports = monitor && monitor.type === 'lighthouse'
+  ? db.query(`SELECT performance_score, accessibility_score, seo_score, best_practices_score, checked_at FROM lighthouse_reports WHERE monitor_id = ?1 ORDER BY checked_at DESC LIMIT 10`).all(monitor.id)
+  : []
+const latestLighthouse = lighthouseReports[0] || null
+const previousLighthouse = lighthouseReports[1] || null
+const lighthouseRegression = latestLighthouse && previousLighthouse && (latestLighthouse.performance_score < previousLighthouse.performance_score - 10)
+
+const latestPortScan = monitor && monitor.type === 'port_scan'
+  ? db.query(`SELECT * FROM port_scan_results WHERE monitor_id = ?1 ORDER BY checked_at DESC LIMIT 1`).get(monitor.id)
+  : null
+let portScanOpen = []
+let portScanExpected = []
+if (latestPortScan) {
+  try { portScanOpen = JSON.parse(latestPortScan.open_ports || '[]') } catch {}
+  try { portScanExpected = JSON.parse(latestPortScan.expected_ports || '[]') } catch {}
+}
+</script>
+
+<div class="mx-auto max-w-4xl px-6 py-10">
+  @if (!monitor)
+    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
+      <h3 class="font-medium text-gray-900">Monitor not found</h3>
+      <p class="mt-1 text-sm text-gray-500"><a href="/dashboard/monitors" class="underline">Back to monitors</a></p>
+    </div>
+  @endif
+
+  @if (monitor)
+    <header class="mb-6">
+      <a href="/dashboard/monitors" class="text-sm text-gray-500 hover:text-gray-700">&larr; Monitors</a>
+      <div class="mt-2 flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-semibold text-gray-900">{{ monitor.name }}</h1>
+          <p class="mt-1 text-sm text-gray-500">{{ monitor.url }} &middot; {{ monitor.type }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="{{ statusDotClass(monitor.status) }}"></span>
+          <span class="text-sm text-gray-600">{{ statusLabel(monitor.status) }}</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="mb-8 grid grid-cols-3 gap-4">
+      <div class="rounded-xl border border-gray-200 bg-white p-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-gray-400">90-day uptime</p>
+        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ uptimePercent !== null ? uptimePercent + '%' : '—' }}</p>
+      </div>
+      <div class="rounded-xl border border-gray-200 bg-white p-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Latest response time</p>
+        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ latestResponseTime !== null ? latestResponseTime + 'ms' : '—' }}</p>
+      </div>
+      <div class="rounded-xl border border-gray-200 bg-white p-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Avg response time</p>
+        <p class="mt-1 text-2xl font-semibold text-gray-900">{{ avgResponseTime !== null ? avgResponseTime + 'ms' : '—' }}</p>
+      </div>
+    </section>
+
+    <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">90-day uptime</h2>
+      <div class="flex h-8 items-end gap-px">
+        @foreach (uptimeDays as d)
+          <div class="h-full flex-1 rounded-sm {{ dayBarClass(d.status) }}" title="{{ d.day }}: {{ d.status }}"></div>
+        @endforeach
+      </div>
+    </section>
+
+    @if (chartChecks.length > 0)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Response time (last {{ chartChecks.length }} checks)</h2>
+        <svg viewBox="0 0 {{ sparklineWidth }} {{ sparklineHeight }}" class="h-20 w-full">
+          <path d="{{ sparklinePath }}" fill="none" stroke="#3b82f6" stroke-width="2"></path>
+        </svg>
+      </section>
+    @endif
+
+    @if (monitor.type === 'ssl' && sslCertificate)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">SSL certificate</h2>
+        <dl class="grid grid-cols-2 gap-3 text-sm">
+          <div><dt class="text-gray-400">Issuer</dt><dd class="text-gray-900">{{ sslCertificate.issuer }}</dd></div>
+          <div><dt class="text-gray-400">Subject</dt><dd class="text-gray-900">{{ sslCertificate.subject }}</dd></div>
+          <div><dt class="text-gray-400">Valid from</dt><dd class="text-gray-900">{{ formatDate(sslCertificate.valid_from) }}</dd></div>
+          <div><dt class="text-gray-400">Expires</dt><dd class="text-gray-900">{{ formatDate(sslCertificate.expires_at) }}</dd></div>
+        </dl>
+      </section>
+    @endif
+
+    @if (monitor.type === 'dns' && dnsSnapshots.length > 0)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">DNS snapshots</h2>
+        <div class="space-y-2">
+          @foreach (dnsSnapshots as snap)
+            <div class="rounded-lg bg-gray-50 p-3 text-sm">
+              <span class="font-medium text-gray-900">{{ snap.record_type }}</span>
+              <span class="ml-2 text-gray-500">{{ snap.record_values }}</span>
+              <span class="ml-2 text-xs text-gray-400">{{ formatDate(snap.checked_at) }}</span>
+            </div>
+          @endforeach
+        </div>
+      </section>
+    @endif
+
+    @if (monitor.type === 'broken_links' && latestCrawl)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Crawl report</h2>
+        <p class="mb-3 text-sm text-gray-500">{{ latestCrawl.pages_crawled }} pages crawled &middot; {{ latestCrawl.broken_links_count }} broken link(s) &middot; {{ latestCrawl.mixed_content_count }} mixed-content resource(s)</p>
+
+        @if (crawlBrokenPages.length > 0)
+          <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Broken links, by source page</h3>
+          <div class="mb-4 space-y-1">
+            @foreach (crawlBrokenPages as page)
+              <div class="rounded bg-gray-50 p-2 text-xs">
+                <span class="text-red-600">{{ page.status_code }}</span>
+                <span class="ml-2 text-gray-900">{{ page.url }}</span>
+                <span class="ml-2 text-gray-400">found on {{ page.found_on_url }}</span>
+              </div>
+            @endforeach
+          </div>
+        @endif
+
+        @if (crawlMixedContentPages.length > 0)
+          <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Mixed content</h3>
+          <div class="space-y-1">
+            @foreach (crawlMixedContentPages as page)
+              <div class="rounded bg-gray-50 p-2 text-xs">
+                <span class="text-gray-900">{{ page.url }}</span>
+                <span class="ml-2 text-gray-400">on {{ page.found_on_url }}</span>
+              </div>
+            @endforeach
+          </div>
+        @endif
+      </section>
+    @endif
+
+    @if (monitor.type === 'lighthouse' && latestLighthouse)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Lighthouse scores</h2>
+        @if (lighthouseRegression)
+          <p class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">Performance score dropped more than 10 points since the previous run.</p>
+        @endif
+        <dl class="grid grid-cols-4 gap-3 text-sm">
+          <div><dt class="text-gray-400">Performance</dt><dd class="text-lg font-semibold text-gray-900">{{ latestLighthouse.performance_score }}</dd></div>
+          <div><dt class="text-gray-400">Accessibility</dt><dd class="text-lg font-semibold text-gray-900">{{ latestLighthouse.accessibility_score }}</dd></div>
+          <div><dt class="text-gray-400">SEO</dt><dd class="text-lg font-semibold text-gray-900">{{ latestLighthouse.seo_score }}</dd></div>
+          <div><dt class="text-gray-400">Best practices</dt><dd class="text-lg font-semibold text-gray-900">{{ latestLighthouse.best_practices_score }}</dd></div>
+        </dl>
+      </section>
+    @endif
+
+    @if (monitor.type === 'port_scan' && latestPortScan)
+      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Port scan</h2>
+        <p class="text-sm text-gray-500">Open: {{ portScanOpen.join(', ') || 'none' }}</p>
+        <p class="mt-1 text-sm text-gray-500">Expected: {{ portScanExpected.join(', ') || 'none configured' }}</p>
+      </section>
+    @endif
+
+    <section class="mb-8">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Incident history</h2>
+      @if (incidents.length === 0)
+        <p class="text-sm text-gray-500">No incidents recorded for this monitor.</p>
+      @endif
+      @if (incidents.length > 0)
+        <div class="space-y-2">
+          @foreach (incidents as incident)
+            <div class="rounded-lg border border-gray-200 bg-white p-3">
+              <div class="flex items-center justify-between">
+                <p class="text-sm text-gray-900">{{ incident.cause }}</p>
+                <span class="text-xs font-medium uppercase tracking-wide text-gray-500">{{ incident.status }}</span>
+              </div>
+              <p class="mt-1 text-xs text-gray-400">{{ formatDate(incident.started_at) }} @if (incident.resolved_at) — resolved {{ formatDate(incident.resolved_at) }} @endif</p>
+            </div>
+          @endforeach
+        </div>
+      @endif
+    </section>
+
+    <section>
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Recent check results</h2>
+      <div class="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        @foreach (recentChecks as check)
+          <div class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+            <div class="flex items-center gap-2">
+              <span class="{{ statusDotClass(check.status) }}"></span>
+              <span class="text-gray-900">{{ check.message }}</span>
+            </div>
+            <div class="flex items-center gap-4 text-gray-400">
+              @if (check.response_time_ms !== null)
+                <span>{{ check.response_time_ms }}ms</span>
+              @endif
+              <span>{{ formatDate(check.checked_at) }}</span>
+            </div>
+          </div>
+        @endforeach
+      </div>
+    </section>
+  @endif
+</div>
