@@ -930,6 +930,18 @@ async function runHetznerDeploy(args: {
   const resolvedDeployEnv = await resolveDeployEnvValues(environment)
   const deployConfig = { ...tsCloudConfig, sites: mergeSiteDeployEnv(sites, resolvedDeployEnv) }
 
+  // Also apply the decrypted values to THIS (local, deploying) process' env —
+  // not just the env shipped to the remote sites above. reconcileHetznerDns
+  // below (and any other local-side deploy logic) reads credentials like
+  // PORKBUN_API_KEY/PORKBUN_SECRET_KEY straight from `process.env`, so a
+  // secret stored (correctly) as encrypted config in .env.production would
+  // otherwise never reach it — only a value manually exported in the shell
+  // would work. Never clobber a value the shell already set explicitly.
+  for (const [envKey, envValue] of Object.entries(resolvedDeployEnv)) {
+    if (process.env[envKey] === undefined)
+      process.env[envKey] = envValue
+  }
+
   log.info('Shipping release to the server...')
   const ok = await deployAllComputeSites({
     config: deployConfig,
