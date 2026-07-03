@@ -1,0 +1,90 @@
+<!--
+  Cross-monitor incident feed — dashboard page (stacksjs/status#1 Phase
+  8). Same server-rendered convention as monitors/index.stx.
+-->
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const filterStatus = query.get('status') || ''
+
+let sql = `
+  SELECT i.id, i.cause, i.status, i.started_at, i.resolved_at, m.id AS monitor_id, m.name AS monitor_name
+  FROM incidents i
+  JOIN monitors m ON m.id = i.monitor_id
+  WHERE 1=1
+`
+const params = []
+if (filterStatus) {
+  sql += ` AND i.status = ?${params.length + 1}`
+  params.push(filterStatus)
+}
+sql += ` ORDER BY i.started_at DESC LIMIT 100`
+
+const incidents = db.query(sql).all(...params)
+
+const openCount = db.query(`SELECT COUNT(*) as c FROM incidents WHERE status != 'resolved'`).get().c
+
+function toneClass(status) {
+  if (status === 'resolved') return 'text-emerald-600 bg-emerald-50'
+  if (status === 'investigating') return 'text-red-600 bg-red-50'
+  return 'text-amber-600 bg-amber-50'
+}
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function statusUrl(s) {
+  const p = new URLSearchParams(query)
+  if (s) p.set('status', s)
+  else p.delete('status')
+  const qs = p.toString()
+  return '/dashboard/incidents' + (qs ? '?' + qs : '')
+}
+</script>
+
+<div class="mx-auto max-w-4xl px-6 py-10">
+  <header class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">Incidents</h1>
+      <p class="mt-1 text-sm text-gray-500">{{ openCount }} open across all monitors</p>
+    </div>
+  </header>
+
+  <div class="mb-6 flex items-center gap-2">
+    <a href="{{ statusUrl('') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">All</a>
+    <a href="{{ statusUrl('investigating') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'investigating' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Investigating</a>
+    <a href="{{ statusUrl('identified') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'identified' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Identified</a>
+    <a href="{{ statusUrl('monitoring') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'monitoring' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Monitoring</a>
+    <a href="{{ statusUrl('resolved') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'resolved' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Resolved</a>
+  </div>
+
+  @if (incidents.length === 0)
+    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
+      <h3 class="font-medium text-gray-900">No incidents match these filters</h3>
+    </div>
+  @endif
+
+  @if (incidents.length > 0)
+    <div class="space-y-3">
+      @foreach (incidents as incident)
+        <a href="/dashboard/monitors/{{ incident.monitor_id }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
+          <div class="flex items-center justify-between gap-4">
+            <p class="font-medium text-gray-900">{{ incident.monitor_name }}</p>
+            <span class="rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide {{ toneClass(incident.status) }}">{{ incident.status }}</span>
+          </div>
+          <p class="mt-1 text-sm text-gray-600">{{ incident.cause }}</p>
+          <p class="mt-1 text-xs text-gray-400">Started {{ formatDate(incident.started_at) }} @if (incident.resolved_at) — resolved {{ formatDate(incident.resolved_at) }} @endif</p>
+        </a>
+      @endforeach
+    </div>
+  @endif
+</div>
