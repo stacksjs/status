@@ -1,17 +1,25 @@
 import type { CloudConfig } from '@stacksjs/types'
 import type { CloudConfig as TsCloudConfig } from '@stacksjs/ts-cloud'
-import { servers } from '~/cloud/servers'
 import { env } from '@stacksjs/env'
 
 /**
- * Stacks Cloud Configuration
+ * UptimeStatus Cloud Configuration
  *
- * This file defines your cloud infrastructure configuration for Stacks.
- * Supports both server mode (Forge-style) and serverless mode (Vapor-style).
+ * Single Hetzner Cloud box (Forge-style, no AWS) running the app, its
+ * loopback-only API process, the queue worker, and the scheduler as
+ * four systemd services behind ts-cloud's rpx reverse proxy.
+ *
+ * This file previously carried the stacksjs.com framework website's own
+ * production config verbatim (wrong project slug, wrong domains —
+ * stacksjs.com/docs/blog/verygoodadblock.org — and AWS-only sections
+ * that don't apply to a Hetzner deploy at all) — never customized after
+ * `buddy new`. Rewritten for stacksjs/status#1 Phase 9's real e2e
+ * deploy verification.
  *
  * Environment variables:
- * - CLOUD_ENV: Set the active environment (production, staging, development)
- * - NODE_ENV: Fallback for CLOUD_ENV
+ * - CLOUD_PROVIDER=hetzner
+ * - HCLOUD_TOKEN / HCLOUD_LOCATION (apiToken/location fall back to these)
+ * - APP_DOMAIN=uptime-status.org
  *
  * @see https://github.com/stacksjs/ts-cloud
  */
@@ -22,9 +30,9 @@ export const tsCloud: TsCloudConfig = {
    * Project configuration
    */
   project: {
-    name: 'stacks',
-    slug: 'stacks',
-    region: 'us-east-1', // Default AWS region
+    name: 'uptime-status',
+    slug: 'uptime-status',
+    region: 'us-east-1', // Unused on the Hetzner path — kept for the AWS driver interface.
   },
 
   // Deploy compute to Hetzner Cloud (apiToken falls back to HCLOUD_TOKEN env).
@@ -201,17 +209,25 @@ export const tsCloud: TsCloudConfig = {
      */
     compute: {
       instances: 1,
-      size: 'small', // Provider-agnostic: 'nano', 'micro', 'small', 'medium', 'large', 'xlarge', '2xlarge' (small = 2GB RAM, needed for bun install)
+      // 'large' -> Hetzner cx43 (8 vCPU / 16GB RAM, ~$20/mo) — sized for
+      // a few hundred monitored sites with periodic HTTP/SSL/DNS checks
+      // plus occasional Lighthouse/crawl runs, with headroom so this
+      // doesn't need to scale up again soon.
+      size: 'large', // Provider-agnostic: 'nano', 'micro', 'small', 'medium', 'large', 'xlarge', '2xlarge'
       disk: {
-        size: 20,
+        size: 40,
         type: 'ssd', // Provider-agnostic: 'standard', 'ssd', 'premium'
         encrypted: true,
       },
       webServer: 'rpx',
       proxy: {
         engine: 'rpx',
-        onDemandTls: true,
-        onDemandTlsEmail: 'hello@stacksjs.com',
+        // No domain configured yet (uptime-status.org DNS not wired up)
+        // — on-demand TLS needs a resolvable domain to complete the
+        // Let's Encrypt HTTP-01 challenge. Re-enable once DNS points
+        // uptime-status.org at this box.
+        onDemandTls: false,
+        onDemandTlsEmail: 'admin@uptime-status.org',
       },
       // Uncomment for auto-scaling:
       // autoScaling: {
@@ -220,29 +236,7 @@ export const tsCloud: TsCloudConfig = {
       //   scaleUpThreshold: 70,
       //   scaleDownThreshold: 30,
       // },
-      // Uncomment for mixed instance fleet:
-      // fleet: [
-      //   { size: 'micro', weight: 1 },
-      //   { size: 'small', weight: 2 },
-      //   { size: 'micro', weight: 1, spot: true },
-      // ],
-      // spotConfig: {
-      //   baseCapacity: 1,
-      //   onDemandPercentage: 50,
-      //   strategy: 'capacity-optimized',
-      // },
     },
-
-    /**
-     * Server Definitions
-     * EC2 instances for server mode deployment
-     */
-    servers: {
-      app: servers.app,
-      // app2: servers.app2,
-      // web: servers.web,
-      // cache: servers.cache,
-    } as NonNullable<TsCloudConfig['infrastructure']>['servers'],
 
     /**
      * Jump Box / Bastion Host
@@ -311,24 +305,18 @@ export const tsCloud: TsCloudConfig = {
     },
 
     /**
-     * Load Balancer Configuration
-     *
-     * Controls whether to use an Application Load Balancer (ALB) for traffic distribution.
-     * Automatically enabled when compute.instances > 1.
-     *
-     * Benefits of ALB:
-     * - SSL termination with ACM certificates (free)
-     * - Health checks and automatic failover
-     * - HTTP to HTTPS redirect
-     * - Multiple target support
-     *
-     * When to disable:
-     * - Cost optimization (ALB costs ~$16/month minimum)
-     * - Simple single-instance deployments
-     * - Using Let's Encrypt for SSL instead of ACM
+     * Load Balancer / ACM SSL / Route53 DNS / S3 storage — all AWS-only
+     * constructs, unused entirely by the Hetzner deploy path
+     * (deployToHetzner/runHetznerDeploy in buddy's deploy command reads
+     * only infrastructure.compute + sites + hetzner.location/apiToken).
+     * Previously left populated with stacksjs.com's real production
+     * values (Route53 hosted zone ID included) despite being dead code
+     * for this app's deploy target — disabled/emptied rather than left
+     * as misleading unused config pointing at infrastructure this app
+     * doesn't own.
      */
     loadBalancer: {
-      enabled: true,
+      enabled: false,
       type: 'application',
       healthCheck: {
         path: '/health',
@@ -338,112 +326,33 @@ export const tsCloud: TsCloudConfig = {
       },
     },
 
-    /**
-     * SSL/TLS Configuration
-     *
-     * Supports two providers:
-     * - 'acm': AWS Certificate Manager (free, requires ALB or CloudFront)
-     * - 'letsencrypt': Free certificates (works without ALB, runs on EC2)
-     *
-     * When loadBalancer.enabled = true:
-     *   - Uses ACM by default (recommended)
-     *   - Certificates are automatically requested and validated via DNS
-     *   - HTTP to HTTPS redirect handled by ALB
-     *
-     * When loadBalancer.enabled = false:
-     *   - Uses Let's Encrypt by default
-     *   - Certificates are obtained and renewed automatically on EC2
-     *   - Requires port 80 for HTTP-01 challenge or DNS for DNS-01
-     */
     ssl: {
-      enabled: true,
-      provider: 'acm', // 'acm' | 'letsencrypt'
-      domains: env.SSL_DOMAINS?.split(',') || ['stacksjs.com', 'www.stacksjs.com'],
+      enabled: false,
+      provider: 'letsencrypt',
+      domains: env.SSL_DOMAINS?.split(',') || (env.APP_DOMAIN ? [env.APP_DOMAIN] : []),
       redirectHttp: true,
-      // Let's Encrypt configuration (used when provider: 'letsencrypt' or loadBalancer.enabled: false)
       letsEncrypt: {
-        email: env.LETSENCRYPT_EMAIL || 'admin@stacksjs.com',
-        staging: false, // Set to true for testing
+        email: env.LETSENCRYPT_EMAIL || 'admin@uptime-status.org',
+        staging: false,
         autoRenew: true,
       },
     },
 
-    /**
-     * DNS Configuration
-     */
-    dns: {
-      domain: env.APP_DOMAIN || 'stacksjs.com',
-      hostedZoneId: env.AWS_HOSTED_ZONE_ID || 'Z01455702Q7952O6RCY37', // Route53 hosted zone ID
-    },
+    storage: {},
 
     /**
-     * Storage Configuration
-     * S3 buckets for frontend, assets, uploads, etc.
+     * DNS Configuration
      *
-     * Mirrors the old CDK StorageStack defaults:
-     * - public: website-hosting bucket for frontend (index.html)
-     * - private: locked-down bucket for uploads, secrets, etc.
-     * - docs: website-hosting bucket for documentation (conditional)
-     * - logs: access-log bucket (retained on delete for audit)
-     *
-     * NOTE: The `public`, `docs`, and `blog` website-hosting buckets below are
-     * being SUPERSEDED by the server-static `sites` entries (see `sites` at the
-     * bottom of this file), which build each static site locally and ship it to
-     * `/var/www/<site>` on the Hetzner box (served by the reverse proxy's
-     * `file_server`). They are intentionally LEFT IN PLACE as the rollback path
-     * and to keep their existing CloudFront distributions alive during the
-     * migration. Once the Hetzner server-static sites are verified in
-     * production, these three website-hosting buckets (and their CloudFront)
-     * can be decommissioned.
+     * uptime-status.org is registered with Porkbun — ts-cloud has native
+     * Porkbun DNS support (PORKBUN_API_KEY/PORKBUN_SECRET_KEY env vars,
+     * see ~/Code/pantry/.config/cloud.ts for the same provider on the
+     * same Hetzner-deploy pattern). Records aren't created automatically
+     * until those two env vars are set — until then, point the domain
+     * at the server's IP manually from the Porkbun dashboard.
      */
-    storage: {
-      'public': {
-        public: true,
-        encryption: true,
-        versioning: true,
-        website: {
-          indexDocument: 'index.html',
-          errorDocument: 'index.html',
-        },
-      },
-      'private': {
-        encryption: true,
-        versioning: true,
-      },
-      'docs': {
-        public: true,
-        encryption: true,
-        versioning: true,
-        path: '/docs',
-        pathRewriteStyle: 'flat',
-        website: {
-          indexDocument: 'index.html',
-          errorDocument: '404.html',
-        },
-      },
-      'blog': {
-        public: true,
-        encryption: true,
-        versioning: true,
-        path: '/blog',
-        website: {
-          indexDocument: 'index.html',
-          errorDocument: '404.html',
-        },
-      },
-      'logs': {
-        encryption: true,
-        versioning: false,
-      },
-      'backups': {
-        encryption: true,
-        versioning: true,
-      },
-      'email': {
-        public: false,
-        encryption: true,
-        versioning: false,
-      },
+    dns: {
+      domain: env.APP_DOMAIN || 'uptime-status.org',
+      provider: 'porkbun',
     },
 
     /**
@@ -639,42 +548,36 @@ export const tsCloud: TsCloudConfig = {
   },
 
   /**
-   * Sites Configuration (optional)
-   * For multi-site deployments
+   * Sites Configuration
    *
    * Site kinds (resolved by ts-cloud's `resolveSiteKind`):
-   *  - `server` + `start`  → server-app  (systemd service behind the reverse proxy)
-   *  - `server` + no `start` (has `root`) → server-static (built locally, shipped
-   *    to `/var/www/<siteName>`, served by the reverse proxy's `file_server`)
-   *  - `bucket`            → upload built `root` to object storage + CDN
+   *  - `start` + `port` → server-app, systemd service behind the reverse proxy
+   *  - `start`, no `port` → server-app, systemd service with nothing exposed
+   *    (background worker/scheduler — no port to open, nothing to route to)
+   *  - no `start` (has `root`) → server-static, built locally and shipped to
+   *    `/var/www/<siteName>`
    *
-   * The static sites below (`docs`, `blog`, and external marketing sites) are the Hetzner
-   * server-static replacement for the AWS website-hosting buckets in
-   * `infrastructure.storage` (see the supersede note there). `buddy deploy`'s
-   * Hetzner path (`deployAllComputeSites`) builds each site's `root`, tars it,
-   * and ships it to `/var/www/<siteName>` on the box. No new Hetzner buckets are
-   * created. Each site's key maps 1:1 to `/var/www/<key>`:
-   *   - `docs`   → /var/www/docs   → served at /docs   on stacksjs.com
-   *   - `blog`   → /var/www/blog   → served at /blog   on stacksjs.com
-   *
-   * The Stacks root is served by the `main` server app; do not add a second
-   * static `/` site for stacksjs.com or it will compete with the app route.
+   * `main`'s `domain` is intentionally commented out: DNS for
+   * uptime-status.org isn't pointed at this box yet (see infrastructure.dns
+   * above — no PORKBUN_API_KEY/PORKBUN_SECRET_KEY configured, so ts-cloud
+   * won't create the record automatically). Deploying without a domain
+   * serves the app directly on the box's public IP (http://<ip>:3000) for
+   * e2e verification; uncomment once DNS is confirmed and redeploy to pick
+   * up the domain + enable infrastructure.compute.proxy.onDemandTls.
    */
   sites: {
     main: {
       // Ship the repo (source only; node_modules/.git excluded by the packager)
       // and install on the server via preStart, matching the Forge-style deploy.
-      // server-app: has `start` + `port` (systemd service on :3000).
       root: '.',
       path: '/',
-      domain: env.APP_DOMAIN || 'stacksjs.com',
+      // domain: env.APP_DOMAIN || 'uptime-status.org',
       start: 'bun storage/framework/core/buddy/src/cli.ts serve',
       port: 3000,
       preStart: ['bun install'],
     },
 
     // API (bun-router) behind `buddy serve`'s same-origin /api proxy.
-    // server-app: has `start` + `port` → systemd service on :3008.
     // Intentionally NO `domain`/`path`: ts-cloud's rpx gateway skips
     // domain-less sites, so the service stays loopback-only and is
     // reached exclusively via the :3000 proxy (stacksjs/stacks#1950).
@@ -692,61 +595,28 @@ export const tsCloud: TsCloudConfig = {
       env: { HOST: '127.0.0.1', APP_ENV: 'production' },
     },
 
-    // ---- server-static sites (migrated off AWS S3 + CloudFront) ----
-    // NO `start`/`port` ⇒ resolveSiteKind() === 'server-static'. The built
-    // `root` dir is shipped to /var/www/<key> and served by the reverse proxy's
-    // `file_server`. `build` runs locally before packaging to produce `root`.
-
-    // Documentation (BunPress). ~82 MB.
-    // BunPress writes the rendered site into the `.bunpress` subdir of --outdir,
-    // so the SERVED root is `dist/docs/.bunpress`.
-    docs: {
-      deploy: 'server',
-      root: 'dist/docs/.bunpress',
-      path: '/docs',
-      domain: env.APP_DOMAIN || 'stacksjs.com',
-      build: 'bunx @stacksjs/bunpress build --dir ./docs --outdir ./dist/docs',
-      // Extensionless docs URLs resolve to <path>/index.html (BunPress default).
-      pathRewriteStyle: 'directory',
+    // Queue worker — QUEUE_DRIVER=database, so jobs dispatched by the
+    // scheduler (DispatchDueChecks, CheckOverdueHeartbeats, etc. — see
+    // app/Scheduler.ts) sit in the `jobs` table until this process picks
+    // them up. No `port`: nothing to expose, just a persistent process.
+    worker: {
+      root: '.',
+      start: 'bun buddy queue:work',
+      preStart: ['bun install'],
+      env: { APP_ENV: 'production' },
     },
 
-    // Blog (BunPress static build of content/blog/, same engine as /docs).
-    // `buildBlog` renders the markdown posts with the custom Stacks theme into
-    // clean-URL pages (`<slug>/index.html`) plus the listing, feed.xml, and
-    // sitemap.xml — the static twin of the dev-server's onRequest renderer.
-    blog: {
-      deploy: 'server',
-      root: 'dist/blog',
-      path: '/blog',
-      domain: env.APP_DOMAIN || 'stacksjs.com',
-      build: 'bun -e "const {buildBlog}=await import(\'./storage/framework/core/actions/src/blog\'); await buildBlog({outDir:\'./dist/blog\', baseUrl: (process.env.APP_URL?(/^https?:/.test(process.env.APP_URL)?process.env.APP_URL:\'https://\'+process.env.APP_URL):\'https://stacksjs.com\')})"',
-      // Extensionless blog URLs resolve to <path>/index.html.
-      pathRewriteStyle: 'directory',
+    // Scheduler — drives app/Scheduler.ts's cron-style jobs (every-minute
+    // monitor-check dispatch, heartbeat overdue checks, maintenance-window
+    // status sync, etc.). Without this running, monitors are never
+    // actually checked in production — DispatchDueChecks only fires when
+    // something invokes the scheduler loop.
+    scheduler: {
+      root: '.',
+      start: 'bun buddy schedule:run',
+      preStart: ['bun install'],
+      env: { APP_ENV: 'production' },
     },
-
-    verygoodadblock: {
-      deploy: 'server',
-      root: '../adblock/dist/site',
-      path: '/',
-      domain: 'verygoodadblock.org',
-      build: 'cd ../adblock && bun run site:build',
-      pathRewriteStyle: 'directory',
-    },
-
-    verygoodadblockWww: {
-      deploy: 'server',
-      root: '../adblock/dist/site',
-      path: '/',
-      domain: 'www.verygoodadblock.org',
-      build: 'cd ../adblock && bun run site:build',
-      pathRewriteStyle: 'directory',
-    },
-
-    // Redirect-only sites (gateway answers with a 301; nothing is shipped).
-    // The alternate adblock domain → canonical, and www → apex for stacksjs.com.
-    veryGoodAdblock: { domain: 'very-good-adblock.org', redirect: 'https://verygoodadblock.org' },
-    veryGoodAdblockWww: { domain: 'www.very-good-adblock.org', redirect: 'https://verygoodadblock.org' },
-    wwwStacksjs: { domain: 'www.stacksjs.com', redirect: 'https://stacksjs.com' },
   },
 }
 
