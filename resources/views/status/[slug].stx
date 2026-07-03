@@ -55,6 +55,19 @@ const resolvedIncidents = monitorIds.length > 0
     `).all(...monitorIds)
   : []
 
+// Scheduled maintenance (stacksjs/status#1 Phase 12) is deliberately
+// queried and rendered separately from incidents above — planned,
+// announced work shouldn't read as an outage to a visitor.
+const activeMaintenanceWindows = monitorIds.length > 0
+  ? db.query(`
+      SELECT DISTINCT mw.id, mw.title, mw.description, mw.starts_at, mw.ends_at
+      FROM maintenance_windows mw
+      JOIN maintenance_window_monitors mwm ON mwm.maintenance_window_id = mw.id
+      WHERE mwm.monitor_id IN (${placeholders}) AND mw.status = 'active'
+      ORDER BY mw.starts_at ASC
+    `).all(...monitorIds)
+  : []
+
 const hasDown = monitors.some((m) => m.status === 'down')
 const hasDegraded = monitors.some((m) => m.status === 'degraded')
 
@@ -119,6 +132,21 @@ function bannerDotClass(tone) {
         <span class="{{ bannerDotClass(overallTone) }}"></span>
         <p class="font-medium text-gray-900">{{ overallLabel }}</p>
       </div>
+
+      @if (activeMaintenanceWindows.length > 0)
+        <section class="mb-10">
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Scheduled maintenance</h2>
+          <div class="space-y-3">
+            @foreach (activeMaintenanceWindows as mw)
+              <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <p class="font-medium text-gray-900">{{ mw.title }}</p>
+                <p class="mt-1 text-sm text-gray-600">{{ mw.description }}</p>
+                <p class="mt-1 text-xs text-gray-400">{{ formatDate(mw.starts_at) }} — {{ formatDate(mw.ends_at) }}</p>
+              </div>
+            @endforeach
+          </div>
+        </section>
+      @endif
 
       @if (activeIncidents.length > 0)
         <section class="mb-10">

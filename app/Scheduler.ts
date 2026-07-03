@@ -43,6 +43,12 @@ export default function () {
     .job('CheckWorkerHealth')
     .everyFiveMinutes()
 
+  // Keeps MaintenanceWindow.status in sync with its timestamps
+  // (stacksjs/status#1 Phase 12).
+  schedule
+    .job('UpdateMaintenanceWindowStatus')
+    .everyMinute()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 

@@ -55,9 +55,25 @@ const hostActiveIncidents = hostMonitorIds.length > 0
     `).all(...hostMonitorIds)
   : []
 
+const hostActiveMaintenanceWindows = hostMonitorIds.length > 0
+  ? statusDb.query(`
+      SELECT DISTINCT mw.id, mw.title, mw.description, mw.starts_at, mw.ends_at
+      FROM maintenance_windows mw
+      JOIN maintenance_window_monitors mwm ON mwm.maintenance_window_id = mw.id
+      WHERE mwm.monitor_id IN (${hostPlaceholders}) AND mw.status = 'active'
+      ORDER BY mw.starts_at ASC
+    `).all(...hostMonitorIds)
+  : []
+
 const hostHasDown = hostMonitors.some((m) => m.status === 'down')
 const hostHasDegraded = hostMonitors.some((m) => m.status === 'degraded')
 const hostOverallLabel = hostHasDown ? 'Major Outage' : hostHasDegraded ? 'Partial Outage' : 'All Systems Operational'
+
+function hostFormatDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
 
 function hostMonitorDotClass(status) {
   if (status === 'up') return 'bg-emerald-500'
@@ -1263,6 +1279,21 @@ const stackLayers = [
         <div class="mb-8 flex items-center gap-3 rounded-xl border px-5 py-4 border-gray-200 bg-gray-50">
           <p class="font-medium text-gray-900">{{ hostOverallLabel }}</p>
         </div>
+
+        @if (hostActiveMaintenanceWindows.length > 0)
+          <section class="mb-10">
+            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Scheduled maintenance</h2>
+            <div class="space-y-3">
+              @foreach (hostActiveMaintenanceWindows as mw)
+                <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                  <p class="font-medium text-gray-900">{{ mw.title }}</p>
+                  <p class="mt-1 text-sm text-gray-600">{{ mw.description }}</p>
+                  <p class="mt-1 text-xs text-gray-400">{{ hostFormatDate(mw.starts_at) }} — {{ hostFormatDate(mw.ends_at) }}</p>
+                </div>
+              @endforeach
+            </div>
+          </section>
+        @endif
 
         @if (hostActiveIncidents.length > 0)
           <section class="mb-10">
