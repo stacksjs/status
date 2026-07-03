@@ -2,6 +2,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import Crawl from '../Models/Crawl'
 import CrawledPage from '../Models/CrawledPage'
+import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
 
 const MAX_PAGES = 200
@@ -225,6 +226,32 @@ export default new Job({
     })
 
     log.info(`[job] RunCrawl: ${monitor.name} — ${pagesCrawled} page(s), ${brokenLinksCount} broken link(s), ${mixedContentCount} mixed-content resource(s)`)
+
+    // Opens on every crawl that finds an issue (same convention as
+    // RunPortScan, not a status-transition diff) — a crawl runs daily by
+    // design (see DispatchDueChecks), so this can't spam the way a 30s
+    // uptime check would; drives notification dispatch via Incident's
+    // observe trait, previously crawl monitors were the one check type
+    // that silently never notified anyone (stacksjs/status#1 Phase 2).
+    if (brokenLinksCount > 0) {
+      await Incident.create({
+        monitor_id: monitor.id,
+        started_at: new Date().toISOString(),
+        cause: `Crawl of ${monitor.name} found ${brokenLinksCount} broken link${brokenLinksCount === 1 ? '' : 's'}`,
+        status: 'investigating',
+        impacted_checks: JSON.stringify([{ type: 'broken_links', brokenLinksCount }]),
+      })
+    }
+
+    if (mixedContentCount > 0) {
+      await Incident.create({
+        monitor_id: monitor.id,
+        started_at: new Date().toISOString(),
+        cause: `Crawl of ${monitor.name} found ${mixedContentCount} mixed-content resource${mixedContentCount === 1 ? '' : 's'}`,
+        status: 'investigating',
+        impacted_checks: JSON.stringify([{ type: 'mixed_content', mixedContentCount }]),
+      })
+    }
   },
 })
 
