@@ -1,0 +1,72 @@
+<!--
+  Team settings — members list + invite form (stacksjs/status#1 Phase
+  8). Same server-rendered, native-HTML-form convention as
+  status-pages/index.stx, built on top of the Phase 9 TeamMember/invite
+  backend (app/Models/TeamMember.ts, Actions/Teams/InviteTeamMemberAction).
+-->
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const TEAM_ID = Number(query.get('team_id')) || 1
+
+const team = db.query(`SELECT id, name FROM teams WHERE id = ?1 LIMIT 1`).get(TEAM_ID)
+const members = db.query(`SELECT id, invited_email, role, status, invited_at, joined_at FROM team_members WHERE team_id = ?1 ORDER BY role ASC, invited_email ASC`).all(TEAM_ID)
+
+function roleTone(role) {
+  if (role === 'owner') return 'bg-gray-900 text-white'
+  if (role === 'admin') return 'bg-gray-200 text-gray-700'
+  return 'bg-gray-100 text-gray-600'
+}
+</script>
+
+<div class="mx-auto max-w-3xl px-6 py-10">
+  <header class="mb-6">
+    <h1 class="text-xl font-semibold text-gray-900">Team settings</h1>
+    <p class="mt-1 text-sm text-gray-500">{{ team ? team.name : 'Team #' + TEAM_ID }} &middot; {{ members.length }} member{{ members.length === 1 ? '' : 's' }}</p>
+  </header>
+
+  @if (members.length > 0)
+    <div class="mb-8 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+      @foreach (members as member)
+        <div class="flex items-center justify-between gap-4 px-5 py-4">
+          <div>
+            <p class="font-medium text-gray-900">{{ member.invited_email }}</p>
+            <p class="text-sm text-gray-500">{{ member.status === 'pending' ? 'Invite pending' : 'Active' }}</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ roleTone(member.role) }}">{{ member.role }}</span>
+            <form method="POST" action="/team-forms/{{ member.id }}/remove">
+              <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+              <button type="submit" class="text-xs text-red-500 hover:underline">Remove</button>
+            </form>
+          </div>
+        </div>
+      @endforeach
+    </div>
+  @endif
+
+  <section class="rounded-xl border border-gray-200 bg-white p-5">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Invite a member</h2>
+    <form method="POST" action="/team-forms/{{ TEAM_ID }}/invite" class="flex items-end gap-3">
+      <div class="flex-1">
+        <label class="mb-1 block text-xs text-gray-500">Email</label>
+        <input type="email" name="email" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="teammate@company.com" />
+      </div>
+      <div>
+        <label class="mb-1 block text-xs text-gray-500">Role</label>
+        <select name="role" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          <option value="member">Member</option>
+          <option value="admin">Admin</option>
+          <option value="owner">Owner</option>
+        </select>
+      </div>
+      <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Invite</button>
+    </form>
+    <p class="mt-3 text-xs text-gray-400">Invite emails aren't sent yet — the invited person needs the acceptance link shared manually for now.</p>
+  </section>
+</div>

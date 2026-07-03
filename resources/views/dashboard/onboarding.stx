@@ -1,0 +1,64 @@
+<!--
+  Onboarding — dashboard page (stacksjs/status#1 Phase 8). A checklist
+  rather than a multi-step wizard: each step re-derives its own
+  completion state from real data on every load (has the team created a
+  monitor? a notification channel? a status page?) instead of tracked
+  wizard/session state, so it can't drift out of sync with what's
+  actually true and there's nothing to build/maintain for
+  resuming-partway-through.
+
+  Domain ownership verification is intentionally NOT a step here — the
+  issue item marks it optional ("for domain/DNS checks"), and this app
+  doesn't have a domain-verification mechanism (TXT record challenge,
+  etc.) built yet; a monitor with type='domain' or type='dns' works
+  today without one, same as every other check type. Listing it as a
+  checklist step would silently imply a feature that isn't real.
+-->
+<script server>
+const Database = require('bun:sqlite').Database
+const path = require('path')
+
+const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const db = new Database(dbPath, { readonly: true })
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const TEAM_ID = Number(query.get('team_id')) || 1
+
+const monitorCount = db.query(`SELECT COUNT(*) as c FROM monitors WHERE team_id = ?1`).get(TEAM_ID).c
+const channelCount = db.query(`SELECT COUNT(*) as c FROM notification_channels WHERE team_id = ?1`).get(TEAM_ID).c
+const statusPageCount = db.query(`SELECT COUNT(*) as c FROM status_pages WHERE team_id = ?1`).get(TEAM_ID).c
+
+const steps = [
+  { done: monitorCount > 0, title: 'Add your first monitor', description: 'Track uptime, SSL, DNS, and more for a URL you care about.', href: '/dashboard/monitors' },
+  { done: channelCount > 0, title: 'Pick a notification channel', description: 'Slack, email, PagerDuty, or any of the other supported channels.', href: '/dashboard/settings/notifications' },
+  { done: statusPageCount > 0, title: 'Create a status page', description: 'A public page your customers can check during an incident.', href: '/dashboard/status-pages' },
+]
+const completedCount = steps.filter((s) => s.done).length
+</script>
+
+<div class="mx-auto max-w-2xl px-6 py-10">
+  <header class="mb-6">
+    <h1 class="text-xl font-semibold text-gray-900">Get started</h1>
+    <p class="mt-1 text-sm text-gray-500">{{ completedCount }} of {{ steps.length }} done</p>
+  </header>
+
+  <div class="mb-6 h-2 overflow-hidden rounded-full bg-gray-100">
+    <div class="h-full rounded-full bg-emerald-500" style="width: {{ Math.round((completedCount / steps.length) * 100) }}%"></div>
+  </div>
+
+  <div class="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+    @foreach (steps as step)
+      <a href="{{ step.href }}" class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium {{ step.done ? 'bg-emerald-500 text-white' : 'border border-gray-300 text-gray-400' }}">
+          @if (step.done)
+            &check;
+          @endif
+        </span>
+        <div>
+          <p class="font-medium text-gray-900">{{ step.title }}</p>
+          <p class="text-sm text-gray-500">{{ step.description }}</p>
+        </div>
+      </a>
+    @endforeach
+  </div>
+</div>

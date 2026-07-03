@@ -88,6 +88,11 @@ route.post('/notification-channel-forms/{id}/test-send', 'Actions/Notifications/
 route.post('/notification-channel-forms/monitors/{monitorId}/assign', 'Actions/Notifications/DashboardAssignChannelAction')
 route.post('/notification-channel-forms/monitors/{monitorId}/remove', 'Actions/Notifications/DashboardRemoveChannelAction')
 
+// Dashboard team settings form posts (stacksjs/status#1 Phase 8) — same
+// plain-POST convention.
+route.post('/team-forms/{id}/invite', 'Actions/Teams/DashboardInviteTeamMemberAction')
+route.post('/team-forms/{id}/remove', 'Actions/Teams/DashboardRemoveTeamMemberAction')
+
 // `/coming-soon` is served as an STX view from
 // `storage/framework/defaults/resources/views/coming-soon.stx`. The
 // view auto-resolves through stx-serve, so no route registration is
