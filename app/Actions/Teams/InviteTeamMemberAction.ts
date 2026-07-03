@@ -1,16 +1,16 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
+import SendTeamInviteEmail from '../../Jobs/SendTeamInviteEmail'
 import TeamMember from '../../Models/TeamMember'
 
 /**
  * `POST /teams/:id/invite` — creates a pending TeamMember row by email
- * (stacksjs/status#1 Phase 9). No email is actually sent yet (that's
- * stacks-email wiring, a separate follow-up — same pattern as everywhere
- * else in this app that's a real gap, not a silent omission); the invite
- * `uuid` is the acceptance token a link would carry once that's wired up.
- * Only one pending/active membership per (team, email) — inviting an
- * already-invited address returns the existing row rather than creating a
- * duplicate.
+ * (stacksjs/status#1 Phase 9) and emails the invited address their
+ * acceptance token (the invite `uuid`, consumed by
+ * `POST /team-invites/{uuid}/accept`). Only one pending/active membership
+ * per (team, email) — inviting an already-invited address returns the
+ * existing row rather than creating a duplicate, and does NOT re-send
+ * the email.
  */
 export default new Action({
   name: 'InviteTeamMemberAction',
@@ -39,6 +39,8 @@ export default new Action({
       status: 'pending',
       invited_at: new Date().toISOString(),
     })
+
+    await SendTeamInviteEmail.dispatch({ email, teamId, role, inviteUuid: member.uuid })
 
     return response.json(member, { status: 201 })
   },

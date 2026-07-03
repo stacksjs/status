@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import SendTeamInviteEmail from '../../Jobs/SendTeamInviteEmail'
 import TeamMember from '../../Models/TeamMember'
 
 /**
@@ -22,13 +23,15 @@ export default new Action({
     if (teamId && email && ['owner', 'admin', 'member'].includes(role)) {
       const existing = await TeamMember.where('team_id', teamId).where('invited_email', email).first()
       if (!existing) {
-        await TeamMember.create({
+        const member = await TeamMember.create({
           team_id: teamId,
           invited_email: email,
           role,
           status: 'pending',
           invited_at: new Date().toISOString(),
         })
+
+        await SendTeamInviteEmail.dispatch({ email, teamId, role, inviteUuid: member.uuid })
       }
     }
 

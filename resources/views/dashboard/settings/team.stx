@@ -67,6 +67,6 @@ function roleTone(role) {
       </div>
       <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Invite</button>
     </form>
-    <p class="mt-3 text-xs text-gray-400">Invite emails aren't sent yet — the invited person needs the acceptance link shared manually for now.</p>
+    <p class="mt-3 text-xs text-gray-400">Invites are emailed with their acceptance token. Accepting still happens via the API until dashboard sign-in lands.</p>
   </section>
 </div>
