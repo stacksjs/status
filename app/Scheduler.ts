@@ -35,6 +35,14 @@ export default function () {
     .job('CheckPerformanceTrends')
     .everyTenMinutes()
 
+  // Self-check for the monitoring pipeline itself — "who monitors the
+  // monitor?" (stacksjs/status#1 Phase 11). Runs independently of
+  // DispatchDueChecks so a stall in that job's own logic doesn't also
+  // silence this one.
+  schedule
+    .job('CheckWorkerHealth')
+    .everyFiveMinutes()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 
