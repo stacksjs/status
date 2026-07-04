@@ -241,12 +241,16 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
 
+      # ./buddy (the sh wrapper), NOT `bun buddy`: the wrapper bootstraps
+      # pantry and puts pantry/.bin on PATH before the CLI runs. The bare
+      # CLI's own pantry bootstrap installs pantry but then can't find it
+      # on PATH in a fresh runner and dies with a silent exit 1.
       - name: Deploy
         if: steps.deploy-secrets.outputs.available == 'true'
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
-        run: bun buddy deploy production --yes
+        run: ./buddy deploy production --yes
 
   publish-commit:
     if: github.event_name == 'pull_request'
