@@ -64,7 +64,11 @@ async function resolveSessionUser(request: RequestInstance) {
 
 async function resolveTokenUser(request: RequestInstance) {
   const cookieName = config.auth?.defaultTokenName || 'auth-token'
-  const bearer = request.bearerToken() ?? request.cookies?.get(cookieName)
+  // Guard the bearerToken() call: partial request objects (tests,
+  // non-HTTP callers) must resolve to "unauthenticated", not crash the
+  // auth path.
+  const bearer = (typeof request.bearerToken === 'function' ? request.bearerToken() : undefined)
+    ?? request.cookies?.get(cookieName)
   if (!bearer)
     return undefined
 

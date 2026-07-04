@@ -14,17 +14,17 @@
 // so no individual form template has to thread the token through itself.
 (function () {
   function readCookie(name) {
-    var m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.$?*|{}()\[\]\\\/+^]/g, '\\$&') + '=([^;]*)'))
+    const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.$?*|{}()\[\]\\\/+^]/g, '\\$&') + '=([^;]*)'))
     return m ? decodeURIComponent(m[1]) : null
   }
 
   function ensureToken() {
-    var existing = readCookie('X-CSRF-Token')
+    const existing = readCookie('X-CSRF-Token')
     if (existing)
       return existing
-    var arr = new Uint8Array(32)
+    const arr = new Uint8Array(32)
     window.crypto.getRandomValues(arr)
-    var tok = Array.prototype.map.call(arr, function (b) { return ('0' + b.toString(16)).slice(-2) }).join('')
+    const tok = Array.prototype.map.call(arr, function (b) { return ('0' + b.toString(16)).slice(-2) }).join('')
     document.cookie = 'X-CSRF-Token=' + tok + '; Path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '')
     return tok
   }
@@ -34,10 +34,10 @@
 
   function stampForm(form) {
     // Only same-origin, state-mutating forms need a token.
-    var method = (form.getAttribute('method') || 'get').toLowerCase()
+    const method = (form.getAttribute('method') || 'get').toLowerCase()
     if (method === 'get')
       return
-    var token = ensureToken()
+    const token = ensureToken()
     var field = form.querySelector('input[name="_token"]')
     if (!field) {
       field = document.createElement('input')

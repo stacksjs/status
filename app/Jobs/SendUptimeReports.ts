@@ -91,7 +91,7 @@ function periodLabel(frequency: string, start: number, end: number): string {
   const s = new Date(start)
   if (frequency === 'monthly')
     return `${MONTH_NAMES[s.getUTCMonth()]} ${s.getUTCFullYear()}`
-  const e = new Date(end - DAY_MS) // last full day covered, inclusive
+  const e = new Date(end - DAY_MS) // the last full day the window covers
   return `${MONTH_SHORT[s.getUTCMonth()]} ${s.getUTCDate()} to ${MONTH_SHORT[e.getUTCMonth()]} ${e.getUTCDate()}, ${e.getUTCFullYear()}`
 }
 

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { Auth } from '@stacksjs/auth'
 import { db } from '@stacksjs/database'
 import { handleWebhookEvent } from '@stacksjs/payments'
 import CancelSubscriptionAction from '../../app/Actions/Billing/CancelSubscriptionAction'
@@ -15,8 +16,16 @@ import '../../app/Actions/Billing/StripeWebhookAction'
 const TEAM_ID = 90004
 const OWNER_EMAIL = 'billing-test-owner-90004@example.com'
 
-function fakeRequest(fields: Record<string, string | undefined>) {
-  return { get: (key: string) => fields[key] } as any
+// The billing actions resolve the team from the requester's credential
+// (config/auth-team.ts), never from the form field, so the fake request
+// carries an optional bearer token; without one it is an unauthenticated
+// caller.
+function fakeRequest(fields: Record<string, string | undefined>, token?: string) {
+  return {
+    get: (key: string) => fields[key],
+    bearerToken: () => token,
+    cookies: { get: () => undefined },
+  } as any
 }
 
 describe('Billing checkout (stacksjs/status#1 Phase 9)', () => {
@@ -24,6 +33,10 @@ describe('Billing checkout (stacksjs/status#1 Phase 9)', () => {
   // `teams.id` is autoincrement, not TEAM_ID itself — resolved in
   // beforeAll and read by every test below.
   let realTeamId: number
+  // A real access token for the owner, minted through Auth so the
+  // actions' credential-based team resolution sees an authenticated
+  // owner of realTeamId.
+  let ownerToken: string
 
   beforeAll(async () => {
     await db.insertInto('teams').values({ name: `Billing Test Team ${TEAM_ID}` }).execute()
@@ -41,9 +54,14 @@ describe('Billing checkout (stacksjs/status#1 Phase 9)', () => {
       status: 'active',
       invited_email: OWNER_EMAIL,
     }).execute()
+
+    // No refresh token: keeps cleanup to the single access-token row.
+    const login = await Auth.loginUsingId(ownerUserId, { withRefreshToken: false })
+    ownerToken = String(login!.token)
   })
 
   afterAll(async () => {
+    await db.deleteFrom('oauth_access_tokens').where('user_id', '=', ownerUserId).execute()
     await db.deleteFrom('subscriptions').where('user_id', '=', ownerUserId).execute()
     await db.deleteFrom('team_members').where('team_id', '=', realTeamId).execute()
     await db.deleteFrom('teams').where('id', '=', realTeamId).execute()
@@ -51,19 +69,24 @@ describe('Billing checkout (stacksjs/status#1 Phase 9)', () => {
   })
 
   describe('CreateCheckoutSessionAction', () => {
-    test('422s without a team_id', async () => {
-      const res = await CreateCheckoutSessionAction.handle(fakeRequest({}))
-      expect(res.status).toBe(422)
-    })
-
-    test('redirects with error=no_owner for a team with no active owner', async () => {
-      const res = await CreateCheckoutSessionAction.handle(fakeRequest({ team_id: '999999999' }))
-      expect(res.status).toBe(302)
-      expect(res.headers.get('location')).toBe('/dashboard/settings/billing?team_id=999999999&error=no_owner')
-    })
-
-    test('resolves the real owner and fails gracefully (not a crash) without live Stripe credentials', async () => {
+    test('401s an unauthenticated request before reading any form fields', async () => {
+      // The team is derived from the credential, not the form, so a
+      // request with no token is rejected outright even with a team_id.
       const res = await CreateCheckoutSessionAction.handle(fakeRequest({ team_id: String(realTeamId) }))
+      expect(res.status).toBe(401)
+      expect(((await res.json()) as { error: string }).error).toBe('Authentication required')
+    })
+
+    test('403s when the posted team_id does not match the authed team', async () => {
+      // The form field is only checked for parity with the credential's
+      // team; a mismatch is a cross-team access attempt, not a lookup.
+      const res = await CreateCheckoutSessionAction.handle(fakeRequest({ team_id: '999999999' }, ownerToken))
+      expect(res.status).toBe(403)
+      expect(((await res.json()) as { error: string }).error).toBe('You do not have access to this team')
+    })
+
+    test('resolves the authed owner and fails gracefully (not a crash) without live Stripe credentials', async () => {
+      const res = await CreateCheckoutSessionAction.handle(fakeRequest({ team_id: String(realTeamId) }, ownerToken))
       // No live Stripe network access in this test environment (fake
       // key from tests/setup.ts) — the important assertion is that it
       // degrades to a redirect-with-error, not an unhandled throw.
@@ -73,19 +96,20 @@ describe('Billing checkout (stacksjs/status#1 Phase 9)', () => {
   })
 
   describe('CancelSubscriptionAction', () => {
-    test('422s without a team_id', async () => {
-      const res = await CancelSubscriptionAction.handle(fakeRequest({}))
-      expect(res.status).toBe(422)
-    })
-
-    test('redirects with error=no_owner for a team with no active owner', async () => {
-      const res = await CancelSubscriptionAction.handle(fakeRequest({ team_id: '999999999' }))
-      expect(res.status).toBe(302)
-      expect(res.headers.get('location')).toBe('/dashboard/settings/billing?team_id=999999999&error=no_owner')
-    })
-
-    test('redirects with error=no_active_subscription when the owner has no active subscription row', async () => {
+    test('401s an unauthenticated request before reading any form fields', async () => {
       const res = await CancelSubscriptionAction.handle(fakeRequest({ team_id: String(realTeamId) }))
+      expect(res.status).toBe(401)
+      expect(((await res.json()) as { error: string }).error).toBe('Authentication required')
+    })
+
+    test('403s when the posted team_id does not match the authed team', async () => {
+      const res = await CancelSubscriptionAction.handle(fakeRequest({ team_id: '999999999' }, ownerToken))
+      expect(res.status).toBe(403)
+      expect(((await res.json()) as { error: string }).error).toBe('You do not have access to this team')
+    })
+
+    test('redirects with error=no_active_subscription when the authed owner has no active subscription row', async () => {
+      const res = await CancelSubscriptionAction.handle(fakeRequest({ team_id: String(realTeamId) }, ownerToken))
       expect(res.status).toBe(302)
       expect(res.headers.get('location')).toBe(`/dashboard/settings/billing?team_id=${realTeamId}&error=no_active_subscription`)
     })
