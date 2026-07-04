@@ -3,3 +3,7 @@
 @yield('footer')
 
 @stack('scripts')
+
+<!-- Double-submit CSRF for the dashboard's server-rendered <form> posts.
+     Bearer-token API clients are exempt; cookie-authenticated forms need it. -->
+<script src="/assets/scripts/csrf-forms.js" defer></script>

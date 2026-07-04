@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { Auth } from '@stacksjs/auth'
-import { config } from '@stacksjs/config'
 import { response } from '@stacksjs/router'
+import { clearAuthCookie } from './authCookie'
 
 /**
  * Project override of the framework's default LogoutAction — same
@@ -21,8 +21,3 @@ export default new Action({
     )
   },
 })
-
-function clearAuthCookie(): string {
-  const name = config.auth?.defaultTokenName || 'auth-token'
-  return `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`
-}

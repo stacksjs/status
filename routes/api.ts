@@ -127,6 +127,8 @@ route.post('/billing-forms/webhook', 'Actions/Billing/StripeWebhookAction').name
 // dashboard (resources/views/dashboard/*.stx) can resolve the current
 // user/team during SSR — see Actions/Auth/LoginAction's doc comment.
 route.post('/login', 'Actions/Auth/LoginAction').rateLimit(5, 'minute')
+route.post('/register', 'Actions/Auth/RegisterAction').rateLimit(3, 'minute')
+route.post('/verify-two-factor-login', 'Actions/Auth/VerifyTwoFactorLoginAction').rateLimit(10, 'minute')
 route.post('/logout', 'Actions/Auth/LogoutAction').middleware('auth')
 
 // `/coming-soon` is served as an STX view from

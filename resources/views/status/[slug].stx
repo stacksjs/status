@@ -133,6 +133,72 @@ const monitorGroups = componentGroups.length > 0 && monitors.some((m) => m.group
 
 const monitorIds = monitors.map((m) => m.id)
 
+// Uptime history charts (OhDear-style) — a strip of daily bars + an
+// uptime % per monitor, computed from check_results over the last 90
+// days. Each day bucket takes its worst observed status (down beats
+// degraded beats up); days with no check at all render as "no data".
+const UPTIME_DAYS = 90
+const uptimeByMonitor = {}
+if (monitors.length > 0) {
+  const sinceMs = Date.now() - UPTIME_DAYS * 86400000
+  const sinceIso = new Date(sinceMs).toISOString()
+  for (const m of monitors) {
+    const rows = db.query(`
+      SELECT status, checked_at FROM check_results
+      WHERE monitor_id = ?1 AND checked_at >= ?2
+      ORDER BY checked_at ASC
+    `).all(m.id, sinceIso)
+
+    // Seed one bucket per day so gaps render as "no data", not collapse.
+    const bars = []
+    const dayIndex = {}
+    for (let i = UPTIME_DAYS - 1; i >= 0; i--) {
+      const d = new Date(sinceMs + (UPTIME_DAYS - 1 - i) * 86400000)
+      const key = d.toISOString().slice(0, 10)
+      dayIndex[key] = bars.length
+      bars.push({ date: key, status: 'unknown', up: 0, total: 0 })
+    }
+
+    let upChecks = 0
+    let totalChecks = 0
+    for (const r of rows) {
+      const key = String(r.checked_at).slice(0, 10)
+      const idx = dayIndex[key]
+      if (idx === undefined) continue
+      const bar = bars[idx]
+      bar.total++
+      totalChecks++
+      if (r.status === 'up') { bar.up++; upChecks++ }
+      // Worst-status-wins for the day's color.
+      const rank = r.status === 'down' ? 3 : r.status === 'degraded' ? 2 : r.status === 'up' ? 1 : 0
+      const curRank = bar.status === 'down' ? 3 : bar.status === 'degraded' ? 2 : bar.status === 'up' ? 1 : 0
+      if (rank > curRank) bar.status = r.status
+    }
+
+    uptimeByMonitor[m.id] = {
+      bars,
+      pct: totalChecks > 0 ? (upChecks / totalChecks) * 100 : null,
+    }
+  }
+}
+
+function uptimeBarColor(status) {
+  if (status === 'up') return '#10b981'
+  if (status === 'degraded') return '#f59e0b'
+  if (status === 'down') return '#ef4444'
+  return '#e5e7eb'
+}
+
+function uptimePctLabel(monitorId) {
+  const u = uptimeByMonitor[monitorId]
+  if (!u || u.pct === null) return 'No data yet'
+  return u.pct.toFixed(2) + '% uptime'
+}
+
+function uptimeBars(monitorId) {
+  return (uptimeByMonitor[monitorId] && uptimeByMonitor[monitorId].bars) || []
+}
+
 // bun:sqlite doesn't expand array bindings — build the IN clause placeholders manually.
 const placeholders = monitorIds.map((_, i) => `?${i + 1}`).join(', ')
 
@@ -345,11 +411,23 @@ function bannerDotClass(tone) {
           <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors</h2>
           <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
             @foreach (monitors as monitor)
-              <div class="flex items-center justify-between gap-4 px-4 py-3">
-                <p class="text-gray-900">{{ monitor.name }}</p>
-                <div class="flex items-center gap-2">
-                  <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
-                  <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+              <div class="px-4 py-4">
+                <div class="flex items-center justify-between gap-4">
+                  <p class="font-medium text-gray-900">{{ monitor.name }}</p>
+                  <div class="flex items-center gap-2">
+                    <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
+                    <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+                  </div>
+                </div>
+                <div class="uptime-bars" style="display:flex;gap:2px;align-items:stretch;height:30px;margin-top:10px;">
+                  @foreach (uptimeBars(monitor.id) as bar)
+                    <span title="{{ bar.date }}" style="flex:1 1 0;min-width:1px;border-radius:2px;background:{{ uptimeBarColor(bar.status) }};"></span>
+                  @endforeach
+                </div>
+                <div class="mt-1.5 flex items-center justify-between text-xs text-gray-400">
+                  <span>90 days ago</span>
+                  <span>{{ uptimePctLabel(monitor.id) }}</span>
+                  <span>Today</span>
                 </div>
               </div>
             @endforeach
@@ -363,11 +441,23 @@ function bannerDotClass(tone) {
             <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ group.name }}</h2>
             <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
               @foreach (group.monitors as monitor)
-                <div class="flex items-center justify-between gap-4 px-4 py-3">
-                  <p class="text-gray-900">{{ monitor.name }}</p>
-                  <div class="flex items-center gap-2">
-                    <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
-                    <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+                <div class="px-4 py-4">
+                  <div class="flex items-center justify-between gap-4">
+                    <p class="font-medium text-gray-900">{{ monitor.name }}</p>
+                    <div class="flex items-center gap-2">
+                      <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
+                      <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+                    </div>
+                  </div>
+                  <div class="uptime-bars" style="display:flex;gap:2px;align-items:stretch;height:30px;margin-top:10px;">
+                    @foreach (uptimeBars(monitor.id) as bar)
+                      <span title="{{ bar.date }}" style="flex:1 1 0;min-width:1px;border-radius:2px;background:{{ uptimeBarColor(bar.status) }};"></span>
+                    @endforeach
+                  </div>
+                  <div class="mt-1.5 flex items-center justify-between text-xs text-gray-400">
+                    <span>90 days ago</span>
+                    <span>{{ uptimePctLabel(monitor.id) }}</span>
+                    <span>Today</span>
                   </div>
                 </div>
               @endforeach

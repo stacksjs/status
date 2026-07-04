@@ -1,7 +1,6 @@
-import process from 'node:process'
 import { createTwoFactorChallenge, getTwoFactorState } from '@stacksjs/auth'
-import { config } from '@stacksjs/config'
 import { User } from '@stacksjs/orm'
+import { buildAuthCookie } from './authCookie'
 
 /**
  * Project override of the framework's default LoginAction (registered
@@ -80,16 +79,3 @@ export default new Action({
     )
   },
 })
-
-function buildAuthCookie(token: string, expiresInSeconds?: number): string {
-  const name = config.auth?.defaultTokenName || 'auth-token'
-  const maxAge = Math.max(1, Math.floor(expiresInSeconds ?? (config.auth?.tokenExpiry ?? 60 * 60 * 1000) / 1000))
-  const env = (process.env.APP_ENV ?? process.env.NODE_ENV ?? '').toLowerCase()
-  const isLocal = env === '' || env === 'local' || env === 'development' || env === 'dev' || env === 'test' || env === 'testing'
-
-  const parts = [`${name}=${token}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAge}`]
-  if (!isLocal)
-    parts.push('Secure')
-
-  return parts.join('; ')
-}

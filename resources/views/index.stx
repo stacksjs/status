@@ -76,6 +76,60 @@ const hostMonitorGroups = hostComponentGroups.length > 0 && hostMonitors.some((m
 const hostMonitorIds = hostMonitors.map((m) => m.id)
 const hostPlaceholders = hostMonitorIds.map((_, i) => `?${i + 1}`).join(', ')
 
+// Uptime history bars for the custom-domain status view — mirrors the
+// computation in resources/views/status/[slug].stx (each view is
+// self-contained by this app's convention). 90 daily buckets per monitor
+// from check_results, worst-status-wins per day.
+const HOST_UPTIME_DAYS = 90
+const hostUptimeByMonitor = {}
+if (hostMonitors.length > 0) {
+  const sinceMs = Date.now() - HOST_UPTIME_DAYS * 86400000
+  const sinceIso = new Date(sinceMs).toISOString()
+  for (const m of hostMonitors) {
+    const rows = statusDb.query(`
+      SELECT status, checked_at FROM check_results
+      WHERE monitor_id = ?1 AND checked_at >= ?2
+      ORDER BY checked_at ASC
+    `).all(m.id, sinceIso)
+    const bars = []
+    const dayIndex = {}
+    for (let i = 0; i < HOST_UPTIME_DAYS; i++) {
+      const key = new Date(sinceMs + i * 86400000).toISOString().slice(0, 10)
+      dayIndex[key] = bars.length
+      bars.push({ date: key, status: 'unknown' })
+    }
+    let up = 0
+    let total = 0
+    for (const r of rows) {
+      const idx = dayIndex[String(r.checked_at).slice(0, 10)]
+      if (idx === undefined) continue
+      total++
+      if (r.status === 'up') up++
+      const rank = r.status === 'down' ? 3 : r.status === 'degraded' ? 2 : r.status === 'up' ? 1 : 0
+      const cur = bars[idx].status === 'down' ? 3 : bars[idx].status === 'degraded' ? 2 : bars[idx].status === 'up' ? 1 : 0
+      if (rank > cur) bars[idx].status = r.status
+    }
+    hostUptimeByMonitor[m.id] = { bars, pct: total > 0 ? (up / total) * 100 : null }
+  }
+}
+
+function hostUptimeBars(id) {
+  return (hostUptimeByMonitor[id] && hostUptimeByMonitor[id].bars) || []
+}
+
+function hostUptimeBarColor(status) {
+  if (status === 'up') return '#10b981'
+  if (status === 'degraded') return '#f59e0b'
+  if (status === 'down') return '#ef4444'
+  return '#e5e7eb'
+}
+
+function hostUptimePctLabel(id) {
+  const u = hostUptimeByMonitor[id]
+  if (!u || u.pct === null) return 'No data yet'
+  return u.pct.toFixed(2) + '% uptime'
+}
+
 const hostActiveIncidents = hostMonitorIds.length > 0
   ? statusDb.query(`
       SELECT i.id, i.cause, i.status, i.started_at, m.name AS monitor_name
@@ -1365,11 +1419,23 @@ const faqs = [
             <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors</h2>
             <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
               @foreach (hostMonitors as monitor)
-                <div class="flex items-center justify-between gap-4 px-4 py-3">
-                  <p class="text-gray-900">{{ monitor.name }}</p>
-                  <div class="flex items-center gap-2">
-                    <span class="h-2 w-2 rounded-full {{ hostMonitorDotClass(monitor.status) }}"></span>
-                    <span class="text-sm text-gray-500">{{ hostMonitorLabel(monitor.status) }}</span>
+                <div class="px-4 py-4">
+                  <div class="flex items-center justify-between gap-4">
+                    <p class="font-medium text-gray-900">{{ monitor.name }}</p>
+                    <div class="flex items-center gap-2">
+                      <span class="h-2 w-2 rounded-full {{ hostMonitorDotClass(monitor.status) }}"></span>
+                      <span class="text-sm text-gray-500">{{ hostMonitorLabel(monitor.status) }}</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:2px;align-items:stretch;height:30px;margin-top:10px;">
+                    @foreach (hostUptimeBars(monitor.id) as bar)
+                      <span title="{{ bar.date }}" style="flex:1 1 0;min-width:1px;border-radius:2px;background:{{ hostUptimeBarColor(bar.status) }};"></span>
+                    @endforeach
+                  </div>
+                  <div class="mt-1.5 flex items-center justify-between text-xs text-gray-400">
+                    <span>90 days ago</span>
+                    <span>{{ hostUptimePctLabel(monitor.id) }}</span>
+                    <span>Today</span>
                   </div>
                 </div>
               @endforeach
@@ -1383,11 +1449,23 @@ const faqs = [
               <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ group.name }}</h2>
               <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
                 @foreach (group.monitors as monitor)
-                  <div class="flex items-center justify-between gap-4 px-4 py-3">
-                    <p class="text-gray-900">{{ monitor.name }}</p>
-                    <div class="flex items-center gap-2">
-                      <span class="h-2 w-2 rounded-full {{ hostMonitorDotClass(monitor.status) }}"></span>
-                      <span class="text-sm text-gray-500">{{ hostMonitorLabel(monitor.status) }}</span>
+                  <div class="px-4 py-4">
+                    <div class="flex items-center justify-between gap-4">
+                      <p class="font-medium text-gray-900">{{ monitor.name }}</p>
+                      <div class="flex items-center gap-2">
+                        <span class="h-2 w-2 rounded-full {{ hostMonitorDotClass(monitor.status) }}"></span>
+                        <span class="text-sm text-gray-500">{{ hostMonitorLabel(monitor.status) }}</span>
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:2px;align-items:stretch;height:30px;margin-top:10px;">
+                      @foreach (hostUptimeBars(monitor.id) as bar)
+                        <span title="{{ bar.date }}" style="flex:1 1 0;min-width:1px;border-radius:2px;background:{{ hostUptimeBarColor(bar.status) }};"></span>
+                      @endforeach
+                    </div>
+                    <div class="mt-1.5 flex items-center justify-between text-xs text-gray-400">
+                      <span>90 days ago</span>
+                      <span>{{ hostUptimePctLabel(monitor.id) }}</span>
+                      <span>Today</span>
                     </div>
                   </div>
                 @endforeach

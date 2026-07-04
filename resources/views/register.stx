@@ -1,0 +1,191 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+</script>
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create your account &middot; {{ appName }}</title>
+    <meta name="robots" content="noindex">
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('uptimestatus-theme')
+          if (stored === 'light' || stored === 'dark') document.documentElement.setAttribute('data-theme', stored)
+        } catch (err) {}
+      })()
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #fbfbfa; --surface: #ffffff; --surface-2: #f2f3f1;
+        --fg: #0b0f0d; --muted: #5c6864; --border: rgba(11,15,13,0.1); --border-strong: rgba(11,15,13,0.18);
+        --accent: #059669; --accent-fg: #ffffff; --accent-soft: rgba(5,150,105,0.09);
+        --danger: #dc2626; --danger-soft: rgba(220,38,38,0.08);
+        --radius: 16px; --radius-sm: 10px;
+        --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme="light"]) {
+          color-scheme: dark;
+          --bg: #080b0a; --surface: #101413; --surface-2: #161b19;
+          --fg: #f2f5f3; --muted: #97a39d; --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.15);
+          --accent: #2fe6a6; --accent-fg: #04140d; --accent-soft: rgba(47,230,166,0.13);
+          --danger: #f87171; --danger-soft: rgba(248,113,113,0.12);
+        }
+      }
+      html[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #080b0a; --surface: #101413; --surface-2: #161b19;
+        --fg: #f2f5f3; --muted: #97a39d; --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.15);
+        --accent: #2fe6a6; --accent-fg: #04140d; --accent-soft: rgba(47,230,166,0.13);
+        --danger: #f87171; --danger-soft: rgba(248,113,113,0.12);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 2rem;
+        font-family: var(--font-body); color: var(--fg); background: var(--bg);
+      }
+      a { color: inherit; text-decoration: none; }
+      .auth-card {
+        width: min(400px, 100%); padding: clamp(1.75rem, 5vw, 2.5rem);
+        border: 1px solid var(--border); border-radius: var(--radius);
+        background: var(--surface); box-shadow: 0 20px 50px -18px rgba(11,15,13,0.22);
+      }
+      .brand { display: inline-flex; align-items: center; gap: 0.6rem; margin-bottom: 1.75rem; }
+      .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--accent-fg); background: var(--accent); }
+      .brand-mark svg { width: 16px; height: 16px; }
+      .brand-name { font-family: var(--font-display); font-size: 1.12rem; font-weight: 600; }
+      h1 { margin: 0 0 0.4rem; font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
+      .sub { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.95rem; }
+      label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; }
+      .field { margin-bottom: 1.1rem; }
+      .hint { margin-top: 0.35rem; color: var(--muted); font-size: 0.78rem; }
+      input {
+        width: 100%; min-height: 46px; padding: 0 0.9rem;
+        border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+        color: var(--fg); font: inherit; font-size: 0.95rem; background: var(--bg);
+      }
+      input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+      .button {
+        display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+        width: 100%; min-height: 46px; padding: 0 1.2rem; margin-top: 0.35rem;
+        border: 1px solid var(--accent); border-radius: var(--radius-sm);
+        color: var(--accent-fg); font: inherit; font-size: 0.95rem; font-weight: 600;
+        background: var(--accent); cursor: pointer;
+      }
+      .button:hover { filter: brightness(1.05); }
+      .button:disabled { opacity: 0.6; cursor: default; }
+      .error {
+        display: none; margin-bottom: 1.1rem; padding: 0.75rem 0.9rem;
+        border: 1px solid var(--danger); border-radius: var(--radius-sm);
+        color: var(--danger); font-size: 0.88rem; background: var(--danger-soft);
+      }
+      .error.show { display: block; }
+      .alt { margin-top: 1.5rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
+      .alt a { color: var(--accent); font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="auth-card">
+      <a class="brand" href="/" data-no-router>
+        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg></span>
+        <span class="brand-name">{{ appName }}</span>
+      </a>
+
+      <div id="error" class="error"></div>
+
+      <form id="register-form">
+        <h1>Create your account</h1>
+        <p class="sub">Start monitoring in under two minutes. No credit card required.</p>
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" autocomplete="name" placeholder="Ada Lovelace" required>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" placeholder="••••••••" minlength="6" required>
+          <p class="hint">At least 6 characters.</p>
+        </div>
+        <button id="register-btn" class="button" type="submit">Create account</button>
+      </form>
+
+      <p class="alt">Already have an account? <a href="/login" data-no-router>Sign in</a></p>
+    </div>
+
+    <script>
+      (function () {
+        var REDIRECT = '/dashboard/onboarding'
+        var errorEl = document.getElementById('error')
+        var form = document.getElementById('register-form')
+        var btn = document.getElementById('register-btn')
+
+        function readCookie(name) {
+          var m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.$?*|{}()\[\]\\\/+^]/g, '\\$&') + '=([^;]*)'))
+          return m ? decodeURIComponent(m[1]) : null
+        }
+        // Double-submit CSRF token, self-seeded when the view server didn't
+        // set one — see resources/views/login.stx for the full rationale.
+        function ensureCsrf() {
+          var existing = readCookie('X-CSRF-Token')
+          if (existing) return existing
+          var arr = new Uint8Array(32)
+          window.crypto.getRandomValues(arr)
+          var tok = Array.prototype.map.call(arr, function (b) { return ('0' + b.toString(16)).slice(-2) }).join('')
+          document.cookie = 'X-CSRF-Token=' + tok + '; Path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '')
+          return tok
+        }
+        function showError(msg) { errorEl.textContent = msg; errorEl.classList.add('show') }
+        function clearError() { errorEl.textContent = ''; errorEl.classList.remove('show') }
+
+        form.addEventListener('submit', async function (e) {
+          e.preventDefault()
+          clearError()
+          btn.disabled = true
+          btn.textContent = 'Creating account…'
+          try {
+            var headers = { 'Content-Type': 'application/json', 'x-csrf-token': ensureCsrf() }
+            var res = await fetch('/register', {
+              method: 'POST',
+              headers: headers,
+              credentials: 'same-origin',
+              body: JSON.stringify({
+                name: document.getElementById('name').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                password: document.getElementById('password').value,
+              }),
+            })
+            var data = {}
+            try { data = await res.json() } catch (e) {}
+            if (res.ok && data.token) {
+              window.location.href = REDIRECT
+              return
+            }
+            var msg = data.message || data.error
+            if (!msg && data.errors) {
+              // validation error map → first message
+              var firstKey = Object.keys(data.errors)[0]
+              if (firstKey) { var v = data.errors[firstKey]; msg = Array.isArray(v) ? v[0] : v }
+            }
+            showError(msg || 'Could not create your account. Please try again.')
+          } catch (err) {
+            showError('Something went wrong. Please try again.')
+          } finally {
+            btn.disabled = false
+            btn.textContent = 'Create account'
+          }
+        })
+      })()
+    </script>
+  </body>
+</html>
