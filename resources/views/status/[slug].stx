@@ -314,7 +314,7 @@ function bannerDotClass(tone) {
         @if (unlockError)
           <p class="mb-4 text-center text-sm text-red-600">Incorrect password.</p>
         @endif
-        <form method="POST" action="/status/{{ pageSlug }}/unlock" class="mx-auto max-w-xs space-y-3">
+        <form method="POST" action="/api/status/{{ pageSlug }}/unlock" class="mx-auto max-w-xs space-y-3">
           <input type="hidden" name="redirect" value="/status/{{ pageSlug }}" />
           <input type="password" name="password" placeholder="Password" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
           <button type="submit" class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white">Unlock</button>
@@ -329,7 +329,7 @@ function bannerDotClass(tone) {
         @if (unlockError)
           <p class="mb-4 text-center text-sm text-red-600">That email address isn't on an approved domain.</p>
         @endif
-        <form method="POST" action="/status/{{ pageSlug }}/unlock" class="mx-auto max-w-xs space-y-3">
+        <form method="POST" action="/api/status/{{ pageSlug }}/unlock" class="mx-auto max-w-xs space-y-3">
           <input type="hidden" name="redirect" value="/status/{{ pageSlug }}" />
           <input type="email" name="email" placeholder="you@company.com" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
           <button type="submit" class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white">Continue</button>

@@ -483,7 +483,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
           @foreach (assignedChannels as channel)
             <div class="flex items-center justify-between gap-4 px-4 py-3">
               <p class="text-sm text-gray-900">{{ channel.name }} <span class="text-gray-400">({{ channel.type }})</span></p>
-              <form method="POST" action="/notification-channel-forms/monitors/{{ monitor.id }}/remove">
+              <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/remove">
                 <input type="hidden" name="channel_id" value="{{ channel.id }}" />
                 <button type="submit" class="text-xs text-red-500 hover:underline">Remove</button>
               </form>
@@ -493,7 +493,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
       @endif
 
       @if (availableChannels.length > 0)
-        <form method="POST" action="/notification-channel-forms/monitors/{{ monitor.id }}/assign" class="flex items-center gap-2">
+        <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/assign" class="flex items-center gap-2">
           <select name="channel_id" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm">
             @foreach (availableChannels as channel)
               <option value="{{ channel.id }}">{{ channel.name }} ({{ channel.type }})</option>

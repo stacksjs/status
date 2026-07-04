@@ -79,7 +79,7 @@ const sent = query.get('sent') === '1'
             <p class="font-medium text-gray-900">{{ channel.name }}</p>
             <p class="text-sm text-gray-500">{{ channel.type }} &middot; {{ channel.enabled ? 'enabled' : 'disabled' }}</p>
           </div>
-          <form method="POST" action="/notification-channel-forms/{{ channel.id }}/test-send">
+          <form method="POST" action="/api/notification-channel-forms/{{ channel.id }}/test-send">
             <button type="submit" class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Send test</button>
           </form>
         </div>
@@ -89,7 +89,7 @@ const sent = query.get('sent') === '1'
 
   <section class="rounded-xl border border-gray-200 bg-white p-5">
     <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Add a channel</h2>
-    <form method="POST" action="/notification-channel-forms/create" class="space-y-3">
+    <form method="POST" action="/api/notification-channel-forms/create" class="space-y-3">
       <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
       <div>
         <label class="mb-1 block text-xs text-gray-500">Name</label>

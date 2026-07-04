@@ -160,7 +160,7 @@ function usagePct(used, limit) {
           Renews automatically each month.
         @endif
       </p>
-      <form method="POST" action="/billing-forms/cancel" onsubmit="return confirm('Cancel your Pro subscription? You will drop to the Free plan at the end of the current billing period.')">
+      <form method="POST" action="/api/billing-forms/cancel" onsubmit="return confirm('Cancel your Pro subscription? You will drop to the Free plan at the end of the current billing period.')">
         <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
         <button type="submit" class="px-4 py-2 font-medium text-red-600 text-sm hover:bg-red-50 border border-red-200 rounded-lg">Cancel subscription</button>
       </form>
@@ -173,7 +173,7 @@ function usagePct(used, limit) {
         <li>&bull; {{ PLAN_LIMITS.pro.statusPages }} status pages (vs {{ PLAN_LIMITS.free.statusPages }} on Free)</li>
         <li>&bull; Checks as often as every {{ PLAN_LIMITS.pro.checkIntervalFloorSeconds }}s</li>
       </ul>
-      <form method="POST" action="/billing-forms/checkout">
+      <form method="POST" action="/api/billing-forms/checkout">
         <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
         <button type="submit" class="px-4 py-2 font-medium text-sm text-white bg-gray-900 rounded-lg">Upgrade &mdash; ${{ PAID_PLAN_PRICE_USD }}/mo</button>
       </form>
