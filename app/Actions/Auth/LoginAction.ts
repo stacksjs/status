@@ -76,8 +76,7 @@ export default new Action({
           name: user?.name,
         },
       },
-      200,
-      { 'Set-Cookie': buildAuthCookie(result.token, result.expiresIn) },
+      { status: 200, headers: { 'Set-Cookie': buildAuthCookie(result.token, result.expiresIn) } },
     )
   },
 })

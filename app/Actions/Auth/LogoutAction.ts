@@ -17,8 +17,7 @@ export default new Action({
 
     return response.json(
       { message: 'Successfully logged out' },
-      200,
-      { 'Set-Cookie': clearAuthCookie() },
+      { status: 200, headers: { 'Set-Cookie': clearAuthCookie() } },
     )
   },
 })
