@@ -4,10 +4,21 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
+import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SslCertificate from '../Models/SslCertificate'
+import SendNotification from './SendNotification'
 
 /** Alert thresholds, in days before expiry. */
 const WARNING_THRESHOLDS_DAYS = [30, 14, 7, 1]
+
+/**
+ * The tightest warning threshold a certificate has crossed, or null when
+ * it isn't near expiry. 12 days out -> 14; 40 days out -> null.
+ */
+function crossedThreshold(daysUntilExpiry: number): number | null {
+  const crossed = WARNING_THRESHOLDS_DAYS.filter(days => daysUntilExpiry <= days)
+  return crossed.length > 0 ? Math.min(...crossed) : null
+}
 
 function fetchPeerCertificate(hostname: string, port = 443): Promise<import('node:tls').PeerCertificate> {
   return new Promise((resolve, reject) => {
@@ -29,11 +40,13 @@ function fetchPeerCertificate(hostname: string, port = 443): Promise<import('nod
 
 /**
  * Checks the TLS certificate served by a monitor's URL: records issuer,
- * validity window, and fingerprint, and opens an incident when the
- * certificate is within WARNING_THRESHOLDS_DAYS of expiring, expired
- * outright, or its fingerprint changed since the last check (a cert swap —
- * worth surfacing even when the new cert is valid, since it's often
- * unexpected).
+ * validity window, and fingerprint. An expired certificate (or a failed
+ * TLS handshake) opens an incident, which notifies channels with critical
+ * severity. A certificate merely *approaching* expiry notifies the
+ * monitor's channels directly at each WARNING_THRESHOLDS_DAYS crossing
+ * (warning severity, once per threshold, deduped against the previous
+ * check) — deliberately NOT an incident, so a "renew within 14 days"
+ * heads-up never shows up as an outage on a public status page.
  */
 export default new Job({
   name: 'RunSslCheck',
@@ -101,7 +114,34 @@ export default new Job({
       log.warn(`[job] RunSslCheck: ${monitor.name} certificate EXPIRED`)
     }
     else if (expiringSoon) {
-      log.warn(`[job] RunSslCheck: ${monitor.name} certificate expires in ${daysUntilExpiry} day(s)`)
+      // Warn once per threshold: compare the threshold crossed now against
+      // the one already crossed at the previous check (computed from that
+      // check's own timestamps). A renewed cert (fingerprint change) resets
+      // the comparison, which is correct — a *new* cert that is already
+      // near expiry deserves its own warning.
+      const threshold = crossedThreshold(daysUntilExpiry)
+      const previousDaysUntilExpiry = previous
+        ? Math.floor((new Date(previous.expires_at).getTime() - new Date(previous.last_checked_at || previous.created_at).getTime()) / (1000 * 60 * 60 * 24))
+        : null
+      const previousThreshold = previousDaysUntilExpiry === null || fingerprintChanged
+        ? null
+        : crossedThreshold(previousDaysUntilExpiry)
+
+      if (threshold !== null && threshold !== previousThreshold) {
+        const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
+        for (const attachment of attachments) {
+          await SendNotification.dispatch({
+            channelId: attachment.notification_channel_id,
+            subject: `⚠️ ${monitor.name}: certificate expires in ${daysUntilExpiry} day(s)`,
+            message: `The TLS certificate for ${hostname} expires on ${expiresAt.toISOString().slice(0, 10)}. Renew it before visitors start seeing browser warnings.`,
+            severity: 'warning',
+          })
+        }
+        log.warn(`[job] RunSslCheck: ${monitor.name} certificate expires in ${daysUntilExpiry} day(s) — notified ${attachments.length} channel(s)`)
+      }
+      else {
+        log.warn(`[job] RunSslCheck: ${monitor.name} certificate expires in ${daysUntilExpiry} day(s)`)
+      }
     }
     else if (fingerprintChanged) {
       log.info(`[job] RunSslCheck: ${monitor.name} certificate fingerprint changed (renewed)`)

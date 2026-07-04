@@ -5,8 +5,20 @@ import { Job } from '@stacksjs/queue'
 import DomainRegistration from '../Models/DomainRegistration'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
+import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
+import SendNotification from './SendNotification'
 
 const WARNING_THRESHOLDS_DAYS = [30, 14, 7, 1]
+
+/**
+ * The tightest warning threshold the registration has crossed, or null
+ * when it isn't near expiry (same dedup scheme as RunSslCheck: a warning
+ * notification fires once per crossing, not on every check).
+ */
+function crossedThreshold(daysUntilExpiry: number): number | null {
+  const crossed = WARNING_THRESHOLDS_DAYS.filter(days => daysUntilExpiry <= days)
+  return crossed.length > 0 ? Math.min(...crossed) : null
+}
 
 /** WHOIS field names vary by TLD/registrar — check common variants in order. */
 function findField(parsed: Record<string, unknown>, keys: string[]): string | undefined {
@@ -89,6 +101,10 @@ export default new Job({
       return
     }
 
+    // Fetch the previous record before writing the new one — it anchors the
+    // once-per-threshold warning dedup below.
+    const previous = await DomainRegistration.where('monitor_id', monitor.id).orderByDesc('created_at').first()
+
     await DomainRegistration.create({
       monitor_id: monitor.id,
       registrar: registrar ?? 'Unknown',
@@ -110,7 +126,30 @@ export default new Job({
       log.warn(`[job] RunDomainCheck: ${domain} registration EXPIRED`)
     }
     else if (WARNING_THRESHOLDS_DAYS.some(days => daysUntilExpiry <= days)) {
-      log.warn(`[job] RunDomainCheck: ${domain} registration expires in ${daysUntilExpiry} day(s)`)
+      // Notify channels once per threshold crossing (30/14/7/1 days), not on
+      // every check. A renewal pushes expiry out, so previousThreshold simply
+      // stops matching and no further warnings fire.
+      const threshold = crossedThreshold(daysUntilExpiry)
+      const previousDaysUntilExpiry = previous
+        ? Math.floor((new Date(previous.expires_at).getTime() - new Date(previous.last_checked_at || previous.created_at).getTime()) / (1000 * 60 * 60 * 24))
+        : null
+      const previousThreshold = previousDaysUntilExpiry === null ? null : crossedThreshold(previousDaysUntilExpiry)
+
+      if (threshold !== null && threshold !== previousThreshold) {
+        const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
+        for (const attachment of attachments) {
+          await SendNotification.dispatch({
+            channelId: attachment.notification_channel_id,
+            subject: `⚠️ ${monitor.name}: domain expires in ${daysUntilExpiry} day(s)`,
+            message: `The registration for ${domain} expires on ${expiresAt.toISOString().slice(0, 10)}. Renew it with your registrar to keep the domain.`,
+            severity: 'warning',
+          })
+        }
+        log.warn(`[job] RunDomainCheck: ${domain} registration expires in ${daysUntilExpiry} day(s) — notified ${attachments.length} channel(s)`)
+      }
+      else {
+        log.warn(`[job] RunDomainCheck: ${domain} registration expires in ${daysUntilExpiry} day(s)`)
+      }
     }
   },
 })
