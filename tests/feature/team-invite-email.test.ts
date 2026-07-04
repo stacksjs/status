@@ -15,7 +15,7 @@ const OWNER_EMAIL = 'team-invite-owner-90005@example.com'
 describe('Team invite email delivery (stacksjs/status#1 Phase 9 follow-up)', () => {
   // Real user/team/owner-membership fixtures for the dashboard-form
   // action, which derives the team from the requester's credential
-  // (config/auth-team.ts) rather than trusting the route's id field.
+  // (@stacksjs/auth's team resolution) rather than trusting the route's id field.
   // Mirrors billing-checkout.test.ts's beforeAll/afterAll pattern;
   // `teams.id` is autoincrement, not TEAM_ID itself.
   let ownerUserId: number

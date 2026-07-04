@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { manageSubscription } from '@stacksjs/payments'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { getTeamOwnerUserId } from '../../../config/plans'
 
 /**
@@ -22,7 +22,7 @@ import { getTeamOwnerUserId } from '../../../config/plans'
  * team_id used to be taken from a form field with no verification at
  * all — any signed-in user could cancel another team's subscription by
  * posting a different team_id. It's now derived from the requester's
- * own session/token (see config/auth-team.ts); the form field is only
+ * own session/token (see @stacksjs/auth's team resolution); the form field is only
  * checked for parity with it.
  */
 export default new Action({

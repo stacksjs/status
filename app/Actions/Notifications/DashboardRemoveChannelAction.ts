@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 
@@ -11,7 +11,7 @@ import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
  *
  * Previously took `monitorId`/`channel_id` with no ownership check at
  * all. The monitor must now belong to the requester's own team (see
- * config/auth-team.ts) — the pivot lookup itself is scoped through the
+ * @stacksjs/auth's team resolution) — the pivot lookup itself is scoped through the
  * monitor, so no separate channel-ownership check is needed.
  */
 export default new Action({

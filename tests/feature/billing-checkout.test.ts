@@ -17,7 +17,7 @@ const TEAM_ID = 90004
 const OWNER_EMAIL = 'billing-test-owner-90004@example.com'
 
 // The billing actions resolve the team from the requester's credential
-// (config/auth-team.ts), never from the form field, so the fake request
+// (@stacksjs/auth's team resolution), never from the form field, so the fake request
 // carries an optional bearer token; without one it is an unauthenticated
 // caller.
 function fakeRequest(fields: Record<string, string | undefined>, token?: string) {

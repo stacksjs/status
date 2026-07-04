@@ -1,8 +1,6 @@
 import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
-import { Auth, sessionUser } from '@stacksjs/auth'
-import { config } from '@stacksjs/config'
-import { db } from '@stacksjs/database'
+import { resolveAuthenticatedMembership } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import Team from '../../../storage/framework/defaults/app/Models/Team'
 
@@ -21,13 +19,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * plain-POST, redirect-back convention as its siblings
  * (DashboardInviteTeamMemberAction / DashboardRemoveTeamMemberAction).
  *
- * Auth follows the same driver-aware credential resolution as
- * config/auth-team.ts's resolveAuthenticatedTeamId (never a
- * client-supplied field), but is resolved locally because this action
- * also needs the requester's ROLE: unlike invites, report settings are
- * restricted to active owner/admin members. Team precedence (owner over
- * admin over member) matches the shared helper exactly so the team this
- * action writes to is always the team the page rendered.
+ * Auth: resolveAuthenticatedMembership (from @stacksjs/auth) gives the
+ * credential-derived team AND the requester's role, because unlike
+ * invites, report settings are restricted to active owner/admin
+ * members. Never trusts a client-supplied field.
  */
 export default new Action({
   name: 'DashboardUpdateReportSettingsAction',
@@ -80,55 +75,3 @@ export default new Action({
     return new Response(null, { status: 302, headers: { Location: `/dashboard/settings/team?team_id=${authTeamId}` } })
   },
 })
-
-/**
- * Copy of config/auth-team.ts's resolution logic, extended to also
- * return the role of the membership that won the owner > admin > member
- * precedence. Kept here (not in the shared helper) so the shared
- * signature other actions depend on stays untouched.
- */
-async function resolveAuthenticatedMembership(request: RequestInstance): Promise<{ teamId: number, role: string } | null> {
-  const guardName = config.auth?.default || 'api'
-  const guard = config.auth?.guards?.[guardName] || { driver: 'token' }
-  const driver = guard.driver || 'token'
-
-  const user = driver === 'session'
-    ? await resolveSessionUser(request)
-    : await resolveTokenUser(request)
-
-  if (!user?.id)
-    return null
-
-  const memberships = await db
-    .selectFrom('team_members')
-    .where('user_id', '=', user.id)
-    .where('status', '=', 'active')
-    .select(['team_id', 'role'])
-    .execute()
-
-  if (memberships.length === 0)
-    return null
-
-  const owner = memberships.find(m => m.role === 'owner')
-  const admin = memberships.find(m => m.role === 'admin')
-  const membership = owner ?? admin ?? memberships[0]
-
-  return { teamId: Number(membership.team_id), role: String(membership.role) }
-}
-
-async function resolveSessionUser(request: RequestInstance) {
-  const sessionId = request.cookies?.get('session_id')
-  if (!sessionId)
-    return undefined
-
-  return sessionUser(sessionId)
-}
-
-async function resolveTokenUser(request: RequestInstance) {
-  const cookieName = config.auth?.defaultTokenName || 'auth-token'
-  const bearer = request.bearerToken() ?? request.cookies?.get(cookieName)
-  if (!bearer)
-    return undefined
-
-  return Auth.getUserFromToken(bearer)
-}

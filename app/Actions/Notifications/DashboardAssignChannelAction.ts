@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotificationChannel from '../../Models/NotificationChannel'
@@ -13,7 +13,7 @@ import NotificationChannel from '../../Models/NotificationChannel'
  * Previously took `monitorId`/`channel_id` with no ownership check at
  * all — any signed-in user could attach any other team's channel to
  * any other team's monitor. Both ids are now required to belong to the
- * requester's own team (see config/auth-team.ts).
+ * requester's own team (see @stacksjs/auth's team resolution).
  */
 export default new Action({
   name: 'DashboardAssignChannelAction',

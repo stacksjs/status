@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import Monitor from '../../Models/Monitor'
 import StatusPage from '../../Models/StatusPage'
 import StatusPageMonitor from '../../Models/StatusPageMonitor'
@@ -14,7 +14,7 @@ import StatusPageMonitor from '../../Models/StatusPageMonitor'
  * any signed-in user could attach any other team's monitor to any
  * other team's status page (leaking that monitor's name/status onto a
  * public page). Both ids are now required to belong to the requester's
- * own team (see config/auth-team.ts).
+ * own team (see @stacksjs/auth's team resolution).
  */
 export default new Action({
   name: 'DashboardAssignMonitorAction',

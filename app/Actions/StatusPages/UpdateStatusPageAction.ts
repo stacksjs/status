@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import StatusPage from '../../Models/StatusPage'
 
 /**
@@ -16,7 +16,7 @@ import StatusPage from '../../Models/StatusPage'
  * Previously looked up the status page by `id` alone with no ownership
  * check — any signed-in user could edit any other team's status page
  * (title, custom domain, access type) by guessing its id. Now requires
- * it to belong to the requester's own team (see config/auth-team.ts).
+ * it to belong to the requester's own team (see @stacksjs/auth's team resolution).
  */
 export default new Action({
   name: 'UpdateStatusPageAction',

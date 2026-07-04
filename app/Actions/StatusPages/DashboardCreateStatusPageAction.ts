@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { planLimitsForTeam } from '../../../config/plans'
 import StatusPage from '../../Models/StatusPage'
 
@@ -16,7 +16,7 @@ import StatusPage from '../../Models/StatusPage'
  * any signed-in user could create (and consume plan quota for) a
  * status page under another team by posting a different team_id. It's
  * now derived from the requester's own session/token (see
- * config/auth-team.ts).
+ * @stacksjs/auth's team resolution).
  */
 export default new Action({
   name: 'DashboardCreateStatusPageAction',

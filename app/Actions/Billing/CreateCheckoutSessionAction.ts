@@ -3,7 +3,7 @@ import { Action } from '@stacksjs/actions'
 import { config } from '@stacksjs/config'
 import { manageCustomer, stripe } from '@stacksjs/payments'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { PAID_PLAN, PAID_PLAN_PRICE_USD_CENTS, PLAN_STRIPE_PRICE_ID, getTeamOwnerUserId } from '../../../config/plans'
 import User from '../../Models/User'
 
@@ -27,7 +27,7 @@ import User from '../../Models/User'
  * all — any signed-in user could start (and, on success, become the
  * billing contact for) another team's checkout by posting a different
  * team_id. It's now derived from the requester's own session/token
- * (see config/auth-team.ts); the form field is only checked for parity
+ * (see @stacksjs/auth's team resolution); the form field is only checked for parity
  * with it.
  */
 export default new Action({

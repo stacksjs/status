@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import TeamMember from '../../Models/TeamMember'
 
 /**
@@ -12,7 +12,7 @@ import TeamMember from '../../Models/TeamMember'
  * Previously deleted by `id` alone with no ownership check at all — any
  * signed-in user could remove any other team's member row by guessing
  * its id. Now scoped to the requester's own team (see
- * config/auth-team.ts) — the row must belong to that team to be deleted.
+ * @stacksjs/auth's team resolution) — the row must belong to that team to be deleted.
  */
 export default new Action({
   name: 'DashboardRemoveTeamMemberAction',

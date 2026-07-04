@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import NotificationChannel from '../../Models/NotificationChannel'
 
 /**
@@ -16,7 +16,7 @@ import NotificationChannel from '../../Models/NotificationChannel'
  * team_id used to be taken from a form field with no verification at
  * all — any signed-in user could create a channel under another team by
  * posting a different team_id. It's now derived from the requester's
- * own session/token (see config/auth-team.ts).
+ * own session/token (see @stacksjs/auth's team resolution).
  */
 export default new Action({
   name: 'DashboardCreateChannelAction',

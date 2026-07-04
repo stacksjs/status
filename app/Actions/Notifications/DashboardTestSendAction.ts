@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import SendNotification from '../../Jobs/SendNotification'
 import NotificationChannel from '../../Models/NotificationChannel'
 
@@ -16,7 +16,7 @@ import NotificationChannel from '../../Models/NotificationChannel'
  * signed-in user could trigger a real notification (Slack/PagerDuty/
  * webhook/etc. delivery) through any other team's channel by guessing
  * its id. The channel must now belong to the requester's own team (see
- * config/auth-team.ts).
+ * @stacksjs/auth's team resolution).
  */
 export default new Action({
   name: 'DashboardTestSendAction',

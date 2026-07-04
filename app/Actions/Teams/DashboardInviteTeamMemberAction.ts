@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '../../../config/auth-team'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import SendTeamInviteEmail from '../../Jobs/SendTeamInviteEmail'
 import TeamMember from '../../Models/TeamMember'
 
@@ -16,7 +16,7 @@ import TeamMember from '../../Models/TeamMember'
  * The `{id}` route param used to be trusted outright as the team to
  * invite into — any signed-in user could invite into any team by
  * posting a different id. The team is now derived from the requester's
- * own session/token (see config/auth-team.ts); the route param is only
+ * own session/token (see @stacksjs/auth's team resolution); the route param is only
  * checked for parity with it.
  */
 export default new Action({
