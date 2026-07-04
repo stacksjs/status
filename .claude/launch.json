@@ -6,6 +6,12 @@
       "runtimeExecutable": "./buddy",
       "runtimeArgs": ["dev", "frontend"],
       "port": 5173
+    },
+    {
+      "name": "serve",
+      "runtimeExecutable": "./buddy",
+      "runtimeArgs": ["serve", "--port", "4650"],
+      "port": 4650
     }
   ]
 }
