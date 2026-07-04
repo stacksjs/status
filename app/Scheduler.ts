@@ -49,6 +49,13 @@ export default function () {
     .job('UpdateMaintenanceWindowStatus')
     .everyMinute()
 
+  // Periodic per-team uptime report emails. Runs daily; the job itself
+  // decides which teams are due (weekly/monthly, from teams.report_frequency
+  // and report_last_sent_at) so this stays a dumb daily tick.
+  schedule
+    .job('SendUptimeReports')
+    .daily()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 
