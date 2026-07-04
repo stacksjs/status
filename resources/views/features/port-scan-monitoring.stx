@@ -1,0 +1,219 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Well-known ports by default', text: 'every scan sweeps ports 1 through 1024, plus any ports you declare as expected, so the usual suspects are always covered.' },
+  { title: 'Full-range scans, opt-in', text: 'turn on full scanning to sweep all 65535 ports when you want the complete picture. A full sweep takes a few minutes.' },
+  { title: 'An expected-ports baseline', text: 'declare which ports should be open. Everything else on that host becomes a finding instead of background noise.' },
+  { title: 'Incidents for both directions', text: 'an expected port that closes and an unexpected port that opens each get their own incident, with the ports named.' },
+  { title: 'Every scan stored', text: 'each run records the full list of open ports next to your expected list, so you can diff any two scans after the fact.' },
+  { title: '10 notification channels', text: 'email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, and webhooks.' },
+]
+
+const faqs = [
+  {
+    q: 'What does a port scan monitor actually check?',
+    a: 'It attempts a TCP connection to every port in the scan range on your host and records which ones accept. By default that range is the well-known ports, 1 through 1024, plus any ports you list as expected. Full-range scans of all 65535 ports are available as an opt-in setting per monitor.',
+  },
+  {
+    q: 'What counts as a finding?',
+    a: 'Two things. An expected port that is no longer open, which usually means a service died or a firewall rule went too far, opens an incident marked investigating. And once you have declared expected ports, any other open port on the host opens an incident marked monitoring, because it may be intentional but you should be the one deciding that.',
+  },
+  {
+    q: 'Will this catch a deploy that exposed my database?',
+    a: 'That is the core case it was built for. If 5432 is not in your expected list and a config change leaves Postgres listening on a public interface, the next scan reports 5432 as unexpectedly open and an incident opens with that port named in the cause.',
+  },
+  {
+    q: 'How often do scans run?',
+    a: 'Port scans are heavier than a single uptime check, so they run as scheduled scans rather than every 30 seconds. A default scan covers over a thousand ports, and a full-range scan can take a few minutes on a well-firewalled host, since every filtered port has to time out.',
+  },
+  {
+    q: 'Is it safe to scan my own hosts?',
+    a: 'Scanning infrastructure you own or operate is standard security hygiene, and the scan is plain TCP connection attempts, nothing exploit-shaped. Only point it at hosts you are authorized to scan. Some providers ask you to notify them about scheduled scanning, so check your host\'s policy.',
+  },
+]
+
+const related = [
+  { title: 'TCP port monitoring', text: 'A scan finds surprises across the whole host. A port check watches one critical port every few seconds.', href: '/features/tcp-port-monitoring' },
+  { title: 'SSL monitoring', text: 'Open ports are one class of quiet security regression. Expiring and misconfigured certificates are another.', href: '/features/ssl-monitoring' },
+  { title: 'Incident management', text: 'Scan findings open incidents with a timeline, so an exposed port gets an owner instead of a shrug.', href: '/features/incident-management' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Port scan monitoring | {{ appName }}</title>
+    <meta name="description" content="Open-source port scan monitoring. Scheduled scans find ports that should not be open, like a deploy exposing a database, and open incidents automatically.">
+    <link rel="canonical" href="https://uptime-status.org/features/port-scan-monitoring">
+    <meta property="og:title" content="Port scan monitoring | {{ appName }}">
+    <meta property="og:description" content="Declare which ports should be open. Get an incident when anything else appears, or when an expected port disappears. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/port-scan-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Find the ports you <span class="accent-word">never meant to open.</span></h1>
+          <p class="page-lead">
+            One config change can leave a database listening on the public internet. {{ appName }} scans your hosts and flags anything that should not be there.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/tcp-port-monitoring">TCP port monitoring</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="exposure-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="exposure-heading">Nobody opens a port on purpose at 6pm on a Friday.</h2>
+            <p>
+              Exposed ports rarely come from bad decisions. They come from a Docker port mapping that bound to 0.0.0.0, a security group edit that was supposed to be temporary, a new service that shipped with its admin port on defaults. Nothing breaks, so nothing tells you.
+            </p>
+            <p>
+              A port scan monitor sweeps the host on a schedule and compares what it finds against what you said should be there. The gap between those two lists is exactly the report you want, before someone else runs the same scan.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Port scan result example">
+              <div class="panel-top">
+                <strong>db-1.yourcompany.com</strong>
+                <span class="pill warn"><span class="dot"></span> 1 unexpected</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">22</div><div class="panel-row-sub">expected &middot; open</div></div></div>
+                  <div class="panel-row-meta"><span>SSH</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">443</div><div class="panel-row-sub">expected &middot; open</div></div></div>
+                  <div class="panel-row-meta"><span>HTTPS</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">5432</div><div class="panel-row-sub">unexpected &middot; open</div></div></div>
+                  <div class="panel-row-meta"><span>Incident opened</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="directions-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="directions-heading">Both failure directions, both alerted.</h2>
+            <p>
+              Declare the ports that should be open, say 22 and 443, and every scan is judged against that baseline. When an expected port is no longer open, that is an availability problem: an incident opens as investigating, naming the missing ports.
+            </p>
+            <p>
+              When a port outside the baseline shows up open, that is an exposure problem: a separate incident opens as monitoring, naming the unexpected ports, so you can close it, or promote it to expected if it turns out to be legitimate.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Scan incident example">
+              <div class="panel-top">
+                <strong>Incidents from scans</strong>
+                <span class="pill warn"><span class="dot"></span> 2 open</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Unexpected port(s) 5432 are open</div><div class="panel-row-sub">db-1.yourcompany.com</div></div></div>
+                  <div class="panel-row-meta"><span>monitoring</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Expected port(s) 443 no longer open</div><div class="panel-row-sub">edge-2.yourcompany.com</div></div></div>
+                  <div class="panel-row-meta"><span>investigating</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Scan clean</div><div class="panel-row-sub">api-1.yourcompany.com</div></div></div>
+                  <div class="panel-row-meta"><span>resolved</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What port scan monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="config-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="config-heading">The baseline is three lines of config.</h2>
+            <p>
+              A scan monitor is a host plus a list of expected ports. Set fullScan when you want the entire 65535-port range instead of the well-known default. Create it in the dashboard, or from your provisioning scripts so every new host ships with its own scanner.
+            </p>
+            <p>
+              The same API powers the dashboard, so anything you can click, you can automate.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/monitors \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d <span class="str">'{
+    "name": "db-1 exposure scan",
+    "url": "db-1.yourcompany.com",
+    "type": "port_scan",
+    "config": "{\"expectedPorts\": [22, 443]}"
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Port scan monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

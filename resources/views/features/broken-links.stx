@@ -1,0 +1,255 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Daily full-site crawls', text: 'breadth-first from your monitor URL, same-origin, up to 200 pages per run.' },
+  { title: 'Mixed-content detection', text: 'flags http:// images, scripts, and stylesheets loaded on https:// pages.' },
+  { title: 'Sitemap cross-checking', text: 'every URL in sitemap.xml gets verified, even pages nothing links to anymore.' },
+  { title: 'robots.txt respected', text: 'Disallow rules for the wildcard user-agent are honored, so the crawler stays where it is welcome.' },
+  { title: 'Evidence per issue', text: 'each result stores the URL, the status code, and the exact page the link was found on.' },
+  { title: 'Automatic incidents', text: 'a crawl that finds broken links or mixed content opens an incident and notifies your channels.' },
+]
+
+const faqs = [
+  {
+    q: 'How often does the crawl run?',
+    a: 'Daily. A full-site crawl is a heavier operation than a 30-second uptime probe, so it runs on its own schedule and its own queue. Self-hosting the open-source version means you control the scheduler yourself.',
+  },
+  {
+    q: 'What counts as a broken link?',
+    a: 'Any same-origin page that returns HTTP 400 or above, times out, or refuses the connection. The crawler records the status code it saw and the page the link came from, so fixing it is a one-step job.',
+  },
+  {
+    q: 'What is mixed content and why should I care?',
+    a: 'An http:// image, script, or stylesheet loaded on an https:// page. Browsers block or downgrade these resources and mark the page as not fully secure, which is exactly the impression you do not want to leave.',
+  },
+  {
+    q: 'How does the sitemap check work?',
+    a: 'After the crawl finishes, every URL listed in your sitemap.xml that the crawl did not already reach gets checked directly. A sitemap URL that 404s is flagged as broken, because search engines crawl the sitemap whether or not your pages still link there.',
+  },
+  {
+    q: 'How large a site can it crawl?',
+    a: 'Up to 200 pages per crawl, breadth-first from the monitor URL, staying on the same origin. Sitemap URLs are checked on top of that, so more of your site is covered than the page cap alone suggests.',
+  },
+  {
+    q: 'Will I actually get notified?',
+    a: 'Yes. A crawl that finds issues opens an incident, and incidents route through your notification channels: email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, and webhooks.',
+  },
+]
+
+const related = [
+  { title: 'Uptime monitoring', text: 'The crawl finds slow rot. 30-second uptime checks from six regions catch the sudden failures.', href: '/features/uptime-monitoring' },
+  { title: 'SSL monitoring', text: 'Mixed content is half the HTTPS story. Certificate expiry and chain problems are the other half.', href: '/features/ssl-monitoring' },
+  { title: 'Incident management', text: 'Crawl findings become timeline incidents you can investigate, annotate, and resolve.', href: '/features/incident-management' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Broken link monitoring | {{ appName }}</title>
+    <meta name="description" content="Daily site crawls that catch broken links, mixed content, and dead sitemap URLs in one monitor. Open-source monitoring with automatic incidents.">
+    <link rel="canonical" href="https://uptime-status.org/features/broken-links">
+    <meta property="og:title" content="Broken link monitoring | {{ appName }}">
+    <meta property="og:description" content="Broken links, mixed content, and sitemap checks in one daily crawl. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/broken-links">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> Three checks in one monitor</span>
+          <h1 class="page-title">Broken links, mixed content, <span class="accent-word">caught daily.</span></h1>
+          <p class="page-lead">
+            Links rot. {{ appName }} crawls your site daily and opens an incident when it finds 404s, mixed content, or dead sitemap entries.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="crawl-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="crawl-heading">Nobody clicks every link after a deploy.</h2>
+            <p>
+              You rename a route, retire a blog post, or move the docs, and somewhere a link keeps pointing at the old address. Your visitors find it before you do, and search engines quietly hold it against you.
+            </p>
+            <p>
+              {{ appName }} crawls your site every day, breadth-first from your monitor's URL, and records the status code of every same-origin page it reaches. Anything that returns 400 or above, times out, or refuses the connection is logged as a broken link, together with the page it was found on.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Crawl result example">
+              <div class="panel-top">
+                <strong>Latest crawl &middot; yourcompany.com</strong>
+                <span class="pill warn"><span class="dot"></span> 3 issues</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">/pricing/old</div><div class="panel-row-sub">HTTP 404</div></div></div>
+                  <div class="panel-row-meta"><span>found on /pricing</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">/blog/launch-post</div><div class="panel-row-sub">HTTP 404</div></div></div>
+                  <div class="panel-row-meta"><span>sitemap.xml</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">http://cdn.legacy.example/banner.png</div><div class="panel-row-sub">mixed content</div></div></div>
+                  <div class="panel-row-meta"><span>found on /</span></div>
+                </div>
+              </div>
+              <div class="panel-body" style="padding-top: 0.5rem;">
+                <div class="panel-row" style="padding: 0;">
+                  <span class="panel-row-sub">184 pages crawled</span>
+                  <span class="panel-row-sub">2 broken links</span>
+                  <span class="panel-row-sub">1 mixed content</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="mixed-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="mixed-heading">Mixed content breaks the padlock.</h2>
+            <p>
+              One http:// image or script on an https:// page and browsers step in: the resource gets blocked or downgraded, and the address bar stops vouching for you. It usually sneaks in through an old CDN URL or a hardcoded asset path nobody has touched in years.
+            </p>
+            <p>
+              While crawling, {{ appName }} inspects every image, script, and stylesheet reference on every secure page. Each insecure resource is recorded with the page that loads it, so you can fix the reference instead of hunting for it.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Mixed content example">
+              <div class="panel-top">
+                <strong>Mixed content on https:// pages</strong>
+                <span class="pill warn"><span class="dot"></span> 2 found</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">http://cdn.legacy.example/banner.png</div><div class="panel-row-sub">img src</div></div></div>
+                  <div class="panel-row-meta"><span>found on /</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">http://widgets.example/chat.js</div><div class="panel-row-sub">script src</div></div></div>
+                  <div class="panel-row-meta"><span>found on /contact</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">All other resources</div><div class="panel-row-sub">served over https</div></div></div>
+                  <div class="panel-row-meta"><span>ok</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="bundle-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="bundle-heading">Three features. One monitor. One price.</h2>
+            <p>
+              Some monitoring services sell broken-link checking, mixed-content scanning, and sitemap monitoring as three separate features. Here they are one daily crawl on one monitor: every crawl checks your links, your resources, and your sitemap together, and reports them in one place. No separate line items.
+            </p>
+          </div>
+          <div class="oss-code">MIT licensed &middot; github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What the crawl covers.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="sitemap-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="sitemap-heading">Your sitemap makes promises. The crawl keeps them honest.</h2>
+            <p>
+              A page can be broken even when nothing links to it anymore. If it is still listed in sitemap.xml, search engines keep requesting it, keep getting a 404, and keep drawing their own conclusions about your site.
+            </p>
+            <p>
+              After following your links, {{ appName }} fetches sitemap.xml and directly checks every listed URL the crawl did not already reach. Dead sitemap entries and orphaned pages get flagged in the same crawl report as everything else, and count toward the same incident.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Sitemap cross-check example">
+              <div class="panel-top">
+                <strong>sitemap.xml cross-check</strong>
+                <span class="pill"><span class="dot"></span> Checked</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">/blog/launch-post</div><div class="panel-row-sub">HTTP 404</div></div></div>
+                  <div class="panel-row-meta"><span>in sitemap, not linked</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">/docs/install</div><div class="panel-row-sub">HTTP 200</div></div></div>
+                  <div class="panel-row-meta"><span>ok</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">/changelog</div><div class="panel-row-sub">HTTP 200</div></div></div>
+                  <div class="panel-row-meta"><span>ok</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Broken link monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

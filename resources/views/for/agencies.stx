@@ -1,0 +1,228 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const modules = [
+  {
+    title: 'Client sites, fully covered',
+    text: 'Uptime, SSL expiry, and domain renewal on every site you maintain. The renewal notice your client ignored is no longer your outage.',
+    href: '/features/uptime-monitoring',
+  },
+  {
+    title: 'Catch what editors break',
+    text: 'Content keeps changing after handoff. A broken-link crawl finds dead pages and missing assets before the client does, or their customers do.',
+    href: '/features/broken-links',
+  },
+  {
+    title: 'A status page on the client\'s domain',
+    text: 'Public pages for public sites. Password or email-domain protected pages for internal tools. Their branding, their domain, no watermark.',
+    href: '/features/status-pages',
+  },
+  {
+    title: 'Per-client alert routing',
+    text: 'Attach notification channels per monitor, so each client\'s alerts land in that client\'s Slack channel instead of one noisy inbox.',
+    href: '/features/notifications',
+  },
+  {
+    title: 'Reports that justify the retainer',
+    text: 'A monthly or weekly email with uptime per site, incidents and their duration, response-time trends, and crawl findings. Send it to yourself, or straight to the client.',
+    href: '/features/performance-monitoring',
+  },
+  {
+    title: 'Maintenance windows for planned work',
+    text: 'Deploying for a client on a Saturday? Schedule a maintenance window so checks stay quiet and the status page says planned, not down.',
+    href: '/features/incident-management',
+  },
+]
+
+const faqs = [
+  {
+    q: 'Can I manage all client sites in one account?',
+    a: 'Yes. Monitors live in a team, and you invite colleagues by email, so the whole studio works from one dashboard instead of a login per client. The free plan covers 5 monitors and 1 status page; Pro covers 100 monitors and 10 status pages for $9 per month.',
+  },
+  {
+    q: 'Can clients see their own status page?',
+    a: 'Each status page gets its own slug and can sit on the client\'s custom domain with their logo and colors. Make it public for their customers, or restrict it with a password or an email-domain check for internal tools. There is no "powered by" watermark.',
+  },
+  {
+    q: 'What happens when I hit 100 monitors?',
+    a: 'Self-host. UptimeStatus is MIT licensed, and your own install has no plan limits, so a large client roster costs you a server instead of a tier. If you would rather stay on hosted, talk to us.',
+  },
+  {
+    q: 'Is there an API to automate onboarding?',
+    a: 'Yes. Monitors, status pages, and team invites are plain JSON endpoints, so your new-client script can create the uptime, SSL, and broken-link checks straight from your project template. Everything the dashboard does goes through the same API.',
+  },
+  {
+    q: 'Do alerts support per-client routing?',
+    a: 'Notification channels attach per monitor. Give each client\'s monitors their own Slack or email channel, keep a shared channel for the studio, and send anything urgent to PagerDuty or Opsgenie.',
+  },
+  {
+    q: 'Can I send clients an automated report?',
+    a: 'Yes. Turn on uptime reports in team settings and pick weekly or monthly. The email covers uptime percentage per monitor, incident count and total duration, response-time trend against the previous period, and what the crawler found. Recipients are configurable per team, so it can go straight to the client\'s inbox.',
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monitoring for agencies | {{ appName }}</title>
+    <meta name="description" content="Monitor every client site from one dashboard: uptime, SSL, domain expiry, and broken links, plus a branded status page on each client's own domain.">
+    <link rel="canonical" href="https://uptime-status.org/for/agencies">
+    <meta property="og:title" content="Monitoring for agencies | {{ appName }}">
+    <meta property="og:description" content="Every client site in one dashboard, with per-client alert routing and status pages on your clients' own domains.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/for/agencies">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> Built for client work</span>
+          <h1 class="page-title">Every client site. One <span class="accent-word">dashboard.</span></h1>
+          <p class="page-lead">
+            Stop juggling one free-tier account per client. Monitor every site you ship from a single place, and give each client a status page on their own domain.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/status-pages">See client status pages</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="modules-heading">
+        <div class="section-head left">
+          <h2 id="modules-heading" class="section-title">The whole client portfolio, watched.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (modules as m)
+            <a class="feature-card" href="{{ m.href }}">
+              <h3>{{ m.title }}</h3>
+              <p>{{ m.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="statuspage-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="statuspage-heading">A status page you can hand to a client.</h2>
+            <p>
+              Put it on their custom domain with their logo and colors, and it reads as part of their site, not yours. There is no watermark, so the work stays under your name and theirs.
+            </p>
+            <p>
+              Public sites get a public page. Staging and internal tools get the same page behind a password or an email-domain check, so the client team can see it and nobody else can. See <a href="/features/status-pages">status pages</a>.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel">
+              <div class="panel-top">
+                <strong>status.yourclient.com</strong>
+                <span class="pill"><span class="dot"></span> All systems operational</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Marketing site</div>
+                      <div class="panel-row-sub">uptime + ssl</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">Operational</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Booking form</div>
+                      <div class="panel-row-sub">uptime + broken links</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">Operational</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Client portal</div>
+                      <div class="panel-row-sub">health + performance</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">Operational</div>
+                </div>
+              </div>
+              <div class="panel-body">
+                <p class="panel-row-sub">Last 90 days</p>
+                <div class="uptime-bars">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="warn"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="api-heading">Onboard a new client in one request.</h2>
+            <p>
+              Monitors and status pages are plain JSON endpoints. Add a step to your project template or deploy script, and every site you hand over launches with uptime, SSL, and broken-link checks already running.
+            </p>
+            <p>
+              Team invites go through the same API, so bringing a new developer into the studio account is a request too, not a settings safari.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># new-client.sh, straight from your template</span>
+curl -X POST https://uptime-status.org/api/monitors \
+  -H <span class="str">"Authorization: Bearer $TOKEN"</span> \
+  -d <span class="str">'{
+    "name": "New client site",
+    "url": "https://client-site.example",
+    "type": "uptime"
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="oss-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="oss-heading">Open source, so growth is not a wall.</h2>
+            <p>
+              {{ appName }} is MIT licensed. Self-host one install for your entire client roster for free, or take hosted Pro at $9 per month. Either way there is no per-seat pricing: invite the whole studio and every freelancer you work with.
+            </p>
+          </div>
+          <div class="oss-code">git clone https://github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Agency questions, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

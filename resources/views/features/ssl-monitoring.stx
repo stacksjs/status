@@ -1,0 +1,225 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Expiry countdown', text: 'days until expiry computed on every check, from the certificate your server actually serves.' },
+  { title: 'Warnings at 30, 14, 7, and 1 day', text: 'a warning notification goes to the monitor\'s channels at each threshold, once per crossing, so a broken renewal gets caught with time to spare.' },
+  { title: 'Fingerprint change detection', text: 'a swapped certificate is surfaced even when the new one is valid. Renewals confirmed, surprises visible.' },
+  { title: 'Handshake failure alerts', text: 'a TLS connection that errors or times out marks the monitor down and opens an incident with the exact message.' },
+  { title: 'Full certificate history', text: 'issuer, subject, validity window, and SHA-256 fingerprint stored for every check.' },
+  { title: 'Incidents and notifications', text: 'an expired certificate opens a timeline incident and notifies the channels your team already uses.' },
+]
+
+const faqs = [
+  {
+    q: 'How far in advance am I warned about expiry?',
+    a: 'At 30, 14, 7, and 1 day before the certificate expires, a warning notification goes to the channels attached to the monitor, once per threshold. If the certificate expires anyway, an incident opens that says exactly how many days ago it lapsed.',
+  },
+  {
+    q: 'What exactly does the check look at?',
+    a: 'It opens a TLS connection to your hostname and reads the certificate your server presents: issuer, subject, the validity window, and the SHA-256 fingerprint. Every check stores a record, so you get a history, not just a current state.',
+  },
+  {
+    q: 'Will I know when a certificate is renewed?',
+    a: 'Yes. The fingerprint is compared against the previous check, so a renewal shows up as a fingerprint change. The same comparison catches certificates that were swapped when you did not expect it.',
+  },
+  {
+    q: 'What happens if the TLS handshake fails entirely?',
+    a: 'The monitor is marked down and an incident opens with the error message: connection refused, timeout, or no certificate returned by the peer. A certificate problem that breaks the handshake gets treated as seriously as downtime.',
+  },
+  {
+    q: 'Does each certificate count as a monitor?',
+    a: 'Yes, an ssl monitor is a regular monitor. The Free plan includes 5 monitors and Pro is $9/month for 100, so watching every hostname you own is rarely a capacity question.',
+  },
+]
+
+const related = [
+  { title: 'Domain monitoring', text: 'Certificates expire in months, domains in years. WHOIS-based expiry warnings for the registration itself.', href: '/features/domain-monitoring' },
+  { title: 'DNS monitoring', text: 'Snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident when they change.', href: '/features/dns-monitoring' },
+  { title: 'Notifications', text: 'Email, SMS, Slack, Discord, PagerDuty, and five more channels, routed the way your team works.', href: '/features/notifications' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SSL certificate monitoring | {{ appName }}</title>
+    <meta name="description" content="Open-source SSL certificate monitoring: expiry warnings at 30, 14, 7, and 1 day, fingerprint change detection, and incidents when the handshake fails.">
+    <link rel="canonical" href="https://uptime-status.org/features/ssl-monitoring">
+    <meta property="og:title" content="SSL certificate monitoring | {{ appName }}">
+    <meta property="og:description" content="Expiry warnings at 30, 14, 7, and 1 day, fingerprint change detection, incidents on failure. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/ssl-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Catch expiring certificates <span class="accent-word">before the browser warning.</span></h1>
+          <p class="page-lead">
+            Expired certificates take sites down as surely as crashed servers. {{ appName }} watches every certificate and warns you at 30, 14, 7, and 1 days out.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="renewal-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="renewal-heading">The certificate renewed itself. Until it didn't.</h2>
+            <p>
+              Auto-renewal fails quietly: a DNS challenge breaks, a rate limit hits, a cron job dies on a server nobody logs into anymore. The certificate keeps working right up to the day it does not.
+            </p>
+            <p>
+              {{ appName }} checks the certificate your server actually presents: issuer, subject, validity window, and SHA-256 fingerprint, recorded on every check so the whole history is there when you need it.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Certificate status example">
+              <div class="panel-top">
+                <strong>yourcompany.com</strong>
+                <span class="pill"><span class="dot"></span> Valid</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Expires in 84 days</div><div class="panel-row-sub">Sep 26, 2026</div></div></div>
+                  <div class="panel-row-meta"><span>checked 2m ago</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Issuer</div><div class="panel-row-sub">Let's Encrypt</div></div></div>
+                  <div class="panel-row-meta"><span>CN=yourcompany.com</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">SHA-256 fingerprint</div><div class="panel-row-sub">9F:2A:6C:...:B4:C4</div></div></div>
+                  <div class="panel-row-meta"><span>unchanged</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="ladder-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="ladder-heading">Four warnings, then an incident.</h2>
+            <p>
+              Your channels get a warning at 30, 14, 7, and 1 day before expiry, one notification per threshold. Early enough to fix a broken renewal, not so noisy that you learn to ignore it.
+            </p>
+            <p>
+              If the certificate expires anyway, an incident opens with the day count. If the TLS handshake fails outright, the monitor is marked down and the incident carries the exact error the probe saw.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Expiry warning ladder example">
+              <div class="panel-top">
+                <strong>shop.yourcompany.com</strong>
+                <span class="pill warn"><span class="dot"></span> Expires in 7 days</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">30 days before expiry</div><div class="panel-row-sub">first warning</div></div></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">14 days, 7 days, 1 day</div><div class="panel-row-sub">escalating warnings</div></div></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Expired</div><div class="panel-row-sub">incident opened</div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What SSL monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="api-heading">Certificates as code.</h2>
+            <p>
+              An ssl monitor is one API call. Create one for every hostname in your deploy pipeline, and nothing ships without a watched certificate.
+            </p>
+            <p>
+              Everything in the dashboard sits on the same API, so anything you can click, you can automate.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/monitors \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d <span class="str">'{
+    "name": "Storefront certificate",
+    "url": "https://shop.yourcompany.com",
+    "type": "ssl"
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-label="Open source">
+        <div class="note-band">
+          <div>
+            <h2>Open source, MIT licensed.</h2>
+            <p>The SSL check is one small, readable job in the repo. Use the hosted version, or run the whole thing on your own infrastructure with the same code and no feature gates.</p>
+          </div>
+          <div class="oss-code">git clone https://github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">SSL monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

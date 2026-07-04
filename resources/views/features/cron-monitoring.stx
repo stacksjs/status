@@ -1,0 +1,201 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'A unique ping URL per job', text: 'GET or POST, no auth headers, no client library. The unguessable token in the URL is the whole secret.' },
+  { title: 'Intervals you define', text: 'hourly, nightly, weekly, or anything down to a 30-second cadence. You tell us how often the job should run.' },
+  { title: 'Grace periods', text: 'a backup that finishes a few minutes late is not an outage. Every job gets configurable slack, 5 minutes by default.' },
+  { title: 'Catches jobs that never ran', text: 'a monitor with no ping yet counts as overdue from its creation time. The cron entry you forgot to install still alerts.' },
+  { title: 'Deadlines swept every minute', text: 'a scheduler checks all heartbeat deadlines once a minute, so a missed job is caught right after its grace period ends.' },
+  { title: 'Automatic incidents', text: 'a missed check-in flips the monitor to down, opens a timeline incident, and notifies your channels.' },
+]
+
+const faqs = [
+  {
+    q: 'How is this different from uptime monitoring?',
+    a: 'Uptime monitoring reaches out to your endpoint and asks if it responds. A heartbeat monitor is the inverse: it does nothing until your job pings it. That makes it the right tool for work that has no URL to probe, like cron jobs, queue workers, and backup scripts.',
+  },
+  {
+    q: 'What happens when a job misses its check-in?',
+    a: 'Once the expected interval plus the grace period passes without a ping, the monitor goes down, an incident opens with the cause recorded as a missed check-in, and your notification channels fire. Deadlines are swept every minute, so detection lands shortly after the grace period ends.',
+  },
+  {
+    q: 'What if my job hangs instead of crashing?',
+    a: 'That is exactly the case heartbeats cover. A hung job never reaches the ping line, so it goes silent, and silence past the grace period is the alert. You do not need the job to fail loudly for anyone to find out.',
+  },
+  {
+    q: 'My job runtime varies. Will I get false alerts?',
+    a: 'Set the grace period to cover the variance. If a nightly export usually takes 10 minutes but sometimes 25, give it a 30-minute grace and it will only alert when something is genuinely wrong.',
+  },
+  {
+    q: 'Do I need to install anything on my servers?',
+    a: 'No. If it can make an HTTP request, it can check in. Add a curl or wget line to the end of the script, or call the URL from whatever language the job is written in.',
+  },
+  {
+    q: 'Is the ping URL safe to put in a script?',
+    a: 'The token is an unguessable random string, so nobody can find it by enumeration. Treat it like any other credential: keep it out of public repos, since anyone holding it could ping on behalf of your job.',
+  },
+]
+
+const related = [
+  { title: 'Health checks', text: 'Your app exposes a health route that says ok, degraded, or down. We call it on a schedule and keep the history.', href: '/features/health-checks' },
+  { title: 'Uptime monitoring', text: 'Outside-in checks for everything that does have a URL, as often as every 30 seconds from six regions.', href: '/features/uptime-monitoring' },
+  { title: 'Notifications', text: 'Missed check-ins route through email, Slack, PagerDuty, SMS, and six more channels.', href: '/features/notifications' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cron job monitoring | {{ appName }}</title>
+    <meta name="description" content="Heartbeat monitoring for cron jobs and scheduled tasks. Your job pings a unique URL on every run. Silence past the grace period opens an incident.">
+    <link rel="canonical" href="https://uptime-status.org/features/cron-monitoring">
+    <meta property="og:title" content="Cron job monitoring | {{ appName }}">
+    <meta property="og:description" content="Your scheduled job pings a unique URL on every run. Silence past the grace period opens an incident and alerts your team.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/cron-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> Heartbeat monitoring</span>
+          <h1 class="page-title">Your cron jobs check in. <span class="accent-word">Silence is the alert.</span></h1>
+          <p class="page-lead">
+            A cron job that crashes is loud. One that quietly stops running tells no one. Silence past the grace period becomes the alert.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="invert-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="invert-heading">Monitoring, inverted: the job reports to us.</h2>
+            <p>
+              Backups, invoice runs, queue sweeps, certificate renewals: the work that keeps a business honest has no URL to probe. When it stops, nothing errors. The backup is simply not there the day you need it.
+            </p>
+            <p>
+              {{ appName }} gives each scheduled task its own ping URL. The job calls it on every successful run, and we watch the clock. No ping by the deadline means the monitor goes down and an incident opens.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Scheduled task monitors example">
+              <div class="panel-top">
+                <strong>Scheduled tasks</strong>
+                <span class="pill down"><span class="dot"></span> 1 overdue</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">nightly-db-backup</div><div class="panel-row-sub">pinged 22 minutes ago</div></div></div>
+                  <div class="panel-row-meta"><span>daily &middot; grace 30m</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">send-invoice-emails</div><div class="panel-row-sub">pinged 4 minutes ago</div></div></div>
+                  <div class="panel-row-meta"><span>hourly &middot; grace 5m</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">renew-tls-certs</div><div class="panel-row-sub">no ping for 26 hours</div></div></div>
+                  <div class="panel-row-meta"><span>daily &middot; grace 60m</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="oneline-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="oneline-heading">Integration is one line at the end of the script.</h2>
+            <p>
+              No SDK, no agent, no config file. The ping endpoint accepts a plain GET or POST with no authentication headers, because the unguessable token in the URL is the credential.
+            </p>
+            <p>
+              Put the ping after the real work, behind <code>set -e</code>, so it only fires on success. A job that starts but fails halfway stays silent, and silence is what we alert on.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># crontab: nightly database backup at 02:00</span>
+0 2 * * * /opt/scripts/backup.sh
+
+<span class="cmt"># backup.sh</span>
+set -euo pipefail
+pg_dump <span class="str">"$DATABASE_URL"</span> | gzip &gt; /backups/nightly.sql.gz
+
+<span class="cmt"># last line: report in. no ping means an alert.</span>
+curl -fsS https://uptime-status.org/api/ping/9f2ac81d54e04b7f</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What cron monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="anywhere-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="anywhere-heading">If it can make an HTTP request, it can check in.</h2>
+            <p>
+              Cron, systemd timers, Kubernetes CronJobs, GitHub Actions on a schedule, a Windows task: the runner does not matter. Anything that can hit a URL once per run gets deadline monitoring, incident history, and alerting through your existing channels.
+            </p>
+          </div>
+          <div class="oss-code">curl -fsS https://uptime-status.org/api/ping/&lt;token&gt;</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Cron monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

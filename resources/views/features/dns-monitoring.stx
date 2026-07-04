@@ -1,0 +1,233 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Six record types', text: 'A, AAAA, MX, TXT, NS, and CAA records snapshotted on every check.' },
+  { title: 'Per-type diffing', text: 'each record type is compared against its own previous snapshot, so one change never masks another.' },
+  { title: 'Before and after values', text: 'every change incident stores the previous and current records, so you see exactly what moved.' },
+  { title: 'NS changes escalate', text: 'nameserver changes open an investigating incident. Everything else stays informational.' },
+  { title: 'No false alarms for absent records', text: 'a domain without AAAA or CAA records is simply skipped for that type, not flagged.' },
+  { title: 'Full snapshot history', text: 'every check stores a snapshot, so you can pinpoint when a record changed, not just that it did.' },
+]
+
+const faqs = [
+  {
+    q: 'Why monitor DNS I control myself?',
+    a: 'Because change comes from more places than you: teammates editing records, an email provider migration rewriting MX, a registrar console mistake, or in the worst case a compromised registrar account. The diff surfaces all of them the same way.',
+  },
+  {
+    q: 'Is every DNS change treated as an outage?',
+    a: 'No. A changed record opens an incident marked monitoring: informational, with the before and after values attached. Only NS changes open as investigating, because hijacked or misconfigured domains usually show up there first.',
+  },
+  {
+    q: 'Which record types are covered? What about CNAME?',
+    a: 'A, AAAA, MX, TXT, NS, and CAA. CNAMEs are followed during A and AAAA resolution, so retargeting a CNAME shows up as a change in the resolved addresses.',
+  },
+  {
+    q: 'My provider rotates IPs. Will that spam me?',
+    a: 'Hosts that rotate A records will produce change incidents, though they open as informational, not as outages. For endpoints behind rotating infrastructure, an uptime check is usually a better fit than record diffing.',
+  },
+  {
+    q: 'How do I hear about a change?',
+    a: 'Incidents notify through your configured channels: email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, or webhooks.',
+  },
+]
+
+const related = [
+  { title: 'DNS blocklist monitoring', text: 'Checks whether your IPs appear on DNS blocklists, before deliverability problems become mysteries.', href: '/features/dns-blocklist-monitoring' },
+  { title: 'Domain monitoring', text: 'WHOIS-based expiry warnings at 30, 14, 7, and 1 day, so a registration never lapses by accident.', href: '/features/domain-monitoring' },
+  { title: 'SSL monitoring', text: 'Certificate expiry countdowns, fingerprint change detection, and incidents when a handshake fails.', href: '/features/ssl-monitoring' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DNS record monitoring | {{ appName }}</title>
+    <meta name="description" content="Open-source DNS monitoring: snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident with a diff when anything changes.">
+    <link rel="canonical" href="https://uptime-status.org/features/dns-monitoring">
+    <meta property="og:title" content="DNS record monitoring | {{ appName }}">
+    <meta property="og:description" content="Snapshots six DNS record types, diffs every check, and escalates nameserver changes. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/dns-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Know the moment your <span class="accent-word">DNS records change.</span></h1>
+          <p class="page-lead">
+            DNS changes are silent until customers cannot reach you. {{ appName }} snapshots six record types on every check and tells you exactly what changed.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="silent-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="silent-heading">DNS changes never announce themselves.</h2>
+            <p>
+              A teammate edits a record in the registrar console, an email migration rewrites MX, or worse, someone who is not you gets into the account. Either way nothing pages: resolution just quietly points somewhere new.
+            </p>
+            <p>
+              {{ appName }} snapshots six record types, A, AAAA, MX, TXT, NS, and CAA, on every check and diffs each one against the previous snapshot.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="DNS records example">
+              <div class="panel-top">
+                <strong>yourcompany.com</strong>
+                <span class="pill"><span class="dot"></span> In sync</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">A</div><div class="panel-row-sub">76.76.21.21, 76.76.21.61</div></div></div>
+                  <div class="panel-row-meta"><span>unchanged</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">MX</div><div class="panel-row-sub">10 mx1.mailhost.com</div></div></div>
+                  <div class="panel-row-meta"><span>unchanged</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">TXT</div><div class="panel-row-sub">v=spf1 include:_spf.mailhost.com ~all</div></div></div>
+                  <div class="panel-row-meta"><span>unchanged</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">NS</div><div class="panel-row-sub">ns1.registrar-dns.com, ns2.registrar-dns.com</div></div></div>
+                  <div class="panel-row-meta"><span>unchanged</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">CAA</div><div class="panel-row-sub">0 issue "letsencrypt.org"</div></div></div>
+                  <div class="panel-row-meta"><span>unchanged</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="escalate-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="escalate-heading">Changes are flagged. Hijacks are escalated.</h2>
+            <p>
+              Most DNS changes are routine, so a changed record opens an informational incident marked monitoring, with the previous and current values side by side. You confirm it was intentional and move on.
+            </p>
+            <p>
+              NS changes are different. A stolen or misconfigured domain usually shows up first as a nameserver change, so those open as investigating and get the seriousness of an outage.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="DNS change incident example">
+              <div class="panel-top">
+                <strong>Incident</strong>
+                <span class="pill down"><span class="dot"></span> Investigating</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">NS records changed for yourcompany.com</div><div class="panel-row-sub">opened 3 minutes ago</div></div></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Previous</div><div class="panel-row-sub">ns1.registrar-dns.com, ns2.registrar-dns.com</div></div></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Current</div><div class="panel-row-sub">ns1.unknown-host.net, ns2.unknown-host.net</div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What DNS monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="api-heading">One monitor per zone you care about.</h2>
+            <p>
+              A dns monitor takes a hostname or URL and starts building history on its next check. Add one alongside every production uptime monitor and record changes stop being archaeology.
+            </p>
+            <p>
+              Everything in the dashboard sits on the same API, so anything you can click, you can automate.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/monitors \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d <span class="str">'{
+    "name": "Primary zone",
+    "url": "yourcompany.com",
+    "type": "dns"
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-label="Open source">
+        <div class="note-band">
+          <div>
+            <h2>Open source, MIT licensed.</h2>
+            <p>The DNS check is a small, readable job in the repo: resolve, snapshot, diff, done. Use the hosted version, or self-host the same code with no feature gates.</p>
+          </div>
+          <div class="oss-code">git clone https://github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">DNS monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

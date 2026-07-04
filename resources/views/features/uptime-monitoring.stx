@@ -1,0 +1,215 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Checks every 30 seconds', text: 'on the Pro plan, from six global regions. Self-hosted installs choose their own interval and worker regions.' },
+  { title: 'HTTP, TCP, and ping', text: 'monitor a URL, a raw port, or a host. Each check type gets its own page under Features.' },
+  { title: 'Full result history', text: 'status code, response time, error message, and probe region stored for every single check.' },
+  { title: 'Automatic incidents', text: 'a failing monitor opens a timeline incident, notifies your channels, and updates your status page.' },
+  { title: 'Maintenance windows', text: 'schedule planned work so your status page shows maintenance instead of an outage.' },
+  { title: 'Response-time tracking', text: 'every check records latency, so slowdowns are visible long before a hard failure.' },
+]
+
+const faqs = [
+  {
+    q: 'How fast will I know my site is down?',
+    a: 'Pro checks run as often as every 30 seconds, so detection plus notification typically lands within a minute of the failure. Self-hosted installs control their own interval floor.',
+  },
+  {
+    q: 'What counts as "down"?',
+    a: 'A check fails when the endpoint does not return a successful response in time: connection errors, timeouts, and unexpected HTTP status codes all open an incident. Every failure stores the status code and error message so you can see exactly what the probe saw.',
+  },
+  {
+    q: 'Do I need to install an agent?',
+    a: 'No. Uptime checks probe from the outside, exactly like your users reach you. If you also want CPU and memory metrics from inside a server, the optional server metrics agent covers that separately.',
+  },
+  {
+    q: 'Can I monitor endpoints behind a firewall?',
+    a: 'Self-host the open-source version inside your network and your checks run from wherever you deploy the workers. The hosted plan probes from the public internet.',
+  },
+  {
+    q: 'What happens during planned deploys?',
+    a: 'Create a maintenance window. Your status page shows scheduled maintenance for that period instead of an outage, and the incident timeline stays clean.',
+  },
+]
+
+const related = [
+  { title: 'Performance monitoring', text: 'Automatic p95 regression detection against a 7-day baseline catches slowdowns before they become outages.', href: '/features/performance-monitoring' },
+  { title: 'Status pages', text: 'A branded status page on your own domain answers “is it down?” before support tickets do.', href: '/features/status-pages' },
+  { title: 'Notifications', text: 'Email, Slack, PagerDuty, Opsgenie, SMS, and six more channels, routed the way your team works.', href: '/features/notifications' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Website uptime monitoring | {{ appName }}</title>
+    <meta name="description" content="Open-source uptime monitoring with 30-second checks from six regions, full diagnostic history, automatic incidents, and a status page your users can check.">
+    <link rel="canonical" href="https://uptime-status.org/features/uptime-monitoring">
+    <meta property="og:title" content="Website uptime monitoring | {{ appName }}">
+    <meta property="og:description" content="30-second checks from six regions, full diagnostics, automatic incidents. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/uptime-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Know it's down <span class="accent-word">before your customers do.</span></h1>
+          <p class="page-lead">
+            Most teams learn about downtime from an angry email. {{ appName }} checks your endpoints every 30 seconds from six regions and tells you first.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="watch-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="watch-heading">Checked around the clock, from where your users are.</h2>
+            <p>
+              Human error, a bad deploy, an expired card at your host: sites go down for mundane reasons at inconvenient times. Refreshing the page yourself does not scale past the first incident.
+            </p>
+            <p>
+              {{ appName }} probes each monitor on the schedule you choose, records what it saw, and treats a failure as an event with a timeline, not a line in a log you will read tomorrow.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Uptime history example">
+              <div class="panel-top">
+                <strong>api.yourcompany.com</strong>
+                <span class="pill"><span class="dot"></span> Up</span>
+              </div>
+              <div class="panel-body">
+                <div class="uptime-bars" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="down"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="warn"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="panel-row" style="padding: 1rem 0 0;">
+                  <span class="panel-row-sub">30 days ago</span>
+                  <span class="panel-row-sub">99.94% uptime</span>
+                  <span class="panel-row-sub">Today</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="diag-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="diag-heading">Every failure comes with the evidence.</h2>
+            <p>
+              An alert that says "DOWN" starts a debugging session. An alert that says "HTTP 502 in 84ms from Frankfurt at 03:12" nearly ends one.
+            </p>
+            <p>
+              Each check stores its status code, response time, error message, and probe region. When something breaks you scroll the check history and watch it happen, instead of guessing from memory.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Check result example">
+              <div class="panel-top">
+                <strong>Check history</strong>
+                <span class="pill down"><span class="dot"></span> Incident open</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">HTTP 502</div><div class="panel-row-sub">upstream connect error</div></div></div>
+                  <div class="panel-row-meta"><span>84ms &middot; eu-central</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">HTTP 502</div><div class="panel-row-sub">upstream connect error</div></div></div>
+                  <div class="panel-row-meta"><span>91ms &middot; us-east</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">HTTP 200</div><div class="panel-row-sub">1 minute earlier</div></div></div>
+                  <div class="panel-row-meta"><span>132ms &middot; us-east</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What uptime monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="api-heading">Scriptable from day one.</h2>
+            <p>
+              Monitors are records in an API, not rows in someone else's dashboard. Create them from your deploy pipeline, your CLI, or a one-off script, and trigger an out-of-band check whenever you want a second opinion.
+            </p>
+            <p>
+              The same API powers the dashboard, so anything you can click, you can automate.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/monitors \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d <span class="str">'{
+    "name": "Public API",
+    "url": "https://api.yourcompany.com/health",
+    "type": "uptime",
+    "check_interval_seconds": 30
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Uptime monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

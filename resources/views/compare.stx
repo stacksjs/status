@@ -1,0 +1,341 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+// "Choose X if..." verdicts. Ours leads, the rest are genuinely honest --
+// recommending competitors where they win is the whole credibility play.
+const verdicts = [
+  {
+    name: 'UptimeStatus',
+    tag: 'Open source and hosted',
+    text: 'You want every website check the paid tools sell, with the option to self-host for free or pay $9 a month to never think about it.',
+    lead: true,
+  },
+  {
+    name: 'Uptime Kuma',
+    tag: 'Free and self-hosted',
+    text: 'You want a beloved self-hosted ping tool with a huge community and the widest catalog of notification providers anywhere.',
+    lead: false,
+  },
+  {
+    name: 'Oh Dear',
+    tag: 'Hosted, closed source',
+    text: 'You want a polished hosted product with a long track record and deep Laravel integrations, and per-site pricing suits you.',
+    lead: false,
+  },
+  {
+    name: 'Better Stack',
+    tag: 'Hosted observability suite',
+    text: 'You want uptime checks bundled with log management and on-call scheduling in a single closed-source SaaS.',
+    lead: false,
+  },
+  {
+    name: 'UptimeRobot',
+    tag: 'Hosted, free tier',
+    text: 'You want simple HTTP checks at five-minute intervals for free and do not need crawling, DNS, or deeper website checks.',
+    lead: false,
+  },
+  {
+    name: 'Nagios / Zabbix / Prometheus',
+    tag: 'Self-hosted infrastructure suites',
+    text: 'You run an ops team that needs SNMP, agent fleets, and metrics for switches and clusters, not just websites and services.',
+    lead: false,
+  },
+]
+
+// Comparison table. Cells: true = has it, false = does not, string = nuance.
+// Sourced from each vendor's public docs, July 2026. Keep cells conservative:
+// when a competitor's support is real but gated or shallow, say so in words
+// instead of denying it with a dash.
+const columns = ['Oh Dear', 'Better Stack', 'UptimeRobot', 'Uptime Kuma', 'Nagios/Zabbix']
+
+const featureGroups = [
+  {
+    group: 'Availability monitoring',
+    rows: [
+      { label: 'HTTP(S) uptime checks', href: '/features/uptime-monitoring', us: true, cells: [true, true, true, true, true] },
+      { label: 'Ping (ICMP) checks', href: '/features/ping-monitoring', us: true, cells: [true, true, true, true, true] },
+      { label: 'TCP port checks', href: '/features/tcp-port-monitoring', us: true, cells: [true, true, true, true, true] },
+      { label: 'Cron & heartbeat monitoring', href: '/features/cron-monitoring', us: true, cells: [true, true, true, true, 'Passive checks'] },
+      { label: 'Health-check endpoints', href: '/features/health-checks', us: true, cells: [true, 'Body assertions', 'Keyword match', 'JSON query', 'Plugins'] },
+      { label: 'Server metrics agent (CPU, RAM)', href: '/features/server-monitoring', us: true, cells: [false, true, false, false, true] },
+    ],
+  },
+  {
+    group: 'Website checks',
+    rows: [
+      { label: 'SSL certificate expiry & validity', href: '/features/ssl-monitoring', us: true, cells: [true, true, true, true, 'Plugins'] },
+      { label: 'DNS record change detection', href: '/features/dns-monitoring', us: true, cells: [true, false, false, false, 'Plugins'] },
+      { label: 'Domain expiry monitoring', href: '/features/domain-monitoring', us: true, cells: [true, true, true, false, false] },
+      { label: 'Broken-link crawling', href: '/features/broken-links', us: true, cells: [true, false, false, false, false] },
+      { label: 'Mixed-content detection', href: '/features/broken-links', us: true, cells: [true, false, false, false, false] },
+      { label: 'Sitemap cross-checking', href: '/features/broken-links', us: true, cells: [true, false, false, false, false] },
+      { label: 'Lighthouse audits', href: '/features/lighthouse-monitoring', us: true, cells: [true, false, false, false, false] },
+      { label: 'Automatic slowdown detection (p95 vs. baseline)', href: '/features/performance-monitoring', us: true, cells: ['Manual thresholds', 'Manual thresholds', false, false, false] },
+      { label: 'DNS blocklist monitoring', href: '/features/dns-blocklist-monitoring', us: true, cells: [true, false, false, false, false] },
+      { label: 'Exposed-port scanning', href: '/features/port-scan-monitoring', us: true, cells: [true, false, false, false, false] },
+      { label: 'AI checks in plain English', href: '/features/ai-checks', us: true, cells: [true, false, false, false, false] },
+    ],
+  },
+  {
+    group: 'Alerting & status pages',
+    rows: [
+      { label: 'Slack, PagerDuty, Opsgenie, SMS, webhooks', href: '/features/notifications', us: true, cells: [true, true, true, true, 'Varies by setup'] },
+      { label: 'Status pages on your own domain', href: '/features/status-pages', us: true, cells: [true, true, 'Paid plans', true, false] },
+      { label: 'Status page email subscribers', href: '/features/status-pages', us: true, cells: [true, true, 'Paid plans', false, false] },
+      { label: 'Incidents & maintenance windows', href: '/features/incident-management', us: true, cells: [true, true, true, true, 'Downtime scheduling'] },
+      { label: 'Scheduled email reports (weekly/monthly)', us: true, cells: [true, false, true, false, false] },
+      { label: 'Import from Statuspage, Instatus, Better Stack', href: '/features/status-pages', us: true, cells: [false, false, false, false, false] },
+    ],
+  },
+  {
+    group: 'Platform',
+    rows: [
+      { label: 'Single sign-on', us: 'OIDC', cells: ['SAML', 'Paid plans', false, false, false] },
+      { label: 'Open source', us: true, cells: [false, false, false, true, true] },
+      { label: 'Self-host for free', us: true, cells: [false, false, false, true, true] },
+      { label: 'Every feature in the self-hosted version', us: true, cells: [false, false, false, true, 'Paid XI tier'] },
+      { label: 'Hosted plan', us: '$9/mo flat', cells: ['From €10/mo', 'Free tier + paid', 'Free tier + paid', false, false] },
+    ],
+  },
+]
+
+// Honest section: where each alternative genuinely wins.
+const concessions = [
+  {
+    name: 'Uptime Kuma',
+    win: 'The biggest community',
+    text: 'Kuma has years of GitHub stars, translations, and more than ninety notification providers. If your alerting target is obscure, Kuma probably speaks it. What it lacks are the website checks around uptime: crawling, Lighthouse, sitemap, DNS change detection, and any hosted option.',
+  },
+  {
+    name: 'Oh Dear',
+    win: 'Track record',
+    text: 'Oh Dear has monitored production sites since 2018 and its Laravel packages are excellent. Its single sign-on speaks SAML where ours speaks OIDC, which matters to some enterprise shops. You pay for that maturity: it is closed source, per-site priced, and there is no self-hosted escape hatch.',
+  },
+  {
+    name: 'Better Stack',
+    win: 'Logs and on-call in one place',
+    text: 'If you want uptime, log management, and incident on-call rotations from a single vendor, Better Stack bundles all three. As a monitoring-only tool it is solid but closed, and the deeper website checks are not its focus.',
+  },
+  {
+    name: 'Nagios, Zabbix & Prometheus',
+    win: 'Deep infrastructure monitoring',
+    text: 'For SNMP, custom agent fleets, and metrics on everything from switch ports to Kubernetes, the classic suites are unbeatable. They were never built for website-level checks, and standing them up is a project, not an afternoon.',
+  },
+]
+
+const faqs = [
+  {
+    q: 'Is open-source monitoring not free anyway?',
+    a: 'Ours genuinely is: the full codebase is MIT licensed, and the self-hosted version has every feature with no limits. The $9 a month is for not running it: we patch, scale, back up daily, and check from six regions, so your monitoring does not go down with your infrastructure.',
+  },
+  {
+    q: 'If I self-host, which features do I lose?',
+    a: 'None. There is no open-core split, no enterprise edition, and no license key. The hosted plan differs only in who operates it and in the multi-region probes our infrastructure provides.',
+  },
+  {
+    q: 'How is this different from Uptime Kuma?',
+    a: 'Kuma covers uptime, ping, TCP, and certificates well. UptimeStatus adds the website layer: broken-link crawling, mixed-content and sitemap checks, DNS change detection, Lighthouse audits, automatic p95 slowdown detection, plain-English AI checks, and status page subscribers, plus a hosted option when you are done maintaining a VPS.',
+  },
+  {
+    q: 'How is this different from Oh Dear?',
+    a: 'Feature for feature the two are close, and we think that is a compliment to Oh Dear. The differences: UptimeStatus is MIT-licensed and free to self-host, the hosted plan is a flat $9 a month instead of per-site pricing, and a server metrics agent is included. Oh Dear counters with a longer track record, and its single sign-on is SAML-based where ours is OIDC (Google Workspace, Okta, Entra ID, or any OIDC issuer).',
+  },
+  {
+    q: 'Can I migrate from Statuspage, Instatus, or Better Stack?',
+    a: 'Yes. The status page importer recreates your components and groups from any of the three in one step, so switching does not mean rebuilding your public status page by hand.',
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ appName }} vs. open-source and hosted monitoring</title>
+    <meta name="description" content="How {{ appName }} compares to Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, and the classic self-hosted suites: every check side by side, honestly.">
+    <link rel="canonical" href="https://uptime-status.org/compare">
+    <meta property="og:title" content="{{ appName }} vs. open-source and hosted monitoring">
+    <meta property="og:description" content="Every check side by side: UptimeStatus against Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, Nagios, and Zabbix.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/compare">
+    @include('./partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('./partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> Open source &middot; MIT licensed</span>
+          <h1 class="page-title">Open source like Kuma. <span class="accent-word">Complete like Oh Dear.</span></h1>
+          <p class="page-lead">
+            Monitoring makes you pick: pay a SaaS to escape maintenance, or self-host and give up the deeper checks. {{ appName }} refuses the trade.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="#table">See the table</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="verdict-heading">
+        <div class="section-head left">
+          <h2 id="verdict-heading" class="section-title">The quick verdict.</h2>
+          <p class="section-copy">Every tool here is good at something. Here is the honest version of when to pick each one.</p>
+        </div>
+        <div class="verdict-grid">
+          @foreach (verdicts as v)
+            <div class="verdict-card {{ v.lead ? 'lead' : '' }}">
+              <h3>{{ v.name }}</h3>
+              <span class="verdict-tag">{{ v.tag }}</span>
+              <p>{{ v.text }}</p>
+            </div>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="trade-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="trade-heading">The trade-off we refused to make.</h2>
+            <p>
+              Hosted monitors charge you to escape maintenance, then keep the source closed so you can never leave. Self-hosted monitors give you freedom, then stop at "is it up?" and leave the certificate expiries, broken links, and slow pages to whatever you bolt on.
+            </p>
+            <p>
+              {{ appName }} ships the whole website layer: <a href="/features/broken-links">crawling</a>, <a href="/features/lighthouse-monitoring">Lighthouse</a>, <a href="/features/dns-monitoring">DNS change detection</a>, <a href="/features/performance-monitoring">automatic slowdown detection</a>, and <a href="/features/ai-checks">AI checks</a>. All of it MIT licensed. Run it yourself for free, or let us run it for a flat $9 a month.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Example monitor list">
+              <div class="panel-top">
+                <strong>Checks on one monitor</strong>
+                <span class="pill"><span class="dot"></span> All passing</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Uptime</div><div class="panel-row-sub">200 in 132ms, 6 regions</div></div></div>
+                  <div class="panel-row-meta"><span class="spark" aria-hidden="true"><span style="height:60%"></span><span style="height:80%"></span><span style="height:70%"></span><span style="height:90%"></span><span style="height:75%"></span><span style="height:100%"></span><span style="height:85%"></span></span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">SSL certificate</div><div class="panel-row-sub">expires in 84 days</div></div></div>
+                  <div class="panel-row-meta"><span>Valid</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Crawl</div><div class="panel-row-sub">184 pages, 0 broken links</div></div></div>
+                  <div class="panel-row-meta"><span>Clean</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Lighthouse</div><div class="panel-row-sub">performance 96, SEO 100</div></div></div>
+                  <div class="panel-row-meta"><span>Passed</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">AI check</div><div class="panel-row-sub">"pricing shows a Buy button"</div></div></div>
+                  <div class="panel-row-meta"><span>Holds</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="table" class="site-shell section" aria-labelledby="table-heading">
+        <div class="section-head">
+          <span class="eyebrow">Side by side</span>
+          <h2 id="table-heading" class="section-title">Every check, every tool.</h2>
+          <p class="section-copy">Feature names link to the detailed page for each check.</p>
+        </div>
+        <div class="compare-scroll">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th class="col-us">{{ appName }}</th>
+                @foreach (columns as col)
+                  <th>{{ col }}</th>
+                @endforeach
+              </tr>
+            </thead>
+            <tbody>
+              @foreach (featureGroups as group)
+                <tr class="group-row">
+                  <th scope="row" colspan="7">{{ group.group }}</th>
+                </tr>
+                @foreach (group.rows as row)
+                  <tr>
+                    <th scope="row">
+                      @if (row.href)
+                        <a href="{{ row.href }}">{{ row.label }}</a>
+                      @endif
+                      @if (!row.href)
+                        {{ row.label }}
+                      @endif
+                    </th>
+                    <td class="col-us">
+                      @if (row.us === true)<span class="cell-yes">&#10003;</span>@endif
+                      @if (row.us !== true)<span>{{ row.us }}</span>@endif
+                    </td>
+                    @foreach (row.cells as cell)
+                      <td>
+                        @if (cell === true)<span class="cell-yes">&#10003;</span>@endif
+                        @if (cell === false)<span class="cell-no">-</span>@endif
+                        @if (cell !== true && cell !== false)<span class="cell-part">{{ cell }}</span>@endif
+                      </td>
+                    @endforeach
+                  </tr>
+                @endforeach
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+        <p class="table-note">Sourced from each vendor's public docs, July 2026. Spot an error? <a href="https://github.com/stacksjs/status/issues" target="_blank" rel="noopener">Open an issue</a> and we will fix it.</p>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="honest-heading">
+        <div class="section-head left">
+          <h2 id="honest-heading" class="section-title">Where the others genuinely win.</h2>
+          <p class="section-copy">A comparison page you can trust has to cut both ways. Here is what we would tell a friend.</p>
+        </div>
+        <div class="feature-grid two">
+          @foreach (concessions as c)
+            <article class="feature-card">
+              <h3>{{ c.name }}</h3>
+              <p><strong>{{ c.win }}.</strong> {{ c.text }}</p>
+            </article>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="why-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="why-heading">Why open source is not optional.</h2>
+            <p>
+              The tool that tells you your site is down has to be more trustworthy than the site itself. We think that means you can read its source, audit its checks, and take your data and leave. If we ever stop deserving the $9, the MIT license is your exit. That is the deal.
+            </p>
+          </div>
+          <div class="oss-code">git clone github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Fair questions.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      @include('./partials/marketing-cta.stx')
+    </main>
+
+    @include('./partials/marketing-footer.stx')
+  </body>
+</html>

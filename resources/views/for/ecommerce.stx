@@ -1,0 +1,268 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const modules = [
+  {
+    title: 'Checkout and cart, every 30 seconds',
+    text: 'Point monitors at the endpoints that take money: cart, checkout, payment callbacks. Checks run at intervals down to 30 seconds on Pro, so an outage is minutes old when the alert lands, not hours.',
+    href: '/features/uptime-monitoring',
+  },
+  {
+    title: 'Dead product pages, found daily',
+    text: 'A daily crawl follows every internal link, flags anything that 404s, and cross-checks your sitemap for pages nothing links to anymore. Discontinued products stop lingering in search results as dead ends.',
+    href: '/features/broken-links',
+  },
+  {
+    title: 'Slow pages lose carts',
+    text: 'Every 15 minutes, the last hour\'s p95 response time is compared to your 7-day baseline. When a page runs twice as slow as normal, an incident opens, even while the site is technically still up.',
+    href: '/features/performance-monitoring',
+  },
+  {
+    title: 'No expired certificate on payday',
+    text: 'An expired certificate turns your store into a full-screen browser warning at the worst possible moment. Expiry alerts arrive weeks ahead, not the morning of.',
+    href: '/features/ssl-monitoring',
+  },
+  {
+    title: 'SEO scores, tracked between deploys',
+    text: 'Lighthouse performance and SEO scores are recorded over time, so the redesign that quietly tanked your rankings gets noticed while the deploy is still fresh in memory.',
+    href: '/features/lighthouse-monitoring',
+  },
+  {
+    title: 'Order emails that actually arrive',
+    text: 'A blocklisted sending domain means order confirmations land in spam and customers open disputes. Blocklist checks alert you the moment your domain shows up on one.',
+    href: '/features/dns-blocklist-monitoring',
+  },
+]
+
+const faqs = [
+  {
+    q: 'Can I monitor the checkout flow?',
+    a: 'You can monitor each step of it: an HTTP monitor per endpoint (cart, checkout, payment callback), plus AI checks that load a page and verify the content a customer should actually see. What we do not do is scripted multi-step browser transactions, so we will not fill a form and click "Pay" for you. In practice, per-step checks catch the same outages without the flakiness.',
+  },
+  {
+    q: 'How does the broken-link crawl work?',
+    a: 'Once a day, a crawler starts at your monitor\'s URL and follows same-origin links breadth-first, up to 200 pages, respecting robots.txt. Every page that returns a 400+ status is recorded as a broken link, and your sitemap.xml is cross-checked for URLs that fail even though nothing links to them. If issues are found, an incident opens and your notification channels fire.',
+  },
+  {
+    q: 'What counts as mixed content?',
+    a: 'Any image, script, or stylesheet loaded over plain http:// from a page served over https://. Browsers respond by breaking the padlock or blocking the resource, which is exactly the trust signal you do not want at checkout. The daily crawl flags each offending resource and the page it was found on.',
+  },
+  {
+    q: 'Will I know when the site gets slow, not just when it goes down?',
+    a: 'Yes. Every 15 minutes, each monitor\'s p95 response time over the last hour is compared against its own 7-day baseline. If it is at least 2x slower, an incident opens in a "monitoring" state: informational, because the site is often still up, just degrading.',
+  },
+  {
+    q: 'What does this cost for a small store?',
+    a: 'The Free plan covers 5 monitors, 1 status page, and 5-minute check intervals, which is enough for a storefront, checkout, and a couple of APIs. Pro is $9/month for 100 monitors, 10 status pages, and 30-second intervals.',
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monitoring for e-commerce | {{ appName }}</title>
+    <meta name="description" content="Uptime monitoring for online stores: checkout checks every 30 seconds, daily crawls for broken product links and mixed content, plus SSL and blocklist alerts.">
+    <link rel="canonical" href="https://uptime-status.org/for/ecommerce">
+    <meta property="og:title" content="Monitoring for e-commerce | {{ appName }}">
+    <meta property="og:description" content="Watch the whole storefront funnel: checkout uptime, broken product links, mixed content, certificates, and email deliverability.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/for/ecommerce">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> For online stores</span>
+          <h1 class="page-title">Downtime at checkout is just <span class="accent-word">revenue.</span></h1>
+          <p class="page-lead">
+            Every minute the checkout is down is an order that went somewhere else. {{ appName }} watches the whole funnel and the quiet failures around it.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/compare">See how it compares</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="modules-heading">
+        <div class="section-head left">
+          <h2 id="modules-heading" class="section-title">The failures that cost a store money.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (modules as m)
+            <a class="feature-card" href="{{ m.href }}">
+              <h3>{{ m.title }}</h3>
+              <p>{{ m.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="funnel-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="funnel-heading">Monitor the funnel, not just the homepage.</h2>
+            <p>
+              A green homepage tells you nothing about the cart API. Give each step of the purchase path its own <a href="/features/uptime-monitoring">HTTP monitor</a>, so "the site is up but nobody can pay" stops being a thing you learn from support tickets.
+            </p>
+            <p>
+              For the pages where a 200 status is not proof of anything, <a href="/features/ai-checks">AI checks</a> load the page and verify a customer would actually see products, prices, and a working buy button.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel">
+              <div class="panel-top">
+                <strong>Storefront funnel</strong>
+                <span class="pill"><span class="dot"></span> Operational</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Home</div>
+                      <div class="panel-row-sub">/</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">HTTP, 30s</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Product page</div>
+                      <div class="panel-row-sub">/products/aurora-lamp</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">AI check, 5m</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Cart API</div>
+                      <div class="panel-row-sub">/api/cart</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">HTTP, 30s</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Checkout</div>
+                      <div class="panel-row-sub">/checkout</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">HTTP, 30s</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Payment webhook</div>
+                      <div class="panel-row-sub">/webhooks/payments</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">Heartbeat</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="crawl-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="crawl-heading">The daily crawl catches what no uptime check can.</h2>
+            <p>
+              Once a day, a crawler walks your store link by link, up to 200 pages, respecting robots.txt. It records every 404, flags each http:// image or script that breaks the padlock on an https page, and cross-checks your sitemap for pages that fail even though nothing links to them anymore.
+            </p>
+            <p>
+              When it finds something, an incident opens and your channels are notified, the same as any outage. See <a href="/features/broken-links">broken-link monitoring</a>.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel">
+              <div class="panel-top">
+                <strong>Daily crawl</strong>
+                <span class="pill warn"><span class="dot"></span> Issues found</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Pages crawled</div>
+                      <div class="panel-row-sub">same-origin, robots.txt respected</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">200</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot down"></span>
+                    <div>
+                      <div class="panel-row-name">Broken links</div>
+                      <div class="panel-row-sub">404s, plus sitemap cross-check</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">3</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot warn"></span>
+                    <div>
+                      <div class="panel-row-name">Mixed content</div>
+                      <div class="panel-row-sub">http:// resources on https pages</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">2</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="oss-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="oss-heading">Your uptime history is yours.</h2>
+            <p>
+              {{ appName }} is MIT-licensed open source. Your monitors, incident history, and crawl results live behind a plain JSON API you can export from any time, and if you would rather run the whole thing on your own infrastructure, you can clone it and do exactly that.
+            </p>
+          </div>
+          <div class="oss-code">git clone https://github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Store questions, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

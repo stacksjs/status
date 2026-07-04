@@ -1,0 +1,200 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Three states, not two', text: 'your route returns ok, degraded, or down. Degraded is visible in the dashboard and history without paging anyone.' },
+  { title: 'Named sub-checks', text: 'an optional checks map of booleans (database, redis, queue depth, disk space) is stored with every result for diagnosis.' },
+  { title: 'Point it at any path', text: 'the monitor calls its URL by default, or set a path like /health in the monitor config to hit a dedicated route.' },
+  { title: 'Strict by default', text: 'a non-2xx response, a timeout past 15 seconds, or a body with no status field all count as down.' },
+  { title: 'Automatic incidents', text: 'the transition to down opens a timeline incident with the reported cause and notifies your channels.' },
+  { title: 'Latency on every call', text: 'response time is recorded with each result, so a health route that is getting slower shows up in the history.' },
+]
+
+const faqs = [
+  {
+    q: 'What does my endpoint need to return?',
+    a: 'JSON with a status field set to ok, degraded, or down, plus an optional checks object mapping names to booleans. Only the status field drives the monitor state; the checks map is stored with the result so you can see which dependency went red.',
+  },
+  {
+    q: 'How is this different from uptime monitoring?',
+    a: 'An uptime check asks whether the endpoint responds. A health check asks the application itself. Your app can see things a probe cannot: the database connection pool, the queue backlog, a downstream API. The health route reports that verdict and we treat it as the source of truth.',
+  },
+  {
+    q: 'What does degraded actually do?',
+    a: 'The monitor shows degraded and the result is recorded in the history, but no incident opens and nobody gets paged. Incidents are reserved for the transition to down. Degraded is for the "working, but worth a look" middle ground.',
+  },
+  {
+    q: 'What if the endpoint returns HTML or times out?',
+    a: 'Both count as down. A response with no parseable status field is a failure, and the check gives up after 15 seconds. A health route that cannot answer a simple GET quickly is itself a finding.',
+  },
+  {
+    q: 'How often is the route called?',
+    a: 'As often as every 30 seconds on Pro and every 5 minutes on Free. Self-hosted installs set their own schedule. Keep the route cheap and side-effect free, since it will be called a lot.',
+  },
+  {
+    q: 'Should the health route be public?',
+    a: 'The checker sends a plain GET, so the route needs to be reachable without credentials. Return only status and booleans, never internals like hostnames or versions, and use an unguessable path if you want it out of casual reach.',
+  },
+]
+
+const related = [
+  { title: 'Uptime monitoring', text: 'Outside-in checks from six regions for the plain "does it respond" question, as often as every 30 seconds.', href: '/features/uptime-monitoring' },
+  { title: 'Cron monitoring', text: 'For work with no URL to call: your scheduled jobs ping us, and silence past the grace period is the alert.', href: '/features/cron-monitoring' },
+  { title: 'Incident management', text: 'Every failure becomes a timeline incident with a cause, updates, and a resolution, not a line in a log.', href: '/features/incident-management' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Application health checks | {{ appName }}</title>
+    <meta name="description" content="Your app exposes a health route that returns ok, degraded, or down. We call it on a schedule from outside, keep the history, and own the alerting.">
+    <link rel="canonical" href="https://uptime-status.org/features/health-checks">
+    <meta property="og:title" content="Application health checks | {{ appName }}">
+    <meta property="og:description" content="A JSON health route your app defines, polled on a schedule from outside, with history, incidents, and alerting handled for you.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/health-checks">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Your app defines healthy. <span class="accent-word">We hold it to that.</span></h1>
+          <p class="page-lead">
+            Expose a health route that returns ok, degraded, or down. {{ appName }} calls it on a schedule, keeps the history, and owns the alerting.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/uptime-monitoring">See uptime monitoring</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="contract-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="contract-heading">A contract small enough to write before lunch.</h2>
+            <p>
+              A 200 from your homepage proves the web server is up. It says nothing about the database, the queue, or the third-party API your checkout depends on. Only your application can see those, and it already knows when they are wrong.
+            </p>
+            <p>
+              So put that knowledge in a route. Return a status of ok, degraded, or down, and optionally a map of named booleans for the details. {{ appName }} polls it, records what it said, and reacts.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># GET https://api.yourcompany.com/health</span>
+{
+  <span class="str">"status"</span>: <span class="str">"degraded"</span>,
+  <span class="str">"checks"</span>: {
+    <span class="str">"database"</span>: true,
+    <span class="str">"redis"</span>: true,
+    <span class="str">"queue_backlog"</span>: false
+  }
+}</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="outside-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="outside-heading">Checked from outside, where your app cannot vouch for itself.</h2>
+            <p>
+              A health route inside a monolith that is down cannot tell anyone it is down. The polling, the history, and the alerting have to live somewhere else.
+            </p>
+            <p>
+              {{ appName }} calls your route on the schedule you choose, stores every verdict with its sub-checks and response time, and turns the transition to down into an incident on your channels. Degraded states stay visible without waking anyone up.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Health check history example">
+              <div class="panel-top">
+                <strong>api.yourcompany.com/health</strong>
+                <span class="pill warn"><span class="dot"></span> Degraded</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Degraded</div><div class="panel-row-sub">queue_backlog: false</div></div></div>
+                  <div class="panel-row-meta"><span>112ms &middot; just now</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Healthy</div><div class="panel-row-sub">all checks passing</div></div></div>
+                  <div class="panel-row-meta"><span>98ms &middot; 5m ago</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Healthy</div><div class="panel-row-sub">all checks passing</div></div></div>
+                  <div class="panel-row-meta"><span>101ms &middot; 10m ago</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What health checks include.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="framework-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="framework-heading">Any framework. It is just a JSON route.</h2>
+            <p>
+              Rails, Laravel, Express, Django, Stacks, a Go binary: if it can return a small JSON object, it can report health. There is no SDK to adopt and no format to migrate to later, and the same route works unchanged if you ever move monitoring tools.
+            </p>
+          </div>
+          <div class="oss-code">{ "status": "ok" }</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Health checks, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

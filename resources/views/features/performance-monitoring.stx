@@ -1,0 +1,235 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Automatic baseline', text: 'built from the preceding 7 days of your own check results and recomputed on every run. Nothing to configure.' },
+  { title: 'p95, not averages', text: 'the comparison uses 95th-percentile response time, so tail latency cannot hide behind a healthy mean.' },
+  { title: 'Every 15 minutes', text: 'each enabled monitor with response-time history is evaluated, around the clock.' },
+  { title: 'A 2x regression bar', text: 'an incident opens when the last hour\'s p95 is at least twice the baseline p95.' },
+  { title: 'Sample guard', text: 'at least 5 data points required in both windows, so a quiet monitor cannot false-alarm off two slow requests.' },
+  { title: 'No alert storms', text: 'while a degradation incident is open, the check does not re-open a duplicate every 15 minutes.' },
+]
+
+const faqs = [
+  {
+    q: 'Why p95 instead of average response time?',
+    a: 'Averages hide the pain. A monitor can average 200ms while one request in twenty takes 3 seconds, and those are the requests your users remember. p95 tracks the slow tail directly, on both sides of the comparison.',
+  },
+  {
+    q: 'How is the baseline calculated?',
+    a: 'From your own check results over the preceding 7 days, excluding the last hour. Excluding the current hour matters: an ongoing regression cannot drag its own baseline up and mask itself.',
+  },
+  {
+    q: 'What exactly triggers an incident?',
+    a: 'The 95th-percentile response time of the last hour reaching at least 2x the 7-day baseline p95, with a minimum of 5 samples in each window. The incident records both numbers and the ratio between them.',
+  },
+  {
+    q: 'Will it page me every 15 minutes while things are slow?',
+    a: 'No. If a degradation incident for that monitor is still open, the check skips it instead of opening a duplicate. You get one incident per slowdown, not one per evaluation.',
+  },
+  {
+    q: 'Is a slowdown treated the same as downtime?',
+    a: 'No. A degradation incident opens with the informational "monitoring" status, because the monitor may well still be up. Your status page and uptime numbers are not declared down just because responses got slower.',
+  },
+  {
+    q: 'Do I need to set anything up?',
+    a: 'No. Any enabled monitor that records response times, which HTTP uptime checks do on every probe, is covered automatically. There is no threshold field to fill in anywhere.',
+  },
+]
+
+const related = [
+  { title: 'Uptime monitoring', text: 'The response times this feature analyzes come from your uptime checks, as often as every 30 seconds.', href: '/features/uptime-monitoring' },
+  { title: 'Lighthouse monitoring', text: 'Baseline comparison watches your servers. Lighthouse watches what the browser does with your pages.', href: '/features/lighthouse-monitoring' },
+  { title: 'Notifications', text: 'Degradation incidents route through the same 10 channels as everything else, from Slack to PagerDuty.', href: '/features/notifications' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Performance monitoring | {{ appName }}</title>
+    <meta name="description" content="Automatic response-time regression detection: p95 of the last hour versus your 7-day baseline, checked every 15 minutes. No thresholds to tune.">
+    <link rel="canonical" href="https://uptime-status.org/features/performance-monitoring">
+    <meta property="og:title" content="Performance monitoring | {{ appName }}">
+    <meta property="og:description" content="p95 baseline comparison every 15 minutes, no manual thresholds. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/performance-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> No thresholds to configure</span>
+          <h1 class="page-title">Slow is the new <span class="accent-word">down.</span></h1>
+          <p class="page-lead">
+            No thresholds to guess. {{ appName }} compares last hour's p95 against your 7-day baseline every 15 minutes and flags anything twice as slow.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/uptime-monitoring">See uptime monitoring</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="baseline-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="baseline-heading">Pick a threshold, pick your poison.</h2>
+            <p>
+              Tools that make you alert on a fixed millisecond number leave you two bad options. Set it tight and every traffic spike pages you at 3am. Set it loose and a real regression cruises under it for weeks.
+            </p>
+            <p>
+              {{ appName }} does not ask for a number. Your monitor's own history is the threshold: the last hour's 95th-percentile response time is compared against the p95 of the preceding 7 days. Normal for your API, not normal in general.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Response time trend example">
+              <div class="panel-top">
+                <strong>api.yourcompany.com</strong>
+                <span class="pill warn"><span class="dot"></span> Degraded</span>
+              </div>
+              <div class="panel-body">
+                <div class="spark" style="height: 44px;" aria-hidden="true">
+                  <span style="height: 30%;"></span><span style="height: 26%;"></span><span style="height: 32%;"></span><span style="height: 28%;"></span><span style="height: 34%;"></span><span style="height: 27%;"></span><span style="height: 31%;"></span><span style="height: 29%;"></span><span style="height: 33%;"></span><span style="height: 26%;"></span><span style="height: 30%;"></span><span style="height: 35%;"></span><span style="height: 28%;"></span><span style="height: 32%;"></span><span style="height: 27%;"></span><span style="height: 30%;"></span><span style="height: 29%;"></span><span style="height: 34%;"></span><span style="height: 31%;"></span><span style="height: 28%;"></span><span style="height: 33%;"></span><span style="height: 30%;"></span><span style="height: 27%;"></span><span style="height: 46%;"></span><span style="height: 58%;"></span><span style="height: 66%;"></span><span style="height: 74%;"></span><span style="height: 82%;"></span><span style="height: 88%;"></span><span style="height: 95%;"></span>
+                </div>
+                <div class="panel-row" style="padding: 1rem 0 0;">
+                  <span class="panel-row-sub">7-day p95: 255ms</span>
+                  <span class="panel-row-sub">last hour p95: 612ms</span>
+                  <span class="panel-row-sub">2.4x</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="how-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="how-heading">Up, but slower. Now you know.</h2>
+            <p>
+              A bad database index, a saturated connection pool, a dependency that started timing out and retrying: none of these fail your health check. Every probe still returns 200, and every response takes three times longer than last week.
+            </p>
+            <p>
+              The trend check runs every 15 minutes across all your enabled monitors. When the last hour's p95 reaches at least 2x the baseline, it opens an incident with both numbers and the ratio, so the alert arrives with its own evidence.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Degradation incident example">
+              <div class="panel-top">
+                <strong>Check history</strong>
+                <span class="pill warn"><span class="dot"></span> Monitoring</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Response time degraded</div><div class="panel-row-sub">p95 last hour 612ms, 2.4x the 7-day baseline</div></div></div>
+                  <div class="panel-row-meta"><span>12 min ago</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">HTTP 200</div><div class="panel-row-sub">still up, just slow</div></div></div>
+                  <div class="panel-row-meta"><span>641ms &middot; us-east</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">HTTP 200</div><div class="panel-row-sub">2 hours earlier</div></div></div>
+                  <div class="panel-row-meta"><span>218ms &middot; us-east</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">How the regression check works.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="informational-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="informational-heading">An early warning, not a false alarm.</h2>
+            <p>
+              A degradation incident is informational: it opens in "monitoring" status because your site is most likely still up. Your monitor is not marked down and your uptime percentage is untouched, so your team gets time to fix the slowdown before it becomes the outage.
+            </p>
+          </div>
+          <div class="oss-code">p95 last hour (612ms) is 2.4x the 7-day baseline (255ms)</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="payload-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="payload-heading">Alerts that carry their own numbers.</h2>
+            <p>
+              Every degradation incident stores the recent p95, the baseline p95, and the cause as structured data alongside the human-readable summary. Route it to Slack for people or to a webhook for machines; either way, the evidence travels with the alert.
+            </p>
+            <p>
+              The response times behind it come from your regular checks, kept with <a href="/features/uptime-monitoring">90 days of uptime history</a>.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>{
+  <span class="str">"cause"</span>: <span class="str">"Response time degraded: p95 over the
+    last hour (612ms) is 2.4x the 7-day
+    baseline (255ms)"</span>,
+  <span class="str">"status"</span>: <span class="str">"monitoring"</span>,
+  <span class="str">"impacted_checks"</span>: [{
+    <span class="str">"type"</span>: <span class="str">"performance"</span>,
+    <span class="str">"recentP95"</span>: 612,
+    <span class="str">"baselineP95"</span>: 255
+  }]
+}</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Performance monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

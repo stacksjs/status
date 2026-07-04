@@ -1,0 +1,219 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Any TCP service', text: 'MySQL, Postgres, Redis, SMTP, RabbitMQ: if it accepts TCP connections, it can be monitored. No HTTP endpoint required.' },
+  { title: 'Configurable port', text: 'set the port on the monitor and the probe connects to exactly that. Defaults to 443 if you leave it out.' },
+  { title: 'Connect timing', text: 'every check records how long the TCP handshake took in milliseconds, so a service getting slower is visible in the history.' },
+  { title: 'Automatic incidents', text: 'when a port stops accepting connections, an incident opens naming the host and port, and your channels are notified.' },
+  { title: '90-day history', text: 'every result is stored with its timing and probe region, so you can trace exactly when a service went quiet.' },
+  { title: '10 notification channels', text: 'email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, and webhooks.' },
+]
+
+const faqs = [
+  {
+    q: 'What exactly does a TCP port check do?',
+    a: 'It opens a TCP connection to your host on the port you configured and measures how long that takes. If the connection is accepted, the service is up and the timing is recorded. If it is refused or nothing answers within ten seconds, the port is marked closed or unreachable and an incident opens.',
+  },
+  {
+    q: 'Which services is this for?',
+    a: 'Anything that speaks TCP but not HTTP: databases like MySQL and Postgres, Redis, SMTP and IMAP servers, message queues, game servers, custom daemons. If your app depends on it through a port, you can watch that port directly.',
+  },
+  {
+    q: 'Does a successful connect mean the service is healthy?',
+    a: 'It means the service is accepting connections, which catches the most common failure: the process died, the box rebooted without it, or a firewall change cut it off. It does not run protocol-level queries, so a database that accepts connections but answers slowly needs the connect timing history, where that slowdown shows up.',
+  },
+  {
+    q: 'Can I monitor ports that are not exposed to the internet?',
+    a: 'The hosted probes connect from the public internet, so the port must be reachable from outside. For databases and queues that rightly are not, self-host the open-source version inside your network and run the checks from there. If a database port is publicly reachable and should not be, port scan monitoring is built to catch exactly that.',
+  },
+  {
+    q: 'How often do port checks run?',
+    a: 'As often as every 30 seconds on the Pro plan and every 5 minutes on Free. Self-hosted installs set their own interval.',
+  },
+]
+
+const related = [
+  { title: 'Ping monitoring', text: 'Port closed and host unreachable are different incidents. A ping check on the same host tells them apart.', href: '/features/ping-monitoring' },
+  { title: 'Port scan monitoring', text: 'A port check watches one port you know about. A port scan finds the ones you did not know were open.', href: '/features/port-scan-monitoring' },
+  { title: 'Notifications', text: 'Route database alerts to the on-call channel and staging noise somewhere quieter, across 10 channels.', href: '/features/notifications' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TCP port monitoring | {{ appName }}</title>
+    <meta name="description" content="Open-source TCP port monitoring for MySQL, Redis, SMTP, and anything else with a port. Connect checks with timing, automatic incidents, alerts on 10 channels.">
+    <link rel="canonical" href="https://uptime-status.org/features/tcp-port-monitoring">
+    <meta property="og:title" content="TCP port monitoring | {{ appName }}">
+    <meta property="og:description" content="Watch the ports your app depends on: databases, queues, mail. Connect checks with timing and automatic incidents. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/tcp-port-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Watch the ports your app <span class="accent-word">depends on.</span></h1>
+          <p class="page-lead">
+            MySQL, Redis, SMTP, the job queue: if it listens on a port, {{ appName }} can tell you the moment it stops.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="deps-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="deps-heading">Your website was never the first thing to break.</h2>
+            <p>
+              When Redis dies, your homepage keeps returning 200 for a while: caches miss, jobs pile up, and the error tracker slowly fills with timeouts. By the time an HTTP check notices, you are twenty minutes into an incident that started at a port.
+            </p>
+            <p>
+              A TCP port monitor watches the dependency itself. The probe connects to the exact host and port your app uses, so you hear that the database stopped accepting connections before the symptoms surface anywhere else.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Port monitor list example">
+              <div class="panel-top">
+                <strong>Service ports</strong>
+                <span class="pill down"><span class="dot"></span> 1 down</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">MySQL</div><div class="panel-row-sub">db-1.yourcompany.com:3306</div></div></div>
+                  <div class="panel-row-meta"><span>Port 3306 open &middot; 12ms</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Redis</div><div class="panel-row-sub">cache-1.yourcompany.com:6379</div></div></div>
+                  <div class="panel-row-meta"><span>Port 6379 closed or unreachable</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">SMTP</div><div class="panel-row-sub">mail.yourcompany.com:587</div></div></div>
+                  <div class="panel-row-meta"><span>Port 587 open &middot; 31ms</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="timing-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="timing-heading">A connect is a measurement, not a coin flip.</h2>
+            <p>
+              Each check records whether the port accepted the connection and how many milliseconds the handshake took, from which probe region. A port that will not answer within ten seconds is treated as closed, recorded as such, and the transition opens an incident naming the host and port.
+            </p>
+            <p>
+              That history matters between outages too. A queue server whose connect time crept from 8ms to 900ms over a week is telling you something, and the chart is sitting there when you want it.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Port check history example">
+              <div class="panel-top">
+                <strong>cache-1.yourcompany.com:6379</strong>
+                <span class="pill down"><span class="dot"></span> Incident open</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Port 6379 closed or unreachable</div><div class="panel-row-sub">connect timed out</div></div></div>
+                  <div class="panel-row-meta"><span>us-east</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Port 6379 closed or unreachable</div><div class="panel-row-sub">connection refused</div></div></div>
+                  <div class="panel-row-meta"><span>eu-central</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Port 6379 open</div><div class="panel-row-sub">1 minute earlier</div></div></div>
+                  <div class="panel-row-meta"><span>9ms &middot; us-east</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What TCP port monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="api-heading">One API call per port.</h2>
+            <p>
+              A port monitor is a record with a host, a type, and a port in its config. Create one from the dashboard, or script the whole set from your infrastructure repo so every database and queue you provision comes with its watcher.
+            </p>
+            <p>
+              The same API powers the dashboard, so anything you can click, you can automate.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/monitors \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d <span class="str">'{
+    "name": "Primary MySQL",
+    "url": "db-1.yourcompany.com",
+    "type": "tcp_port",
+    "config": "{\"port\": 3306}"
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">TCP port monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

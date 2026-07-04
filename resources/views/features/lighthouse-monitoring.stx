@@ -1,0 +1,234 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Four categories tracked', text: 'performance, accessibility, SEO, and best practices, each scored 0 to 100 like the Lighthouse you already know.' },
+  { title: 'Real headless Chrome', text: 'the actual Lighthouse tool runs against your URL. Same methodology, same numbers as DevTools.' },
+  { title: 'Score history per monitor', text: 'every audit is stored, so you see trends across deploys instead of one-off snapshots.' },
+  { title: 'Performance regression incidents', text: 'a performance score that drops 15 points or more against the previous audit opens an incident.' },
+  { title: 'Full report kept', text: 'the complete Lighthouse JSON is stored with every audit, so you can drill into exactly which audits failed.' },
+  { title: 'API access', text: 'list and inspect reports at /api/lighthouse-reports and build whatever dashboard you want on top.' },
+]
+
+const faqs = [
+  {
+    q: 'Is this real Lighthouse or an approximation?',
+    a: 'Real Lighthouse, running in headless Chrome on the worker. The scores match what you would get from Chrome DevTools or the Lighthouse CLI, because it is the same tool.',
+  },
+  {
+    q: 'Do I get alerted when a score drops?',
+    a: 'Performance drops do alert: if the performance score falls 15 points or more compared to the previous audit, an incident opens and routes through your notification channels. Accessibility, SEO, and best-practices scores are tracked with full history so you can watch their trends, but they do not open incidents on their own.',
+  },
+  {
+    q: 'Can I see why a score dropped?',
+    a: 'Yes. The full Lighthouse JSON report is stored with every audit, so the failed audits and opportunity details behind each score are there when you need them, not just the four headline numbers.',
+  },
+  {
+    q: 'What do I need to self-host this check?',
+    a: 'Chrome or Chromium installed on the worker host. Lighthouse needs a real browser, and this is the one check type that does. If Chrome is missing, the job logs a clear warning instead of failing silently.',
+  },
+  {
+    q: 'Will audits slow down my other checks?',
+    a: 'No. A Lighthouse audit takes seconds rather than milliseconds, so it runs on its own dedicated queue and does not share a worker pool with your uptime, ping, or TCP checks.',
+  },
+]
+
+const related = [
+  { title: 'Performance monitoring', text: 'Lighthouse audits your page loads. p95 baseline comparison watches your response times between audits.', href: '/features/performance-monitoring' },
+  { title: 'Broken links', text: 'A daily crawl for 404s, mixed content, and dead sitemap URLs. The other kind of quiet decay.', href: '/features/broken-links' },
+  { title: 'Uptime monitoring', text: '30-second checks from six regions, with full diagnostics on every result.', href: '/features/uptime-monitoring' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lighthouse monitoring | {{ appName }}</title>
+    <meta name="description" content="Track Lighthouse performance, accessibility, SEO, and best-practices scores over time. Automatic incidents on performance drops. Open source.">
+    <link rel="canonical" href="https://uptime-status.org/features/lighthouse-monitoring">
+    <meta property="og:title" content="Lighthouse monitoring | {{ appName }}">
+    <meta property="og:description" content="Real Lighthouse audits on a schedule, with score history and incidents on performance regressions.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/lighthouse-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> Real Lighthouse, real Chrome</span>
+          <h1 class="page-title">Your Lighthouse scores, <span class="accent-word">tracked over time.</span></h1>
+          <p class="page-lead">
+            Run real Lighthouse audits on a schedule, keep every score in history, and get an incident when performance drops 15 points.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/performance-monitoring">See performance monitoring</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="scores-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="scores-heading">You ran Lighthouse at launch. Then the site kept changing.</h2>
+            <p>
+              Scores decay the same way sites do: a marketing script here, an oversized hero image there, a dependency bump that ships more JavaScript. Nobody notices, because nobody reruns the audit.
+            </p>
+            <p>
+              {{ appName }} runs Lighthouse against your monitor's URL on a schedule and records all four category scores every time: performance, accessibility, SEO, and best practices. The audit that used to be a launch-week ritual becomes a data series you can actually watch.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Lighthouse scores example">
+              <div class="panel-top">
+                <strong>yourcompany.com &middot; latest audit</strong>
+                <span class="pill"><span class="dot"></span> Healthy</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Performance</div><div class="panel-row-sub">was 89 last audit</div></div></div>
+                  <div class="panel-row-meta"><span>92</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Accessibility</div><div class="panel-row-sub">unchanged</div></div></div>
+                  <div class="panel-row-meta"><span>98</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Best practices</div><div class="panel-row-sub">was 93 last audit</div></div></div>
+                  <div class="panel-row-meta"><span>96</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">SEO</div><div class="panel-row-sub">unchanged</div></div></div>
+                  <div class="panel-row-meta"><span>100</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="regress-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="regress-heading">A 15-point performance drop opens an incident.</h2>
+            <p>
+              Every new audit is compared against the previous one. If the performance score falls by 15 points or more, {{ appName }} opens an incident with both numbers in it and notifies your channels, the same pipeline your uptime alerts use.
+            </p>
+            <p>
+              That means the deploy that doubled your bundle size shows up as an event on a timeline, not as a mystery in next quarter's Core Web Vitals report.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Lighthouse regression incident example">
+              <div class="panel-top">
+                <strong>Incidents</strong>
+                <span class="pill warn"><span class="dot"></span> Monitoring</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Lighthouse performance score dropped from 91 to 74</div><div class="panel-row-sub">17-point drop, threshold is 15</div></div></div>
+                  <div class="panel-row-meta"><span>today</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Performance 91</div><div class="panel-row-sub">previous audit</div></div></div>
+                  <div class="panel-row-meta"><span>ok</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Performance 90</div><div class="panel-row-sub">audit before that</div></div></div>
+                  <div class="panel-row-meta"><span>ok</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What Lighthouse monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="oss-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="oss-heading">The same audit you would run by hand.</h2>
+            <p>
+              No proprietary scoring model to second-guess. The worker runs the real Lighthouse tool in headless Chrome, and the open-source code shows exactly how. Self-host it anywhere; the only extra requirement for this check type is Chrome or Chromium on the worker host.
+            </p>
+          </div>
+          <div class="oss-code">lighthouse https://yoursite.com --output=json</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="api-heading">Reports are data, not screenshots.</h2>
+            <p>
+              Every audit is stored as a record: four scores, a timestamp, and the full Lighthouse JSON for drill-down. Pull them over the API to chart score history in your own tools, gate a release on the latest numbers, or archive reports somewhere else.
+            </p>
+            <p>
+              If it is in the dashboard, it is in the API.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># list Lighthouse reports for your monitors</span>
+curl https://uptime-status.org/api/lighthouse-reports \
+  -H <span class="str">'Accept: application/json'</span>
+
+<span class="cmt"># fetch one report, full JSON included</span>
+curl https://uptime-status.org/api/lighthouse-reports/142</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Lighthouse monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

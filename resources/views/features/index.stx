@@ -1,0 +1,187 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const groups = [
+  {
+    id: 'availability',
+    title: 'Availability.',
+    items: [
+      {
+        title: 'Uptime monitoring',
+        text: 'HTTP checks as often as every 30 seconds on Pro, from six regions, with status code, latency, and error stored for every result.',
+        href: '/features/uptime-monitoring',
+      },
+      {
+        title: 'Ping monitoring',
+        text: 'Reachability checks for servers, routers, and anything with an IP address, no web server required.',
+        href: '/features/ping-monitoring',
+      },
+      {
+        title: 'TCP port monitoring',
+        text: 'Watch the ports your app depends on: databases, Redis, SMTP, and anything else that should be listening.',
+        href: '/features/tcp-port-monitoring',
+      },
+      {
+        title: 'Cron & heartbeat monitoring',
+        text: 'Your jobs ping us when they finish; when the ping stops arriving inside the grace period, an incident opens.',
+        href: '/features/cron-monitoring',
+      },
+      {
+        title: 'Health checks',
+        text: 'Call the health route your app already exposes and alert the moment any component it reports flips to unhealthy.',
+        href: '/features/health-checks',
+      },
+      {
+        title: 'Server metrics',
+        text: 'An optional agent reports CPU, memory, and disk from inside the box, with alerts on the thresholds you set.',
+        href: '/features/server-monitoring',
+      },
+    ],
+  },
+  {
+    id: 'quality',
+    title: 'Website quality.',
+    items: [
+      {
+        title: 'SSL certificates',
+        text: 'Expiry warnings land weeks ahead, and chain or validity problems are caught before a browser warning does it for you.',
+        href: '/features/ssl-monitoring',
+      },
+      {
+        title: 'DNS monitoring',
+        text: 'Detect unexpected changes to your DNS records before they turn into an outage, or worse, a hijack.',
+        href: '/features/dns-monitoring',
+      },
+      {
+        title: 'Domain expiry',
+        text: 'Registration expiry tracked for every domain you own, with warnings long before renewal day.',
+        href: '/features/domain-monitoring',
+      },
+      {
+        title: 'Broken links, mixed content & sitemap',
+        text: 'Crawl your site for dead links, mixed-content warnings, and sitemap problems that quietly erode trust and rankings.',
+        href: '/features/broken-links',
+      },
+      {
+        title: 'Lighthouse audits',
+        text: 'Scheduled Lighthouse runs track performance, accessibility, SEO, and best-practice scores over time.',
+        href: '/features/lighthouse-monitoring',
+      },
+      {
+        title: 'Performance monitoring',
+        text: 'Every check records response time, and p95 regressions against a 7-day baseline raise an alert before users complain.',
+        href: '/features/performance-monitoring',
+      },
+    ],
+  },
+  {
+    id: 'security',
+    title: 'Security & reputation.',
+    items: [
+      {
+        title: 'Exposed-port scanning',
+        text: 'Scan your hosts for ports that should not face the internet, and hear about it when a new one appears.',
+        href: '/features/port-scan-monitoring',
+      },
+      {
+        title: 'DNS blocklist monitoring',
+        text: 'Your IPs and domains checked against spam blocklists, so deliverability problems surface before your users notice.',
+        href: '/features/dns-blocklist-monitoring',
+      },
+      {
+        title: 'AI checks',
+        text: 'Write an assertion in plain language and an AI-evaluated check verifies your page or API response against it on schedule.',
+        href: '/features/ai-checks',
+      },
+    ],
+  },
+  {
+    id: 'communication',
+    title: 'Communication.',
+    items: [
+      {
+        title: 'Status pages',
+        text: 'A branded status page on your own domain, with real uptime history, subscriber emails, and an incident feed.',
+        href: '/features/status-pages',
+      },
+      {
+        title: 'Notifications',
+        text: 'Ten channels, including email, Slack, PagerDuty, Opsgenie, and SMS, routed per monitor to whoever should wake up.',
+        href: '/features/notifications',
+      },
+      {
+        title: 'Incidents & maintenance',
+        text: 'Failures open timeline incidents automatically, and maintenance windows keep planned work off your outage record.',
+        href: '/features/incident-management',
+      },
+    ],
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Features | {{ appName }}</title>
+    <meta name="description" content="Uptime, SSL, DNS, cron, Lighthouse, security scanning, and status pages: every monitoring feature in one open-source, MIT-licensed product. Hosted or self-hosted.">
+    <link rel="canonical" href="https://uptime-status.org/features">
+    <meta property="og:title" content="Features | {{ appName }}">
+    <meta property="og:description" content="Every monitoring feature in one open-source, MIT-licensed product. Hosted or self-hosted.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Every check, <span class="accent-word">one dashboard.</span></h1>
+          <p class="page-lead">
+            From a 30-second HTTP check to a full Lighthouse audit, every monitor type lives here. Open source, self-hostable, one place to look.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">View on GitHub</a>
+          </div>
+        </div>
+      </section>
+
+      @foreach (groups as group)
+        <section class="site-shell section" aria-labelledby="group-{{ group.id }}">
+          <div class="section-head left">
+            <h2 id="group-{{ group.id }}" class="section-title">{{ group.title }}</h2>
+          </div>
+          <div class="feature-grid">
+            @foreach (group.items as item)
+              <a class="feature-card" href="{{ item.href }}">
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.text }}</p>
+                <span class="card-more">Learn more</span>
+              </a>
+            @endforeach
+          </div>
+        </section>
+      @endforeach
+
+      <section class="site-shell section" aria-labelledby="oss-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="oss-heading">Open source, no asterisks.</h2>
+            <p>
+              Every one of these ships in the MIT-licensed self-hosted version. No enterprise edition, no feature gates behind a sales call. The hosted plan exists for teams who would rather not run it themselves.
+            </p>
+          </div>
+          <div class="oss-code">git clone github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

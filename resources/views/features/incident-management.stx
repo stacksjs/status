@@ -1,0 +1,234 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Automatic opening', text: 'a monitor going down opens an incident with the start time, the failing check\'s error as the cause, and the impacted checks recorded.' },
+  { title: 'Automatic resolution', text: 'when the check passes again, the incident resolves itself and posts a timeline entry saying so. Nothing left open by accident.' },
+  { title: 'Four-status workflow', text: 'investigating, identified, monitoring, resolved. Every incident starts at investigating, and each change lands on the timeline.' },
+  { title: 'One-step acknowledge', text: 'a single POST from your alert tooling moves an incident from investigating to identified. Idempotent, so double-clicks are harmless.' },
+  { title: 'Update timeline', text: 'each update records a message, a status, and a timestamp. Human posts carry an author, system posts do not pretend to.' },
+  { title: 'Searchable history', text: 'filter incidents by status, search by cause, and sort by start or resolve time when you write the postmortem.' },
+]
+
+const faqs = [
+  {
+    q: 'Do I have to create incidents by hand?',
+    a: 'No. The moment a monitor transitions to down, an incident opens with the failure message attached as the cause. You can also create one through the API for anything the checks did not catch.',
+  },
+  {
+    q: 'What are the incident statuses?',
+    a: 'Investigating, identified, monitoring, and resolved. New incidents start at investigating, and every status change is recorded as a timeline entry, so the sequence of events survives the incident.',
+  },
+  {
+    q: 'What does acknowledging do?',
+    a: 'It moves the incident from investigating to identified and posts a timeline entry in one request. It is idempotent: acknowledging an incident that is already past investigating is a no-op, not an error, so it is safe to wire into alert buttons and chat commands.',
+  },
+  {
+    q: 'What happens when the check recovers?',
+    a: 'The open incident is resolved automatically and a system entry is posted to the timeline noting the recovery. If the incident deserves more words than that, you can still add your own updates afterward.',
+  },
+  {
+    q: 'How do maintenance windows work?',
+    a: 'Schedule a window with a title, description, start, and end. It moves from scheduled to active to completed on its own, checked every minute, and your status page shows it as planned maintenance instead of an outage. Cancelled windows stay cancelled.',
+  },
+  {
+    q: 'Do my users see any of this?',
+    a: 'As much as you publish. Incidents, their updates, and maintenance windows all render on your status page and in its RSS feed, and status page subscribers get an email when an incident opens.',
+  },
+]
+
+const related = [
+  { title: 'Uptime monitoring', text: 'The checks that open these incidents: 30-second Pro intervals from six regions, with the evidence attached.', href: '/features/uptime-monitoring' },
+  { title: 'Status pages', text: 'Every incident and maintenance window lands on a branded page your users can check themselves.', href: '/features/status-pages' },
+  { title: 'Notifications', text: 'Ten channels page the right people when an incident opens, and again when it resolves.', href: '/features/notifications' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Incident management | {{ appName }}</title>
+    <meta name="description" content="Failed checks open incidents automatically with the cause attached. Acknowledge in one request, post timeline updates, and schedule maintenance windows.">
+    <link rel="canonical" href="https://uptime-status.org/features/incident-management">
+    <meta property="og:title" content="Incident management | {{ appName }}">
+    <meta property="og:description" content="Automatic incident opening and resolution, a four-status workflow, one-step acknowledgment, and maintenance windows.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/incident-management">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Incidents that <span class="accent-word">open themselves.</span></h1>
+          <p class="page-lead">
+            A failed check opens the incident and attaches the cause. You acknowledge, post updates, and resolve. The status page follows along the whole way.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/status-pages">See status pages</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="auto-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="auto-heading">Down means an incident, not a log line.</h2>
+            <p>
+              When a monitor transitions to down, an incident opens on its own: start time, the failing check's error message as the cause, and a record of which checks were impacted. There is no "someone should file this" step between the outage and the timeline.
+            </p>
+            <p>
+              And when the check passes again, the incident resolves itself and posts an entry saying so. Nobody has to remember to close it at 4 a.m., and nothing stays red on the <a href="/features/status-pages">status page</a> after the fix ships.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Incident timeline example">
+              <div class="panel-top">
+                <strong>Public API</strong>
+                <span class="pill"><span class="dot"></span> Resolved</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Resolved</div><div class="panel-row-sub">Monitor recovered, check is passing again.</div></div></div>
+                  <div class="panel-row-meta"><span>04:02</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Monitoring</div><div class="panel-row-sub">Failover complete, watching error rates.</div></div></div>
+                  <div class="panel-row-meta"><span>03:41</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Identified</div><div class="panel-row-sub">Incident acknowledged.</div></div></div>
+                  <div class="panel-row-meta"><span>03:15</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Investigating</div><div class="panel-row-sub">HTTP 502: upstream connect error</div></div></div>
+                  <div class="panel-row-meta"><span>03:12</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="ack-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="ack-heading">Acknowledge from wherever you got paged.</h2>
+            <p>
+              The first human response to an incident is one request. A POST to the acknowledge endpoint moves it from investigating to identified and posts a timeline entry, so the rest of the team can see someone is on it.
+            </p>
+            <p>
+              It is idempotent: acknowledging twice, or acknowledging an incident that already resolved, is a quiet no-op instead of an error. That makes it safe to wire into PagerDuty buttons, Slack slash commands, or a curl in your terminal history.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># investigating -> identified, plus a timeline entry</span>
+curl -X POST \
+  https://uptime-status.org/api/incidents/42/acknowledge</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What incident management includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="maint-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="maint-heading">Planned work is not an outage.</h2>
+            <p>
+              A database migration on Saturday night should not read like downtime. Schedule a maintenance window with a title, description, start, and end, and your status page shows planned maintenance for that period instead of red bars and an incident.
+            </p>
+            <p>
+              Windows move from scheduled to active to completed on their own, checked every minute against the clock. Plans change? Cancel a window and it stays cancelled, no matter what its timestamps say.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Maintenance windows example">
+              <div class="panel-top">
+                <strong>Maintenance windows</strong>
+                <span class="pill warn"><span class="dot"></span> 1 active</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Database failover drill</div><div class="panel-row-sub">02:00 to 04:00 UTC</div></div></div>
+                  <div class="panel-row-meta"><span>Active</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Edge cache upgrade</div><div class="panel-row-sub">starts Sat 01:00 UTC</div></div></div>
+                  <div class="panel-row-meta"><span>Scheduled</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Object storage migration</div><div class="panel-row-sub">last weekend</div></div></div>
+                  <div class="panel-row-meta"><span>Completed</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-label="Status page integration">
+        <div class="note-band">
+          <div>
+            <h2>Your status page already knows.</h2>
+            <p>
+              Incidents, their updates, and maintenance windows flow straight to your status page and its RSS feed, and subscribers get an email when an incident opens. There is no second system to keep updated while production is on fire.
+            </p>
+          </div>
+          <div class="oss-code">GET /status/acme/feed</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Incident management, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

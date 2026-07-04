@@ -1,0 +1,234 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Ten channels', text: 'email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, and webhooks.' },
+  { title: 'Severity aware', text: 'a critical failure arrives as a PagerDuty critical event, an Opsgenie P1, and a high-priority push, not a generic ping.' },
+  { title: 'Per-channel retries', text: 'each delivery gets three attempts with backoff, independently, so one flaky endpoint never delays the rest.' },
+  { title: 'Webhooks with custom headers', text: 'authenticate the payload however your receiver expects, and the JSON body carries subject, message, and severity.' },
+  { title: 'Self-hosted ntfy', text: 'point the channel at your own ntfy server instead of ntfy.sh. Your alerts never have to leave your network.' },
+  { title: 'Alert on open and resolve', text: 'channels fire when an incident opens and when it resolves, not once per timeline update, so a long incident does not spam anyone.' },
+]
+
+const faqs = [
+  {
+    q: 'Which channels are supported?',
+    a: 'Email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, and plain webhooks. Ten in total, and every plan gets all of them.',
+  },
+  {
+    q: 'Can different monitors alert different channels?',
+    a: 'Yes, that is the default model. Channels are defined once at the team level, then attached per monitor. Your payments API can page the on-call engineer while the marketing site posts to a Slack channel.',
+  },
+  {
+    q: 'Will a slow webhook delay my page?',
+    a: 'No. Every notification is dispatched as its own queued job with three attempts and a 30-second backoff. A webhook receiver timing out has no effect on the PagerDuty or Slack deliveries happening alongside it.',
+  },
+  {
+    q: 'Do I get an alert for every incident update?',
+    a: 'No, and that is deliberate. Channels fire when an incident opens and when it resolves. Status changes in between land on the incident timeline and the status page without re-paging everyone.',
+  },
+  {
+    q: 'What does the alert actually say?',
+    a: 'The subject names the monitor that went down. The message carries the failure cause the check recorded, such as the HTTP status or connection error, so the alert starts the fix instead of a search.',
+  },
+]
+
+const related = [
+  { title: 'Incident management', text: 'The alert is step one. Acknowledge it, post updates, and resolve it on a timeline your whole team can see.', href: '/features/incident-management' },
+  { title: 'Uptime monitoring', text: '30-second Pro checks from six regions decide when these channels fire. Full diagnostics ride along.', href: '/features/uptime-monitoring' },
+  { title: 'Status pages', text: 'While channels page your team, a branded page on your own domain answers your users.', href: '/features/status-pages' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Downtime alerts on 10 channels | {{ appName }}</title>
+    <meta name="description" content="Route downtime alerts per monitor to email, SMS, Slack, Discord, Teams, PagerDuty, Opsgenie, Pushover, ntfy, or webhooks. No per-seat pricing on alerts.">
+    <link rel="canonical" href="https://uptime-status.org/features/notifications">
+    <meta property="og:title" content="Downtime alerts on 10 channels | {{ appName }}">
+    <meta property="og:description" content="Per-monitor alert routing across 10 channels, with per-channel retries and severity mapping. No per-seat pricing.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/notifications">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">The right alert, on the <span class="accent-word">right channel.</span></h1>
+          <p class="page-lead">
+            A payments outage should page someone. A marketing site blip can wait in Slack. Route each monitor to the channels it deserves.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/incident-management">See incident management</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="routing-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="routing-heading">Routing is per monitor, not all-or-nothing.</h2>
+            <p>
+              Alert fatigue starts the day every failure goes to every channel. Here, channels are attached to individual monitors: the payments API pages the on-call engineer through PagerDuty, the marketing site posts to Slack, and the nightly backup job pings an ntfy topic nobody has to watch in real time.
+            </p>
+            <p>
+              Channels are defined once at the team level, so a Slack webhook you configure today can be attached to the next twenty monitors in two clicks.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Notification routing example">
+              <div class="panel-top">
+                <strong>Notification routing</strong>
+                <span class="pill"><span class="dot"></span> Enabled</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Payments API</div><div class="panel-row-sub">on-call rotation</div></div></div>
+                  <div class="panel-row-meta"><span>PagerDuty</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Marketing site</div><div class="panel-row-sub">#alerts</div></div></div>
+                  <div class="panel-row-meta"><span>Slack</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Customer webhooks</div><div class="panel-row-sub">ops team</div></div></div>
+                  <div class="panel-row-meta"><span>Opsgenie</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Nightly backups</div><div class="panel-row-sub">backups topic</div></div></div>
+                  <div class="panel-row-meta"><span>ntfy</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="delivery-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="delivery-heading">One slow webhook never blocks the page.</h2>
+            <p>
+              Every notification is dispatched as its own queued job: three attempts, 30-second backoff, per channel. If your webhook receiver is timing out at 3 a.m., PagerDuty still fires on time and Slack still gets the message.
+            </p>
+            <p>
+              Failed deliveries are logged with the channel and the reason, so "did the alert go out?" has an answer you can look up instead of a shrug.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Delivery log example">
+              <div class="panel-top">
+                <strong>api.acme.com is down</strong>
+                <span class="pill down"><span class="dot"></span> Critical</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">PagerDuty</div><div class="panel-row-sub">triggered, severity critical</div></div></div>
+                  <div class="panel-row-meta"><span>sent</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Slack</div><div class="panel-row-sub">#incidents</div></div></div>
+                  <div class="panel-row-meta"><span>sent</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Webhook</div><div class="panel-row-sub">receiver timed out</div></div></div>
+                  <div class="panel-row-meta"><span>retry 2 of 3</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What notifications include.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-label="Alert pricing">
+        <div class="note-band">
+          <div>
+            <h2>Alerts are not a pricing lever.</h2>
+            <p>
+              Attach as many channels as you like to any monitor. Free covers 5 monitors and 1 status page, Pro is $9 per month for 100 monitors and 10 status pages, and both route to all 10 channel types. Nobody meters who got paged.
+            </p>
+          </div>
+          <div class="oss-code">"severity": "critical"</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="api-heading">Channels are API records too.</h2>
+            <p>
+              Like <a href="/features/uptime-monitoring">monitors</a>, notification channels are rows in an API, not settings buried in a UI. Create them from a provisioning script, attach them to monitors, and disable one temporarily without deleting its config.
+            </p>
+            <p>
+              Each channel stores its own credentials: a webhook URL for Slack, Discord, or Teams, a routing key for PagerDuty, an API key for Opsgenie.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/notification-channels \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d <span class="str">'{
+    "name": "On-call Slack",
+    "type": "slack",
+    "config": "{\"webhookUrl\": \"https://hooks.slack.com/...\"}"
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Notifications, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

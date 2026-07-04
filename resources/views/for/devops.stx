@@ -1,0 +1,186 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const modules = [
+  {
+    title: 'Uptime checks, from outside',
+    text: 'HTTP checks from 6 regions at intervals down to 30 seconds, with incident history you can query over the same API the dashboard uses.',
+    href: '/features/uptime-monitoring',
+  },
+  {
+    title: 'Dead-man\'s switches for cron',
+    text: 'Give every cron job and queue worker a heartbeat URL to curl on success. When the ping stops arriving, an incident opens. Silence becomes a page.',
+    href: '/features/cron-monitoring',
+  },
+  {
+    title: 'Server metrics, push only',
+    text: 'A monitored server pushes its own CPU and memory samples to a tokened endpoint on its own cron cadence. Nothing polls it, so there is no inbound port to open.',
+    href: '/features/server-monitoring',
+  },
+  {
+    title: 'Your /health route, enforced',
+    text: 'Your app decides what healthy means in a route. A health monitor calls it from outside on a schedule, keeps the history, and owns the alerting.',
+    href: '/features/health-checks',
+  },
+  {
+    title: 'The ports behind the app',
+    text: 'TCP checks on Postgres, Redis, and SMTP catch infrastructure failures directly, before they surface as a wall of application errors.',
+    href: '/features/tcp-port-monitoring',
+  },
+  {
+    title: 'Alerts that fit the rotation',
+    text: 'PagerDuty, Opsgenie, ntfy, Slack, and signed webhooks. Route each monitor to the channel that should wake up, not one firehose for everything.',
+    href: '/features/notifications',
+  },
+]
+
+const faqs = [
+  {
+    q: 'How much can I actually do over the API?',
+    a: 'Everything the dashboard does goes through the same JSON endpoints: monitors, incidents, and status pages are all plain CRUD. There are also purpose-built routes for automation, like POST /api/monitors/{id}/check to trigger an out-of-band check and POST /api/incidents/{id}/acknowledge for one-step acks from a bot.',
+  },
+  {
+    q: 'What do I need to self-host it?',
+    a: 'It is a Stacks application running on Bun, with SQLite as the default database. Clone the repo, run bun install and ./buddy serve, and you have the full product, MIT licensed. No Kubernetes, no external services required to start.',
+  },
+  {
+    q: 'What does a webhook payload look like?',
+    a: 'A JSON body with event, data, and timestamp fields, POSTed with an X-Webhook-Event header naming the event and an X-Webhook-Signature header carrying an HMAC SHA-256 of the body, keyed with your subscription secret. Failed deliveries are retried 3 times with backoff, and each subscriber is delivered to independently so one slow endpoint cannot block the rest.',
+  },
+  {
+    q: 'Can different monitors page different people?',
+    a: 'Yes. Notification channels are assigned per monitor, so the database TCP check can page the on-call SRE through PagerDuty while a staging monitor just posts to Slack. Test-sends are built in, so you can verify a channel before trusting it with a 3am page.',
+  },
+  {
+    q: 'Is there a Terraform provider or Kubernetes operator?',
+    a: 'No, and we would rather be honest about that than list them as "coming soon". The automation story is the JSON API: a curl in your deploy pipeline creates or verifies monitors, and because the API covers everything, wrapping it in whatever tooling you already run is straightforward.',
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monitoring for DevOps &amp; SRE | {{ appName }}</title>
+    <meta name="description" content="API-first uptime monitoring for DevOps: create monitors from the deploy pipeline, heartbeats for cron jobs, push-based server metrics, and on-call alert routing.">
+    <link rel="canonical" href="https://uptime-status.org/for/devops">
+    <meta property="og:title" content="Monitoring for DevOps &amp; SRE | {{ appName }}">
+    <meta property="og:description" content="Monitoring you can automate: a JSON API for everything, heartbeat dead-man's switches, push-based agent metrics, and alerts routed per monitor.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/for/devops">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> For DevOps &amp; SRE</span>
+          <h1 class="page-title">Monitoring you cannot automate goes <span class="accent-word">stale.</span></h1>
+          <p class="page-lead">
+            Monitors you click together drift out of date by the next sprint. Here, every monitor is a JSON endpoint, so your pipeline keeps monitoring honest.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Read the source</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="modules-heading">
+        <div class="section-head left">
+          <h2 id="modules-heading" class="section-title">Built for the way ops teams actually work.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (modules as m)
+            <a class="feature-card" href="{{ m.href }}">
+              <h3>{{ m.title }}</h3>
+              <p>{{ m.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="api-heading">Everything is an API. The dashboard is just a client.</h2>
+            <p>
+              Ship a new service and its monitor in the same pipeline run: one POST creates the monitor, a second one triggers an immediate out-of-band check, so the deploy job itself confirms the service answers from the outside before it reports green.
+            </p>
+            <p>
+              Incidents and <a href="/features/status-pages">status pages</a> are the same story: plain JSON, no separate "automation tier". If the dashboard can do it, curl can do it.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># deploy.sh: register the service you just shipped</span>
+curl -X POST https://uptime-status.org/api/monitors \
+  -H <span class="str">"Authorization: Bearer $API_TOKEN"</span> \
+  -d <span class="str">'{ "name": "orders-api", "url": "https://api.example.com/health" }'</span>
+
+<span class="cmt"># then verify it answers, right now, out of band</span>
+curl -X POST https://uptime-status.org/api/monitors/42/check \
+  -H <span class="str">"Authorization: Bearer $API_TOKEN"</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="heartbeat-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="heartbeat-heading">The backup that fails loudly is not the problem.</h2>
+            <p>
+              The one that silently stops running is. A heartbeat monitor inverts the logic: your script curls a ping URL as its last line, on the success path only, and {{ appName }} alerts when the ping stops arriving within the grace period.
+            </p>
+            <p>
+              The same pattern covers queue workers, certificate renewal jobs, and anything else that only fails by going quiet. See <a href="/features/cron-monitoring">cron &amp; heartbeat monitoring</a>.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt">#!/bin/sh</span>
+<span class="cmt"># nightly-backup.sh</span>
+pg_dump <span class="str">"$DATABASE_URL"</span> | gzip > /backups/db-$(date +%F).sql.gz
+
+<span class="cmt"># last line, success path only: report in</span>
+curl -fsS https://uptime-status.org/api/ping/your-token</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="oss-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="oss-heading">MIT licensed. Run it inside the fence.</h2>
+            <p>
+              Clone it and run the whole product inside your own network, no license keys, no phone-home. One honest caveat from us: a monitor inside a failing network cannot report that failure, so pair a self-hosted install with an external region watching from the outside.
+            </p>
+          </div>
+          <div class="oss-code">bun install &amp;&amp; ./buddy serve</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Ops questions, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

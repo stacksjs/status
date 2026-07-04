@@ -1,0 +1,208 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const blocklists = [
+  { name: 'Spamhaus ZEN', zone: 'zen.spamhaus.org', state: 'Clean', dotClass: 'dot' },
+  { name: 'Barracuda', zone: 'b.barracudacentral.org', state: 'Clean', dotClass: 'dot' },
+  { name: 'SORBS', zone: 'dnsbl.sorbs.net', state: 'Listed', dotClass: 'dot warn' },
+  { name: 'SpamCop', zone: 'bl.spamcop.net', state: 'Clean', dotClass: 'dot' },
+]
+
+const included = [
+  { title: 'Four major blocklists', text: 'every check queries Spamhaus ZEN, Barracuda, SORBS, and SpamCop, the lists mail providers actually consult.' },
+  { title: 'Standard DNSBL lookups', text: 'your monitor\'s hostname is resolved to its IPv4 address and queried against each zone the same way a receiving mail server would.' },
+  { title: 'Alerts on new listings', text: 'an incident opens when your IP appears on a list it was not on before, naming the exact blocklists involved.' },
+  { title: 'Degraded, not down', text: 'a listing marks the monitor degraded rather than down, because your service is up. Your reputation is what is failing.' },
+  { title: '90-day history', text: 'every check stores the IP and which lists it appeared on, so you can show a delisting request exactly when it started.' },
+  { title: '10 notification channels', text: 'email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, and webhooks.' },
+]
+
+const faqs = [
+  {
+    q: 'Which blocklists are checked?',
+    a: 'Four widely used public DNS blocklists: Spamhaus ZEN, Barracuda, SORBS, and SpamCop. These are among the lists that receiving mail servers commonly query when deciding whether to accept or junk your mail.',
+  },
+  {
+    q: 'How does the check work?',
+    a: 'It resolves your monitor\'s hostname to its IPv4 address and performs the standard DNSBL query against each zone: the IP\'s octets reversed and prefixed onto the blocklist domain. An answer means listed, no answer means clean. It is the same lookup a mail server does before accepting your message.',
+  },
+  {
+    q: 'When do I get alerted?',
+    a: 'When your IP appears on a blocklist it was not on at the previous check. Each new listing opens an incident naming the IP and the specific lists, and notifies your channels. Staying listed does not re-alert you every few minutes, so the signal stays meaningful.',
+  },
+  {
+    q: 'What should I do when I get listed?',
+    a: 'First find the cause: a compromised account or form sending spam, a misconfigured mailer, or a neighbor on a shared IP. Then request delisting through the blocklist\'s own process. Your check history shows exactly when the listing appeared and confirms when the delisting takes effect.',
+  },
+  {
+    q: 'My mail goes through SendGrid or SES. Do I still need this?',
+    a: 'Your provider manages its own sending IPs, but the reputation of your domain and of anything that sends directly, like a transactional relay or a legacy cron job on a VPS, is still yours. Monitoring the hosts you control catches the listings your provider will not tell you about.',
+  },
+]
+
+const related = [
+  { title: 'DNS monitoring', text: 'Blocklists are one way DNS hurts you quietly. Changed or hijacked records are another.', href: '/features/dns-monitoring' },
+  { title: 'Domain monitoring', text: 'An expired domain ends deliverability more thoroughly than any blocklist. Watch expiry too.', href: '/features/domain-monitoring' },
+  { title: 'Notifications', text: 'Send blocklist alerts to the people who own email, not the whole on-call rotation, across 10 channels.', href: '/features/notifications' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DNS blocklist monitoring | {{ appName }}</title>
+    <meta name="description" content="Open-source DNS blocklist monitoring. Know when your IP lands on Spamhaus, Barracuda, SORBS, or SpamCop before your customers stop receiving your email.">
+    <link rel="canonical" href="https://uptime-status.org/features/dns-blocklist-monitoring">
+    <meta property="og:title" content="DNS blocklist monitoring | {{ appName }}">
+    <meta property="og:description" content="Checks your IP against Spamhaus ZEN, Barracuda, SORBS, and SpamCop, and opens an incident the moment a new listing appears. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/dns-blocklist-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Off the blocklist <span class="accent-word">before your email bounces.</span></h1>
+          <p class="page-lead">
+            Blocklistings fail silently: your app works, your mail just stops arriving. {{ appName }} checks the lists so your customers do not have to.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="silent-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="silent-heading">The outage nothing else can see.</h2>
+            <p>
+              A blocklisted IP breaks nothing you monitor. HTTP checks pass, the mail server accepts connections, and every password reset you send quietly lands in spam or vanishes. The first report is usually a customer asking why they never got their receipt, days in.
+            </p>
+            <p>
+              {{ appName }} checks your IP against Spamhaus ZEN, Barracuda, SORBS, and SpamCop on every run, using the same DNS lookup receiving mail servers use. If a list knows about you, so do you.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Blocklist check example">
+              <div class="panel-top">
+                <strong>mail.yourcompany.com</strong>
+                <span class="pill warn"><span class="dot"></span> Degraded</span>
+              </div>
+              <div class="panel-list">
+                @foreach (blocklists as item)
+                  <div class="panel-row">
+                    <div class="panel-row-main"><span class="{{ item.dotClass }}"></span><div><div class="panel-row-name">{{ item.name }}</div><div class="panel-row-sub">{{ item.zone }}</div></div></div>
+                    <div class="panel-row-meta"><span>{{ item.state }}</span></div>
+                  </div>
+                @endforeach
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="newlisting-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="newlisting-heading">Alerted on the change, not the state.</h2>
+            <p>
+              Each check is compared with the previous one. The moment your IP shows up on a list it was clean on before, an incident opens naming the IP and the exact blocklists, and your channels fire. That is the moment worth interrupting someone for: a fresh listing usually means something on that host just started spamming, or a shared IP neighbor did.
+            </p>
+            <p>
+              While you work the delisting, the monitor shows degraded rather than down, and every subsequent check records whether you are still listed. When the list drops you, the history shows that too.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Blocklist incident example">
+              <div class="panel-top">
+                <strong>Incident timeline</strong>
+                <span class="pill warn"><span class="dot"></span> Investigating</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Newly listed on dnsbl.sorbs.net</div><div class="panel-row-sub">203.0.113.7</div></div></div>
+                  <div class="panel-row-meta"><span>09:14</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Still listed</div><div class="panel-row-sub">delisting requested</div></div></div>
+                  <div class="panel-row-meta"><span>11:40</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Not listed on any checked blocklist</div><div class="panel-row-sub">back to clean</div></div></div>
+                  <div class="panel-row-meta"><span>16:02</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What blocklist monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-label="Open source note">
+        <div class="note-band">
+          <div>
+            <h2>Reputation checks you can read the source of.</h2>
+            <p>
+              {{ appName }} is MIT licensed. The blocklist check is a short job you can audit, extend with your own zones, and run inside your own network. Or use the hosted version and start checking in minutes.
+            </p>
+          </div>
+          <div class="oss-code">git clone https://github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Blocklist monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

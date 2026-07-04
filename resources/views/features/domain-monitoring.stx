@@ -1,0 +1,224 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'WHOIS expiry tracking', text: 'the registry expiry date, registrar, and registration date stored on every check.' },
+  { title: 'Warnings at 30, 14, 7, and 1 day', text: 'a warning notification goes to the monitor\'s channels at each threshold, once per crossing, before the registration lapses.' },
+  { title: 'Incident on expiry', text: 'an expired registration opens an incident that says exactly how many days ago it lapsed.' },
+  { title: 'Subdomain aware', text: 'point a monitor at app.yourcompany.com and the check runs WHOIS against yourcompany.com, the registrable domain.' },
+  { title: 'Messy WHOIS handled', text: 'field names differ by registrar and TLD, so the parser checks the common variants instead of assuming one format.' },
+  { title: 'Registry quirks included', text: 'even the malformed timestamps some registries emit for .com and .net parse correctly.' },
+]
+
+const faqs = [
+  {
+    q: 'I have auto-renew on. Why monitor this?',
+    a: 'Auto-renew fails silently: the card on file expires, a registrar transfer resets settings, renewal notices go to an inbox nobody reads anymore. The monitor is the backstop that does not depend on your registrar reaching you.',
+  },
+  {
+    q: 'Which domains and TLDs are supported?',
+    a: 'Any domain whose registry publishes an expiry date over WHOIS, which covers the common TLDs. Field names vary wildly between registries, so the parser checks the usual variants. If no expiry date can be found, the check records nothing rather than guessing.',
+  },
+  {
+    q: 'Can I monitor a subdomain or a full URL?',
+    a: 'Yes, point the monitor at whatever you have. WHOIS operates on registrations, not hostnames, so the check extracts the registrable domain: app.yourcompany.com becomes yourcompany.com, and that is what gets tracked.',
+  },
+  {
+    q: 'How often should this check run?',
+    a: 'Registration dates change rarely and WHOIS servers rate limit aggressively, so a relaxed interval is the right call. Save the tight intervals for your uptime checks.',
+  },
+  {
+    q: 'What do I get warned about, and when?',
+    a: 'A warning notification reaches the channels attached to the monitor at 30, 14, 7, and 1 day before expiry, once per threshold, then an incident opens the moment the registration has actually lapsed. The registrar and registration date are stored too, so the dashboard shows the whole picture, not just a countdown.',
+  },
+]
+
+const related = [
+  { title: 'SSL monitoring', text: 'Certificate expiry countdowns, fingerprint change detection, and incidents when a handshake fails.', href: '/features/ssl-monitoring' },
+  { title: 'DNS monitoring', text: 'Snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident when they change.', href: '/features/dns-monitoring' },
+  { title: 'Uptime monitoring', text: 'Checks as often as every 30 seconds from six regions, with full diagnostics on every failure.', href: '/features/uptime-monitoring' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Domain expiry monitoring | {{ appName }}</title>
+    <meta name="description" content="Open-source domain expiry monitoring via WHOIS: registrar and expiry tracking with warnings at 30, 14, 7, and 1 day before your registration lapses.">
+    <link rel="canonical" href="https://uptime-status.org/features/domain-monitoring">
+    <meta property="og:title" content="Domain expiry monitoring | {{ appName }}">
+    <meta property="og:description" content="WHOIS-based expiry tracking with warnings at 30, 14, 7, and 1 day. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/domain-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Never lose a domain <span class="accent-word">to a missed renewal.</span></h1>
+          <p class="page-lead">
+            Domains expire because a card lapsed or a registrar email went to a dead inbox. {{ appName }} reads the WHOIS record and warns you weeks ahead.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/ssl-monitoring">See SSL monitoring</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="lapse-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="lapse-heading">Companies have vanished over a renewal email.</h2>
+            <p>
+              Domains lapse for boring reasons: the card on file expired, the renewal notice went to an inbox nobody reads, auto-renew got switched off during a registrar transfer. By the time customers see a parking page, you are deep in redemption-fee territory.
+            </p>
+            <p>
+              {{ appName }} looks up the WHOIS record for your domain, stores the registrar and expiry date, and counts down so the renewal is never a surprise.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Domain registration example">
+              <div class="panel-top">
+                <strong>yourcompany.com</strong>
+                <span class="pill"><span class="dot"></span> Registered</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Expires Feb 1, 2027</div><div class="panel-row-sub">in 212 days</div></div></div>
+                  <div class="panel-row-meta"><span>WHOIS</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Registrar</div><div class="panel-row-sub">Namecheap, Inc.</div></div></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Registered</div><div class="panel-row-sub">Mar 4, 2016</div></div></div>
+                  <div class="panel-row-meta"><span>checked 1h ago</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="ladder-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="ladder-heading">Warnings at 30, 14, 7, and 1 day out.</h2>
+            <p>
+              The countdown escalates as the date approaches, spaced closely enough that a broken auto-renewal cannot slip through a vacation week.
+            </p>
+            <p>
+              If the registration expires anyway, an incident opens immediately with how many days ago it lapsed, because at that point every hour matters.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Renewal countdown example">
+              <div class="panel-top">
+                <strong>Renewal countdown</strong>
+                <span class="pill warn"><span class="dot"></span> Expires in 14 days</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">30 days before expiry</div><div class="panel-row-sub">first warning</div></div></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">14 days, 7 days, 1 day</div><div class="panel-row-sub">escalating warnings</div></div></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Expired</div><div class="panel-row-sub">incident opened</div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What domain monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="api-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="api-heading">One call per domain.</h2>
+            <p>
+              A domain monitor takes a bare hostname or a full URL, your choice. Create one for every domain your company owns, including the defensive registrations everyone forgets about.
+            </p>
+            <p>
+              Everything in the dashboard sits on the same API, so anything you can click, you can automate.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/monitors \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d <span class="str">'{
+    "name": "Company domain",
+    "url": "yourcompany.com",
+    "type": "domain"
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-label="Open source">
+        <div class="note-band">
+          <div>
+            <h2>Open source, MIT licensed.</h2>
+            <p>The WHOIS check, quirky timestamp parsing and all, is a small readable job in the repo. Use the hosted version, or self-host the same code with no feature gates.</p>
+          </div>
+          <div class="oss-code">git clone https://github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Domain monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

@@ -1,0 +1,200 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Push, not pull', text: 'your server makes an outbound HTTPS request. No inbound port, no firewall rule, no daemon listening for us.' },
+  { title: 'CPU utilization', text: 'a CPU percentage with every sample, so a runaway process shows up as a climbing line, not a surprise outage.' },
+  { title: 'Memory usage', text: 'RAM as a percentage plus used and total megabytes, the numbers you would otherwise SSH in to look at.' },
+  { title: 'One history for everything', text: 'samples land in the same per-monitor history and charts as your checks, next to uptime and incidents.' },
+  { title: 'A token, not credentials', text: 'each server pushes to its own URL with an unguessable token. Malformed samples are rejected with a clear error.' },
+  { title: 'Any agent you like', text: 'the endpoint is plain HTTP. A curl line on a cron schedule is a complete agent; so is your own script or tool.' },
+]
+
+const faqs = [
+  {
+    q: 'Do I have to open a port on my server?',
+    a: 'No. The agent pushes metrics out over HTTPS to your monitor\'s endpoint. Nothing connects inbound, nothing listens, and servers behind NAT or a strict firewall work without any network changes.',
+  },
+  {
+    q: 'Which metrics are collected?',
+    a: 'Each sample carries CPU utilization as a percentage, memory utilization as a percentage, and memory used and total in megabytes. Samples are validated on arrival and timestamped into the monitor\'s history.',
+  },
+  {
+    q: 'What is the agent, exactly?',
+    a: 'Anything that can make an HTTP POST. A short shell script on a cron schedule or systemd timer is enough: read the numbers from the OS, POST them to your metrics URL. There is no required binary and nothing to keep patched.',
+  },
+  {
+    q: 'How often should I push?',
+    a: 'As often as you want the resolution. A sample every minute is a sensible default and costs one small outbound request; the cadence is entirely under your control since your side does the pushing.',
+  },
+  {
+    q: 'What if a server stops reporting?',
+    a: 'Pair the same box with a cron heartbeat monitor: the metrics script pings it on every run, and silence past the grace period opens an incident. That way a dead agent, a wedged host, or a lost network path all surface the same way.',
+  },
+  {
+    q: 'Is the metrics endpoint secure?',
+    a: 'The URL contains an unguessable random token that acts as the credential, the same convention as heartbeat pings. Keep it in an environment variable rather than a public repo, and out-of-range values are rejected before they touch your history.',
+  },
+]
+
+const related = [
+  { title: 'Cron monitoring', text: 'The natural partner: a heartbeat on the metrics script alerts you the moment a server goes silent.', href: '/features/cron-monitoring' },
+  { title: 'Ping monitoring', text: 'ICMP reachability for hosts and network gear, the outside-in view of the same machines.', href: '/features/ping-monitoring' },
+  { title: 'TCP port monitoring', text: 'Watch the ports your services actually listen on: databases, mail, SSH, anything with a socket.', href: '/features/tcp-port-monitoring' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Server monitoring | {{ appName }}</title>
+    <meta name="description" content="A tiny push-based agent sends CPU and memory metrics from inside your servers. No inbound ports, no heavy daemon, same dashboard as your uptime checks.">
+    <link rel="canonical" href="https://uptime-status.org/features/server-monitoring">
+    <meta property="og:title" content="Server monitoring | {{ appName }}">
+    <meta property="og:description" content="Push-based CPU and memory metrics from inside your servers, next to your uptime checks. No inbound port required.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/server-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> Push-based agent</span>
+          <h1 class="page-title">Monitoring that goes <span class="accent-word">inside the server.</span></h1>
+          <p class="page-lead">
+            External checks tell you the site still answers. A small push agent adds CPU and memory from inside the server, so you see trouble building.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="/features/uptime-monitoring">See uptime monitoring</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="inside-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="inside-heading">Outages usually announce themselves first, from the inside.</h2>
+            <p>
+              Before the 502s start, memory creeps up for an hour. Before the timeout page, one process pins a core. From the outside, everything looks fine right up until it does not.
+            </p>
+            <p>
+              Server metrics put those numbers next to your uptime checks. When an incident does open, the CPU and memory history from the minutes before it is already on the same screen, instead of in an SSH session you have to go open.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Server metrics example">
+              <div class="panel-top">
+                <strong>web-01.yourcompany.com</strong>
+                <span class="pill"><span class="dot"></span> Reporting</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">CPU</div><div class="panel-row-sub">84% utilization</div></div></div>
+                  <div class="panel-row-meta"><span>rising 20 min</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Memory</div><div class="panel-row-sub">5,816 of 8,192 MB (71%)</div></div></div>
+                  <div class="panel-row-meta"><span>steady</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Last sample</div><div class="panel-row-sub">42 seconds ago</div></div></div>
+                  <div class="panel-row-meta"><span>agent</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="push-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="push-heading">Push-based, so your firewall stays closed.</h2>
+            <p>
+              Most server monitoring wants an open port or a heavyweight daemon with root and an auto-updater. This is the opposite: your server makes one small outbound HTTPS request per sample, and that is the entire protocol.
+            </p>
+            <p>
+              Works behind NAT, in a private subnet, or on a box whose security group allows nothing inbound. If the machine can reach the internet, it can report.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># a cron entry and four numbers: a complete agent</span>
+* * * * * /opt/scripts/report-metrics.sh
+
+<span class="cmt"># report-metrics.sh</span>
+curl -fsS -X POST \
+  <span class="str">"https://uptime-status.org/api/agent/$METRICS_TOKEN/metrics"</span> \
+  -d cpuPercent=42 -d ramPercent=71 \
+  -d ramUsedMb=5816 -d ramTotalMb=8192</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What server monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="edge-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="edge-heading">Most uptime tools stop at the network edge.</h2>
+            <p>
+              Oh Dear, for one, offers no server metrics at all: the inside of the machine is your problem. {{ appName }} treats the host as part of the same story as the endpoint, in one dashboard, on one incident timeline. <a href="/compare" style="color: var(--fg); font-weight: 600; border-bottom: 1px solid var(--border-strong);">See the full comparison</a> for the feature-by-feature view.
+            </p>
+          </div>
+          <div class="oss-code">POST /api/agent/&lt;token&gt;/metrics</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Server monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

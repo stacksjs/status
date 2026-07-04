@@ -1,0 +1,195 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Real ICMP probes', text: 'each check sends a ping with a five second ceiling, so a dead host is confirmed fast and a slow one is measured honestly.' },
+  { title: 'Latency per region', text: 'every check records the round-trip time and which probe region measured it, so you can see where a host is slow.' },
+  { title: 'Automatic incidents', text: 'when a host stops answering, an incident opens naming the host, and your notification channels fire.' },
+  { title: 'URLs or bare hosts', text: 'point a monitor at https://api.example.com or at db-1.example.com. The hostname is extracted either way.' },
+  { title: '90-day history', text: 'reachability and latency for every check are kept for 90 days, so you can put a date on "the network got worse."' },
+  { title: '10 notification channels', text: 'email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, and webhooks.' },
+]
+
+const faqs = [
+  {
+    q: 'What does a ping check actually test?',
+    a: 'Network-level reachability. Each check sends an ICMP echo to the host and waits up to five seconds for a reply. A reply means the host and the network path to it are alive, and the round-trip time is recorded. No reply marks the host unreachable and opens an incident.',
+  },
+  {
+    q: 'How is this different from uptime monitoring?',
+    a: 'An HTTP uptime check tests your application. A ping check tests the machine underneath it. Run both against the same host and an outage sorts itself: ping down means a network or host problem, ping up with HTTP down means the problem is in your application stack.',
+  },
+  {
+    q: 'Why would ping succeed while my site is down?',
+    a: 'Because the host is fine and your app is not. A crashed process, a full disk, or a misconfigured proxy will all fail an HTTP check while the host keeps answering pings. That split is the diagnosis, which is why the two check types are designed to be paired.',
+  },
+  {
+    q: 'Can I ping hosts inside a private network?',
+    a: 'The hosted probes check from the public internet, so they can only reach public hosts. For internal hosts, self-host the open-source version inside your network and your ping checks run from wherever you deploy the workers.',
+  },
+  {
+    q: 'How often do ping checks run?',
+    a: 'As often as every 30 seconds on the Pro plan and every 5 minutes on Free. Self-hosted installs choose their own interval.',
+  },
+]
+
+const related = [
+  { title: 'Uptime monitoring', text: 'HTTP checks against the same host tell you whether the app is up. Ping tells you whether the machine is. Run both.', href: '/features/uptime-monitoring' },
+  { title: 'TCP port monitoring', text: 'The host answers pings, but is the database actually accepting connections on 3306? A port check answers that.', href: '/features/tcp-port-monitoring' },
+  { title: 'Server monitoring', text: 'Ping sees a host from the outside. The metrics agent adds CPU, memory, and disk from the inside.', href: '/features/server-monitoring' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ping monitoring | {{ appName }}</title>
+    <meta name="description" content="Open-source ping monitoring. Know whether a host is reachable at the network level, with round-trip latency recorded per region and automatic incidents.">
+    <link rel="canonical" href="https://uptime-status.org/features/ping-monitoring">
+    <meta property="og:title" content="Ping monitoring | {{ appName }}">
+    <meta property="og:description" content="ICMP reachability checks with per-region latency, automatic incidents, and 90 days of history. Open source and self-hostable.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/ping-monitoring">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Is the host even <span class="accent-word">reachable?</span></h1>
+          <p class="page-lead">
+            When a server goes dark, the first question is whether the machine or the app died. {{ appName }} pings your hosts and answers it.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="layer-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="layer-heading">Separate the network from the application.</h2>
+            <p>
+              "The site is down" covers two very different emergencies. Either the host itself is unreachable, which points at the network, the provider, or the machine, or the host is fine and something in your stack stopped responding.
+            </p>
+            <p>
+              A ping monitor settles that question before you start debugging. It checks reachability at the network level, independent of whatever your application is doing, so the incident starts with a direction instead of a guess.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Ping monitor list example">
+              <div class="panel-top">
+                <strong>Ping monitors</strong>
+                <span class="pill down"><span class="dot"></span> 1 down</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">edge-1.yourcompany.com</div><div class="panel-row-sub">Host reachable</div></div></div>
+                  <div class="panel-row-meta"><span>4ms &middot; eu-central</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">db-1.yourcompany.com</div><div class="panel-row-sub">Host reachable</div></div></div>
+                  <div class="panel-row-meta"><span>11ms &middot; us-east</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">worker-3.yourcompany.com</div><div class="panel-row-sub">Host unreachable</div></div></div>
+                  <div class="panel-row-meta"><span>timeout &middot; us-west</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="latency-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="latency-heading">Latency is data, not a vibe.</h2>
+            <p>
+              Every successful ping records its round-trip time and the region that measured it. Over weeks of checks that becomes a per-region latency history: you can see that the host answers in 4ms from Frankfurt and 180ms from Sydney, and you can see when either number starts drifting.
+            </p>
+            <p>
+              When a host stops answering entirely, the transition opens an incident with a timeline, and your channels are notified. No reply is not a quiet gap in a chart. It is an event.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Ping check history example">
+              <div class="panel-top">
+                <strong>worker-3.yourcompany.com</strong>
+                <span class="pill down"><span class="dot"></span> Incident open</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Host unreachable</div><div class="panel-row-sub">no reply in 5s</div></div></div>
+                  <div class="panel-row-meta"><span>us-west</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Host unreachable</div><div class="panel-row-sub">no reply in 5s</div></div></div>
+                  <div class="panel-row-meta"><span>eu-central</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Host reachable</div><div class="panel-row-sub">1 minute earlier</div></div></div>
+                  <div class="panel-row-meta"><span>9ms &middot; us-west</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What ping monitoring includes.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Ping monitoring, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

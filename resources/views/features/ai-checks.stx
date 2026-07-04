@@ -1,0 +1,196 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Plain-English assertions', text: 'describe what correct looks like in up to 1,000 characters. No selectors, no XPath, no test framework.' },
+  { title: 'Reads what a visitor reads', text: 'scripts and styles are stripped and the visible text (up to 6,000 characters) is what the model evaluates.' },
+  { title: 'PASS or FAIL with a reason', text: 'every run stores a one-line verdict and a one-sentence explanation, so you know why it failed, not just that it did.' },
+  { title: 'Failures open incidents', text: 'a failed assertion opens a timeline incident carrying the assertion and the model’s answer, routed to your channels.' },
+  { title: 'Your choice of model', text: 'runs against the AI provider configured for the install rather than a black box we picked for you.' },
+  { title: 'Fails safe', text: 'if the provider is unreachable or unconfigured, the check logs and skips. It never invents a verdict or falsely pages you.' },
+]
+
+const faqs = [
+  {
+    q: 'What does this catch that uptime monitoring cannot?',
+    a: 'Anything wrong with the content of a page that still returns HTTP 200: an error message rendered where the pricing should be, an empty product list, placeholder text that leaked to production, a page suddenly in the wrong language. A status code check passes all of those.',
+  },
+  {
+    q: 'What exactly does the model see?',
+    a: 'The HTML your server returns, stripped to its visible text. Scripts, styles, and noscript blocks are removed, whitespace is collapsed, and the first 6,000 characters are handed to the model alongside your assertion.',
+  },
+  {
+    q: 'Does it run JavaScript or take screenshots?',
+    a: 'No. It evaluates the text of the server-rendered response, not a browser session. Fully client-rendered pages may expose little text to check, and visual bugs with correct text are out of scope. For performance and rendering audits, see Lighthouse monitoring.',
+  },
+  {
+    q: 'What happens when an assertion fails?',
+    a: 'The result is stored with the model’s one-sentence reason, an incident opens carrying both the assertion and the answer, and your notification channels fire. The verdict history stays on the check so you can see when it started failing.',
+  },
+  {
+    q: 'Do I need my own AI provider?',
+    a: 'On a self-hosted install, yes: AI checks call the model configured for your Stacks app, and there is no hidden fallback. If nothing is configured, the check logs a warning and skips rather than guessing. All other check types work without any AI setup.',
+  },
+]
+
+const related = [
+  { title: 'Uptime monitoring', text: 'The fast outer loop: is the page responding at all, checked as often as every 30 seconds from six regions.', href: '/features/uptime-monitoring' },
+  { title: 'Broken link monitoring', text: 'Crawls your pages for links that lead nowhere, another failure a homepage status code never shows.', href: '/features/broken-links' },
+  { title: 'Lighthouse monitoring', text: 'Scheduled Lighthouse audits for the visual and performance side of "the page is technically up".', href: '/features/lighthouse-monitoring' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI-powered content checks | {{ appName }}</title>
+    <meta name="description" content="Write a plain-English assertion like 'the pricing page shows a Buy now button and no error text'. We check the live page against it and alert on FAIL.">
+    <link rel="canonical" href="https://uptime-status.org/features/ai-checks">
+    <meta property="og:title" content="AI-powered content checks | {{ appName }}">
+    <meta property="og:description" content="Catch error pages that return HTTP 200. Plain-English assertions, verified against the live page, with incidents on failure.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/ai-checks">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Catch what a status code <span class="accent-word">cannot see.</span></h1>
+          <p class="page-lead">
+            A page can return 200 with an error message where your content should be. Describe what correct looks like in plain English. We verify it.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="gap-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="gap-heading">The failures that pass every uptime check.</h2>
+            <p>
+              A bad deploy ships a template that renders "Something went wrong" over a perfectly healthy HTTP 200. The CMS drops half the pricing table. Your uptime monitor sees a fast, successful response and stays green while customers see a broken page.
+            </p>
+            <p>
+              AI checks close that gap. You state what the page should contain, in the same words you would use to a teammate, and every run answers PASS or FAIL against the live page.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="AI check results example">
+              <div class="panel-top">
+                <strong>AI checks &middot; yourcompany.com</strong>
+                <span class="pill down"><span class="dot"></span> 1 failing</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Pricing shows a Buy now button</div><div class="panel-row-sub">PASS. All three plans render with prices.</div></div></div>
+                  <div class="panel-row-meta"><span>2m ago</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Homepage has no error text</div><div class="panel-row-sub">PASS. No error or warning copy found.</div></div></div>
+                  <div class="panel-row-meta"><span>2m ago</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot down"></span><div><div class="panel-row-name">Docs search returns results</div><div class="panel-row-sub">FAIL. The results area reads "0 matches".</div></div></div>
+                  <div class="panel-row-meta"><span>2m ago</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="how-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="how-heading">Fetch, strip, ask. Nothing exotic.</h2>
+            <p>
+              Each run fetches the monitored page, strips it down to the text a visitor would actually read, and asks the configured model one question: does this assertion hold? The model answers with a single PASS or FAIL line and a one-sentence reason.
+            </p>
+            <p>
+              The reason is the useful part. Instead of a red dot, you get "the plans section renders an error banner instead of prices" before you have opened a single tab.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># the assertion, exactly as you wrote it</span>
+<span class="str">"the pricing page shows a Buy now button
+ and no error text"</span>
+
+<span class="cmt"># latest run</span>
+FAIL. The plans section renders
+<span class="str">"Something went wrong"</span> instead of prices.
+
+<span class="cmt"># result stored, incident opened, channels notified</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What AI checks include.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="honest-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="honest-heading">One honest requirement: a model behind it.</h2>
+            <p>
+              AI checks need an AI provider. Self-hosted installs configure their own, and if none is set up the check logs a warning and skips its run instead of fabricating a verdict or opening a false incident. Every other check type on this site works with zero AI configuration.
+            </p>
+          </div>
+          <div class="oss-code">"the checkout page shows no error text"</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">AI checks, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

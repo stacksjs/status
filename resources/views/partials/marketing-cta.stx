@@ -1,0 +1,14 @@
+<!--
+  Shared closing CTA band for marketing subpages. Same copy intent
+  everywhere: one signup CTA, one GitHub CTA (matches the homepage).
+-->
+<section class="site-shell section" aria-labelledby="cta-heading">
+  <div class="cta-band">
+    <h2 id="cta-heading">Start monitoring in under 2 minutes.</h2>
+    <p>No credit card required for the self-hosted, open-source version.</p>
+    <div class="actions">
+      <a class="button primary" href="/register" data-no-router>Get started free</a>
+      <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+  </div>
+</section>

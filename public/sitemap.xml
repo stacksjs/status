@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://uptime-status.org/</loc></url>
+  <url><loc>https://uptime-status.org/compare</loc></url>
+  <url><loc>https://uptime-status.org/features</loc></url>
+  <url><loc>https://uptime-status.org/features/uptime-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/ping-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/tcp-port-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/cron-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/health-checks</loc></url>
+  <url><loc>https://uptime-status.org/features/server-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/ssl-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/dns-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/domain-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/broken-links</loc></url>
+  <url><loc>https://uptime-status.org/features/lighthouse-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/performance-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/port-scan-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/dns-blocklist-monitoring</loc></url>
+  <url><loc>https://uptime-status.org/features/ai-checks</loc></url>
+  <url><loc>https://uptime-status.org/features/status-pages</loc></url>
+  <url><loc>https://uptime-status.org/features/notifications</loc></url>
+  <url><loc>https://uptime-status.org/features/incident-management</loc></url>
+  <url><loc>https://uptime-status.org/for</loc></url>
+  <url><loc>https://uptime-status.org/for/agencies</loc></url>
+  <url><loc>https://uptime-status.org/for/saas</loc></url>
+  <url><loc>https://uptime-status.org/for/ecommerce</loc></url>
+  <url><loc>https://uptime-status.org/for/devops</loc></url>
+  <url><loc>https://uptime-status.org/for/stacks-developers</loc></url>
+</urlset>

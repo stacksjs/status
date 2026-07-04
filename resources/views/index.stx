@@ -215,7 +215,8 @@ const comingSoonBypassToken = process.env.APP_COMING_SOON_SECRET || ''
 
 const navLinks = [
   { label: 'Features', url: '#features' },
-  { label: 'Status pages', url: '#status-pages' },
+  { label: 'Use cases', url: '/for', native: true },
+  { label: 'Compare', url: '/compare', native: true },
   { label: 'Pricing', url: '#pricing' },
   { label: 'Docs', url: '/docs', native: true },
 ]
@@ -225,31 +226,37 @@ const monitorTypes = [
     title: 'Uptime monitoring',
     text: 'HTTP, TCP, and ping checks as often as every 30 seconds, from multiple regions — know the second something goes down.',
     icon: 'pulse',
+    href: '/features/uptime-monitoring',
   },
   {
     title: 'SSL certificate monitoring',
     text: 'Get alerted weeks before a certificate expires, not after your visitors start seeing browser warnings.',
     icon: 'shield',
+    href: '/features/ssl-monitoring',
   },
   {
     title: 'Domain & DNS monitoring',
     text: 'Track domain expiration and get notified the moment an A, CNAME, or MX record changes unexpectedly.',
     icon: 'globe',
+    href: '/features/dns-monitoring',
   },
   {
     title: 'Broken link checks',
     text: 'Crawl your site on a schedule and catch dead links and broken assets before your users do.',
     icon: 'link',
+    href: '/features/broken-links',
   },
   {
     title: 'Status pages',
     text: 'A branded, public status page on your own domain — no "powered by" watermark, ever.',
     icon: 'flag',
+    href: '/features/status-pages',
   },
   {
     title: 'Incidents & maintenance',
     text: 'Timeline incidents, schedule maintenance windows, and keep everyone informed automatically.',
     icon: 'bell',
+    href: '/features/incident-management',
   },
 ]
 
@@ -1615,14 +1622,18 @@ const faqs = [
 
           <div class="feature-grid">
             @foreach (monitorTypes as feature)
-              <article class="feature-card">
+              <a class="feature-card" href="{{ feature.href }}" data-no-router>
                 <div class="feature-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="{{ iconPath(feature.icon) }}"/></svg>
                 </div>
                 <h3>{{ feature.title }}</h3>
                 <p>{{ feature.text }}</p>
-              </article>
+              </a>
             @endforeach
+          </div>
+
+          <div style="display: flex; justify-content: center; margin-top: 2rem;">
+            <a class="button" href="/features" data-no-router>Explore all 18 checks</a>
           </div>
         </section>
 
@@ -1765,9 +1776,21 @@ const faqs = [
           <div class="footer-col">
             <h4>Product</h4>
             <ul>
-              <li><a href="#features">Features</a></li>
-              <li><a href="#status-pages">Status pages</a></li>
+              <li><a href="/features" data-no-router>All features</a></li>
+              <li><a href="/features/uptime-monitoring" data-no-router>Uptime monitoring</a></li>
+              <li><a href="/features/status-pages" data-no-router>Status pages</a></li>
+              <li><a href="/compare" data-no-router>Compare</a></li>
               <li><a href="#pricing">Pricing</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>Use cases</h4>
+            <ul>
+              <li><a href="/for/agencies" data-no-router>Agencies</a></li>
+              <li><a href="/for/saas" data-no-router>SaaS teams</a></li>
+              <li><a href="/for/ecommerce" data-no-router>E-commerce</a></li>
+              <li><a href="/for/devops" data-no-router>DevOps &amp; SRE</a></li>
+              <li><a href="/for/stacks-developers" data-no-router>Stacks developers</a></li>
             </ul>
           </div>
           <div class="footer-col">
@@ -1776,11 +1799,6 @@ const faqs = [
               <li><a href="/docs" data-no-router>Docs</a></li>
               <li><a href="https://github.com/stacksjs/status" target="_blank" rel="noopener">GitHub</a></li>
               <li><a href="https://github.com/stacksjs/status/blob/main/LICENSE.md" target="_blank" rel="noopener">License</a></li>
-            </ul>
-          </div>
-          <div class="footer-col">
-            <h4>Company</h4>
-            <ul>
               <li><a href="/login" data-no-router>Sign in</a></li>
               <li><a href="/register" data-no-router>Get started</a></li>
             </ul>

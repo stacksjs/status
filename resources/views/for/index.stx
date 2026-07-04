@@ -1,0 +1,89 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const audiences = [
+  {
+    title: 'Agencies',
+    text: 'Every client site, certificate, and domain in one dashboard, with branded status pages that do the reassuring for you.',
+    href: '/for/agencies',
+  },
+  {
+    title: 'SaaS teams',
+    text: 'Uptime your customers can verify: public history, automatic incident timelines, and answers that land before the support tickets do.',
+    href: '/for/saas',
+  },
+  {
+    title: 'E-commerce',
+    text: 'Downtime is lost revenue with a number attached. Watch checkout, payments, and product pages as often as every 30 seconds.',
+    href: '/for/ecommerce',
+  },
+  {
+    title: 'DevOps & SRE',
+    text: 'Automation-first monitoring: monitors are API records you create from deploy pipelines, with alerts routed to PagerDuty or Opsgenie.',
+    href: '/for/devops',
+  },
+  {
+    title: 'Stacks developers',
+    text: 'Monitoring that speaks TypeScript. Heartbeat pings from jobs, health-route checks, and a product that is itself a Stacks app.',
+    href: '/for/stacks-developers',
+  },
+  {
+    title: 'Compare',
+    text: 'How we stack up against Oh Dear, Uptime Kuma, and the rest: features, pricing, and where each tool actually wins.',
+    href: '/compare',
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Use cases | {{ appName }}</title>
+    <meta name="description" content="Uptime monitoring for agencies, SaaS teams, e-commerce, DevOps, and Stacks developers. See how the open-source UptimeStatus fits the way your team works.">
+    <link rel="canonical" href="https://uptime-status.org/for">
+    <meta property="og:title" content="Use cases | {{ appName }}">
+    <meta property="og:description" content="Uptime monitoring for agencies, SaaS teams, e-commerce, DevOps, and Stacks developers.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/for">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Monitoring that fits <span class="accent-word">how you work.</span></h1>
+          <p class="page-lead">
+            Agencies, SaaS teams, stores, and ops teams break in different ways. Each page below covers the setup that fits yours.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">View on GitHub</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="audiences-heading">
+        <div class="section-head left">
+          <h2 id="audiences-heading" class="section-title">Pick your team.</h2>
+        </div>
+        <div class="feature-grid two">
+          @foreach (audiences as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

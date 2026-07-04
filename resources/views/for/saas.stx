@@ -1,0 +1,226 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const modules = [
+  {
+    title: 'Checks every 30 seconds',
+    text: 'On the Pro plan, monitors run as often as every 30 seconds across 6 regions, so a real outage is caught in under a minute, not in a support ticket.',
+    href: '/features/uptime-monitoring',
+  },
+  {
+    title: 'A status page that answers for you',
+    text: 'A public page with real uptime history, incident updates, subscriber emails, and an RSS feed. The “is it down?” tickets go there instead of to support.',
+    href: '/features/status-pages',
+  },
+  {
+    title: 'Heartbeats on revenue jobs',
+    text: 'Billing runs, digest emails, and queue workers fail silently. A heartbeat monitor opens an incident the moment the ping stops arriving.',
+    href: '/features/cron-monitoring',
+  },
+  {
+    title: 'Deeper than HTTP 200',
+    text: 'Your app can return 200 while the queue is stuck. Health monitors call a JSON health route and alert on the exact check that flipped.',
+    href: '/features/health-checks',
+  },
+  {
+    title: 'Catch the slow ramp',
+    text: 'Latency creeps long before it breaks. Performance history shows the ramp while it is still an engineering task, not a churn number.',
+    href: '/features/performance-monitoring',
+  },
+  {
+    title: 'On-call, properly paged',
+    text: 'Route incidents to PagerDuty or Opsgenie for whoever is on call, and to Slack or Discord for everyone else. 10 channel types, attached per monitor.',
+    href: '/features/notifications',
+  },
+]
+
+const faqs = [
+  {
+    q: 'How quickly will we know about an outage?',
+    a: 'Free-plan monitors check every 5 minutes; Pro goes as low as every 30 seconds, from 6 regions, with 90 days of history. Failures open an incident and notify your channels immediately, so detection time is roughly your check interval.',
+  },
+  {
+    q: 'Can customers subscribe to status updates?',
+    a: 'Yes. Your status page has an email subscribe form, and every incident update you post is mailed to subscribers with a one-click unsubscribe link. There is also an RSS feed at /status/your-slug/feed for people and tools that prefer to poll.',
+  },
+  {
+    q: 'Can we monitor billing crons and queue workers?',
+    a: 'That is what heartbeat monitors are for. Add a curl to the monitor\'s ping URL as the last step of the job, on the success path only. If the ping stops arriving within the grace period, an incident opens and on-call gets paged.',
+  },
+  {
+    q: 'What is the difference between uptime and health checks?',
+    a: 'An uptime monitor asks one question: does the URL respond correctly. A health monitor calls a route your app exposes that reports named checks, like database, queue, and storage, and alerts when any one of them flips, even while the homepage still loads fine.',
+  },
+  {
+    q: 'Can we self-host inside our own VPC?',
+    a: 'Yes. The whole product is MIT licensed: clone it, run bun install and ./buddy serve, and your uptime history never leaves your network. One caveat: keep an external check somewhere, because a monitor inside a failing network cannot report the failure.',
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monitoring for SaaS teams | {{ appName }}</title>
+    <meta name="description" content="Uptime monitoring for SaaS teams: 30 second checks, heartbeats on billing jobs, deep health checks, and a status page your customers can subscribe to.">
+    <link rel="canonical" href="https://uptime-status.org/for/saas">
+    <meta property="og:title" content="Monitoring for SaaS teams | {{ appName }}">
+    <meta property="og:description" content="30 second checks, heartbeats on revenue-critical jobs, and a public status page with email subscribers and an RSS feed.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/for/saas">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> Built for SaaS teams</span>
+          <h1 class="page-title">Trust is the product. <span class="accent-word">Monitor it.</span></h1>
+          <p class="page-lead">
+            Every blip makes a customer ask “is it down?” Catch outages in 30 seconds, watch the jobs that bill people, and let your status page answer first.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Read the source</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="modules-heading">
+        <div class="section-head left">
+          <h2 id="modules-heading" class="section-title">Cover the whole surface your customers feel.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (modules as m)
+            <a class="feature-card" href="{{ m.href }}">
+              <h3>{{ m.title }}</h3>
+              <p>{{ m.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="subscribers-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="subscribers-heading">Your users subscribe once. Support stops explaining outages.</h2>
+            <p>
+              Give customers one page with live component status and real uptime history. Anyone can subscribe by email, and every incident update you post reaches them without a support thread, with a one-click unsubscribe in every mail.
+            </p>
+            <p>
+              The same updates ship as an RSS feed, so the customers who pipe status into their own tooling get it too. See <a href="/features/status-pages">status pages</a>.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel">
+              <div class="panel-top">
+                <strong>Your product status</strong>
+                <span class="pill"><span class="dot"></span> All systems operational</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Web app</div>
+                      <div class="panel-row-sub">checked every 30s</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">Operational</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">API</div>
+                      <div class="panel-row-sub">checked every 30s</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">Operational</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Background jobs</div>
+                      <div class="panel-row-sub">heartbeat</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta">Operational</div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main">
+                    <span class="dot"></span>
+                    <div>
+                      <div class="panel-row-name">Subscribe to updates</div>
+                      <div class="panel-row-sub">email + rss</div>
+                    </div>
+                  </div>
+                  <div class="panel-row-meta"><span class="pill"><span class="dot"></span> Live</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="heartbeat-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="heartbeat-heading">The billing cron that fails quietly costs the most.</h2>
+            <p>
+              A crashed web server pages everyone. A billing job that silently stops running costs you a week of invoices before anyone notices. Heartbeat monitors flip that: silence itself becomes the alert.
+            </p>
+            <p>
+              Ping only on the success path, so a job that runs but fails still opens an incident. See <a href="/features/cron-monitoring">cron &amp; heartbeat monitoring</a>.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt"># crontab on your app server</span>
+0 2 * * * bin/run-billing \
+  &amp;&amp; curl -fsS https://uptime-status.org/api/ping/your-token
+
+<span class="cmt"># job ran and succeeded: ping arrives, all quiet</span>
+<span class="cmt"># job failed or never ran: no ping, incident opens</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="oss-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="oss-heading">Your incident data is yours.</h2>
+            <p>
+              {{ appName }} is open source under MIT. Everything sits behind a plain JSON API, so you can export your history any time, and when compliance asks where the uptime data lives, the answer can be your own VPC. Hosted is $9 per month when you would rather not run it.
+            </p>
+          </div>
+          <div class="oss-code">git clone https://github.com/stacksjs/status</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">SaaS questions, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

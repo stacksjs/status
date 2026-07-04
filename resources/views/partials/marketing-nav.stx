@@ -1,0 +1,30 @@
+<!--
+  Shared marketing navigation for subpages (features/*, for/*, compare).
+  The homepage keeps its own inline nav with anchor links; this one links
+  to real routes. Expects `appName` from the including page's server script.
+-->
+<nav class="site-nav">
+  <div class="site-shell nav-inner">
+    <a class="brand" href="/" aria-label="{{ appName }} home">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg>
+      </span>
+      <span class="brand-name">{{ appName }}</span>
+    </a>
+    <div class="nav-links" aria-label="Primary navigation">
+      <a href="/features">Features</a>
+      <a href="/for">Use cases</a>
+      <a href="/compare">Compare</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/docs" data-no-router>Docs</a>
+    </div>
+    <div class="nav-right">
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36-1.41-1.41M6.05 6.05 4.64 4.64m14.72 0-1.41 1.41M6.05 17.95l-1.41 1.41"/><circle cx="12" cy="12" r="4.5"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="button" href="/login" data-no-router>Sign in</a>
+      <a class="button primary" href="/register" data-no-router>Get started</a>
+    </div>
+  </div>
+</nav>

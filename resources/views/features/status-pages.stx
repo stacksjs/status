@@ -1,0 +1,244 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const included = [
+  { title: 'Component groups', text: 'organize monitors into named sections like API, Web, or Database. Grouping is opt-in per page, and ungrouped monitors still render.' },
+  { title: '90 days of uptime bars', text: 'per monitor, computed from the same stored check results the dashboard uses. Nothing hand-tuned, nothing invented.' },
+  { title: 'Email subscribers', text: 'visitors leave an email and get notified when an incident opens. Every email carries a one-click unsubscribe link.' },
+  { title: 'RSS incident feed', text: 'every page serves its incident history at /status/your-slug/feed, ready for feed readers and internal tooling.' },
+  { title: 'Status report updates', text: 'post announcements to the page without opening an incident. Subscribers get emailed on each update.' },
+  { title: 'Maintenance banners', text: 'scheduled maintenance windows render as planned work, not as an outage, so deploys never look like downtime.' },
+]
+
+const faqs = [
+  {
+    q: 'How do I put the page on my own domain?',
+    a: 'Point a CNAME like status.yourcompany.com at the app and set the custom domain on the page. Visitors see your title, your logo, and your accent color, with no vendor watermark on any plan.',
+  },
+  {
+    q: 'Can I keep a status page private?',
+    a: 'Yes. Beyond fully public, a page can require a password, restrict viewers to specific email domains, or restrict access by IP range. The email-domain option checks the address a visitor enters rather than verifying mailbox ownership, so treat it as a soft gate and reach for the password or IP options when it really matters.',
+  },
+  {
+    q: 'How do subscribers get notified?',
+    a: 'A subscribe form sits on the page itself. When an incident opens, or when you post a status report update, subscribers get an email. Every email includes a one-click unsubscribe link tied to an unguessable token.',
+  },
+  {
+    q: 'Can I import my existing status page?',
+    a: 'Yes, from Atlassian Statuspage, Instatus, or Better Stack. One request snapshots the source page and recreates its components as monitors on a new page. Imported monitors start disabled with a placeholder URL, because those providers do not expose a per-component check target, so you re-point each at a real endpoint and enable it when ready.',
+  },
+  {
+    q: 'What do the uptime bars show?',
+    a: '90 days of history per monitor, computed from the check results your monitors actually recorded. The page and the dashboard read the same data, so the numbers always agree.',
+  },
+]
+
+const related = [
+  { title: 'Uptime monitoring', text: 'The checks behind the page: 30-second Pro intervals from six regions, with full diagnostics on every failure.', href: '/features/uptime-monitoring' },
+  { title: 'Incident management', text: 'Failed checks open incidents automatically, and the timeline you build lands on this page.', href: '/features/incident-management' },
+  { title: 'Notifications', text: 'Email, Slack, PagerDuty, and seven more channels tell your team before the status page tells your users.', href: '/features/notifications' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Status pages on your own domain | {{ appName }}</title>
+    <meta name="description" content="Branded status pages on your own domain with no watermark. Component groups, 90-day uptime bars, email subscribers, an RSS feed, and access control.">
+    <link rel="canonical" href="https://uptime-status.org/features/status-pages">
+    <meta property="og:title" content="Status pages on your own domain | {{ appName }}">
+    <meta property="og:description" content="Branded status pages with no watermark: custom domain, component groups, 90-day uptime bars, subscribers, and access control.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/features/status-pages">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Answer &ldquo;is it down?&rdquo; <span class="accent-word">before support does.</span></h1>
+          <p class="page-lead">
+            One outage becomes a pile of duplicate tickets. A branded page on your own domain answers everyone at once and emails the people who subscribed.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="domain-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="domain-heading">Your domain, your brand, no watermark.</h2>
+            <p>
+              Point a CNAME at {{ appName }}, set the custom domain on the page, and status.yourcompany.com serves it. Your logo and accent color come from the page settings, and there is no "powered by" badge in the footer, on any plan. Competitors sell that back to you as an upgrade.
+            </p>
+            <p>
+              Each page also declares its own language, so a German status page reads as German to screen readers and search engines. Free includes 1 status page, Pro includes 10, and a <a href="https://github.com/stacksjs/status" target="_blank" rel="noopener">self-hosted install</a> includes as many as you want.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Status page example">
+              <div class="panel-top">
+                <strong>status.acme.com</strong>
+                <span class="pill"><span class="dot"></span> Operational</span>
+              </div>
+              <div class="panel-body">
+                <div class="uptime-bars" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="warn"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span class="down"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="panel-row" style="padding: 1rem 0 0;">
+                  <span class="panel-row-sub">90 days ago</span>
+                  <span class="panel-row-sub">99.96% uptime</span>
+                  <span class="panel-row-sub">Today</span>
+                </div>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Public API</div><div class="panel-row-sub">API</div></div></div>
+                  <div class="panel-row-meta"><span>99.99%</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">Webhooks</div><div class="panel-row-sub">API</div></div></div>
+                  <div class="panel-row-meta"><span>99.95%</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">Dashboard</div><div class="panel-row-sub">Web</div></div></div>
+                  <div class="panel-row-meta"><span class="pill warn"><span class="dot"></span> Degraded</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="access-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="access-heading">Public for customers, gated for everyone else.</h2>
+            <p>
+              Not every status page belongs on the open internet. A page for internal tooling, or an SLA page for one large customer, needs a lock on it. Each page picks its own access mode: public, password protected, restricted to email domains, or restricted to IP ranges.
+            </p>
+            <p>
+              Password entry happens right on the page, no accounts required. And because access is a per-page setting, the same team can run a public page and a locked one side by side.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="panel" aria-label="Access control example">
+              <div class="panel-top">
+                <strong>Access control</strong>
+                <span class="pill"><span class="dot"></span> Per page</span>
+              </div>
+              <div class="panel-list">
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot"></span><div><div class="panel-row-name">status.acme.com</div><div class="panel-row-sub">anyone</div></div></div>
+                  <div class="panel-row-meta"><span>Public</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">internal.acme.com</div><div class="panel-row-sub">shared password</div></div></div>
+                  <div class="panel-row-meta"><span>Password</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">sla.acme.com</div><div class="panel-row-sub">@bigcustomer.com</div></div></div>
+                  <div class="panel-row-meta"><span>Email domain</span></div>
+                </div>
+                <div class="panel-row">
+                  <div class="panel-row-main"><span class="dot warn"></span><div><div class="panel-row-name">ops.acme.com</div><div class="panel-row-sub">203.0.113.0/24</div></div></div>
+                  <div class="panel-row-meta"><span>IP allowlist</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="included-heading">
+        <div class="section-head left">
+          <h2 id="included-heading" class="section-title">What ships on every status page.</h2>
+        </div>
+        <ul class="check-list">
+          @foreach (included as item)
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+              <span><strong>{{ item.title }}</strong> {{ item.text }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="import-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="import-heading">Leaving another provider takes one request.</h2>
+            <p>
+              Already on Atlassian Statuspage, Instatus, or Better Stack? Point the importer at your existing page and it recreates the title and every component as monitors on a new page you own.
+            </p>
+            <p>
+              One honest caveat: those providers do not expose a per-component check target, so imported monitors start disabled with a placeholder URL. You re-point each at a real endpoint, enable it, and the migration is done. No re-typing forty component names.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/status-pages/import \
+  -H <span class="str">'Content-Type: application/json'</span> \
+  -d <span class="str">'{
+    "provider": "statuspage",
+    "source_url": "https://acme.statuspage.io",
+    "team_id": 1
+  }'</span></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-label="Subscribers and feeds">
+        <div class="note-band">
+          <div>
+            <h2>Subscribers keep themselves in the loop.</h2>
+            <p>
+              A subscribe form sits on the page itself. When an incident opens or you post an announcement, subscribers get an email with a one-click unsubscribe link. Prefer machines over inboxes? Every page also serves its incident history as an RSS feed.
+            </p>
+          </div>
+          <div class="oss-code">GET /status/acme/feed</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Status pages, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="related-heading">
+        <div class="section-head left">
+          <h2 id="related-heading" class="section-title">Pairs well with.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (related as item)
+            <a class="feature-card" href="{{ item.href }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>

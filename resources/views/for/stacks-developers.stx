@@ -1,0 +1,186 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const modules = [
+  {
+    title: 'Health endpoints, monitored',
+    text: 'Expose a health route from your Stacks app and point a health monitor at it. Failing checks open incidents and page the right channel.',
+    href: '/features/health-checks',
+  },
+  {
+    title: 'Know when jobs stop running',
+    text: 'Queue workers and scheduled jobs fail silently. A heartbeat monitor alerts you when the ping stops arriving.',
+    href: '/features/cron-monitoring',
+  },
+  {
+    title: 'Certificates handled',
+    text: 'Expiry warnings land weeks ahead, long before a browser warning does. No more calendar reminders for certs.',
+    href: '/features/ssl-monitoring',
+  },
+  {
+    title: 'The services your app depends on',
+    text: 'TCP checks watch your database, Redis, and queue ports, so you hear about it before your error tracker fills up.',
+    href: '/features/tcp-port-monitoring',
+  },
+  {
+    title: 'Alerts where your team lives',
+    text: 'Slack, Discord, PagerDuty, Opsgenie, ntfy, webhooks: route each monitor to the channel that should wake up.',
+    href: '/features/notifications',
+  },
+  {
+    title: 'A status page on your domain',
+    text: 'Give your users a branded status page with real uptime history, subscriber emails, and an incident feed.',
+    href: '/features/status-pages',
+  },
+]
+
+const faqs = [
+  {
+    q: 'How do I monitor a Stacks scheduled job?',
+    a: 'Create a heartbeat monitor, then hit its ping URL as the last line of your job\'s handle(). If the ping stops arriving within the grace period, an incident opens and your channels are notified. The pattern works for queue workers, nightly backups, and anything else on a schedule.',
+  },
+  {
+    q: 'Does this replace @stacksjs/health?',
+    a: 'They complement each other. Your app defines what "healthy" means in a route; a health monitor calls that route from outside on a schedule, keeps the history, and owns the alerting. Logic stays in your app, operations live here.',
+  },
+  {
+    q: 'Is there an API for automation?',
+    a: 'Yes. Monitors, status pages, and incidents are all plain JSON endpoints, so you can create monitors from a deploy hook or a buddy command. Everything the dashboard does goes through the same API.',
+  },
+  {
+    q: 'Can I self-host it next to my app?',
+    a: 'Yes. UptimeStatus is itself a Stacks app: clone it, run bun install and ./buddy serve, and you have the whole product on your own infrastructure, MIT licensed. One caveat: an external region watching your stack is worth keeping, because a monitor inside a failing network cannot report the failure.',
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monitoring for Stacks developers | {{ appName }}</title>
+    <meta name="description" content="Uptime, health, and cron monitoring that speaks TypeScript. Built with Stacks, for Stacks apps: heartbeat pings from jobs, health-route checks, and a JSON API for everything.">
+    <link rel="canonical" href="https://uptime-status.org/for/stacks-developers">
+    <meta property="og:title" content="Monitoring for Stacks developers | {{ appName }}">
+    <meta property="og:description" content="Uptime, health, and cron monitoring that speaks TypeScript, built with the Stacks framework.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/for/stacks-developers">
+    @include('../partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <span class="badge"><span class="dot"></span> Built with Stacks</span>
+          <h1 class="page-title">Monitoring that speaks <span class="accent-word">TypeScript.</span></h1>
+          <p class="page-lead">
+            {{ appName }} is itself a Stacks app. Wire health routes, heartbeat pings, and deploy hooks into monitoring that feels like part of your stack.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Read the source</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="modules-heading">
+        <div class="section-head left">
+          <h2 id="modules-heading" class="section-title">Everything a Stacks app needs watched.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (modules as m)
+            <a class="feature-card" href="{{ m.href }}">
+              <h3>{{ m.title }}</h3>
+              <p>{{ m.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="heartbeat-heading">
+        <div class="split-row">
+          <div class="split-copy">
+            <h2 id="heartbeat-heading">One line in a job, silence becomes an alert.</h2>
+            <p>
+              A cron that quietly stops is worse than one that crashes loudly. Add a ping to the end of any scheduled job's handle() and {{ appName }} treats missing silence as the incident it is.
+            </p>
+            <p>
+              We run this pattern on ourselves: our own worker fleet reports to a heartbeat monitor, and only on the healthy path, so a stuck queue can never pretend everything is fine. See <a href="/features/cron-monitoring">cron &amp; heartbeat monitoring</a>.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt">// app/Jobs/NightlyBackup.ts</span>
+export default new Job({
+  name: <span class="str">'NightlyBackup'</span>,
+  queue: <span class="str">'maintenance'</span>,
+
+  async handle() {
+    await runBackup()
+
+    <span class="cmt">// last line: report success</span>
+    await fetch(<span class="str">'https://uptime-status.org/api/ping/your-token'</span>)
+  },
+})</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="health-heading">
+        <div class="split-row flip">
+          <div class="split-copy">
+            <h2 id="health-heading">Your app defines healthy. We enforce it.</h2>
+            <p>
+              Keep the logic where it belongs: a route in your app that checks the database, the queue, and whatever else matters, and returns JSON. A health monitor calls it on a schedule, records history, and pages someone when a check flips.
+            </p>
+            <p>
+              Alerting, retries, incident timelines, and the status page all come from outside your app, so a bug that takes your app down cannot take your alerting down with it.
+            </p>
+          </div>
+          <div class="split-panel">
+            <div class="code-panel"><pre><span class="cmt">// routes/api.ts</span>
+route.get(<span class="str">'/health'</span>, () => ({
+  db: db.isConnected(),
+  queue: queue.isRunning(),
+  storage: storage.isWritable(),
+}))</pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="dogfood-heading">
+        <div class="note-band">
+          <div>
+            <h2 id="dogfood-heading">Dogfooded, in the honest sense.</h2>
+            <p>
+              This product monitors itself with its own heartbeats, runs its checks through its own queue, and serves this page from the same codebase you can clone. If the patterns here look natural in your Stacks app, that is because they were extracted from one.
+            </p>
+          </div>
+          <div class="oss-code">bun install &amp;&amp; ./buddy serve</div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="faq-heading">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-heading" class="section-title">Stacks questions, answered.</h2>
+        </div>
+        <div class="faq-list">
+          @foreach (faqs as item)
+            <details class="faq-item">
+              <summary>{{ item.q }}</summary>
+              <p>{{ item.a }}</p>
+            </details>
+          @endforeach
+        </div>
+      </section>
+
+      @include('../partials/marketing-cta.stx')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
+  </body>
+</html>
