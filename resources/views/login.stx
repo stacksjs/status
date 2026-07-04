@@ -1,5 +1,20 @@
 <script server>
 const appName = process.env.APP_NAME || 'UptimeStatus'
+
+// SSO providers, mirroring config/sso.ts's env contract (this view is
+// self-contained by the app's convention, so it reads env directly
+// rather than importing the config). A provider appears as a button
+// only when fully configured.
+const ssoProviders = []
+if (process.env.SSO_GOOGLE_CLIENT_ID && process.env.SSO_GOOGLE_CLIENT_SECRET)
+  ssoProviders.push({ key: 'google', label: 'Google' })
+if (process.env.SSO_OKTA_ISSUER && process.env.SSO_OKTA_CLIENT_ID && process.env.SSO_OKTA_CLIENT_SECRET)
+  ssoProviders.push({ key: 'okta', label: 'Okta' })
+if (process.env.SSO_ENTRA_TENANT_ID && process.env.SSO_ENTRA_CLIENT_ID && process.env.SSO_ENTRA_CLIENT_SECRET)
+  ssoProviders.push({ key: 'entra', label: 'Microsoft' })
+if (process.env.SSO_OIDC_ISSUER && process.env.SSO_OIDC_CLIENT_ID && process.env.SSO_OIDC_CLIENT_SECRET)
+  ssoProviders.push({ key: 'oidc', label: process.env.SSO_OIDC_LABEL || 'SSO' })
+const hasSso = ssoProviders.length > 0
 </script>
 
 <!DOCTYPE html>
@@ -89,6 +104,17 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
       .error.show { display: block; }
       .alt { margin-top: 1.5rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
       .alt a { color: var(--accent); font-weight: 600; }
+      .sso-divider {
+        display: flex; align-items: center; gap: 0.75rem; margin: 1.4rem 0 1.1rem;
+        color: var(--muted); font-size: 0.8rem;
+      }
+      .sso-divider::before, .sso-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+      .sso-buttons { display: grid; gap: 0.6rem; }
+      .button.sso {
+        margin-top: 0;
+        border-color: var(--border-strong); color: var(--fg); background: var(--surface);
+      }
+      .button.sso:hover { border-color: var(--fg); filter: none; }
       .row-between { display: flex; align-items: center; justify-content: space-between; }
       .hide { display: none !important; }
     </style>
@@ -117,6 +143,15 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
           <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
         </div>
         <button id="login-btn" class="button" type="submit">Sign in</button>
+
+        @if (hasSso)
+          <div class="sso-divider">or</div>
+          <div class="sso-buttons">
+            @foreach (ssoProviders as p)
+              <a class="button sso" href="/api/auth/sso/{{ p.key }}" data-no-router>Continue with {{ p.label }}</a>
+            @endforeach
+          </div>
+        @endif
       </form>
 
       <!-- Step 2: TOTP (shown only when the account has 2FA enabled) -->
@@ -168,6 +203,19 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
         function showError(msg) {
           errorEl.textContent = msg
           errorEl.classList.add('show')
+        }
+
+        // SSO callback failures land here as /login?error=sso_* (the
+        // callback is a full-page navigation, so redirect + query param
+        // is its only error channel).
+        var ssoError = new URLSearchParams(window.location.search).get('error')
+        if (ssoError && ssoError.indexOf('sso_') === 0) {
+          var ssoMessages = {
+            sso_denied: 'Single sign-on was cancelled.',
+            sso_email_unverified: 'Your identity provider reports this email as unverified, so it cannot be linked to an existing account.',
+            sso_no_email: 'Your identity provider did not share an email address. Ask your admin to allow the email scope.',
+          }
+          showError(ssoMessages[ssoError] || 'Single sign-on failed. Please try again or use your password.')
         }
         function clearError() {
           errorEl.textContent = ''

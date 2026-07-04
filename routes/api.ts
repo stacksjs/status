@@ -131,6 +131,20 @@ route.post('/register', 'Actions/Auth/RegisterAction').rateLimit(3, 'minute')
 route.post('/verify-two-factor-login', 'Actions/Auth/VerifyTwoFactorLoginAction').rateLimit(10, 'minute')
 route.post('/logout', 'Actions/Auth/LogoutAction').middleware('auth')
 
+// Single sign-on via OIDC (authorization code + PKCE). GET on purpose —
+// both legs are full-page browser navigations driven by the IdP, not
+// XHR calls, so they live outside the SPA token flow entirely and mint
+// the same HttpOnly cookie session LoginAction does. Providers are
+// configured per install in config/sso.ts (Google, Okta, Entra ID, or
+// any spec-compliant issuer via the generic entry).
+route.get('/auth/sso/{provider}', 'Actions/Auth/SsoRedirectAction').rateLimit(10, 'minute')
+route.get('/auth/sso/{provider}/callback', 'Actions/Auth/SsoCallbackAction').rateLimit(10, 'minute')
+
+// Per-team uptime report emails: dashboard settings form post (same
+// /*-forms/ convention as the blocks above; see
+// app/Jobs/SendUptimeReports.ts for the scheduled sender).
+route.post('/team-forms/{id}/report-settings', 'Actions/Teams/DashboardUpdateReportSettingsAction')
+
 // `/coming-soon` is served as an STX view from
 // `storage/framework/defaults/resources/views/coming-soon.stx`. The
 // view auto-resolves through stx-serve, so no route registration is
