@@ -1,7 +1,9 @@
 import { connect } from 'node:net'
+import process from 'node:process'
 import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
 import PortScanResult from '../Models/PortScanResult'
@@ -61,6 +63,8 @@ export default new Job({
       return
     }
 
+    const startedAt = performance.now()
+
     let host = monitor.url
     try {
       host = new URL(monitor.url).hostname
@@ -116,5 +120,35 @@ export default new Job({
       })
       log.warn(`[job] RunPortScan: ${monitor.name} — unexpected port(s) open: ${unexpectedOpen.join(', ')}`)
     }
+
+    // A wrong port surface means the host is reachable but misconfigured,
+    // so findings map to 'degraded' rather than 'down' (matching the
+    // incidents above).
+    const findings: string[] = []
+    if (missingExpected.length > 0)
+      findings.push(`expected port(s) closed: ${missingExpected.join(', ')}`)
+    if (unexpectedOpen.length > 0)
+      findings.push(`unexpected port(s) open: ${unexpectedOpen.join(', ')}`)
+
+    const status: 'up' | 'degraded' = findings.length > 0 ? 'degraded' : 'up'
+    const message = findings.length > 0
+      ? findings.join('; ')
+      : `Scanned ${portsToScan.length} port(s), ${openPorts.length} open, all as expected`
+
+    await CheckResult.create({
+      monitor_id: monitor.id,
+      status,
+      response_time_ms: Math.round(performance.now() - startedAt),
+      status_code: 0,
+      message,
+      metadata: JSON.stringify({ openPorts, missingExpected, unexpectedOpen }),
+      region: process.env.WORKER_REGION || 'default',
+      checked_at: checkedAt,
+    })
+
+    // last_checked_at must advance on every terminal path - DispatchDueChecks
+    // schedules off it, so skipping it would re-dispatch this check every minute.
+    const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
+    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
   },
 })

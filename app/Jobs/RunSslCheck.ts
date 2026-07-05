@@ -1,7 +1,9 @@
+import process from 'node:process'
 import { connect } from 'node:tls'
 import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
 import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
@@ -63,6 +65,7 @@ export default new Job({
       return
     }
 
+    const startedAt = performance.now()
     const hostname = new URL(monitor.url).hostname
     const checkedAt = new Date().toISOString()
 
@@ -72,7 +75,19 @@ export default new Job({
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      await monitor.update({ status: 'down' })
+      await CheckResult.create({
+        monitor_id: monitor.id,
+        status: 'down',
+        response_time_ms: Math.round(performance.now() - startedAt),
+        status_code: 0,
+        message: `SSL check failed: ${message}`,
+        metadata: JSON.stringify({ hostname }),
+        region: process.env.WORKER_REGION || 'default',
+        checked_at: checkedAt,
+      })
+      // last_checked_at must advance on every terminal path - DispatchDueChecks
+      // schedules off it, so skipping it would re-dispatch this check every minute.
+      await monitor.update({ status: 'down', last_checked_at: checkedAt, consecutive_failures: monitor.consecutive_failures + 1 })
       await Incident.create({
         monitor_id: monitor.id,
         started_at: checkedAt,
@@ -146,5 +161,27 @@ export default new Job({
     else if (fingerprintChanged) {
       log.info(`[job] RunSslCheck: ${monitor.name} certificate fingerprint changed (renewed)`)
     }
+
+    // An expiring-soon certificate still terminates TLS fine, so it stays
+    // 'up' (the threshold warnings above cover it) - only an already-expired
+    // certificate is 'down', matching the incident it opens.
+    const status: 'up' | 'down' = daysUntilExpiry < 0 ? 'down' : 'up'
+    const message = daysUntilExpiry < 0
+      ? `Certificate expired ${Math.abs(daysUntilExpiry)} day(s) ago`
+      : `Certificate valid, expires in ${daysUntilExpiry} day(s)`
+
+    await CheckResult.create({
+      monitor_id: monitor.id,
+      status,
+      response_time_ms: Math.round(performance.now() - startedAt),
+      status_code: 0,
+      message,
+      metadata: JSON.stringify({ hostname, daysUntilExpiry, expiresAt: expiresAt.toISOString() }),
+      region: process.env.WORKER_REGION || 'default',
+      checked_at: checkedAt,
+    })
+
+    const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
+    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
   },
 })

@@ -1,7 +1,9 @@
+import process from 'node:process'
 import { URL } from 'node:url'
 import { lookup } from '@stacksjs/whois'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import CheckResult from '../Models/CheckResult'
 import DomainRegistration from '../Models/DomainRegistration'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
@@ -9,6 +11,36 @@ import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SendNotification from './SendNotification'
 
 const WARNING_THRESHOLDS_DAYS = [30, 14, 7, 1]
+
+/**
+ * Common multi-label public suffixes. WHOIS operates on the *registrable*
+ * domain (the label just below the public suffix), so a naive "last two
+ * labels" split mishandles these: shop.example.co.uk must resolve to
+ * example.co.uk, not co.uk. This is a pragmatic shortlist of the suffixes
+ * real customers actually use, not the full Public Suffix List — enough to
+ * make the advertised "extracts the registrable domain" claim hold for the
+ * common cases without pulling in a megabyte of PSL data.
+ */
+const MULTI_LABEL_SUFFIXES = new Set([
+  'co.uk', 'org.uk', 'me.uk', 'gov.uk', 'ac.uk', 'co.jp', 'or.jp', 'ne.jp',
+  'com.au', 'net.au', 'org.au', 'com.br', 'com.cn', 'com.mx', 'co.nz',
+  'co.za', 'com.sg', 'co.in', 'co.kr', 'com.tr', 'com.hk', 'com.tw',
+])
+
+/**
+ * Reduce a hostname to the registrable domain: the public suffix plus the
+ * one label in front of it. Handles the common two-label suffixes above;
+ * everything else falls back to the last two labels.
+ */
+export function registrableDomain(hostname: string): string {
+  const parts = hostname.split('.')
+  if (parts.length <= 2)
+    return hostname
+  const lastTwo = parts.slice(-2).join('.')
+  if (MULTI_LABEL_SUFFIXES.has(lastTwo) && parts.length >= 3)
+    return parts.slice(-3).join('.')
+  return lastTwo
+}
 
 /**
  * The tightest warning threshold the registration has crossed, or null
@@ -58,6 +90,8 @@ export default new Job({
       return
     }
 
+    const startedAt = performance.now()
+
     let hostname = monitor.url
     try {
       hostname = new URL(monitor.url).hostname
@@ -66,8 +100,7 @@ export default new Job({
       // bare hostname, no scheme
     }
     // WHOIS operates on the registrable domain, not subdomains.
-    const parts = hostname.split('.')
-    const domain = parts.length > 2 ? parts.slice(-2).join('.') : hostname
+    const domain = registrableDomain(hostname)
 
     const checkedAt = new Date().toISOString()
 
@@ -78,11 +111,22 @@ export default new Job({
     }
     catch (error) {
       log.warn(`[job] RunDomainCheck: WHOIS lookup failed for ${domain}: ${error instanceof Error ? error.message : String(error)}`)
+      // An inconclusive lookup is not a verdict, but last_checked_at must
+      // still advance - DispatchDueChecks schedules off it, so returning
+      // without it would re-dispatch this check every minute (a WHOIS-less
+      // TLD would hammer the registry forever). No CheckResult row is
+      // written: check_results.status is constrained to up/down/degraded
+      // (see the create-check_results migration) and any of those would
+      // misrepresent "could not determine", so the monitor keeps its
+      // current status and the warning lives in the log.
+      await monitor.update({ status: monitor.status || 'unknown', last_checked_at: checkedAt })
       return
     }
 
     if (!parsed) {
       log.warn(`[job] RunDomainCheck: no parsed WHOIS data for ${domain}`)
+      // Same as the lookup-failure path above: bump last_checked_at, keep status.
+      await monitor.update({ status: monitor.status || 'unknown', last_checked_at: checkedAt })
       return
     }
 
@@ -92,12 +136,16 @@ export default new Job({
 
     if (!expiryRaw) {
       log.warn(`[job] RunDomainCheck: could not find an expiry date in WHOIS response for ${domain}`)
+      // Same as the lookup-failure path above: bump last_checked_at, keep status.
+      await monitor.update({ status: monitor.status || 'unknown', last_checked_at: checkedAt })
       return
     }
 
     const expiresAt = parseWhoisDate(expiryRaw)
     if (Number.isNaN(expiresAt.getTime())) {
       log.warn(`[job] RunDomainCheck: unparseable expiry date '${expiryRaw}' for ${domain}`)
+      // Same as the lookup-failure path above: bump last_checked_at, keep status.
+      await monitor.update({ status: monitor.status || 'unknown', last_checked_at: checkedAt })
       return
     }
 
@@ -151,5 +199,27 @@ export default new Job({
         log.warn(`[job] RunDomainCheck: ${domain} registration expires in ${daysUntilExpiry} day(s)`)
       }
     }
+
+    // A registration approaching expiry still resolves fine, so it stays
+    // 'up' (the threshold warnings above cover it) - only an already-expired
+    // registration is 'down', matching the incident it opens.
+    const status: 'up' | 'down' = daysUntilExpiry < 0 ? 'down' : 'up'
+    const message = daysUntilExpiry < 0
+      ? `Domain registration expired ${Math.abs(daysUntilExpiry)} day(s) ago`
+      : `Domain registered, expires in ${daysUntilExpiry} day(s)`
+
+    await CheckResult.create({
+      monitor_id: monitor.id,
+      status,
+      response_time_ms: Math.round(performance.now() - startedAt),
+      status_code: 0,
+      message,
+      metadata: JSON.stringify({ domain, registrar: registrar ?? 'Unknown', daysUntilExpiry, expiresAt: expiresAt.toISOString() }),
+      region: process.env.WORKER_REGION || 'default',
+      checked_at: checkedAt,
+    })
+
+    const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
+    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
   },
 })

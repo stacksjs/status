@@ -2,8 +2,10 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import LighthouseReport from '../Models/LighthouseReport'
 import Monitor from '../Models/Monitor'
@@ -63,6 +65,7 @@ export default new Job({
       return
     }
 
+    const startedAt = performance.now()
     const workDir = await mkdtemp(join(tmpdir(), 'lighthouse-'))
     const outputPath = join(workDir, 'report.json')
     const checkedAt = new Date().toISOString()
@@ -75,6 +78,13 @@ export default new Job({
         log.warn(chromeMissing
           ? `[job] RunLighthouseAudit: no Chrome/Chromium found on this host — Lighthouse audits require one to be installed (see stacksjs/status#1 Phase 4)`
           : `[job] RunLighthouseAudit: lighthouse exited ${code} for ${monitor.name}: ${stderr.slice(0, 500)}`)
+        // A skipped audit is not a verdict, but last_checked_at must still
+        // advance - DispatchDueChecks schedules off it, so returning without
+        // it would re-dispatch a (typically daily) Lighthouse audit every
+        // minute on a Chrome-less host. No CheckResult row: its status is
+        // constrained to up/down/degraded and none of those fits a skip, so
+        // the monitor keeps its current status and the message lives in the log.
+        await monitor.update({ last_checked_at: checkedAt })
         return
       }
 
@@ -102,11 +112,19 @@ export default new Job({
         checked_at: checkedAt,
       })
 
+      // A completed audit is 'up' unless it caught the performance
+      // regression alerted on below - the site still loads, so that maps
+      // to 'degraded' rather than 'down'.
+      let status: 'up' | 'degraded' = 'up'
+      let message = `Audit completed (performance ${performanceScore ?? 'n/a'})`
+
       if (
         previous?.performance_score != null
         && performanceScore != null
         && previous.performance_score - performanceScore >= SCORE_REGRESSION_THRESHOLD
       ) {
+        status = 'degraded'
+        message = `Performance score dropped from ${previous.performance_score} to ${performanceScore}`
         await Incident.create({
           monitor_id: monitor.id,
           started_at: checkedAt,
@@ -116,9 +134,29 @@ export default new Job({
         })
         log.warn(`[job] RunLighthouseAudit: ${monitor.name} performance regressed ${previous.performance_score} -> ${performanceScore}`)
       }
+
+      await CheckResult.create({
+        monitor_id: monitor.id,
+        status,
+        response_time_ms: Math.round(performance.now() - startedAt),
+        status_code: 0,
+        message,
+        metadata: JSON.stringify({ performanceScore, accessibilityScore, seoScore, bestPracticesScore }),
+        region: process.env.WORKER_REGION || 'default',
+        checked_at: checkedAt,
+      })
+
+      // last_checked_at must advance on every terminal path - DispatchDueChecks
+      // schedules off it, so skipping it would re-dispatch this check every minute.
+      const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
+      await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
     }
     catch (error) {
       log.warn(`[job] RunLighthouseAudit: failed for ${monitor.name}: ${error instanceof Error ? error.message : String(error)}`)
+      // Same constraint as the non-zero-exit path above: no verdict, but
+      // last_checked_at still has to move so the audit isn't re-dispatched
+      // every minute.
+      await monitor.update({ last_checked_at: checkedAt })
     }
     finally {
       await rm(workDir, { recursive: true, force: true }).catch(() => {})

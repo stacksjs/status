@@ -1,7 +1,9 @@
 import { resolve4, resolve6, resolveCaa, resolveMx, resolveNs, resolveTxt } from 'node:dns/promises'
+import process from 'node:process'
 import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import CheckResult from '../Models/CheckResult'
 import DnsSnapshot from '../Models/DnsSnapshot'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
@@ -39,6 +41,8 @@ export default new Job({
       return
     }
 
+    const startedAt = performance.now()
+
     let hostname = monitor.url
     try {
       hostname = new URL(monitor.url).hostname
@@ -48,6 +52,8 @@ export default new Job({
     }
 
     const checkedAt = new Date().toISOString()
+    let recordTypesResolved = 0
+    const changedTypes: string[] = []
 
     for (const [recordType, resolver] of Object.entries(RESOLVERS)) {
       let values: unknown[] = []
@@ -72,8 +78,10 @@ export default new Job({
         record_values: serialized,
         checked_at: checkedAt,
       })
+      recordTypesResolved++
 
       if (previous && previous.record_values !== serialized) {
+        changedTypes.push(recordType)
         const isNsChange = recordType === 'NS'
         await Incident.create({
           monitor_id: monitor.id,
@@ -85,5 +93,32 @@ export default new Job({
         log.info(`[job] RunDnsCheck: ${monitor.name} — ${recordType} records changed`)
       }
     }
+
+    // A record change is informational (the incident above already covers
+    // it) - the check itself passed as long as at least one record type
+    // resolved. Nothing resolving at all means the domain isn't answering
+    // DNS, which is the actual failure this check can detect.
+    const status: 'up' | 'down' = recordTypesResolved > 0 ? 'up' : 'down'
+    const message = status === 'up'
+      ? changedTypes.length > 0
+        ? `Snapshotted ${recordTypesResolved} record type(s), changed: ${changedTypes.join(', ')}`
+        : `Snapshotted ${recordTypesResolved} record type(s)`
+      : `DNS resolution failed for ${hostname}: no record types resolved`
+
+    await CheckResult.create({
+      monitor_id: monitor.id,
+      status,
+      response_time_ms: Math.round(performance.now() - startedAt),
+      status_code: 0,
+      message,
+      metadata: JSON.stringify({ hostname, recordTypesResolved, changedTypes }),
+      region: process.env.WORKER_REGION || 'default',
+      checked_at: checkedAt,
+    })
+
+    // last_checked_at must advance on every terminal path - DispatchDueChecks
+    // schedules off it, so skipping it would re-dispatch this check every minute.
+    const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
+    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
   },
 })

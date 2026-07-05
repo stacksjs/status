@@ -1,5 +1,7 @@
+import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import CheckResult from '../Models/CheckResult'
 import Crawl from '../Models/Crawl'
 import CrawledPage from '../Models/CrawledPage'
 import Incident from '../Models/Incident'
@@ -124,7 +126,24 @@ export default new Job({
       return
     }
 
-    const origin = new URL(monitor.url).origin
+    const startedAtMs = performance.now()
+
+    let origin: string
+    try {
+      origin = new URL(monitor.url).origin
+    }
+    catch (error) {
+      log.warn(`[job] RunCrawl: invalid URL for ${monitor.name}: ${error instanceof Error ? error.message : String(error)}`)
+      // The crawl never started so there is no verdict, but last_checked_at
+      // must still advance - DispatchDueChecks schedules off it, so returning
+      // without it would re-dispatch this (expensive, typically daily) crawl
+      // every minute. No CheckResult row: check_results.status is constrained
+      // to up/down/degraded and none of those fits "could not run", so the
+      // monitor keeps its current status.
+      await monitor.update({ last_checked_at: new Date().toISOString() })
+      return
+    }
+
     const disallowedPaths = await fetchDisallowedPaths(origin)
 
     const startedAt = new Date().toISOString()
@@ -252,6 +271,30 @@ export default new Job({
         impacted_checks: JSON.stringify([{ type: 'mixed_content', mixedContentCount }]),
       })
     }
+
+    // Findings mean the site is reachable but has issues, so they map to
+    // 'degraded' rather than 'down' (matching the incidents above).
+    const checkedAt = new Date().toISOString()
+    const status: 'up' | 'degraded' = brokenLinksCount > 0 || mixedContentCount > 0 ? 'degraded' : 'up'
+    const message = status === 'up'
+      ? `Crawled ${pagesCrawled} page(s), no broken links or mixed content`
+      : `Crawled ${pagesCrawled} page(s): ${brokenLinksCount} broken link(s), ${mixedContentCount} mixed-content resource(s)`
+
+    await CheckResult.create({
+      monitor_id: monitor.id,
+      status,
+      response_time_ms: Math.round(performance.now() - startedAtMs),
+      status_code: 0,
+      message,
+      metadata: JSON.stringify({ pagesCrawled, brokenLinksCount, mixedContentCount }),
+      region: process.env.WORKER_REGION || 'default',
+      checked_at: checkedAt,
+    })
+
+    // last_checked_at must advance on every terminal path - DispatchDueChecks
+    // schedules off it, so skipping it would re-dispatch this check every minute.
+    const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
+    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
   },
 })
 

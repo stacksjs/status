@@ -79,6 +79,10 @@ export default new Job({
       }
       catch (error) {
         log.warn(`[job] RunBlocklistCheck: could not resolve ${hostname}: ${error instanceof Error ? error.message : String(error)}`)
+        // No verdict without an IP, but last_checked_at must still advance -
+        // DispatchDueChecks schedules off it, so returning without it would
+        // re-dispatch this check every minute. The monitor keeps its status.
+        await monitor.update({ last_checked_at: new Date().toISOString() })
         return
       }
     }
@@ -122,5 +126,12 @@ export default new Job({
       })
       log.warn(`[job] RunBlocklistCheck: ${monitor.name} (${ip}) newly listed on ${newListings.join(', ')}`)
     }
+
+    // Mirror the status recorded in the CheckResult above onto the monitor -
+    // DispatchDueChecks schedules off last_checked_at, so skipping this
+    // update would re-dispatch the check every minute.
+    const status: 'up' | 'degraded' = listedOn.length > 0 ? 'degraded' : 'up'
+    const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
+    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
   },
 })
