@@ -26,6 +26,9 @@ export default defineModel({
     },
     useApi: {
       uri: 'status-page-component-groups',
+      // Auto-CRUD reads are public by default (auto-crud.ts resolveApiMiddleware);
+      // this tenant data must never be world-readable, so require auth on every route.
+      middleware: ['auth'],
       routes: ['index', 'store', 'show', 'update', 'destroy'],
     },
   },

@@ -15,6 +15,9 @@ export default defineModel({
     },
     useApi: {
       uri: 'dns-snapshots',
+      // Auto-CRUD reads are public by default (auto-crud.ts resolveApiMiddleware);
+      // this tenant data must never be world-readable, so require auth on every route.
+      middleware: ['auth'],
       routes: ['index', 'show'],
     },
   },
