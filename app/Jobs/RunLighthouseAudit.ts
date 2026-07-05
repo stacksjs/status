@@ -21,7 +21,12 @@ interface LighthouseCategories {
 
 function runLighthouse(url: string, outputPath: string): Promise<{ code: number, stderr: string }> {
   return new Promise((resolve) => {
-    const child = spawn('bunx', [
+    // process.execPath is the running bun binary: `bun x` is bunx without
+    // depending on a `bunx` symlink existing on the worker's PATH (systemd
+    // units get a minimal PATH; found in production as "Executable not
+    // found in $PATH: bunx").
+    const child = spawn(process.execPath, [
+      'x',
       '--bun',
       'lighthouse',
       url,

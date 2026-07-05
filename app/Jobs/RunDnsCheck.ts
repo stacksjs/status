@@ -66,7 +66,17 @@ export default new Job({
         continue
       }
 
-      const serialized = JSON.stringify(values)
+      // Canonicalize before serializing: resolvers return round-robin
+      // rotations in whatever order the nameserver felt like, so a raw
+      // JSON.stringify flags a "change" on every check for any domain
+      // behind a CDN or multi-record set. Order carries no meaning for a
+      // record SET; sort a stable string form of each value instead.
+      // (Found in production: 131 duplicate "records changed" incidents
+      // against one WordPress site in a single evening.)
+      const canonical = values
+        .map(value => typeof value === 'string' ? value : JSON.stringify(value))
+        .sort()
+      const serialized = JSON.stringify(canonical)
       const previous = await DnsSnapshot.where('monitor_id', monitor.id)
         .where('record_type', recordType)
         .orderByDesc('created_at')
@@ -83,14 +93,25 @@ export default new Job({
       if (previous && previous.record_values !== serialized) {
         changedTypes.push(recordType)
         const isNsChange = recordType === 'NS'
-        await Incident.create({
-          monitor_id: monitor.id,
-          started_at: checkedAt,
-          cause: `${recordType} records changed for ${hostname}`,
-          status: isNsChange ? 'investigating' : 'monitoring',
-          impacted_checks: JSON.stringify([{ type: 'dns', recordType, previous: previous.record_values, current: serialized }]),
-        })
-        log.info(`[job] RunDnsCheck: ${monitor.name} — ${recordType} records changed`)
+        const cause = `${recordType} records changed for ${hostname}`
+
+        // One open incident per record type at a time: a record set that
+        // keeps moving (or a snapshot-format migration) must not stack a
+        // fresh incident - and a fresh channel notification - on every
+        // run while the previous one is still unresolved.
+        const openSameCause = (await Incident.where('monitor_id', monitor.id).where('cause', cause).get())
+          .some(existing => existing.status !== 'resolved')
+
+        if (!openSameCause) {
+          await Incident.create({
+            monitor_id: monitor.id,
+            started_at: checkedAt,
+            cause,
+            status: isNsChange ? 'investigating' : 'monitoring',
+            impacted_checks: JSON.stringify([{ type: 'dns', recordType, previous: previous.record_values, current: serialized }]),
+          })
+        }
+        log.info(`[job] RunDnsCheck: ${monitor.name} — ${recordType} records changed${openSameCause ? ' (incident already open, not duplicated)' : ''}`)
       }
     }
 
