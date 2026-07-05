@@ -1,6 +1,13 @@
 <!--
-  Cross-monitor incident feed — dashboard page (stacksjs/status#1 Phase
+  Cross-monitor incident feed -- dashboard page (stacksjs/status#1 Phase
   8). Same server-rendered convention as monitors/index.stx.
+
+  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
+  brutalist) via partials/telemetry-head.stx. Incident status readouts:
+  resolved is dim (spent), investigating/identified is hazard red
+  (active problem), monitoring is ink (watch state). Phosphor green is
+  reserved for operational/positive readouts only, so it appears here
+  solely when the open-incident count is zero.
 -->
 <script server>
 const Database = require('bun:sqlite').Database
@@ -11,7 +18,7 @@ const { Auth, sessionUser } = require('@stacksjs/auth')
 const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
 const db = new Database(dbPath, { readonly: true })
 
-// Auth + team resolution — see monitors/index.stx's copy of this block
+// Auth + team resolution -- see monitors/index.stx's copy of this block
 // for the full rationale. This feed previously joined across ALL
 // monitors regardless of team.
 async function resolveAuthTeam() {
@@ -41,6 +48,7 @@ async function resolveAuthTeam() {
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'incidents'
 
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
 const filterStatus = query.get('status') || ''
@@ -65,17 +73,46 @@ const openCount = db.query(`
   WHERE i.status != 'resolved' AND m.team_id = ?1
 `).get(TEAM_ID).c
 
-function toneClass(status) {
-  if (status === 'resolved') return 'text-emerald-600 bg-emerald-50'
-  if (status === 'investigating') return 'text-red-600 bg-red-50'
-  return 'text-amber-600 bg-amber-50'
+// Per-status tally for the stat strip: always the UNFILTERED team-wide
+// ledger (same GROUP BY pattern as the fleet tally on monitors/
+// index.stx), so the readout stays a summary while filters narrow the
+// table below it.
+const statusTally = db.query(`
+  SELECT i.status, COUNT(*) as c FROM incidents i JOIN monitors m ON m.id = i.monitor_id
+  WHERE m.team_id = ?1 GROUP BY i.status
+`).all(TEAM_ID)
+const incidentTotal = statusTally.reduce((sum, r) => sum + r.c, 0)
+function tallyOf(status) {
+  const row = statusTally.find(r => r.status === status)
+  return row ? row.c : 0
+}
+
+// Incident status readouts: resolved is spent (dim), investigating and
+// identified are live problems (hazard), monitoring is a watch state
+// (ink). Never phosphor -- an incident row is never "operational".
+function incidentStyle(status) {
+  if (status === 'resolved') return 'color: var(--dim);'
+  if (status === 'monitoring') return 'color: var(--ink);'
+  return 'color: var(--hazard);'
 }
 
 function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return '--'
   const d = new Date(iso)
-  if (isNaN(d.getTime())) return '—'
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  if (isNaN(d.getTime())) return '--'
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: false }).toUpperCase()
+}
+
+function durationLabel(startIso, endIso) {
+  if (!startIso) return '--'
+  const start = new Date(startIso).getTime()
+  if (isNaN(start)) return '--'
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  const s = Math.max(0, Math.floor((end - start) / 1000))
+  if (s < 60) return s + 'S'
+  if (s < 3600) return Math.floor(s / 60) + 'M'
+  if (s < 86400) return Math.floor(s / 3600) + 'H ' + Math.floor((s % 3600) / 60) + 'M'
+  return Math.floor(s / 86400) + 'D ' + Math.floor((s % 86400) / 3600) + 'H'
 }
 
 function statusUrl(s) {
@@ -85,51 +122,96 @@ function statusUrl(s) {
   const qs = p.toString()
   return '/dashboard/incidents' + (qs ? '?' + qs : '')
 }
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-<div class="mx-auto max-w-4xl px-6 py-10">
+@include('../partials/telemetry-head.stx')
+@include('../partials/telemetry-nav.stx')
+
+<main class="tl-shell">
   @if (!AUTH_USER)
-    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
-      <h3 class="font-medium text-gray-900">Sign in required</h3>
-      <p class="mt-1 text-sm text-gray-500">You need an authenticated session to view this page.</p>
+    <div class="tl-empty" style="margin: 48px 0;">
+      <span class="big">[ NO ACTIVE SESSION ]</span>
+      <span class="why">Authentication required to read the incident ledger. <a href="/login" data-no-router style="color: var(--ink); text-decoration: underline;">Sign in</a>.</span>
     </div>
   @endif
 
   @if (AUTH_USER)
-  <header class="mb-6 flex items-center justify-between">
-    <div>
-      <h1 class="text-xl font-semibold text-gray-900">Incidents</h1>
-      <p class="mt-1 text-sm text-gray-500">{{ openCount }} open across your team's monitors</p>
-    </div>
-  </header>
+    <header class="tl-banner">
+      <h1 class="tl-title">Incidents</h1>
+      <div class="tl-banner-meta">
+        <span>{{ incidentTotal }} INCIDENT{{ incidentTotal === 1 ? '' : 'S' }} ON RECORD</span>
+        <span>{{ openCount }} OPEN NOW</span>
+        <span class="hz">LEDGER /// {{ generatedAt }} UTC</span>
+      </div>
+    </header>
 
-  <div class="mb-6 flex items-center gap-2">
-    <a href="{{ statusUrl('') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">All</a>
-    <a href="{{ statusUrl('investigating') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'investigating' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Investigating</a>
-    <a href="{{ statusUrl('identified') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'identified' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Identified</a>
-    <a href="{{ statusUrl('monitoring') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'monitoring' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Monitoring</a>
-    <a href="{{ statusUrl('resolved') }}" class="rounded-full px-3 py-1 text-xs {{ filterStatus === 'resolved' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600' }}">Resolved</a>
-  </div>
+    <dl class="tl-stats">
+      <div class="tl-stat">
+        <dt>[ Open ]</dt>
+        <dd class="{{ openCount > 0 ? 'bad' : 'ok' }}"><output>{{ openCount }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Investigating ]</dt>
+        <dd class="{{ tallyOf('investigating') > 0 ? 'bad' : '' }}"><output>{{ tallyOf('investigating') }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Identified ]</dt>
+        <dd class="{{ tallyOf('identified') > 0 ? 'bad' : '' }}"><output>{{ tallyOf('identified') }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Monitoring ]</dt>
+        <dd><output>{{ tallyOf('monitoring') }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Resolved ]</dt>
+        <dd style="color: var(--dim);"><output>{{ tallyOf('resolved') }}</output></dd>
+      </div>
+    </dl>
 
-  @if (incidents.length === 0)
-    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
-      <h3 class="font-medium text-gray-900">No incidents match these filters</h3>
+    <div class="tl-filters">
+      <div class="tl-filter-group">
+        <span class="lbl">Status</span>
+        <a href="{{ statusUrl('') }}" class="tl-chip {{ filterStatus === '' ? 'active' : '' }}">All</a>
+        <a href="{{ statusUrl('investigating') }}" class="tl-chip {{ filterStatus === 'investigating' ? 'active' : '' }}">Investigating</a>
+        <a href="{{ statusUrl('identified') }}" class="tl-chip {{ filterStatus === 'identified' ? 'active' : '' }}">Identified</a>
+        <a href="{{ statusUrl('monitoring') }}" class="tl-chip {{ filterStatus === 'monitoring' ? 'active' : '' }}">Monitoring</a>
+        <a href="{{ statusUrl('resolved') }}" class="tl-chip {{ filterStatus === 'resolved' ? 'active' : '' }}">Resolved</a>
+      </div>
     </div>
-  @endif
 
-  @if (incidents.length > 0)
-    <div class="space-y-3">
-      @foreach (incidents as incident)
-        <a href="/dashboard/monitors/{{ incident.monitor_id }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
-          <div class="flex items-center justify-between gap-4">
-            <p class="font-medium text-gray-900">{{ incident.monitor_name }}</p>
-            <span class="rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide {{ toneClass(incident.status) }}">{{ incident.status }}</span>
-          </div>
-          <p class="mt-1 text-sm text-gray-600">{{ incident.cause }}</p>
-          <p class="mt-1 text-xs text-gray-400">Started {{ formatDate(incident.started_at) }} @if (incident.resolved_at) — resolved {{ formatDate(incident.resolved_at) }} @endif</p>
-        </a>
-      @endforeach
-    </div>
+    @if (incidents.length === 0)
+      <div class="tl-empty" style="margin-top: 24px;">
+        <span class="big">[ NO INCIDENTS MATCH ]</span>
+        <span class="why">Nothing on the ledger for this view. Clear the filter above, or enjoy the quiet.</span>
+      </div>
+    @endif
+
+    @if (incidents.length > 0)
+      <section class="tl-table" style="margin-top: 24px;" aria-label="Incident ledger">
+        <div class="tl-thead" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
+          <span class="tl-cell">Status</span>
+          <span class="tl-cell">Cause</span>
+          <span class="tl-cell">Unit</span>
+          <span class="tl-cell num">Opened</span>
+          <span class="tl-cell num">Duration</span>
+        </div>
+        @foreach (incidents as incident)
+          <a class="tl-row" href="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
+            <span class="tl-cell"><data class="st" style="{{ incidentStyle(incident.status) }}" value="{{ incident.status }}">{{ incident.status }}</data></span>
+            <span class="tl-cell tl-ellipsis" style="font-weight: 700;">{{ incident.cause }}</span>
+            <span class="tl-cell sub tl-ellipsis" style="text-transform: uppercase; letter-spacing: 0.06em;">{{ incident.monitor_name }}</span>
+            <span class="tl-cell num sub"><time>{{ formatDate(incident.started_at) }}</time></span>
+            <span class="tl-cell num"><samp>{{ durationLabel(incident.started_at, incident.resolved_at) }}{{ incident.resolved_at ? '' : ' +' }}</samp></span>
+          </a>
+        @endforeach
+      </section>
+    @endif
+
+    <footer class="tl-footnote">
+      <span>SHOWING {{ incidents.length }} / {{ incidentTotal }} ON RECORD /// NEWEST FIRST, CAP 100</span>
+      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    </footer>
   @endif
-  @endif
-</div>
+</main>

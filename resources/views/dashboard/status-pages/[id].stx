@@ -2,6 +2,11 @@
   Status page builder/editor — dashboard page (stacksjs/status#1 Phase
   8). Native HTML forms (no client JS) posting to plain-POST dashboard
   actions — see Actions/StatusPages/UpdateStatusPageAction for why.
+
+  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
+  brutalist) via partials/telemetry-head.stx. The single settings form
+  spans the [ IDENTITY ] and [ ACCESS CONTROL ] compartments — one
+  <form>, unchanged method/action/fields, two visual panels.
 -->
 <script server>
 const Database = require('bun:sqlite').Database
@@ -45,6 +50,7 @@ async function resolveAuthTeam() {
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'status-pages'
 const pageId = (typeof id !== 'undefined' && id) ? Number(id) : 0
 const statusPage = pageId ? db.query(`SELECT * FROM status_pages WHERE id = ?1 AND team_id = ?2 LIMIT 1`).get(pageId, TEAM_ID) : null
 
@@ -84,114 +90,240 @@ const maintenanceWindows = statusPage && assignedIds.length > 0
   : []
 
 function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return '--'
   const d = new Date(iso)
-  if (isNaN(d.getTime())) return '—'
+  if (isNaN(d.getTime())) return '--'
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
+
+// Display-only helpers below: none of these touch queries or auth.
+function stClass(status) {
+  if (status === 'up') return 'st st-up'
+  if (status === 'degraded') return 'st st-degraded'
+  if (status === 'down') return 'st st-down'
+  return 'st st-unknown'
+}
+
+function stLabel(status) {
+  if (status === 'up') return 'UP'
+  if (status === 'degraded') return 'DEGRADED'
+  if (status === 'down') return 'DOWN'
+  return 'UNKNOWN'
+}
+
+function mwClass(status) {
+  if (status === 'active') return 'st st-degraded'
+  if (status === 'scheduled') return 'st st-unknown'
+  return 'st st-unknown'
+}
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-<div class="mx-auto max-w-3xl px-6 py-10">
+@include('../partials/telemetry-head.stx')
+@include('../partials/telemetry-nav.stx')
+
+<style>
+  .tl-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .tl-attach-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .tl-attach-row .tl-select { flex: 1 1 auto; width: auto; }
+  .tl-btn.sm { padding: 5px 10px; font-size: 10px; }
+</style>
+
+<main class="tl-shell">
   @if (!statusPage)
-    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
-      <h3 class="font-medium text-gray-900">Status page not found</h3>
-      <p class="mt-1 text-sm text-gray-500"><a href="/dashboard/status-pages" class="underline">Back to status pages</a></p>
+    <div class="tl-empty" style="margin: 48px 0;">
+      <span class="big">[ NO SIGNAL ]</span>
+      <span class="why">Status page not found for this team, or no active session. <a href="/dashboard/status-pages" style="color: var(--ink); text-decoration: underline;">Back to status pages</a>.</span>
     </div>
   @endif
 
   @if (statusPage)
-    <header class="mb-6">
-      <a href="/dashboard/status-pages" class="text-sm text-gray-500 hover:text-gray-700">&larr; Status pages</a>
-      <div class="mt-2 flex items-center justify-between">
-        <h1 class="text-xl font-semibold text-gray-900">{{ statusPage.title }}</h1>
-        <a href="/status/{{ statusPage.slug }}" target="_blank" class="text-sm text-blue-600 hover:underline">View public page &rarr;</a>
+    <header class="tl-banner">
+      <h1 class="tl-title">{{ statusPage.title }}</h1>
+      <div class="tl-banner-meta">
+        <span><a href="/dashboard/status-pages" style="text-decoration: underline;">[ ALL CHANNELS ]</a></span>
+        <span>PUBLIC UPLINK <a href="/status/{{ statusPage.slug }}" target="_blank" data-no-router style="color: var(--ink); text-decoration: underline;"><samp>/status/{{ statusPage.slug }}</samp></a></span>
+        @if (statusPage.custom_domain)
+          <span>DOMAIN <samp>{{ statusPage.custom_domain }}</samp></span>
+        @endif
+        <span class="hz">CHANNEL #{{ statusPage.id }} /// {{ generatedAt }} UTC</span>
       </div>
     </header>
 
-    <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Settings</h2>
-      <form method="POST" action="/api/status-page-forms/{{ statusPage.id }}/update" class="space-y-3">
-        <div>
-          <label class="mb-1 block text-xs text-gray-500">Title</label>
-          <input type="text" name="title" value="{{ statusPage.title }}" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs text-gray-500">Custom domain</label>
-          <input type="text" name="custom_domain" value="{{ statusPage.custom_domain }}" placeholder="status.acme.com" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs text-gray-500">Access</label>
-          <select name="access_type" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-            <option value="public">Public</option>
-            <option value="password">Password protected</option>
-            <option value="email_domain">Email-domain restricted</option>
-            <option value="ip_allowlist">IP allowlisted</option>
-          </select>
-        </div>
-        <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Save</button>
-      </form>
-    </section>
+    <dl class="tl-stats">
+      <div class="tl-stat">
+        <dt>[ Units attached ]</dt>
+        <dd class="{{ assignedMonitors.length > 0 ? 'ok' : '' }}"><output>{{ assignedMonitors.length }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Units available ]</dt>
+        <dd><output>{{ availableMonitors.length }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Component groups ]</dt>
+        <dd><output>{{ componentGroups.length }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Maintenance windows ]</dt>
+        <dd><output>{{ maintenanceWindows.length }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Access mode ]</dt>
+        <dd><small style="font-size: 14px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink);">{{ (statusPage.access_type || 'public').replace('_', ' ').toUpperCase() }}</small></dd>
+      </div>
+    </dl>
 
-    <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors on this page</h2>
-
-      @if (assignedMonitors.length === 0)
-        <p class="mb-4 text-sm text-gray-500">No monitors added yet.</p>
-      @endif
-
-      @if (assignedMonitors.length > 0)
-        <div class="mb-4 divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200">
-          @foreach (assignedMonitors as monitor)
-            <div class="flex items-center justify-between gap-4 px-4 py-3">
-              <div>
-                <p class="text-sm text-gray-900">{{ monitor.display_name || monitor.name }}</p>
-                <p class="text-xs text-gray-400">{{ monitor.type }} &middot; {{ monitor.status }}</p>
-              </div>
-              <form method="POST" action="/api/status-page-forms/{{ statusPage.id }}/monitors/remove">
-                <input type="hidden" name="monitor_id" value="{{ monitor.monitor_id }}" />
-                <button type="submit" class="text-xs text-red-500 hover:underline">Remove</button>
-              </form>
+    <form method="POST" action="/api/status-page-forms/{{ statusPage.id }}/update">
+      <section class="tl-panel" aria-label="Identity">
+        <div class="tl-panel-head">
+          <span>[ IDENTITY ]</span>
+          <span class="hz">CHANNEL CALLSIGN</span>
+        </div>
+        <div class="tl-panel-body">
+          <div class="tl-form-grid">
+            <div>
+              <label class="tl-label" for="sp-title">Title</label>
+              <input id="sp-title" type="text" name="title" value="{{ statusPage.title }}" required class="tl-input" />
             </div>
-          @endforeach
+            <div>
+              <label class="tl-label" for="sp-domain">Custom domain</label>
+              <input id="sp-domain" type="text" name="custom_domain" value="{{ statusPage.custom_domain }}" placeholder="status.yourcompany.com" class="tl-input" />
+              <span class="tl-label" style="margin: 6px 0 0;">Slug is fixed at creation: <samp>/status/{{ statusPage.slug }}</samp></span>
+            </div>
+          </div>
         </div>
-      @endif
+      </section>
 
-      @if (availableMonitors.length > 0)
-        <form method="POST" action="/api/status-page-forms/{{ statusPage.id }}/monitors/add" class="flex items-center gap-2">
-          <select name="monitor_id" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm">
-            @foreach (availableMonitors as monitor)
-              <option value="{{ monitor.id }}">{{ monitor.name }} ({{ monitor.type }})</option>
+      <section class="tl-panel" aria-label="Access control">
+        <div class="tl-panel-head">
+          <span>[ ACCESS CONTROL ]</span>
+          <span class="hz">WHO READS THE FEED</span>
+        </div>
+        <div class="tl-panel-body">
+          <div class="tl-form-grid" style="margin-bottom: 16px;">
+            <div>
+              <label class="tl-label" for="sp-access">Access</label>
+              <select id="sp-access" name="access_type" class="tl-select">
+                <option value="public" {{ statusPage.access_type === 'public' ? 'selected' : '' }}>PUBLIC</option>
+                <option value="password" {{ statusPage.access_type === 'password' ? 'selected' : '' }}>PASSWORD PROTECTED</option>
+                <option value="email_domain" {{ statusPage.access_type === 'email_domain' ? 'selected' : '' }}>EMAIL-DOMAIN RESTRICTED</option>
+                <option value="ip_allowlist" {{ statusPage.access_type === 'ip_allowlist' ? 'selected' : '' }}>IP ALLOWLISTED</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="tl-btn">Save channel</button>
+        </div>
+      </section>
+    </form>
+
+    <section class="tl-panel" aria-label="Monitors on this page">
+      <div class="tl-panel-head">
+        <span>[ COMPONENTS / MONITORS ]</span>
+        <span class="hz">{{ assignedMonitors.length }} UNIT{{ assignedMonitors.length === 1 ? '' : 'S' }} ON FEED</span>
+      </div>
+      <div class="tl-panel-body">
+        @if (assignedMonitors.length === 0)
+          <div class="tl-empty" style="padding: 32px 16px; margin-bottom: 16px;">
+            <span class="big">[ FEED EMPTY ]</span>
+            <span class="why">No monitors attached. This channel broadcasts nothing until a unit is added below.</span>
+          </div>
+        @endif
+
+        @if (assignedMonitors.length > 0)
+          <div class="tl-table" style="margin-bottom: 16px;">
+            <div class="tl-thead" style="grid-template-columns: 120px minmax(0, 1.4fr) 130px 100px;">
+              <span class="tl-cell">Status</span>
+              <span class="tl-cell">Unit</span>
+              <span class="tl-cell">Type</span>
+              <span class="tl-cell num">Action</span>
+            </div>
+            @foreach (assignedMonitors as monitor)
+              <div class="tl-row" style="grid-template-columns: 120px minmax(0, 1.4fr) 130px 100px;">
+                <span class="tl-cell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}">{{ stLabel(monitor.status) }}</data></span>
+                <span class="tl-cell tl-ellipsis" style="font-weight: 700;">{{ monitor.display_name || monitor.name }}</span>
+                <span class="tl-cell sub" style="text-transform: uppercase; letter-spacing: 0.08em;">{{ monitor.type.replace('_', ' ') }}</span>
+                <span class="tl-cell num">
+                  <form method="POST" action="/api/status-page-forms/{{ statusPage.id }}/monitors/remove">
+                    <input type="hidden" name="monitor_id" value="{{ monitor.monitor_id }}" />
+                    <button type="submit" class="tl-btn danger sm">Remove</button>
+                  </form>
+                </span>
+              </div>
             @endforeach
-          </select>
-          <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Add</button>
-        </form>
-      @endif
+          </div>
+        @endif
+
+        @if (availableMonitors.length > 0)
+          <label class="tl-label" for="sp-add-monitor">Attach unit</label>
+          <form method="POST" action="/api/status-page-forms/{{ statusPage.id }}/monitors/add" class="tl-attach-row">
+            <select id="sp-add-monitor" name="monitor_id" class="tl-select">
+              @foreach (availableMonitors as monitor)
+                <option value="{{ monitor.id }}">{{ monitor.name }} ({{ monitor.type.replace('_', ' ').toUpperCase() }})</option>
+              @endforeach
+            </select>
+            <button type="submit" class="tl-btn">Attach</button>
+          </form>
+        @endif
+
+        @if (availableMonitors.length === 0 && assignedMonitors.length > 0)
+          <span class="tl-label" style="margin: 0;">All team units are attached to this channel.</span>
+        @endif
+      </div>
     </section>
 
     @if (componentGroups.length > 0)
-      <section class="mb-8 rounded-xl border border-gray-200 bg-white p-5">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Component groups</h2>
-        <div class="flex flex-wrap gap-2">
-          @foreach (componentGroups as group)
-            <span class="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">{{ group.name }}</span>
-          @endforeach
+      <section class="tl-panel" aria-label="Component groups">
+        <div class="tl-panel-head">
+          <span>[ COMPONENT GROUPS ]</span>
+          <span class="hz">{{ componentGroups.length }} GROUP{{ componentGroups.length === 1 ? '' : 'S' }}</span>
+        </div>
+        <div class="tl-panel-body">
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            @foreach (componentGroups as group)
+              <span class="tl-chip">{{ group.name }}</span>
+            @endforeach
+          </div>
         </div>
       </section>
     @endif
 
     @if (maintenanceWindows.length > 0)
-      <section class="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Maintenance windows</h2>
-        <div class="space-y-2">
-          @foreach (maintenanceWindows as mw)
-            <div class="rounded-lg bg-gray-50 p-3 text-sm">
-              <span class="font-medium text-gray-900">{{ mw.title }}</span>
-              <span class="ml-2 text-xs uppercase text-gray-400">{{ mw.status }}</span>
-              <p class="mt-1 text-xs text-gray-400">{{ formatDate(mw.starts_at) }} — {{ formatDate(mw.ends_at) }}</p>
+      <section class="tl-panel" aria-label="Maintenance windows">
+        <div class="tl-panel-head">
+          <span>[ MAINTENANCE WINDOWS ]</span>
+          <span class="hz">LAST {{ maintenanceWindows.length }}</span>
+        </div>
+        <div class="tl-panel-body" style="padding: 0;">
+          <div class="tl-table" style="border: 0;">
+            <div class="tl-thead" style="grid-template-columns: minmax(0, 1.4fr) 130px minmax(0, 1fr);">
+              <span class="tl-cell">Window</span>
+              <span class="tl-cell">State</span>
+              <span class="tl-cell num">Schedule</span>
             </div>
-          @endforeach
+            @foreach (maintenanceWindows as mw)
+              <div class="tl-row" style="grid-template-columns: minmax(0, 1.4fr) 130px minmax(0, 1fr);">
+                <span class="tl-cell tl-ellipsis" style="font-weight: 700;">{{ mw.title }}</span>
+                <span class="tl-cell"><data class="{{ mwClass(mw.status) }}" value="{{ mw.status }}">{{ String(mw.status || 'UNKNOWN').toUpperCase() }}</data></span>
+                <span class="tl-cell num sub"><time>{{ formatDate(mw.starts_at) }} -&gt; {{ formatDate(mw.ends_at) }}</time></span>
+              </div>
+            @endforeach
+          </div>
         </div>
       </section>
     @endif
+
+    <footer class="tl-footnote">
+      <span>CHANNEL #{{ statusPage.id }} / {{ assignedMonitors.length }} UNIT{{ assignedMonitors.length === 1 ? '' : 'S' }} ON FEED</span>
+      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    </footer>
   @endif
-</div>
+</main>

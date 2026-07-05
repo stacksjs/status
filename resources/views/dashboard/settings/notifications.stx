@@ -2,6 +2,10 @@
   Notification channel settings — dashboard page (stacksjs/status#1
   Phase 8). Same server-rendered, native-HTML-form convention as
   status-pages/index.stx.
+
+  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
+  brutalist) via partials/telemetry-head.stx. Phosphor green marks
+  ENABLED channels only; hazard red marks config errors.
 -->
 <script server>
 const Database = require('bun:sqlite').Database
@@ -42,80 +46,140 @@ async function resolveAuthTeam() {
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'settings'
 const channels = db.query(`SELECT id, name, type, enabled, config FROM notification_channels WHERE team_id = ?1 ORDER BY name ASC`).all(TEAM_ID)
 
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
 const invalidJson = query.get('error') === 'invalid_json'
 const sent = query.get('sent') === '1'
+
+// Display-only helpers below this line.
+const enabledCount = channels.filter((c) => c.enabled).length
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-<div class="mx-auto max-w-3xl px-6 py-10">
+@include('../partials/telemetry-head.stx')
+@include('../partials/telemetry-nav.stx')
+
+<main class="tl-shell">
   @if (!AUTH_USER)
-    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
-      <h3 class="font-medium text-gray-900">Sign in required</h3>
-      <p class="mt-1 text-sm text-gray-500">You need an authenticated session to view this page.</p>
+    <div class="tl-empty" style="margin: 48px 0;">
+      <span class="big">[ NO ACTIVE SESSION ]</span>
+      <span class="why">Authentication required to read alert routing. <a href="/login" data-no-router style="color: var(--ink); text-decoration: underline;">Sign in</a>.</span>
     </div>
   @endif
 
   @if (AUTH_USER)
-  <header class="mb-6">
-    <h1 class="text-xl font-semibold text-gray-900">Notification channels</h1>
-    <p class="mt-1 text-sm text-gray-500">{{ channels.length }} channel{{ channels.length === 1 ? '' : 's' }}</p>
-  </header>
+    <header class="tl-banner">
+      <h1 class="tl-title">Notifications</h1>
+      <div class="tl-banner-meta">
+        <span>{{ channels.length }} CHANNEL{{ channels.length === 1 ? '' : 'S' }} REGISTERED</span>
+        <span>{{ enabledCount }} ENABLED</span>
+        <span class="hz">SETTINGS /// {{ generatedAt }} UTC</span>
+      </div>
+    </header>
 
-  @if (sent)
-    <p class="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Test notification dispatched.</p>
-  @endif
-
-  @if (invalidJson)
-    <p class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">Config must be valid JSON.</p>
-  @endif
-
-  @if (channels.length > 0)
-    <div class="mb-8 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
-      @foreach (channels as channel)
-        <div class="flex items-center justify-between gap-4 px-5 py-4">
-          <div>
-            <p class="font-medium text-gray-900">{{ channel.name }}</p>
-            <p class="text-sm text-gray-500">{{ channel.type }} &middot; {{ channel.enabled ? 'enabled' : 'disabled' }}</p>
-          </div>
-          <form method="POST" action="/api/notification-channel-forms/{{ channel.id }}/test-send">
-            <button type="submit" class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Send test</button>
-          </form>
-        </div>
-      @endforeach
+    <div class="tl-filters">
+      <div class="tl-filter-group">
+        <span class="lbl">Settings</span>
+        <a href="/dashboard/settings/team" class="tl-chip">Team</a>
+        <a href="/dashboard/settings/notifications" class="tl-chip active">Notifications</a>
+        <a href="/dashboard/settings/billing" class="tl-chip">Billing</a>
+      </div>
     </div>
-  @endif
 
-  <section class="rounded-xl border border-gray-200 bg-white p-5">
-    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Add a channel</h2>
-    <form method="POST" action="/api/notification-channel-forms/create" class="space-y-3">
-      <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
-      <div>
-        <label class="mb-1 block text-xs text-gray-500">Name</label>
-        <input type="text" name="name" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="#ops-alerts" />
+    @if (sent)
+      <div class="tl-panel" style="margin: 24px 0 0; border-color: var(--phosphor);">
+        <div class="tl-panel-body" style="padding: 10px 16px; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--phosphor);">[ TEST NOTIFICATION DISPATCHED ]</div>
       </div>
-      <div>
-        <label class="mb-1 block text-xs text-gray-500">Type</label>
-        <select name="type" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-          <option value="email">Email</option>
-          <option value="sms">SMS</option>
-          <option value="slack">Slack</option>
-          <option value="discord">Discord</option>
-          <option value="teams">Teams</option>
-          <option value="pagerduty">PagerDuty</option>
-          <option value="opsgenie">Opsgenie</option>
-          <option value="pushover">Pushover</option>
-          <option value="ntfy">ntfy</option>
-          <option value="webhook">Webhook</option>
-        </select>
+    @endif
+
+    @if (invalidJson)
+      <div class="tl-panel" style="margin: 24px 0 0; border-color: var(--hazard);">
+        <div class="tl-panel-body" style="padding: 10px 16px; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--hazard);">[ REJECTED ] CONFIG MUST BE VALID JSON</div>
       </div>
-      <div>
-        <label class="mb-1 block text-xs text-gray-500">Config (JSON — e.g. <code>{"webhookUrl": "https://..."}</code> for Slack/Discord/Teams/ntfy, <code>{"email": "you@example.com"}</code> for email)</label>
-        <textarea name="config" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm" placeholder="{}"></textarea>
+    @endif
+
+    @if (channels.length === 0)
+      <div class="tl-empty" style="margin-top: 24px;">
+        <span class="big">[ NO CHANNELS WIRED ]</span>
+        <span class="why">Alerts have nowhere to go. Register a channel below to route incident traffic.</span>
       </div>
-      <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Add channel</button>
-    </form>
-  </section>
+    @endif
+
+    @if (channels.length > 0)
+      <section class="tl-table" style="margin-top: 24px;" aria-label="Notification channels">
+        <div class="tl-thead" style="grid-template-columns: 130px minmax(0, 1.6fr) 130px 130px;">
+          <span class="tl-cell">Type</span>
+          <span class="tl-cell">Name</span>
+          <span class="tl-cell">State</span>
+          <span class="tl-cell num">Action</span>
+        </div>
+        @foreach (channels as channel)
+          <div class="tl-row" style="grid-template-columns: 130px minmax(0, 1.6fr) 130px 130px; {{ channel.enabled ? '' : 'opacity: 0.6;' }}">
+            <span class="tl-cell sub" style="text-transform: uppercase; letter-spacing: 0.08em;">{{ channel.type }}</span>
+            <span class="tl-cell tl-ellipsis" style="font-weight: 700;">{{ channel.name }}</span>
+            <span class="tl-cell">
+              @if (channel.enabled)
+                <data class="st st-up" value="enabled">ENABLED</data>
+              @endif
+              @if (!channel.enabled)
+                <data class="st st-unknown" value="disabled">DISABLED</data>
+              @endif
+            </span>
+            <span class="tl-cell num">
+              <form method="POST" action="/api/notification-channel-forms/{{ channel.id }}/test-send">
+                <button type="submit" class="tl-btn ghost" style="padding: 5px 10px; font-size: 10px;">Send test</button>
+              </form>
+            </span>
+          </div>
+        @endforeach
+      </section>
+    @endif
+
+    <section class="tl-panel" aria-label="New channel">
+      <div class="tl-panel-head">
+        <span>[ NEW CHANNEL ]</span>
+        <span style="color: var(--faint);">ALERT ROUTING TARGET</span>
+      </div>
+      <div class="tl-panel-body">
+        <form method="POST" action="/api/notification-channel-forms/create">
+          <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+          <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;">
+            <div style="flex: 1 1 260px; min-width: 200px;">
+              <label class="tl-label">Name</label>
+              <input type="text" name="name" required class="tl-input" placeholder="#ops-alerts" />
+            </div>
+            <div style="flex: 0 0 180px;">
+              <label class="tl-label">Type</label>
+              <select name="type" class="tl-select">
+                <option value="email">Email</option>
+                <option value="sms">SMS</option>
+                <option value="slack">Slack</option>
+                <option value="discord">Discord</option>
+                <option value="teams">Teams</option>
+                <option value="pagerduty">PagerDuty</option>
+                <option value="opsgenie">Opsgenie</option>
+                <option value="pushover">Pushover</option>
+                <option value="ntfy">ntfy</option>
+                <option value="webhook">Webhook</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom: 14px;">
+            <label class="tl-label">Config (JSON)</label>
+            <textarea name="config" rows="3" class="tl-textarea" placeholder="{}"></textarea>
+            <p style="margin: 6px 0 0; font-size: 10px; letter-spacing: 0.04em; color: var(--dim); font-family: var(--mono);">{"webhookUrl": "https://..."} FOR SLACK / DISCORD / TEAMS / NTFY -- {"email": "you@example.com"} FOR EMAIL</p>
+          </div>
+          <button type="submit" class="tl-btn">Add channel</button>
+        </form>
+      </div>
+    </section>
+
+    <footer class="tl-footnote">
+      <span>CHANNELS {{ channels.length }} / ENABLED {{ enabledCount }}</span>
+      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    </footer>
   @endif
-</div>
+</main>

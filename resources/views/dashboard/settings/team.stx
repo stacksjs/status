@@ -3,6 +3,10 @@
   8). Same server-rendered, native-HTML-form convention as
   status-pages/index.stx, built on top of the Phase 9 TeamMember/invite
   backend (app/Models/TeamMember.ts, Actions/Teams/InviteTeamMemberAction).
+
+  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
+  brutalist) via partials/telemetry-head.stx. Phosphor green marks
+  ACTIVE membership readouts only; hazard red marks removals.
 -->
 <script server>
 const Database = require('bun:sqlite').Database
@@ -45,6 +49,7 @@ async function resolveAuthTeam() {
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'settings'
 
 const team = db.query(`SELECT id, name FROM teams WHERE id = ?1 LIMIT 1`).get(TEAM_ID)
 const members = db.query(`SELECT id, invited_email, role, status, invited_at, joined_at FROM team_members WHERE team_id = ?1 ORDER BY role ASC, invited_email ASC`).all(TEAM_ID)
@@ -65,85 +70,160 @@ try {
   // Columns not migrated yet; keep defaults.
 }
 
-function roleTone(role) {
-  if (role === 'owner') return 'bg-gray-900 text-white'
-  if (role === 'admin') return 'bg-gray-200 text-gray-700'
-  return 'bg-gray-100 text-gray-600'
+// Display-only helpers below this line.
+const activeCount = members.filter((m) => m.status !== 'pending').length
+const pendingCount = members.filter((m) => m.status === 'pending').length
+
+function dateLabel(iso) {
+  if (!iso) return '--'
+  return String(iso).slice(0, 10)
 }
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-<div class="mx-auto max-w-3xl px-6 py-10">
+@include('../partials/telemetry-head.stx')
+@include('../partials/telemetry-nav.stx')
+
+<main class="tl-shell">
   @if (!AUTH_USER)
-    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
-      <h3 class="font-medium text-gray-900">Sign in required</h3>
-      <p class="mt-1 text-sm text-gray-500">You need an authenticated session to view this page.</p>
+    <div class="tl-empty" style="margin: 48px 0;">
+      <span class="big">[ NO ACTIVE SESSION ]</span>
+      <span class="why">Authentication required to read team roster. <a href="/login" data-no-router style="color: var(--ink); text-decoration: underline;">Sign in</a>.</span>
     </div>
   @endif
 
   @if (AUTH_USER)
-  <header class="mb-6">
-    <h1 class="text-xl font-semibold text-gray-900">Team settings</h1>
-    <p class="mt-1 text-sm text-gray-500">{{ team ? team.name : 'Team #' + TEAM_ID }} &middot; {{ members.length }} member{{ members.length === 1 ? '' : 's' }}</p>
-  </header>
+    <header class="tl-banner">
+      <h1 class="tl-title">Team</h1>
+      <div class="tl-banner-meta">
+        <span>{{ team ? team.name : 'TEAM #' + TEAM_ID }}</span>
+        <span>{{ members.length }} OPERATOR{{ members.length === 1 ? '' : 'S' }} ON ROSTER</span>
+        <span class="hz">SETTINGS /// {{ generatedAt }} UTC</span>
+      </div>
+    </header>
 
-  @if (members.length > 0)
-    <div class="mb-8 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
-      @foreach (members as member)
-        <div class="flex items-center justify-between gap-4 px-5 py-4">
-          <div>
-            <p class="font-medium text-gray-900">{{ member.invited_email }}</p>
-            <p class="text-sm text-gray-500">{{ member.status === 'pending' ? 'Invite pending' : 'Active' }}</p>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ roleTone(member.role) }}">{{ member.role }}</span>
-            <form method="POST" action="/api/team-forms/{{ member.id }}/remove">
-              <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
-              <button type="submit" class="text-xs text-red-500 hover:underline">Remove</button>
-            </form>
-          </div>
-        </div>
-      @endforeach
+    <div class="tl-filters">
+      <div class="tl-filter-group">
+        <span class="lbl">Settings</span>
+        <a href="/dashboard/settings/team" class="tl-chip active">Team</a>
+        <a href="/dashboard/settings/notifications" class="tl-chip">Notifications</a>
+        <a href="/dashboard/settings/billing" class="tl-chip">Billing</a>
+      </div>
     </div>
-  @endif
 
-  <section class="rounded-xl border border-gray-200 bg-white p-5">
-    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Invite a member</h2>
-    <form method="POST" action="/api/team-forms/{{ TEAM_ID }}/invite" class="flex items-end gap-3">
-      <div class="flex-1">
-        <label class="mb-1 block text-xs text-gray-500">Email</label>
-        <input type="email" name="email" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="teammate@company.com" />
+    <dl class="tl-stats">
+      <div class="tl-stat">
+        <dt>[ Operators ]</dt>
+        <dd><output>{{ members.length }}</output></dd>
       </div>
-      <div>
-        <label class="mb-1 block text-xs text-gray-500">Role</label>
-        <select name="role" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-          <option value="member">Member</option>
-          <option value="admin">Admin</option>
-          <option value="owner">Owner</option>
-        </select>
+      <div class="tl-stat">
+        <dt>[ Active ]</dt>
+        <dd class="{{ activeCount > 0 ? 'ok' : '' }}"><output>{{ activeCount }}</output></dd>
       </div>
-      <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Invite</button>
-    </form>
-    <p class="mt-3 text-xs text-gray-400">Invites are emailed with their acceptance token. Accepting still happens via the API until dashboard sign-in lands.</p>
-  </section>
+      <div class="tl-stat">
+        <dt>[ Pending invites ]</dt>
+        <dd><output>{{ pendingCount }}</output></dd>
+      </div>
+      <div class="tl-stat">
+        <dt>[ Uptime reports ]</dt>
+        <dd class="{{ REPORT_SETTINGS.frequency !== 'none' ? 'ok' : '' }}"><output style="font-size: 18px; text-transform: uppercase;">{{ REPORT_SETTINGS.frequency === 'none' ? 'OFF' : REPORT_SETTINGS.frequency }}</output></dd>
+      </div>
+    </dl>
 
-  <section class="mt-8 rounded-xl border border-gray-200 bg-white p-5">
-    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Uptime reports</h2>
-    <form method="POST" action="/api/team-forms/{{ TEAM_ID }}/report-settings" class="flex items-end gap-3">
-      <div>
-        <label class="mb-1 block text-xs text-gray-500">Frequency</label>
-        <select name="report_frequency" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-          <option value="none" {{ REPORT_SETTINGS.frequency === 'none' ? 'selected' : '' }}>Off</option>
-          <option value="weekly" {{ REPORT_SETTINGS.frequency === 'weekly' ? 'selected' : '' }}>Weekly</option>
-          <option value="monthly" {{ REPORT_SETTINGS.frequency === 'monthly' ? 'selected' : '' }}>Monthly</option>
-        </select>
+    @if (members.length === 0)
+      <div class="tl-empty" style="margin-top: 24px;">
+        <span class="big">[ ROSTER EMPTY ]</span>
+        <span class="why">No operators registered on this team. Dispatch an invite below.</span>
       </div>
-      <div class="flex-1">
-        <label class="mb-1 block text-xs text-gray-500">Recipients</label>
-        <input type="text" name="report_recipients" value="{{ REPORT_SETTINGS.recipients }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="owner@company.com, client@company.com" />
+    @endif
+
+    @if (members.length > 0)
+      <section class="tl-table" style="margin-top: 24px;" aria-label="Team roster">
+        <div class="tl-thead" style="grid-template-columns: minmax(0, 1.6fr) 110px 130px 120px 110px;">
+          <span class="tl-cell">Operator</span>
+          <span class="tl-cell">Role</span>
+          <span class="tl-cell">Status</span>
+          <span class="tl-cell num">Joined</span>
+          <span class="tl-cell num">Action</span>
+        </div>
+        @foreach (members as member)
+          <div class="tl-row" style="grid-template-columns: minmax(0, 1.6fr) 110px 130px 120px 110px; {{ member.status === 'pending' ? 'opacity: 0.6;' : '' }}">
+            <span class="tl-cell tl-ellipsis" style="font-weight: 700;">{{ member.invited_email }}</span>
+            <span class="tl-cell sub" style="text-transform: uppercase; letter-spacing: 0.08em; {{ member.role === 'owner' ? 'color: var(--ink); font-weight: 700;' : '' }}">{{ member.role }}</span>
+            <span class="tl-cell">
+              @if (member.status === 'pending')
+                <data class="st st-unknown" value="pending">PENDING</data>
+              @endif
+              @if (member.status !== 'pending')
+                <data class="st st-up" value="active">ACTIVE</data>
+              @endif
+            </span>
+            <span class="tl-cell num sub"><time>{{ dateLabel(member.joined_at || member.invited_at) }}</time></span>
+            <span class="tl-cell num">
+              <form method="POST" action="/api/team-forms/{{ member.id }}/remove">
+                <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+                <button type="submit" class="tl-btn danger ghost" style="background: transparent; color: var(--hazard); border-color: var(--line); padding: 5px 10px; font-size: 10px;">Remove</button>
+              </form>
+            </span>
+          </div>
+        @endforeach
+      </section>
+    @endif
+
+    <section class="tl-panel" aria-label="Invite operator">
+      <div class="tl-panel-head">
+        <span>[ INVITE OPERATOR ]</span>
+        <span style="color: var(--faint);">DISPATCHED VIA EMAIL TOKEN</span>
       </div>
-      <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white">Save</button>
-    </form>
-    <p class="mt-3 text-xs text-gray-400">Leave empty to send to the team owner. A client-ready summary of uptime, response times, incidents, and crawl findings is emailed each period.</p>
-  </section>
+      <div class="tl-panel-body">
+        <form method="POST" action="/api/team-forms/{{ TEAM_ID }}/invite" style="display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;">
+          <div style="flex: 1 1 260px; min-width: 200px;">
+            <label class="tl-label">Email</label>
+            <input type="email" name="email" required class="tl-input" placeholder="operator@company.com" />
+          </div>
+          <div style="flex: 0 0 160px;">
+            <label class="tl-label">Role</label>
+            <select name="role" class="tl-select">
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+              <option value="owner">Owner</option>
+            </select>
+          </div>
+          <button type="submit" class="tl-btn">Invite</button>
+        </form>
+        <p style="margin: 12px 0 0; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint);">Invites are emailed with their acceptance token. Accepting still happens via the API until dashboard sign-in lands.</p>
+      </div>
+    </section>
+
+    <section class="tl-panel" aria-label="Uptime reports">
+      <div class="tl-panel-head">
+        <span>[ UPTIME REPORTS ]</span>
+        <span style="{{ REPORT_SETTINGS.frequency !== 'none' ? 'color: var(--phosphor);' : 'color: var(--faint);' }}">{{ REPORT_SETTINGS.frequency === 'none' ? 'DISPATCH OFF' : 'DISPATCH ' + REPORT_SETTINGS.frequency.toUpperCase() }}</span>
+      </div>
+      <div class="tl-panel-body">
+        <form method="POST" action="/api/team-forms/{{ TEAM_ID }}/report-settings" style="display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;">
+          <div style="flex: 0 0 160px;">
+            <label class="tl-label">Frequency</label>
+            <select name="report_frequency" class="tl-select">
+              <option value="none" {{ REPORT_SETTINGS.frequency === 'none' ? 'selected' : '' }}>Off</option>
+              <option value="weekly" {{ REPORT_SETTINGS.frequency === 'weekly' ? 'selected' : '' }}>Weekly</option>
+              <option value="monthly" {{ REPORT_SETTINGS.frequency === 'monthly' ? 'selected' : '' }}>Monthly</option>
+            </select>
+          </div>
+          <div style="flex: 1 1 280px; min-width: 220px;">
+            <label class="tl-label">Recipients</label>
+            <input type="text" name="report_recipients" value="{{ REPORT_SETTINGS.recipients }}" class="tl-input" placeholder="owner@company.com, client@company.com" />
+          </div>
+          <button type="submit" class="tl-btn">Save</button>
+        </form>
+        <p style="margin: 12px 0 0; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint);">Leave empty to send to the team owner. A client-ready summary of uptime, response times, incidents, and crawl findings is emailed each period.</p>
+      </div>
+    </section>
+
+    <footer class="tl-footnote">
+      <span>ROSTER {{ members.length }} / PENDING {{ pendingCount }}</span>
+      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    </footer>
   @endif
-</div>
+</main>
