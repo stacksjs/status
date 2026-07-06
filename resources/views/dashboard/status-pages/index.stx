@@ -38,15 +38,18 @@ async function resolveAuthTeam() {
   memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
   const membership = memberships[0]
 
-  return { user, teamId: membership ? membership.team_id : null }
+  return { user, teamId: membership ? membership.team_id : null, isSuper: !!user.is_super_admin }
 }
 
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// Super-admins see every team's status pages.
+const IS_SUPER = !!(AUTH && AUTH.isSuper)
+const teamScope = qb => IS_SUPER ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'status-pages'
 
-const statusPages = await db.selectFrom('status_pages').where('team_id', '=', TEAM_ID).orderBy('title', 'asc').execute()
+const statusPages = await teamScope(db.selectFrom('status_pages')).orderBy('title', 'asc').execute()
 
 const limitError = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? __stxServeSearch.includes('error=limit') : false
 

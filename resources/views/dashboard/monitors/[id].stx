@@ -51,18 +51,25 @@ async function resolveAuthTeam() {
   memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
   const membership = memberships[0]
 
-  return { user, teamId: membership ? membership.team_id : null }
+  return { user, teamId: membership ? membership.team_id : null, isSuper: !!user.is_super_admin }
 }
 
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// Super-admins can open any team's monitor; members only their own team's.
+const IS_SUPER = !!(AUTH && AUTH.isSuper)
 const NAV_ACTIVE = 'monitors'
 
 const appUrl = process.env.APP_URL || 'http://localhost:3000'
 
 const monitorId = (typeof id !== 'undefined' && id) ? Number(id) : 0
-const monitor = monitorId ? (await db.selectFrom('monitors').where('id', '=', monitorId).where('team_id', '=', TEAM_ID).limit(1).execute())[0] || null : null
+const monitor = monitorId
+  ? (await (IS_SUPER
+      ? db.selectFrom('monitors').where('id', '=', monitorId)
+      : db.selectFrom('monitors').where('id', '=', monitorId).where('team_id', '=', TEAM_ID)
+    ).limit(1).execute())[0] || null
+  : null
 
 // Display helpers -- same contract as monitors/index.stx: stClass/stLabel
 // drive the <data class="pill ..."> readouts, agoLabel renders relative
@@ -329,29 +336,65 @@ if (denseBuckets.length > 0) {
   }
 }
 
-// CPU/RAM traces: fixed 0-100% axis, gaps where the agent sent nothing
-// (line.defined) instead of the old null-becomes-zero cliffs.
+// CPU/RAM traces plotted from the RAW per-sample metrics the agent pushes
+// (typically one per minute), NOT the hourly request-volume buckets above.
+// Averaging into hourly buckets meant a server that only started reporting
+// minutes ago produced a single non-null bucket \u2014 and curveMonotoneX needs
+// >=2 points to draw a path, so the chart rendered empty. Sampling the raw
+// rows gives a real line the moment two samples exist. The x-axis is time
+// (uneven sample spacing is honoured), the y-axis is a fixed 0-100%, and
+// line.defined leaves gaps where a sample carried only one of CPU/RAM.
 let hostChart = null
-if (monitor && monitor.reports_metrics && denseBuckets.length > 1) {
-  const x = scaleLinear().domain([0, denseBuckets.length - 1]).range([CHART.left, CHART.w - CHART.right])
-  const y = scaleLinear().domain([0, 100]).range([CHART.h - CHART.bottom, CHART.top])
-  const gen = key => chartLine()
-    .defined(d => typeof d[key] === 'number')
-    .x((_d, i) => x(i))
-    .y(d => y(d[key]))
-    .curve(curveMonotoneX)(denseBuckets.map(b => ({ avg_cpu: b.avg_cpu, avg_ram: b.avg_ram })))
-  const latest = [...denseBuckets].reverse().find(b => b.avg_cpu !== null)
-  const hostHitW = (PLOT.right - PLOT.left) / denseBuckets.length
-  hostChart = {
-    cpuPath: gen('avg_cpu') || '',
-    ramPath: gen('avg_ram') || '',
-    ticks: [0, 50, 100].map(t => ({ y: y(t).toFixed(1), label: t + '%' })),
-    nowLabel: latest ? Math.round(latest.avg_cpu) + '% CPU / ' + Math.round(latest.avg_ram) + '% RAM' : '--',
-    hits: denseBuckets.map((b, i) => ({
-      x: (x(i) - hostHitW / 2).toFixed(1),
-      w: hostHitW.toFixed(1),
-      tip: b.bucket + ' \u00b7 ' + (b.avg_cpu !== null ? Math.round(b.avg_cpu) + '% CPU / ' + Math.round(b.avg_ram) + '% RAM' : 'no samples'),
-    })),
+if (monitor && monitor.reports_metrics) {
+  const metricRows = await db.selectFrom('check_results')
+    .where('monitor_id', '=', monitor.id)
+    .where('checked_at', '>=', since)
+    .orderBy('checked_at', 'asc')
+    .execute()
+  const samples = []
+  for (const r of metricRows) {
+    let meta = {}
+    try { meta = JSON.parse(r.metadata || '{}') } catch {}
+    const cpu = typeof meta.cpuPercent === 'number' ? meta.cpuPercent : null
+    const ram = typeof meta.ramPercent === 'number' ? meta.ramPercent : null
+    if (cpu !== null || ram !== null)
+      samples.push({ t: Date.parse(r.checked_at), iso: r.checked_at, cpu, ram })
+  }
+
+  if (samples.length > 1) {
+    const t0 = samples[0].t
+    const t1 = samples[samples.length - 1].t
+    const x = scaleLinear().domain([t0, t1 === t0 ? t0 + 1 : t1]).range([CHART.left, CHART.w - CHART.right])
+    const y = scaleLinear().domain([0, 100]).range([CHART.h - CHART.bottom, CHART.top])
+    const gen = key => chartLine()
+      .defined(d => typeof d[key] === 'number')
+      .x(d => x(d.t))
+      .y(d => y(d[key]))
+      .curve(curveMonotoneX)(samples)
+    const latest = [...samples].reverse().find(s => s.cpu !== null || s.ram !== null)
+    const nowParts = []
+    if (latest && latest.cpu !== null) nowParts.push(Math.round(latest.cpu) + '% CPU')
+    if (latest && latest.ram !== null) nowParts.push(Math.round(latest.ram) + '% RAM')
+    // Cap hover targets so a full day of per-minute samples (~1440) doesn't
+    // emit 1440 <rect> hit columns; thin to at most ~60 evenly-spaced hits.
+    const stepH = Math.max(1, Math.ceil(samples.length / 60))
+    const hostHitW = (PLOT.right - PLOT.left) / Math.ceil(samples.length / stepH)
+    const clock = iso => String(iso).slice(11, 16)
+    const sampleTip = s => clock(s.iso) + ' \u00b7 '
+      + (s.cpu !== null ? Math.round(s.cpu) + '% CPU' : 'no CPU')
+      + (s.cpu !== null && s.ram !== null ? ' / ' : ' \u00b7 ')
+      + (s.ram !== null ? Math.round(s.ram) + '% RAM' : 'no RAM')
+    hostChart = {
+      cpuPath: gen('cpu') || '',
+      ramPath: gen('ram') || '',
+      ticks: [0, 50, 100].map(t => ({ y: y(t).toFixed(1), label: t + '%' })),
+      nowLabel: nowParts.length ? nowParts.join(' / ') : '--',
+      hits: samples.filter((_s, i) => i % stepH === 0).map(s => ({
+        x: (x(s.t) - hostHitW / 2).toFixed(1),
+        w: hostHitW.toFixed(1),
+        tip: sampleTip(s),
+      })),
+    }
   }
 }
 

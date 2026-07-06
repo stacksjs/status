@@ -40,12 +40,15 @@ async function resolveAuthTeam() {
   memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
   const membership = memberships[0]
 
-  return { user, teamId: membership ? membership.team_id : null }
+  return { user, teamId: membership ? membership.team_id : null, isSuper: !!user.is_super_admin }
 }
 
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// Super-admins see incidents across every team's monitors.
+const IS_SUPER = !!(AUTH && AUTH.isSuper)
+const teamScope = qb => IS_SUPER ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'incidents'
 
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
@@ -55,7 +58,7 @@ const filterStatus = query.get('status') || ''
 // filtering incidents to them — the old cross-table JOIN is split into
 // two portable queries (the fluent builder's aliased-join projection is
 // unreliable). The monitor name is joined back in JS from the same fetch.
-const teamMonitors = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).execute()
+const teamMonitors = await teamScope(db.selectFrom('monitors')).execute()
 const monitorIds = teamMonitors.map(m => m.id)
 const monitorNameById = new Map(teamMonitors.map(m => [m.id, m.name]))
 

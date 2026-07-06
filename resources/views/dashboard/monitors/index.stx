@@ -56,12 +56,17 @@ async function resolveAuthTeam() {
   memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
   const membership = memberships[0]
 
-  return { user, teamId: membership ? membership.team_id : null }
+  return { user, teamId: membership ? membership.team_id : null, isSuper: !!user.is_super_admin }
 }
 
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// Super-admins (operator accounts) see the whole fleet, every team's monitors;
+// everyone else is scoped to their own team. `teamScope` is applied to every
+// team-filtered query below so the two paths can't drift apart.
+const IS_SUPER = !!(AUTH && AUTH.isSuper)
+const teamScope = qb => IS_SUPER ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'monitors'
 
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
@@ -81,7 +86,7 @@ function idxRangeUrl(r) {
 
 // One unfiltered fetch of the team's fleet; types, the filtered display
 // list, and the fleet tally are all derived from it in JS (dialect-agnostic).
-const allMonitors = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).execute()
+const allMonitors = await teamScope(db.selectFrom('monitors')).execute()
 const allTypes = [...new Set(allMonitors.map(m => m.type))].sort()
 
 const monitors = allMonitors

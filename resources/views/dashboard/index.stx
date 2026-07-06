@@ -41,18 +41,22 @@ async function resolveAuthTeam() {
   memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
   const membership = memberships[0]
 
-  return { user, teamId: membership ? membership.team_id : null }
+  return { user, teamId: membership ? membership.team_id : null, isSuper: !!user.is_super_admin }
 }
 
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// Super-admins get a cross-team overview: every monitor, incident, and status
+// page of every team. Everyone else stays scoped to their own team.
+const IS_SUPER = !!(AUTH && AUTH.isSuper)
+const teamScope = qb => IS_SUPER ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'overview'
 
 // One unfiltered fetch of the team's fleet; the fleet tally and the
 // monitors preview are both derived from it in JS (dialect-agnostic),
 // same approach as monitors/index.stx.
-const allMonitors = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).execute()
+const allMonitors = await teamScope(db.selectFrom('monitors')).execute()
 const monitorCount = allMonitors.length
 
 const fleetCounts = {}
@@ -87,7 +91,7 @@ if (monitorIds.length) {
 }
 
 // Team's status pages.
-const statusPages = await db.selectFrom('status_pages').where('team_id', '=', TEAM_ID).orderBy('title', 'asc').execute()
+const statusPages = await teamScope(db.selectFrom('status_pages')).orderBy('title', 'asc').execute()
 const statusPageCount = statusPages.length
 
 // ---- Display-only helpers (no queries, no auth) ----
