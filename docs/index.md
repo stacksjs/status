@@ -1,76 +1,53 @@
 ---
+title: UptimeStatus Documentation
+description: Open-source uptime, SSL, DNS, and status-page monitoring. Self-hosted, or fully managed by us.
 layout: home
-
-title: Stacks
-titleTemplate: Modern TypeScript Fullstack Development.
-
 hero:
-  name: Stacks.js
-  text: Build. Ship. Faster.
-  tagline: Rapid application, cloud & library development framework. For the best full-stack teams.
-  image: /images/logos/logo-white.png
+  name: UptimeStatus
+  text: Know the moment something breaks.
+  tagline: Open-source uptime, SSL, DNS, and status-page monitoring — self-hosted, or fully managed by us.
   actions:
     - theme: brand
-      text: Coming Soon
-      # text: Get Started
-      link: /docs/guide/get-started
+      text: Quick start
+      link: /getting-started
+    - theme: alt
+      text: Open the dashboard
+      link: https://uptime-status.org/dashboard
     - theme: alt
       text: View on GitHub
-      link: https://github.com/stacksjs/stacks
-
+      link: https://github.com/stacksjs/status
 features:
-  - title: Best-in-Class DX
-    icon: 🦋
-    details: One framework that does it all. Building TypeScript apps & libraries has never been simpler.
-  - title: App Development
-    icon: 🖥️
-    details: Performant Web or Tauri desktop applications, let Stacks handle the heavy-lifting for you.
-  - title: Library Development
-    icon: 📚
-    details: Automagically builds & distributes your component & function libraries, via npm.
-  - title: Cloud Development
-    icon: ☁️
-    details: Automatic zero-downtime deployments of production-ready serverless clouds. Self-hosted.
-  - title: Modern Administration
-    icon: 📊
-    details: A sleek admin dashboard, out-of-the-box. For devs & your clients. Our product is your product.
-  - title: Scalable APIs
+  - title: Availability
     icon: 📡
-    details: Building serverless APIs has never been simpler. Focus on your business logic, not your infrastructure.
-  - title: Secure Authentication
-    icon: 🔐
-    details: Robust API & web authentication, ensuring the security of your user data. User-friendly, zero-config & ready-to-go.
-  - title: Built-in CI / CD
-    icon: 🤖
-    details: Focus on coding, not publishing. Automates linting, version tagging, changelog generation, test execution, and more.
-  - title: Global CDN
-    icon: 🌐
-    details: '"Securely deliver content with low latency and high transfer speeds," AWS. Your assets, zero-config.'
-  - title: Queues & Jobs
-    icon: 📦
-    details: Leverage the power of queues. Defer time-consuming tasks using managed serverless queues.
-  - title: Notifications
-    icon: 📨
-    details: Send notifications to your users via email, SMS, Slack, Discord, Push and more.
-  - title: Billing & Payments
-    icon: 💳
-    details: Accept payments from your users using Stripe. One-off payments, subscriptions, and more.
-  - title: Search Engine
-    icon: 🔍
-    details: 'Powerful & fast. "Build an intuitive search experience in a snap," Meilisearch.'
-  - title: Progressive UI Engine
-    icon: ⚙️
-    details: An approachable, performant and versatile framework for building web UIs.
-  - title: Atomic CSS Engine
-    icon: 🎨
-    details: '"Blazingly fast utility-first CSS framework," Headwind. Easily create & manage your styles.'
-  - title: Streamlined Testing
-    icon: 🧪
-    details: A fast built-in testing framework. Enjoyable support for both unit & feature tests.
-  - title: Commerce
-    icon: 💴
-    details: A fast built-in testing framework. Enjoyable support for both unit & feature tests.
-  - title: Realtime
-    icon: 🏃🏻
-    details: Build real-time features with WebSockets. Add live updates, chat, notifications & collaborative features with ease.
+    details: HTTP, ping, TCP, cron heartbeats, and JSON health checks — from multiple regions, as often as every 30 seconds.
+  - title: Certificates & DNS
+    icon: 🔒
+    details: SSL expiry and fingerprint changes, WHOIS domain expiry, DNS-record drift, and origin-IP blocklist watches.
+  - title: Performance & security
+    icon: ⚡
+    details: Response-time trends, scheduled Lighthouse audits, broken-link crawls, port-scan detection, and AI checks.
+  - title: Status pages
+    icon: 🟢
+    details: Public or access-controlled pages on your own domain, with uptime history, subscribers, and no vendor watermark.
+  - title: Incidents & alerts
+    icon: 🔔
+    details: Failed checks open a timeline incident automatically and page you across ten notification channels.
+  - title: Self-hostable
+    icon: 🧰
+    details: MIT-licensed and self-hostable on a single box — or let the UptimeStatus team run it for you.
 ---
+
+## Get monitoring in four steps
+
+1. **Create your account.** [Sign up free](https://uptime-status.org/register) — 5 monitors, no card — or [self-host](/self-hosting/deploy) the whole thing from the repo.
+2. **Add your first monitor.** Point a monitor at a URL, host, or port. [Uptime](/monitors/uptime), [SSL](/monitors/ssl), [DNS](/monitors/dns), [ping](/monitors/ping) and more each become a check on that site.
+3. **Route your alerts.** Attach [Email, SMS, Slack, Discord, Teams, PagerDuty, and more](/operate/notifications) to a monitor.
+4. **Publish a status page.** Give customers a [public or access-controlled page](/operate/status-pages) that reflects your monitors in real time.
+
+## Explore the docs
+
+- **[Monitors overview](/monitors/)** — every check type, grouped by what it watches.
+- **[Notifications](/operate/notifications)** — ten channels, routed per monitor, with issue-vs-down severity.
+- **[Status pages](/operate/status-pages)** — branded pages on your own domain.
+- **[Self-hosting](/self-hosting/deploy)** — deploy and run UptimeStatus yourself.
+- **[CLI](/reference/cli)** and **[API](/reference/api)** — automate everything.
