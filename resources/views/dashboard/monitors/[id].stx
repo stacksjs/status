@@ -71,6 +71,21 @@ const monitor = monitorId
     ).limit(1).execute())[0] || null
   : null
 
+// A monitor is one check on a site (its domain); the breadcrumb links back up
+// to that site so the Overview -> Site -> Check hierarchy holds everywhere.
+// siteHost/siteSlug are the same helpers as dashboard/index.stx and
+// sites/[slug].stx — kept identical so the grouping and links stay in step.
+function siteHost(url) {
+  let h = String(url).replace(/^https?:\/\//i, '')
+  h = h.split('/')[0].split('?')[0].split('#')[0].split(':')[0]
+  return h.replace(/^www\./i, '').toLowerCase() || 'unknown'
+}
+function siteSlug(host) {
+  return String(host).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
+}
+const monitorSiteHost = monitor ? siteHost(monitor.url) : ''
+const monitorSiteSlug = siteSlug(monitorSiteHost)
+
 // Display helpers -- same contract as monitors/index.stx: stClass/stLabel
 // drive the <data class="pill ..."> readouts, agoLabel renders relative
 // timestamps in lowercase.
@@ -600,7 +615,7 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
   @if (monitor)
     <header class="page-head">
       <div>
-        <nav class="crumb" aria-label="Breadcrumb"><a href="/dashboard/monitors">&larr; Monitors</a></nav>
+        <nav class="crumb" aria-label="Breadcrumb"><a href="/dashboard/sites/{{ monitorSiteSlug }}">&larr; {{ monitorSiteHost }}</a> &middot; <a href="/dashboard/monitors">All monitors</a></nav>
         <h1 style="overflow-wrap: anywhere;">{{ monitor.name }}</h1>
         <p class="meta"><span class="mono">{{ monitor.url }}</span> &middot; {{ monitor.type.replace('_', ' ') }} &middot; {{ intervalLabel(monitor.check_interval_seconds) }} &middot; {{ monitor.enabled ? 'enabled' : 'disabled' }}</p>
       </div>

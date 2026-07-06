@@ -94,6 +94,59 @@ if (monitorIds.length) {
 const statusPages = await teamScope(db.selectFrom('status_pages')).orderBy('title', 'asc').execute()
 const statusPageCount = statusPages.length
 
+// ---- Sites: monitors grouped by domain (stacksjs/status#1). An account can
+// track many sites, and each site is usually several monitors (uptime, SSL,
+// DNS, crawl…) for one domain. The overview is site-first: pick a site to see
+// all its checks/incidents/telemetry. `siteHost`/`siteSlug` are shared
+// verbatim with resources/views/dashboard/sites/[slug].stx so the grouping and
+// the link targets stay in lockstep.
+function siteHost(url) {
+  // Strip scheme, then cut at the first path/query/fragment/port delimiter.
+  // Split-based rather than a `/[/:?#]/` char class: an unescaped slash inside
+  // a regex character class confuses stx's <script> boundary scanner and makes
+  // the whole server script fail to eval. `new URL()` is likewise avoided — it
+  // throws on the bare-hostname monitors this also has to handle.
+  let h = String(url).replace(/^https?:\/\//i, '')
+  h = h.split('/')[0].split('?')[0].split('#')[0].split(':')[0]
+  return h.replace(/^www\./i, '').toLowerCase() || 'unknown'
+}
+function siteSlug(host) {
+  return String(host).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
+}
+// Worst-status wins for a site's rolled-up health: a single down check makes
+// the whole site read down. Rank so down > degraded > up > paused/pending.
+const SITE_STATUS_RANK = { down: 3, degraded: 2, up: 1, paused: 0, pending: 0 }
+const siteRank = m => SITE_STATUS_RANK[m.status] ?? 0
+
+const siteMap = new Map()
+for (const m of allMonitors) {
+  const host = siteHost(m.url)
+  let s = siteMap.get(host)
+  if (!s) {
+    s = { host, slug: siteSlug(host), monitors: [], lastChecked: null }
+    siteMap.set(host, s)
+  }
+  s.monitors.push(m)
+  if (m.last_checked_at && (!s.lastChecked || m.last_checked_at > s.lastChecked))
+    s.lastChecked = m.last_checked_at
+}
+// Built with a plain loop rather than a chained `.map(s => { … }).sort()`:
+// stx's server-script variable extractor mis-parses an arrow with a *block*
+// body inside a multi-line chained expression and fails to capture the
+// result, which silently breaks the whole page. The monitors list above gets
+// away with a multi-line chain only because its arrows are expression-bodied.
+const sites = []
+for (const s of siteMap.values()) {
+  let worst = s.monitors[0]
+  for (const m of s.monitors) {
+    if (siteRank(m) > siteRank(worst))
+      worst = m
+  }
+  sites.push({ host: s.host, slug: s.slug, count: s.monitors.length, status: worst ? worst.status : 'pending', lastChecked: s.lastChecked })
+}
+sites.sort((a, b) => (siteRank(b) - siteRank(a)) || a.host.localeCompare(b.host))
+const siteCount = sites.length
+
 // ---- Display-only helpers (no queries, no auth) ----
 
 // Monitor status pills + labels, copied from monitors/index.stx.
@@ -165,7 +218,7 @@ useHead({ title: 'Overview · UptimeStatus', meta: [{ name: 'robots', content: '
     <header class="page-head">
       <div>
         <h1>Overview</h1>
-        <p class="meta">{{ monitorCount }} monitor{{ monitorCount === 1 ? '' : 's' }} &middot; {{ statusPageCount }} status page{{ statusPageCount === 1 ? '' : 's' }}</p>
+        <p class="meta">{{ siteCount }} site{{ siteCount === 1 ? '' : 's' }} &middot; {{ monitorCount }} monitor{{ monitorCount === 1 ? '' : 's' }} &middot; {{ statusPageCount }} status page{{ statusPageCount === 1 ? '' : 's' }}</p>
       </div>
       <div class="actions">
         <a class="button" href="/dashboard/monitors" data-no-router>View all monitors</a>
@@ -174,12 +227,12 @@ useHead({ title: 'Overview · UptimeStatus', meta: [{ name: 'robots', content: '
 
     <dl class="stat-grid">
       <div class="stat-card">
-        <dt>Operational</dt>
-        <dd class="{{ fleetOf('up') > 0 ? 'ok' : '' }}">{{ fleetOf('up') }}</dd>
+        <dt>Sites</dt>
+        <dd>{{ siteCount }}</dd>
       </div>
       <div class="stat-card">
-        <dt>Degraded</dt>
-        <dd class="{{ fleetOf('degraded') > 0 ? 'warn' : '' }}">{{ fleetOf('degraded') }}</dd>
+        <dt>Operational</dt>
+        <dd class="{{ fleetOf('up') > 0 ? 'ok' : '' }}">{{ fleetOf('up') }}</dd>
       </div>
       <div class="stat-card">
         <dt>Down</dt>
@@ -195,42 +248,40 @@ useHead({ title: 'Overview · UptimeStatus', meta: [{ name: 'robots', content: '
       </div>
     </dl>
 
-    <section class="card scroll-x" aria-label="Monitors">
+    <section class="card scroll-x" aria-label="Sites">
       <div class="card-head">
-        <h3>Monitors</h3>
-        <span class="sub">{{ monitorCount }} tracked</span>
+        <h3>Sites</h3>
+        <span class="sub">{{ siteCount }} tracked &middot; pick one to view its checks</span>
       </div>
-      @if (monitorCount === 0)
+      @if (siteCount === 0)
         <div class="card-body">
           <div class="empty" style="border: 0; padding: 1.5rem 0;">
-            <h3>No monitors yet</h3>
-            <p>Create a monitor via the API to start tracking uptime. <a href="/dashboard/monitors">Go to monitors</a>.</p>
+            <h3>No sites yet</h3>
+            <p>Add a monitor and its domain shows up here as a site. <a href="/dashboard/monitors">Go to monitors</a>.</p>
           </div>
         </div>
       @endif
-      @if (monitorCount > 0)
+      @if (siteCount > 0)
         <div class="rows">
-          <div class="trow thead" style="grid-template-columns: 110px minmax(220px, 1.7fr) 120px 92px;">
+          <div class="trow thead" style="grid-template-columns: 110px minmax(220px, 1.9fr) 92px 92px;">
             <span class="tcell">Status</span>
-            <span class="tcell">Monitor</span>
-            <span class="tcell">Type</span>
+            <span class="tcell">Site</span>
+            <span class="tcell num">Checks</span>
             <span class="tcell num">Checked</span>
           </div>
-          @foreach (monitors as monitor)
-            <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 120px 92px;">
-              <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data></span>
+          @foreach (sites as site)
+            <a class="trow" href="/dashboard/sites/{{ site.slug }}">
+              <span class="tcell"><data class="{{ stClass(site.status) }}" value="{{ site.status }}"><span class="dot"></span>{{ stLabel(site.status) }}</data></span>
               <span class="tcell">
-                <span class="name ellipsis" style="display: block;">{{ monitor.name }}</span>
-                <span class="sub" style="display: block;">{{ targetLabel(monitor.url) }}</span>
+                <span class="name ellipsis" style="display: block;">{{ site.host }}</span>
+                <span class="sub" style="display: block;">{{ site.count }} check{{ site.count === 1 ? '' : 's' }}</span>
               </span>
-              <span class="tcell"><span class="tag">{{ typeLabel(monitor.type) }}</span></span>
-              <span class="tcell num"><time>{{ agoLabel(monitor.last_checked_at) }}</time></span>
+              <span class="tcell num">{{ site.count }}</span>
+              <span class="tcell num"><time>{{ agoLabel(site.lastChecked) }}</time></span>
             </a>
           @endforeach
         </div>
-        @if (monitorCount > MONITOR_PREVIEW_LIMIT)
-          <a class="card-foot" href="/dashboard/monitors" data-no-router style="display: block; padding: 0.9rem 1.25rem; border-top: 1px solid var(--border); color: var(--accent); font-size: 0.85rem; font-weight: 600;">View all {{ monitorCount }} monitors</a>
-        @endif
+        <a class="card-foot" href="/dashboard/monitors" data-no-router style="display: block; padding: 0.9rem 1.25rem; border-top: 1px solid var(--border); color: var(--accent); font-size: 0.85rem; font-weight: 600;">View all {{ monitorCount }} monitors</a>
       @endif
     </section>
 

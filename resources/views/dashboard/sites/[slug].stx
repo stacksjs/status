@@ -1,0 +1,314 @@
+<!--
+  Site detail — the per-domain view an account drills into from the overview
+  (stacksjs/status#1). An account can track many sites, and a "site" is just
+  the monitors that share a hostname; this page rolls them up: the site's
+  checks, its open incidents, and host telemetry if any check reports it.
+
+  Server-rendered, team-scoped, same convention and visual language as
+  monitors/[id].stx and the overview. `siteHost`/`siteSlug` are copied
+  verbatim from resources/views/dashboard/index.stx so the overview's site
+  cards and this page agree on grouping and link targets.
+-->
+<script server>
+const { config } = require('@stacksjs/config')
+const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
+const { scaleLinear, line: chartLine, curveMonotoneX } = require('ts-charts')
+
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
+
+// Auth + team resolution — see monitors/index.stx's copy for the full
+// rationale. Fails closed to no team so a signed-out or wrong-team visitor
+// sees the "site not found" state rather than another team's monitors.
+async function resolveAuthTeam() {
+  const guardName = config.auth?.default || 'api'
+  const guard = config.auth?.guards?.[guardName] || {}
+  const driver = guard.driver || 'token'
+  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
+
+  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
+    ? globalThis.requestContext.cookie(cookieName)
+    : null
+  if (!cookieValue) return null
+
+  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
+  if (!user || !user.id) return null
+
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
+
+  return { user, teamId: membership ? membership.team_id : null, isSuper: !!user.is_super_admin }
+}
+
+const AUTH = await resolveAuthTeam()
+const AUTH_USER = AUTH ? AUTH.user : null
+const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const IS_SUPER = !!(AUTH && AUTH.isSuper)
+const teamScope = qb => IS_SUPER ? qb : qb.where('team_id', '=', TEAM_ID)
+const NAV_ACTIVE = 'monitors'
+
+function siteHost(url) {
+  // Split-based host extraction — see the identical helper in
+  // dashboard/index.stx for why a `/[/:?#]/` char class and `new URL()` are
+  // both avoided here.
+  let h = String(url).replace(/^https?:\/\//i, '')
+  h = h.split('/')[0].split('?')[0].split('#')[0].split(':')[0]
+  return h.replace(/^www\./i, '').toLowerCase() || 'unknown'
+}
+function siteSlug(host) {
+  return String(host).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
+}
+const SITE_STATUS_RANK = { down: 3, degraded: 2, up: 1, paused: 0, pending: 0 }
+const siteRank = m => SITE_STATUS_RANK[m.status] ?? 0
+
+const wantedSlug = (typeof slug !== 'undefined' && slug) ? String(slug).toLowerCase() : ''
+
+// All the team's monitors whose hostname slug matches the requested site.
+const allMonitors = AUTH_USER ? await teamScope(db.selectFrom('monitors')).execute() : []
+const siteMonitors = allMonitors
+  .filter(m => siteSlug(siteHost(m.url)) === wantedSlug)
+  .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+const siteExists = siteMonitors.length > 0
+const siteHostName = siteExists ? siteHost(siteMonitors[0].url) : wantedSlug
+const worstMon = siteExists ? siteMonitors.reduce((w, m) => (siteRank(m) > siteRank(w) ? m : w), siteMonitors[0]) : null
+const siteStatus = worstMon ? worstMon.status : 'pending'
+
+// Open incidents across this site's monitors (two-query split, dialect-agnostic).
+const siteMonitorIds = siteMonitors.map(m => m.id)
+const monitorNameById = new Map(siteMonitors.map(m => [m.id, m.name]))
+let openIncidents = []
+let openIncidentCount = 0
+if (siteMonitorIds.length) {
+  openIncidentCount = await db.selectFrom('incidents').whereIn('monitor_id', siteMonitorIds).where('status', '!=', 'resolved').count()
+  const rows = await db.selectFrom('incidents')
+    .whereIn('monitor_id', siteMonitorIds).where('status', '!=', 'resolved')
+    .orderBy('started_at', 'desc').limit(20).execute()
+  openIncidents = rows.map(i => ({
+    id: i.id, cause: i.cause, status: i.status, started_at: i.started_at,
+    monitor_id: i.monitor_id, monitor_name: monitorNameById.get(i.monitor_id) || '',
+  }))
+}
+
+// Host telemetry: raw per-sample CPU/RAM from the first check on this site
+// that reports metrics (same raw-sample approach as monitors/[id].stx — a
+// single top -bn1 bucket-average rendered empty). Last 24h.
+const CHART = { w: 1280, h: 200, top: 14, right: 14, bottom: 30, left: 64 }
+const PLOT = { left: CHART.left, right: CHART.w - CHART.right, top: CHART.top, bottom: CHART.h - CHART.bottom }
+const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+let hostChart = null
+let hostMonitor = null
+const metricMon = siteMonitors.find(m => m.reports_metrics)
+if (metricMon) {
+  hostMonitor = metricMon
+  const metricRows = await db.selectFrom('check_results')
+    .where('monitor_id', '=', metricMon.id)
+    .where('checked_at', '>=', since)
+    .orderBy('checked_at', 'asc')
+    .execute()
+  const samples = []
+  for (const r of metricRows) {
+    let meta = {}
+    try { meta = JSON.parse(r.metadata || '{}') } catch {}
+    const cpu = typeof meta.cpuPercent === 'number' ? meta.cpuPercent : null
+    const ram = typeof meta.ramPercent === 'number' ? meta.ramPercent : null
+    if (cpu !== null || ram !== null)
+      samples.push({ t: Date.parse(r.checked_at), iso: r.checked_at, cpu, ram })
+  }
+  if (samples.length > 1) {
+    const t0 = samples[0].t
+    const t1 = samples[samples.length - 1].t
+    const x = scaleLinear().domain([t0, t1 === t0 ? t0 + 1 : t1]).range([CHART.left, CHART.w - CHART.right])
+    const y = scaleLinear().domain([0, 100]).range([CHART.h - CHART.bottom, CHART.top])
+    const gen = key => chartLine().defined(d => typeof d[key] === 'number').x(d => x(d.t)).y(d => y(d[key])).curve(curveMonotoneX)(samples)
+    const latest = [...samples].reverse().find(s => s.cpu !== null || s.ram !== null)
+    const nowParts = []
+    if (latest && latest.cpu !== null) nowParts.push(Math.round(latest.cpu) + '% CPU')
+    if (latest && latest.ram !== null) nowParts.push(Math.round(latest.ram) + '% RAM')
+    const stepH = Math.max(1, Math.ceil(samples.length / 60))
+    const hostHitW = (PLOT.right - PLOT.left) / Math.ceil(samples.length / stepH)
+    const clock = iso => String(iso).slice(11, 16)
+    const sampleTip = s => clock(s.iso) + ' · '
+      + (s.cpu !== null ? Math.round(s.cpu) + '% CPU' : 'no CPU')
+      + (s.cpu !== null && s.ram !== null ? ' / ' : ' · ')
+      + (s.ram !== null ? Math.round(s.ram) + '% RAM' : 'no RAM')
+    hostChart = {
+      cpuPath: gen('cpu') || '',
+      ramPath: gen('ram') || '',
+      ticks: [0, 50, 100].map(t => ({ y: y(t).toFixed(1), label: t + '%' })),
+      nowLabel: nowParts.length ? nowParts.join(' / ') : '--',
+      hits: samples.filter((_s, i) => i % stepH === 0).map(s => ({ x: (x(s.t) - hostHitW / 2).toFixed(1), w: hostHitW.toFixed(1), tip: sampleTip(s) })),
+    }
+  }
+}
+
+// ---- Display-only helpers (shared shape with the overview / monitor list) ----
+function stClass(status) {
+  if (status === 'up') return 'pill pill-up'
+  if (status === 'degraded') return 'pill pill-degraded'
+  if (status === 'down') return 'pill pill-down'
+  return 'pill pill-unknown'
+}
+function stLabel(status) {
+  if (status === 'up') return 'Up'
+  if (status === 'degraded') return 'Degraded'
+  if (status === 'down') return 'Down'
+  if (status === 'paused') return 'Paused'
+  return 'Pending'
+}
+function agoLabel(iso) {
+  if (!iso) return 'never'
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
+  if (s < 60) return s + 's ago'
+  if (s < 3600) return Math.floor(s / 60) + 'm ago'
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+  return Math.floor(s / 86400) + 'd ago'
+}
+function typeLabel(t) {
+  const labels = { uptime: 'Uptime', ping: 'Ping', tcp_port: 'TCP port', ssl: 'SSL', dns: 'DNS', domain: 'Domain', broken_links: 'Crawl', lighthouse: 'Lighthouse', dns_blocklist: 'Blocklist', port_scan: 'Port scan', health: 'Health', cron: 'Heartbeat', performance: 'Performance', ai_check: 'AI check' }
+  return labels[t] || String(t).replace('_', ' ')
+}
+function incidentPill(status) {
+  if (status === 'resolved') return 'pill pill-unknown'
+  if (status === 'monitoring') return 'pill pill-degraded'
+  return 'pill pill-down'
+}
+function incidentLabel(status) {
+  if (!status) return '--'
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+const upCount = siteMonitors.filter(m => m.status === 'up').length
+
+useHead({ title: (siteHostName || 'Site') + ' · UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<style>
+  .mon-chart { width: 100%; height: auto; display: block; }
+  .chart-hit:hover { fill: var(--accent-soft); }
+  .mon-legend { display: flex; gap: 1.25rem; margin-top: 0.6rem; font-size: 0.8rem; font-weight: 600; }
+</style>
+
+<main class="app-shell">
+  @if (!AUTH_USER)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view this site.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER && !siteExists)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Site not found</h3>
+      <p>No tracked site matches this address, or it belongs to another team.</p>
+      <div class="actions"><a class="button primary" href="/dashboard" data-no-router>Back to overview</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER && siteExists)
+    <p class="crumb" style="margin: 0 0 0.6rem;"><a href="/dashboard" data-no-router style="color: var(--muted); font-size: 0.85rem;">&larr; Overview</a></p>
+
+    <header class="page-head">
+      <div>
+        <h1 style="display: flex; align-items: center; gap: 0.6rem;">
+          {{ siteHostName }}
+          <data class="{{ stClass(siteStatus) }}" value="{{ siteStatus }}"><span class="dot"></span>{{ stLabel(siteStatus) }}</data>
+        </h1>
+        <p class="meta">{{ siteMonitors.length }} check{{ siteMonitors.length === 1 ? '' : 's' }} &middot; {{ upCount }} up &middot; {{ openIncidentCount }} open incident{{ openIncidentCount === 1 ? '' : 's' }}</p>
+      </div>
+      <div class="actions">
+        <a class="button" href="https://{{ siteHostName }}" target="_blank" rel="noopener">Visit site &nearr;</a>
+      </div>
+    </header>
+
+    <section class="card scroll-x" aria-label="Checks">
+      <div class="card-head">
+        <h3>Checks</h3>
+        <span class="sub">{{ siteMonitors.length }} on this site</span>
+      </div>
+      <div class="rows">
+        <div class="trow thead" style="grid-template-columns: 110px minmax(220px, 1.7fr) 120px 92px;">
+          <span class="tcell">Status</span>
+          <span class="tcell">Check</span>
+          <span class="tcell">Type</span>
+          <span class="tcell num">Checked</span>
+        </div>
+        @foreach (siteMonitors as monitor)
+          <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 120px 92px;">
+            <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data></span>
+            <span class="tcell"><span class="name ellipsis" style="display: block;">{{ monitor.name }}</span></span>
+            <span class="tcell"><span class="tag">{{ typeLabel(monitor.type) }}</span></span>
+            <span class="tcell num"><time>{{ agoLabel(monitor.last_checked_at) }}</time></span>
+          </a>
+        @endforeach
+      </div>
+    </section>
+
+    @if (hostChart)
+      <section class="card" aria-label="CPU and RAM usage">
+        <div class="card-head">
+          <h3>Host telemetry, CPU and RAM</h3>
+          <span class="sub">now {{ hostChart.nowLabel }}</span>
+        </div>
+        <div class="card-body">
+          <svg viewBox="0 0 1280 200" class="mon-chart" role="img" aria-label="CPU and RAM traces">
+            @foreach (hostChart.ticks as t)
+              <line x1="{{ PLOT.left }}" x2="{{ PLOT.right }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
+              <text x="{{ PLOT.left - 8 }}" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="12" font-family="var(--font-mono)">{{ t.label }}</text>
+            @endforeach
+            <path d="{{ hostChart.cpuPath }}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"></path>
+            <path d="{{ hostChart.ramPath }}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round"></path>
+            @foreach (hostChart.hits as hit)
+              <rect class="chart-hit" x="{{ hit.x }}" y="{{ PLOT.top }}" width="{{ hit.w }}" height="{{ PLOT.bottom - PLOT.top }}" fill="transparent" data-tip="{{ hit.tip }}"></rect>
+            @endforeach
+          </svg>
+          <div class="mon-legend">
+            <span style="color: var(--accent);">&#9632; CPU</span>
+            <span style="color: var(--muted);">&#9632; RAM</span>
+            <span style="margin-left: auto; font-weight: 400;"><a href="/dashboard/monitors/{{ hostMonitor.id }}" style="color: var(--accent);">Full telemetry &rarr;</a></span>
+          </div>
+        </div>
+      </section>
+    @endif
+
+    <section class="card scroll-x" aria-label="Open incidents">
+      <div class="card-head">
+        <h3>Open incidents</h3>
+        <span class="sub">{{ openIncidentCount }} open</span>
+      </div>
+      @if (openIncidents.length === 0)
+        <div class="card-body">
+          <div class="empty" style="border: 0; padding: 1.5rem 0;">
+            <h3>No open incidents on this site.</h3>
+            <p>Failed checks open incidents here automatically.</p>
+          </div>
+        </div>
+      @endif
+      @if (openIncidents.length > 0)
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: 150px minmax(0, 1.6fr) minmax(0, 1fr) 110px;">
+            <span class="tcell">Status</span>
+            <span class="tcell">Cause</span>
+            <span class="tcell">Check</span>
+            <span class="tcell num">Opened</span>
+          </div>
+          @foreach (openIncidents as incident)
+            <a class="trow" href="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.6fr) minmax(0, 1fr) 110px;">
+              <span class="tcell"><data class="{{ incidentPill(incident.status) }}" value="{{ incident.status }}"><span class="dot"></span>{{ incidentLabel(incident.status) }}</data></span>
+              <span class="tcell ellipsis name">{{ incident.cause }}</span>
+              <span class="tcell sub ellipsis">{{ incident.monitor_name }}</span>
+              <span class="tcell num"><time>{{ agoLabel(incident.started_at) }}</time></span>
+            </a>
+          @endforeach
+        </div>
+      @endif
+    </section>
+  @endif
+</main>
