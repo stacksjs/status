@@ -581,6 +581,25 @@
 
   .mono { font-family: var(--font-mono); }
 
+  /* Floating chart tooltip, driven by .chart-hit rects (see the script
+     at the end of this partial). */
+  .chart-tip {
+    position: fixed;
+    z-index: 70;
+    display: none;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--fg);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .chart-hit { cursor: crosshair; }
+
   .app-foot {
     display: flex;
     justify-content: space-between;
@@ -602,3 +621,36 @@
     .card.scroll-x .trow { min-width: 780px; }
   }
 </style>
+
+<script>
+  // Chart tooltips: every .chart-hit rect carries data-tip; a single
+  // floating div follows the cursor across all charts on the page. The
+  // optional data-cx/cy pins a marker dot onto line charts.
+  (function () {
+    var tip = document.createElement('div')
+    tip.className = 'chart-tip'
+    document.body.appendChild(tip)
+    document.addEventListener('mousemove', function (e) {
+      var hit = e.target && e.target.classList && e.target.classList.contains('chart-hit') ? e.target : null
+      var marker = hit && hit.parentElement ? hit.parentElement.querySelector('.chart-marker') : null
+      if (!hit) {
+        tip.style.display = 'none'
+        var stale = document.querySelectorAll('.chart-marker')
+        for (var i = 0; i < stale.length; i++) stale[i].setAttribute('opacity', '0')
+        return
+      }
+      tip.textContent = hit.getAttribute('data-tip') || ''
+      tip.style.display = 'block'
+      var x = e.clientX + 12
+      var y = e.clientY - 34
+      if (x + tip.offsetWidth > window.innerWidth - 8) x = e.clientX - tip.offsetWidth - 12
+      tip.style.left = x + 'px'
+      tip.style.top = Math.max(8, y) + 'px'
+      if (marker && hit.getAttribute('data-cx')) {
+        marker.setAttribute('cx', hit.getAttribute('data-cx'))
+        marker.setAttribute('cy', hit.getAttribute('data-cy'))
+        marker.setAttribute('opacity', '1')
+      }
+    }, { passive: true })
+  })()
+</script>

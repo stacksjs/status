@@ -148,7 +148,19 @@ const { scaleLinear, scaleBand, line: chartLine, area: chartArea, curveMonotoneX
 
 // One geometry for every chart card: aspect-preserving (text stays
 // undistorted), left gutter for tick labels, bottom row for time labels.
-const CHART = { w: 640, h: 150, top: 8, right: 8, bottom: 22, left: 46 }
+const CHART = { w: 1280, h: 200, top: 14, right: 14, bottom: 30, left: 64 }
+const PLOT = { left: CHART.left, right: CHART.w - CHART.right, labelY: CHART.h - 8, top: CHART.top, bottom: CHART.h - CHART.bottom }
+
+function intervalLabel(sec) {
+  if (!sec) return '--'
+  if (sec < 60) return 'every ' + sec + 's'
+  if (sec === 60) return 'every minute'
+  if (sec < 3600) return 'every ' + Math.round(sec / 60) + 'm'
+  if (sec === 3600) return 'hourly'
+  if (sec < 86400) return 'every ' + Math.round(sec / 3600) + 'h'
+  if (sec === 86400) return 'daily'
+  return 'every ' + Math.round(sec / 86400) + 'd'
+}
 
 function fmtDur(ms) {
   if (ms === null || ms === undefined) return '--'
@@ -170,6 +182,7 @@ if (chartChecks.length > 1) {
   const lineGen = chartLine().x((_d, i) => x(i)).y(d => y(d)).curve(curveMonotoneX)
   const areaGen = chartArea().x((_d, i) => x(i)).y0(y(0)).y1(d => y(d)).curve(curveMonotoneX)
   const hhmm = iso => String(iso).slice(11, 16)
+  const hitW = (PLOT.right - PLOT.left) / values.length
   rtChart = {
     linePath: lineGen(values),
     areaPath: areaGen(values),
@@ -177,6 +190,14 @@ if (chartChecks.length > 1) {
     baselineY: y(0).toFixed(1),
     xFirst: hhmm(chartChecks[0].checked_at),
     xLast: hhmm(chartChecks[chartChecks.length - 1].checked_at),
+    // Invisible full-height hover columns, one per check, for tooltips.
+    hits: values.map((v, i) => ({
+      x: (x(i) - hitW / 2).toFixed(1),
+      w: hitW.toFixed(1),
+      cx: x(i).toFixed(1),
+      cy: y(v).toFixed(1),
+      tip: hhmm(chartChecks[i].checked_at) + ' \u00b7 ' + fmtDur(v),
+    })),
   }
 }
 
@@ -259,6 +280,11 @@ if (denseBuckets.length > 0) {
       count: b.request_count,
       bucket: b.bucket,
     })),
+    hits: denseBuckets.map(b => ({
+      x: (xBand(b.bucket) - (xBand.step() - xBand.bandwidth()) / 2).toFixed(1),
+      w: xBand.step().toFixed(1),
+      tip: b.bucket + ' \u00b7 ' + b.request_count + ' check' + (b.request_count === 1 ? '' : 's'),
+    })),
     ticks: y.ticks(3).filter(t => t > 0 && Number.isInteger(t)).map(t => ({ y: y(t).toFixed(1), label: String(t) })),
     baselineY: y(0).toFixed(1),
     xLabels: denseBuckets.filter((_b, i) => i % labelEvery === 0).map(b => ({ x: (xBand(b.bucket) + xBand.bandwidth() / 2).toFixed(1), label: xLabel(b.bucket) })),
@@ -277,11 +303,17 @@ if (monitor && monitor.reports_metrics && denseBuckets.length > 1) {
     .y(d => y(d[key]))
     .curve(curveMonotoneX)(denseBuckets.map(b => ({ avg_cpu: b.avg_cpu, avg_ram: b.avg_ram })))
   const latest = [...denseBuckets].reverse().find(b => b.avg_cpu !== null)
+  const hostHitW = (PLOT.right - PLOT.left) / denseBuckets.length
   hostChart = {
     cpuPath: gen('avg_cpu') || '',
     ramPath: gen('avg_ram') || '',
     ticks: [0, 50, 100].map(t => ({ y: y(t).toFixed(1), label: t + '%' })),
     nowLabel: latest ? Math.round(latest.avg_cpu) + '% CPU / ' + Math.round(latest.avg_ram) + '% RAM' : '--',
+    hits: denseBuckets.map((b, i) => ({
+      x: (x(i) - hostHitW / 2).toFixed(1),
+      w: hostHitW.toFixed(1),
+      tip: b.bucket + ' \u00b7 ' + (b.avg_cpu !== null ? Math.round(b.avg_cpu) + '% CPU / ' + Math.round(b.avg_ram) + '% RAM' : 'no samples'),
+    })),
   }
 }
 
@@ -401,7 +433,7 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
     overflow-wrap: anywhere;
   }
   .kv dd.big { font-family: var(--font-display); font-size: 1.65rem; }
-  .mon-chart { display: block; width: 100%; height: 96px; }
+  .mon-chart { display: block; width: 100%; height: auto; }
   .mon-legend {
     display: flex;
     gap: 1rem;
@@ -455,7 +487,7 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
       <div>
         <nav class="crumb" aria-label="Breadcrumb"><a href="/dashboard/monitors">&larr; Monitors</a></nav>
         <h1 style="overflow-wrap: anywhere;">{{ monitor.name }}</h1>
-        <p class="meta"><span class="mono">{{ monitor.url }}</span> &middot; {{ monitor.type.replace('_', ' ') }} &middot; every {{ monitor.check_interval_seconds }}s &middot; {{ monitor.enabled ? 'enabled' : 'disabled' }}</p>
+        <p class="meta"><span class="mono">{{ monitor.url }}</span> &middot; {{ monitor.type.replace('_', ' ') }} &middot; {{ intervalLabel(monitor.check_interval_seconds) }} &middot; {{ monitor.enabled ? 'enabled' : 'disabled' }}</p>
       </div>
       <div class="actions">
         <data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data>
@@ -469,11 +501,11 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
       </div>
       <div class="stat-card">
         <dt>Latest response</dt>
-        <dd>{{ latestResponseTime !== null ? latestResponseTime : '--' }} <small>{{ latestResponseTime !== null ? 'ms' : '' }}</small></dd>
+        <dd>{{ fmtDur(latestResponseTime) }}</dd>
       </div>
       <div class="stat-card">
         <dt>Avg response</dt>
-        <dd>{{ avgResponseTime !== null ? avgResponseTime : '--' }} <small>{{ avgResponseTime !== null ? 'ms' : '' }}</small></dd>
+        <dd>{{ fmtDur(avgResponseTime) }}</dd>
       </div>
       <div class="stat-card">
         <dt>Checks / {{ range }}</dt>
@@ -519,19 +551,22 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
           <span class="sub">{{ totalChecksInRange }} check{{ totalChecksInRange === 1 ? '' : 's' }}</span>
         </div>
         <div class="card-body">
-          <svg viewBox="0 0 640 150" class="mon-chart" role="img" aria-label="Check volume per bucket">
+          <svg viewBox="0 0 1280 200" class="mon-chart" role="img" aria-label="Check volume per bucket">
             @foreach (volChart.ticks as t)
-              <line x1="46" x2="632" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
-              <text x="40" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ t.label }}</text>
+              <line x1="{{ PLOT.left }}" x2="{{ PLOT.right }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
+              <text x="{{ PLOT.left - 8 }}" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="12" font-family="var(--font-mono)">{{ t.label }}</text>
             @endforeach
-            <line x1="46" x2="632" y1="{{ volChart.baselineY }}" y2="{{ volChart.baselineY }}" stroke="var(--border-strong)" stroke-width="1"></line>
+            <line x1="{{ PLOT.left }}" x2="{{ PLOT.right }}" y1="{{ volChart.baselineY }}" y2="{{ volChart.baselineY }}" stroke="var(--border-strong)" stroke-width="1"></line>
             @foreach (volChart.bars as bar)
               <rect x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.w }}" height="{{ bar.h }}" rx="1.5" fill="var(--accent)" opacity="0.85">
                 <title>{{ bar.bucket }}: {{ bar.count }} checks</title>
               </rect>
             @endforeach
             @foreach (volChart.xLabels as xl)
-              <text x="{{ xl.x }}" y="144" text-anchor="middle" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ xl.label }}</text>
+              <text x="{{ xl.x }}" y="{{ PLOT.labelY }}" text-anchor="middle" fill="var(--muted)" font-size="12" font-family="var(--font-mono)">{{ xl.label }}</text>
+            @endforeach
+            @foreach (volChart.hits as hit)
+              <rect class="chart-hit" x="{{ hit.x }}" y="{{ PLOT.top }}" width="{{ hit.w }}" height="{{ PLOT.bottom - PLOT.top }}" fill="transparent" data-tip="{{ hit.tip }}"></rect>
             @endforeach
           </svg>
         </div>
@@ -545,13 +580,16 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
           <span class="sub">now {{ hostChart.nowLabel }}</span>
         </div>
         <div class="card-body">
-          <svg viewBox="0 0 640 150" class="mon-chart" role="img" aria-label="CPU and RAM traces">
+          <svg viewBox="0 0 1280 200" class="mon-chart" role="img" aria-label="CPU and RAM traces">
             @foreach (hostChart.ticks as t)
-              <line x1="46" x2="632" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
-              <text x="40" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ t.label }}</text>
+              <line x1="{{ PLOT.left }}" x2="{{ PLOT.right }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
+              <text x="{{ PLOT.left - 8 }}" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="12" font-family="var(--font-mono)">{{ t.label }}</text>
             @endforeach
             <path d="{{ hostChart.cpuPath }}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"></path>
             <path d="{{ hostChart.ramPath }}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round"></path>
+            @foreach (hostChart.hits as hit)
+              <rect class="chart-hit" x="{{ hit.x }}" y="{{ PLOT.top }}" width="{{ hit.w }}" height="{{ PLOT.bottom - PLOT.top }}" fill="transparent" data-tip="{{ hit.tip }}"></rect>
+            @endforeach
           </svg>
           <div class="mon-legend">
             <span style="color: var(--accent);">&#9632; CPU</span>
@@ -585,16 +623,20 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
           <span class="sub">now {{ fmtDur(latestResponseTime) }} / avg {{ fmtDur(avgResponseTime) }}</span>
         </div>
         <div class="card-body">
-          <svg viewBox="0 0 640 150" class="mon-chart" role="img" aria-label="Response time chart">
+          <svg viewBox="0 0 1280 200" class="mon-chart" role="img" aria-label="Response time chart">
             @foreach (rtChart.ticks as t)
-              <line x1="46" x2="632" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
-              <text x="40" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ t.label }}</text>
+              <line x1="{{ PLOT.left }}" x2="{{ PLOT.right }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
+              <text x="{{ PLOT.left - 8 }}" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="12" font-family="var(--font-mono)">{{ t.label }}</text>
             @endforeach
-            <line x1="46" x2="632" y1="{{ rtChart.baselineY }}" y2="{{ rtChart.baselineY }}" stroke="var(--border-strong)" stroke-width="1"></line>
+            <line x1="{{ PLOT.left }}" x2="{{ PLOT.right }}" y1="{{ rtChart.baselineY }}" y2="{{ rtChart.baselineY }}" stroke="var(--border-strong)" stroke-width="1"></line>
             <path d="{{ rtChart.areaPath }}" fill="var(--accent)" opacity="0.12"></path>
             <path d="{{ rtChart.linePath }}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"></path>
-            <text x="46" y="144" text-anchor="start" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ rtChart.xFirst }}</text>
-            <text x="632" y="144" text-anchor="end" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ rtChart.xLast }}</text>
+            <text x="{{ PLOT.left }}" y="{{ PLOT.labelY }}" text-anchor="start" fill="var(--muted)" font-size="12" font-family="var(--font-mono)">{{ rtChart.xFirst }}</text>
+            <text x="{{ PLOT.right }}" y="{{ PLOT.labelY }}" text-anchor="end" fill="var(--muted)" font-size="12" font-family="var(--font-mono)">{{ rtChart.xLast }}</text>
+            @foreach (rtChart.hits as hit)
+              <rect class="chart-hit" x="{{ hit.x }}" y="{{ PLOT.top }}" width="{{ hit.w }}" height="{{ PLOT.bottom - PLOT.top }}" fill="transparent" data-tip="{{ hit.tip }}" data-cx="{{ hit.cx }}" data-cy="{{ hit.cy }}"></rect>
+            @endforeach
+            <circle class="chart-marker" r="4" fill="var(--accent)" opacity="0"></circle>
           </svg>
         </div>
       </section>
@@ -795,7 +837,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
       </div>
       @if (recentChecks.length === 0)
         <div class="card-body">
-          <p style="margin: 0; color: var(--muted); font-size: 0.88rem;">No checks recorded yet. First probe lands within {{ monitor.check_interval_seconds }}s of enabling.</p>
+          <p style="margin: 0; color: var(--muted); font-size: 0.88rem;">No checks recorded yet. First probe lands within {{ intervalLabel(monitor.check_interval_seconds).replace('every ', '') }} of enabling.</p>
         </div>
       @endif
       @if (recentChecks.length > 0)
