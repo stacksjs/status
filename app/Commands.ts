@@ -28,4 +28,8 @@ export type CommandRegistry = Record<string, string | CommandConfig>
  */
 export default {
   'inspire': 'Inspire',
+  // Live-status broadcaster (stacksjs/status#1 Phase 8 follow-up) — hosts
+  // the WebSocket server and pushes monitor status changes to the
+  // dashboard. See app/Commands/Realtime.ts.
+  'realtime': 'Realtime',
 } satisfies CommandRegistry
