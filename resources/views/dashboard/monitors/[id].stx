@@ -722,7 +722,13 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
         </div>
         <div class="card-body">
           <p class="subhead">Push CPU/RAM samples from this server on a cron schedule:</p>
-          <pre class="code-block">CPU=$(top -bn1 | grep Cpu | awk '{print $2}')
+          <pre class="code-block"># CPU averaged over 1s from /proc/stat. A single `top -bn1` sample reports
+# an instantaneous slice (and catches the cron's own spike), so it swings
+# wildly between 0 and 100 — this deltas the busy vs idle jiffies instead.
+read _ u n s i w q sq st _ &lt; /proc/stat; a=$((u+n+s+i+w+q+sq+st)); b=$((i+w))
+sleep 1
+read _ u n s i w q sq st _ &lt; /proc/stat; c=$((u+n+s+i+w+q+sq+st)); d=$((i+w))
+CPU=$(( (c-a) > 0 ? 100 * ((c-a)-(d-b)) / (c-a) : 0 ))
 read TOTAL USED &lt; &lt;(free -m | awk '/Mem:/{print $2, $3}')
 curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
   -H 'Content-Type: application/json' \
@@ -962,7 +968,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
           <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
             @foreach (assignedChannels as channel)
               <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
-                <span class="tcell"><span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span> <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{{ channelIcon(channel.type) }}</span>{{ channelLabel(channel.type) }}</span></span>
+                <span class="tcell"><span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span> <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelLabel(channel.type) }}</span></span>
                 <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/remove">
                   <input type="hidden" name="channel_id" value="{{ channel.id }}" />
                   <button type="submit" class="button danger sm">Remove</button>

@@ -165,7 +165,7 @@ useHead({ title: 'Notification settings \u00b7 UptimeStatus', meta: [{ name: 'ro
           </div>
           @foreach (channels as channel)
             <div class="trow" style="grid-template-columns: 130px minmax(0, 1.6fr) 130px 110px;">
-              <span class="tcell sub"><span class="chan-ico">{{ channelIcon(channel.type) }}</span>{{ channelLabel(channel.type) }}</span>
+              <span class="tcell sub"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelLabel(channel.type) }}</span>
               <span class="tcell ellipsis name">{{ channel.name }}</span>
               <span class="tcell">
                 @if (channel.enabled)

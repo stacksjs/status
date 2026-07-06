@@ -91,7 +91,7 @@ const hasSso = ssoProviders.length > 0
       label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; }
       .field { margin-bottom: 1.1rem; }
       input {
-        width: 100%; min-height: 46px; padding: 0 0.9rem;
+        width: 100%; min-height: 46px; padding: 0.7rem 0.95rem; line-height: 1.4;
         border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
         color: var(--fg); font: inherit; font-size: 0.95rem; background: var(--bg);
       }
