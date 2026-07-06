@@ -40,6 +40,13 @@ route.post('/incidents/{id}/acknowledge', 'Actions/Incidents/AcknowledgeIncident
 route.post('/teams/{id}/invite', 'Actions/Teams/InviteTeamMemberAction')
 route.post('/team-invites/{uuid}/accept', 'Actions/Teams/AcceptTeamInviteAction')
 
+// Browser-facing invite acceptance: the invite email links to the page at
+// resources/views/invite/[uuid].stx, whose form posts here. Unlike the
+// JSON accept above it links-or-registers the user, activates the
+// membership, and mints a session cookie (see AcceptInviteFormAction).
+// Rate-limited: the uuid is a bearer capability, so throttle guessing.
+route.post('/invite-forms/{uuid}/accept', 'Actions/Teams/AcceptInviteFormAction').rateLimit(10, 'minute')
+
 // Public heartbeat ping endpoint (no auth — the token itself is the secret).
 // GET *and* POST both work since cron jobs commonly just `curl` the URL.
 // .skipCsrf() on the POST variant: this is hit by external cron jobs/curl,

@@ -1,18 +1,23 @@
+import process from 'node:process'
 import { config } from '@stacksjs/config'
 import { mail } from '@stacksjs/email'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import Team from '../../storage/framework/defaults/app/Models/Team'
 
+/** Absolute base URL for links in emails, from APP_URL (scheme optional). */
+function appBaseUrl(): string {
+  const raw = String(process.env.APP_URL || 'uptime-status.org').replace(/\/$/, '')
+  return /^https?:\/\//.test(raw) ? raw : `https://${raw}`
+}
+
 /**
- * Emails a team invite to the invited address (stacksjs/status#1 Phase 9
- * follow-up — invites used to be created silently and the acceptance
- * token had to be shared manually). The invite `uuid` IS the acceptance
- * token: acceptance is `POST /team-invites/{uuid}/accept` (see
- * AcceptTeamInviteAction). There is no browser-facing accept page yet —
- * that's gated on real dashboard auth (the deferred Phase 9 item), so
- * the email carries the token itself rather than a link that would 404
- * today.
+ * Emails a team invite to the invited address. The invite `uuid` is the
+ * acceptance capability, delivered as a link to the browser accept page
+ * (resources/views/invite/[uuid].stx -> AcceptInviteFormAction), which
+ * links or registers the user, activates the membership, and signs them
+ * in. The link is also printed as plain text so it survives text-only
+ * clients.
  */
 export default new Job({
   name: 'SendTeamInviteEmail',
@@ -33,12 +38,13 @@ export default new Job({
     const team = await Team.find(teamId)
     const teamName = team?.name || 'a team'
     const appName = config.app.name || 'Status'
+    const acceptUrl = `${appBaseUrl()}/invite/${inviteUuid}`
 
     // mail.send never throws on transport failure — drivers catch
     // internally and resolve { success: false } — so without this check a
     // failed send would complete the job "successfully", `tries: 3` would
-    // never engage, and the acceptance token (whose only delivery channel
-    // is this email) would be silently lost. Throwing hands the failure to
+    // never engage, and the invite link (whose only delivery channel is
+    // this email) would be silently lost. Throwing hands the failure to
     // the queue layer for retry; the dispatching actions catch it so an
     // invite request never 500s over a mail hiccup on the sync driver.
     const result = await mail.send({
@@ -47,16 +53,16 @@ export default new Job({
       text: [
         `You've been invited to join ${teamName} on ${appName} as ${role}.`,
         '',
-        `Your acceptance token: ${inviteUuid}`,
+        `Accept your invite and view the dashboard:`,
+        acceptUrl,
         '',
-        `To accept, an authenticated API client POSTs to /team-invites/${inviteUuid}/accept with your user id.`,
         `If you weren't expecting this invite, you can ignore this email.`,
       ].join('\n'),
       html: [
         `<p>You've been invited to join <strong>${teamName}</strong> on ${appName} as <strong>${role}</strong>.</p>`,
-        `<p>Your acceptance token: <code>${inviteUuid}</code></p>`,
-        `<p>To accept, an authenticated API client POSTs to <code>/team-invites/${inviteUuid}/accept</code> with your user id.</p>`,
-        `<p>If you weren't expecting this invite, you can ignore this email.</p>`,
+        `<p><a href="${acceptUrl}" style="display:inline-block;padding:10px 18px;border-radius:10px;background:#2563eb;color:#ffffff;font-weight:600;text-decoration:none">Accept invite</a></p>`,
+        `<p style="color:#5c6864;font-size:13px">Or paste this link into your browser:<br><a href="${acceptUrl}">${acceptUrl}</a></p>`,
+        `<p style="color:#5c6864;font-size:13px">If you weren't expecting this invite, you can ignore this email.</p>`,
       ].join('\n'),
     })
 

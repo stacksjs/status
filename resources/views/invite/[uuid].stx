@@ -1,0 +1,194 @@
+<script server>
+// Browser-facing team-invite acceptance page. The invite email links here
+// (/invite/{uuid}); the form posts to /api/invite-forms/{uuid}/accept
+// (AcceptInviteFormAction), which links or creates the user, activates the
+// membership, and signs them in. Public page (the uuid is the capability),
+// so it reads SQLite directly read-only, same convention as the public
+// status pages -- no auth/team resolution here.
+//
+// Rendered as a FRAGMENT (no <!DOCTYPE>/<html>/<head>/<body>) like every
+// other dynamic view in this app: a full-document dynamic view trips a
+// serve-path render hang, and the shared serve shell supplies the document
+// chrome anyway. Title + favicon come from useHead; the theme pre-paint
+// and styles live inline in the fragment body (same as the dashboard's
+// app-head partial, which is also fragment-injected).
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+const InviteDb = require('bun:sqlite').Database
+const inviteDbPath = require('path').resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const inviteDb = new InviteDb(inviteDbPath, { readonly: true })
+
+const inviteUuid = (typeof uuid !== 'undefined' && uuid) ? String(uuid) : ''
+const member = inviteUuid
+  ? inviteDb.query(`SELECT id, team_id, invited_email, role, status FROM team_members WHERE uuid = ?1 LIMIT 1`).get(inviteUuid)
+  : null
+
+const team = member
+  ? inviteDb.query(`SELECT name FROM teams WHERE id = ?1 LIMIT 1`).get(member.team_id)
+  : null
+
+const existingUser = member
+  ? inviteDb.query(`SELECT id FROM users WHERE email = ?1 LIMIT 1`).get(String(member.invited_email || '').toLowerCase())
+  : null
+const hasAccount = !!existingUser
+
+const state = !member
+  ? 'invalid'
+  : member.status === 'active'
+    ? 'accepted'
+    : member.status !== 'pending'
+      ? 'invalid'
+      : 'pending'
+
+const teamName = team ? team.name : 'a team'
+const invitedEmail = member ? member.invited_email : ''
+const role = member ? member.role : 'member'
+const acceptHint = hasAccount
+  ? 'Sign in with your existing password to accept.'
+  : 'Create your account to accept and view the dashboard.'
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const errorCode = query.get('error') || ''
+const ERROR_MESSAGES = {
+  bad_credentials: 'That password does not match the existing account for this email. Enter your current password to accept.',
+  weak_password: 'Password must be at least 6 characters.',
+  name_required: 'Please enter your name.',
+  register_failed: 'Something went wrong creating your account. Please try again.',
+  invalid: 'This invite is no longer valid.',
+}
+const errorMessage = ERROR_MESSAGES[errorCode] || ''
+
+useHead({
+  title: `Join ${teamName} · ${appName}`,
+  meta: [{ name: 'robots', content: 'noindex' }],
+  link: [
+    { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+    { rel: 'icon', href: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
+    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+  ],
+})
+</script>
+
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #fbfbfa; --surface: #ffffff; --surface-2: #f2f3f1;
+    --fg: #0b0f0d; --muted: #5c6864; --border: rgba(11,15,13,0.1); --border-strong: rgba(11,15,13,0.18);
+    --accent: #2563eb; --accent-fg: #ffffff; --accent-soft: rgba(37,99,235,0.09);
+    --danger: #dc2626; --danger-soft: rgba(220,38,38,0.08);
+    --radius: 16px; --radius-sm: 10px;
+    --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    html:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #080b0a; --surface: #101413; --surface-2: #161b19;
+      --fg: #f2f5f3; --muted: #97a39d; --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.15);
+      --accent: #60a5fa; --accent-fg: #071630; --accent-soft: rgba(96,165,250,0.14);
+      --danger: #f87171; --danger-soft: rgba(248,113,113,0.12);
+    }
+  }
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #080b0a; --surface: #101413; --surface-2: #161b19;
+    --fg: #f2f5f3; --muted: #97a39d; --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.15);
+    --accent: #60a5fa; --accent-fg: #071630; --accent-soft: rgba(96,165,250,0.14);
+    --danger: #f87171; --danger-soft: rgba(248,113,113,0.12);
+  }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 2rem;
+    font-family: var(--font-body); color: var(--fg); background: var(--bg);
+  }
+  .invite-card a { color: inherit; text-decoration: none; }
+  .invite-card {
+    width: min(420px, 100%); padding: clamp(1.75rem, 5vw, 2.5rem);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--surface); box-shadow: 0 20px 50px -18px rgba(11,15,13,0.22);
+  }
+  .invite-card .brand { display: inline-flex; align-items: center; gap: 0.6rem; margin-bottom: 1.5rem; }
+  .invite-card .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--accent-fg); background: var(--accent); }
+  .invite-card .brand-mark svg { width: 16px; height: 16px; }
+  .invite-card .brand-name { font-family: var(--font-display); font-size: 1.12rem; font-weight: 600; }
+  .invite-card h1 { margin: 0 0 0.4rem; font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; letter-spacing: -0.01em; }
+  .invite-card .sub { margin: 0 0 1.5rem; color: var(--muted); font-size: 0.95rem; line-height: 1.55; }
+  .invite-card .sub strong { color: var(--fg); }
+  .invite-card .role-pill { display: inline-block; margin-left: 0.35rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.78rem; font-weight: 600; }
+  .invite-card label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; }
+  .invite-card .field { margin-bottom: 1.1rem; }
+  .invite-card input {
+    width: 100%; min-height: 46px; padding: 0 0.9rem; box-sizing: border-box;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    color: var(--fg); font: inherit; font-size: 0.95rem; background: var(--bg);
+  }
+  .invite-card input:disabled { color: var(--muted); background: var(--surface-2); }
+  .invite-card input::placeholder { color: var(--muted); opacity: 0.75; }
+  .invite-card input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .invite-card .help { margin-top: 0.35rem; color: var(--muted); font-size: 0.8rem; }
+  .invite-card .button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    width: 100%; min-height: 46px; padding: 0 1.2rem; margin-top: 0.35rem; box-sizing: border-box;
+    border: 1px solid var(--accent); border-radius: var(--radius-sm);
+    color: var(--accent-fg); font: inherit; font-size: 0.95rem; font-weight: 600;
+    background: var(--accent); cursor: pointer;
+  }
+  .invite-card .button:hover { filter: brightness(1.05); }
+  .invite-card .error {
+    margin-bottom: 1.1rem; padding: 0.75rem 0.9rem;
+    border: 1px solid var(--danger); border-radius: var(--radius-sm);
+    color: var(--danger); font-size: 0.88rem; background: var(--danger-soft);
+  }
+  .invite-card .alt { margin-top: 1.5rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
+  .invite-card .alt a { color: var(--accent); font-weight: 600; }
+</style>
+
+<div class="invite-card">
+  <a class="brand" href="/" data-no-router>
+    <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg></span>
+    <span class="brand-name">{{ appName }}</span>
+  </a>
+
+  @if (state === 'invalid')
+    <h1>Invite not found</h1>
+    <p class="sub">This invite link is invalid or has already been used. Ask whoever invited you to send a fresh one.</p>
+    <a class="button" href="/login" data-no-router>Go to sign in</a>
+  @endif
+
+  @if (state === 'accepted')
+    <h1>You're already in</h1>
+    <p class="sub">This invite to <strong>{{ teamName }}</strong> has already been accepted. Sign in to view the dashboard.</p>
+    <a class="button" href="/login" data-no-router>Sign in</a>
+  @endif
+
+  @if (state === 'pending')
+    @if (errorMessage)
+      <div class="error">{{ errorMessage }}</div>
+    @endif
+
+    <h1>Join {{ teamName }}</h1>
+    <p class="sub">You've been invited to <strong>{{ teamName }}</strong> as<span class="role-pill">{{ role }}</span>. {{ acceptHint }}</p>
+
+    <form method="POST" action="/api/invite-forms/{{ inviteUuid }}/accept">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" value="{{ invitedEmail }}" disabled>
+      </div>
+      @if (!hasAccount)
+        <div class="field">
+          <label for="name">Your name</label>
+          <input id="name" name="name" type="text" autocomplete="name" placeholder="First and last name" required>
+        </div>
+      @endif
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="{{ hasAccount ? 'current-password' : 'new-password' }}" placeholder="{{ hasAccount ? 'Your existing password' : 'At least 6 characters' }}" minlength="6" required>
+        @if (!hasAccount)
+          <p class="help">This becomes your password for signing in.</p>
+        @endif
+      </div>
+      <button class="button" type="submit">Accept invite &amp; continue</button>
+    </form>
+
+    <p class="alt">Not you? <a href="/" data-no-router>Ignore this invite</a></p>
+  @endif
+</div>
