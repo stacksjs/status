@@ -133,6 +133,22 @@ const hasSso = ssoProviders.length > 0
         border-color: var(--border-strong); color: var(--fg); background: var(--surface);
       }
       .button.sso:hover { border-color: var(--fg); filter: none; }
+      /* Brand marks on the SSO buttons: data-URI backgrounds for multicolor
+         logos (Google, Microsoft); currentColor masks for the monochrome
+         ones so they follow the button's text color in dark mode. */
+      .sso-icon { width: 18px; height: 18px; flex: none; display: inline-block; }
+      .sso-icon-google { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3C/svg%3E") center/contain no-repeat; }
+      .sso-icon-entra { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 21 21'%3E%3Crect x='1' y='1' width='9' height='9' fill='%23f25022'/%3E%3Crect x='11' y='1' width='9' height='9' fill='%237fba00'/%3E%3Crect x='1' y='11' width='9' height='9' fill='%2300a4ef'/%3E%3Crect x='11' y='11' width='9' height='9' fill='%23ffb900'/%3E%3C/svg%3E") center/contain no-repeat; }
+      .sso-icon-apple, .sso-icon-github, .sso-icon-okta, .sso-icon-oidc, .sso-icon-passkey {
+        background-color: currentColor;
+        -webkit-mask: var(--sso-mask) center/contain no-repeat;
+        mask: var(--sso-mask) center/contain no-repeat;
+      }
+      .sso-icon-apple { --sso-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z'/%3E%3C/svg%3E"); }
+      .sso-icon-github { --sso-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z'/%3E%3C/svg%3E"); }
+      .sso-icon-okta { --sso-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10z'/%3E%3C/svg%3E"); }
+      .sso-icon-oidc { --sso-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z'/%3E%3C/svg%3E"); }
+      .sso-icon-passkey { --sso-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 14a2 2 0 0 1-2-2 2 2 0 0 1 2-2 2 2 0 0 1 2 2 2 2 0 0 1-2 2m5.65-4A5.99 5.99 0 0 0 7 6a6 6 0 0 0-6 6 6 6 0 0 0 6 6 5.99 5.99 0 0 0 5.65-4H17v4h4v-4h2v-4H12.65z'/%3E%3C/svg%3E"); }
       .row-between { display: flex; align-items: center; justify-content: space-between; }
       .hide { display: none !important; }
     </style>
@@ -164,14 +180,14 @@ const hasSso = ssoProviders.length > 0
 
         <div class="sso-divider passkey-divider hide" id="passkey-divider">or</div>
         <div class="sso-buttons">
-          <button type="button" id="passkey-btn" class="button sso hide">Sign in with a passkey</button>
+          <button type="button" id="passkey-btn" class="button sso hide"><span class="sso-icon sso-icon-passkey"></span>Sign in with a passkey</button>
         </div>
 
         @if (hasSso)
           <div class="sso-divider">or</div>
           <div class="sso-buttons">
             @foreach (ssoProviders as p)
-              <a class="button sso" href="/api/auth/sso/{{ p.key }}" data-no-router>Continue with {{ p.label }}</a>
+              <a class="button sso" href="/api/auth/sso/{{ p.key }}" data-no-router><span class="sso-icon sso-icon-{{ p.key }}"></span>Continue with {{ p.label }}</a>
             @endforeach
           </div>
         @endif

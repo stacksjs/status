@@ -18,6 +18,12 @@
       "runtimeExecutable": "./buddy",
       "runtimeArgs": ["dev", "api"],
       "port": 3008
+    },
+    {
+      "name": "serve-alt",
+      "runtimeExecutable": "./buddy",
+      "runtimeArgs": ["serve", "--port", "4660"],
+      "port": 4660
     }
   ]
 }
