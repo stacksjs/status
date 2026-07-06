@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the UptimeStatus regional probe every 60s
+
+[Timer]
+# First run 30s after boot, then every 60s. Persistent=false: a missed run
+# (box asleep) is not backfilled — a fresh probe is more useful than a stale
+# catch-up, and consensus only cares about results inside the freshness window.
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,18 @@
+[Unit]
+# Regional probe (stacksjs/status#1 Phase 11) — one-shot run, scheduled by
+# region-probe.timer every 60s. Runs on a remote check-region box only
+# (e.g. Ashburn/us-east), never on the primary. See
+# docs/features/second-region-runbook.md.
+Description=UptimeStatus regional probe (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# EnvironmentFile supplies PRIMARY_URL, REGIONAL_INGEST_TOKEN, WORKER_REGION.
+EnvironmentFile=/etc/uptime-status/region-probe.env
+WorkingDirectory=/opt/uptime-status
+ExecStart=/usr/local/bin/bun /opt/uptime-status/scripts/region-probe.ts
+# The probe exits non-zero only on its OWN failure (can't reach the primary),
+# not on target-down results — so a failed unit is a real probe outage.
+Nice=5
