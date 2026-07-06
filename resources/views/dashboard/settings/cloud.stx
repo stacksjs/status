@@ -1,0 +1,191 @@
+<!--
+  Cloud credentials settings — dashboard page. Stores the team's AWS
+  credentials (access key id + region in the clear, secret access key
+  encrypted at rest via AES-256-GCM under APP_KEY — see
+  app/Actions/Cloud/cloudCrypto.ts) for the platform automation that pushes
+  the CPU/RAM metrics agent onto a monitored EC2 box via Instance Connect.
+  The page also documents the minimal IAM policy those credentials need.
+
+  Same server-rendered, native-HTML-form convention and marketing design
+  system (via partials/app-head.stx + app-nav.stx) as the sibling settings
+  pages.
+-->
+<script server>
+const { config } = require('@stacksjs/config')
+const { Auth, sessionUser } = require('@stacksjs/auth')
+const { db } = require('@stacksjs/database')
+
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
+
+// Auth + team resolution — see resources/views/dashboard/monitors/index.stx
+// for the full rationale.
+async function resolveAuthTeam() {
+  const guardName = config.auth?.default || 'api'
+  const guard = config.auth?.guards?.[guardName] || {}
+  const driver = guard.driver || 'token'
+  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
+
+  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
+    ? globalThis.requestContext.cookie(cookieName)
+    : null
+  if (!cookieValue) return null
+
+  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
+  if (!user || !user.id) return null
+
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
+
+  return { user, teamId: membership ? membership.team_id : null }
+}
+
+const AUTH = await resolveAuthTeam()
+const AUTH_USER = AUTH ? AUTH.user : null
+const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'settings'
+
+const creds = TEAM_ID !== -1
+  ? (await db.selectFrom('cloud_credentials').where('team_id', '=', TEAM_ID).where('provider', '=', 'aws').limit(1).execute())[0] || null
+  : null
+const hasSecret = !!(creds && creds.secret_access_key_encrypted)
+const awsAccessKeyId = creds ? (creds.access_key_id || '') : ''
+const awsRegion = creds ? (creds.region || 'us-east-1') : 'us-east-1'
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const saved = query.get('saved') === '1'
+const errorCode = query.get('error') || ''
+const ERROR_MESSAGES = {
+  access_key_required: 'Enter the AWS access key ID.',
+  secret_required: 'Enter the AWS secret access key.',
+}
+const errorMessage = ERROR_MESSAGES[errorCode] || ''
+
+// The minimal IAM policy the automation needs: describe instances to find the
+// target box, and push an ephemeral SSH key to it via EC2 Instance Connect so
+// the agent installer can connect. No long-lived key pair, no broad EC2 write.
+const IAM_POLICY = JSON.stringify({
+  Version: '2012-10-17',
+  Statement: [
+    {
+      Sid: 'UptimeStatusAgentProvisioning',
+      Effect: 'Allow',
+      Action: [
+        'ec2:DescribeInstances',
+        'ec2-instance-connect:SendSSHPublicKey',
+      ],
+      Resource: '*',
+    },
+  ],
+}, null, 2)
+
+useHead({ title: 'Cloud credentials · UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<style>
+  .cloud-form { display: grid; gap: 1.1rem; max-width: 560px; }
+  .cloud-form label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight: 600; }
+  .cloud-form input {
+    width: 100%; min-height: 44px; padding: 0 0.85rem; box-sizing: border-box;
+    border: 1px solid var(--border-strong); border-radius: 10px;
+    color: var(--fg); font: inherit; font-size: 0.93rem; background: var(--bg);
+    font-family: var(--font-mono);
+  }
+  .cloud-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .cloud-form .help { margin-top: 0.35rem; color: var(--muted); font-size: 0.8rem; }
+  .cloud-status { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; font-weight: 600; }
+  .cloud-status.ok { color: var(--status, #10b981); }
+  .cloud-status.none { color: var(--muted); }
+  .iam-policy { margin: 0; padding: 1rem; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); overflow-x: auto; font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.5; }
+  .perm-list { margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.85rem; line-height: 1.7; }
+  .perm-list code { font-family: var(--font-mono); color: var(--fg); }
+</style>
+
+<main class="app-shell">
+  @if (!AUTH_USER)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to manage cloud credentials.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER)
+    <header class="page-head">
+      <div>
+        <h1>Cloud credentials</h1>
+        <p class="meta">AWS access for the metrics-agent automation</p>
+      </div>
+    </header>
+
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="lbl">Settings</span>
+        <a href="/dashboard/settings/team" class="chip">Team</a>
+        <a href="/dashboard/settings/notifications" class="chip">Notifications</a>
+        <a href="/dashboard/settings/cloud" class="chip active">Cloud</a>
+        <a href="/dashboard/settings/billing" class="chip">Billing</a>
+      </div>
+    </div>
+
+    @if (saved)
+      <div class="flash">AWS credentials saved.</div>
+    @endif
+
+    @if (errorMessage)
+      <div class="flash error">{{ errorMessage }}</div>
+    @endif
+
+    <section class="card" aria-label="AWS credentials">
+      <div class="card-head">
+        <h3>Amazon Web Services</h3>
+        @if (hasSecret)
+          <span class="cloud-status ok">&#9679; Secret stored</span>
+        @endif
+        @if (!hasSecret)
+          <span class="cloud-status none">&#9675; Not configured</span>
+        @endif
+      </div>
+      <div class="card-body">
+        <form class="cloud-form" method="POST" action="/api/cloud-credential-forms/aws">
+          <div>
+            <label for="access_key_id">Access key ID</label>
+            <input id="access_key_id" name="access_key_id" type="text" autocomplete="off" spellcheck="false" placeholder="AKIA..." value="{{ awsAccessKeyId }}" required>
+          </div>
+          <div>
+            <label for="secret_access_key">Secret access key</label>
+            <input id="secret_access_key" name="secret_access_key" type="password" autocomplete="off" spellcheck="false" placeholder="{{ hasSecret ? 'Stored — leave blank to keep' : 'Enter secret access key' }}">
+            <p class="help">Stored encrypted (AES-256-GCM). It is never shown again after saving.</p>
+          </div>
+          <div>
+            <label for="region">Default region</label>
+            <input id="region" name="region" type="text" autocomplete="off" spellcheck="false" placeholder="us-east-1" value="{{ awsRegion }}">
+          </div>
+          <div>
+            <button class="button primary" type="submit">Save credentials</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Minimal IAM permissions" style="margin-top: 1.25rem;">
+      <div class="card-head">
+        <h3>Minimal IAM permissions</h3>
+        <span class="sub">least privilege</span>
+      </div>
+      <div class="card-body">
+        <p class="subhead">Create an IAM user with programmatic access and attach exactly this inline policy — nothing more is needed:</p>
+        <ul class="perm-list">
+          <li><code>ec2:DescribeInstances</code> — locate the monitored instance by id or tag.</li>
+          <li><code>ec2-instance-connect:SendSSHPublicKey</code> — push a one-time SSH key so the installer can connect (no long-lived key pair).</li>
+        </ul>
+        <pre class="iam-policy">{{ IAM_POLICY }}</pre>
+        <p class="help">Scope <code>Resource</code> to specific instance ARNs if you want to restrict provisioning to particular boxes.</p>
+      </div>
+    </section>
+  @endif
+</main>

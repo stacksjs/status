@@ -159,6 +159,11 @@ route.post('/logout', 'Actions/Auth/LogoutAction').middleware('auth')
 route.get('/auth/sso/{provider}', 'Actions/Auth/SsoRedirectAction').rateLimit(10, 'minute')
 route.get('/auth/sso/{provider}/callback', 'Actions/Auth/SsoCallbackAction').rateLimit(10, 'minute')
 
+// Cloud credentials: dashboard settings form post (same /*-forms/ convention).
+// Stores the team's AWS credentials (secret encrypted at rest) for the
+// metrics-agent provisioning automation — see Actions/Cloud/SaveAwsCredentialsAction.
+route.post('/cloud-credential-forms/aws', 'Actions/Cloud/SaveAwsCredentialsAction')
+
 // Per-team uptime report emails: dashboard settings form post (same
 // /*-forms/ convention as the blocks above; see
 // app/Jobs/SendUptimeReports.ts for the scheduled sender).
