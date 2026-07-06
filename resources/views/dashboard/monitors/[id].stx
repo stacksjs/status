@@ -141,26 +141,44 @@ const chartChecks = monitor
   ? (await db.selectFrom('check_results').where('monitor_id', '=', monitor.id).where('response_time_ms', '>=', 0).orderBy('checked_at', 'desc').limit(50).execute()).reverse()
   : []
 
-function buildSparkline(values, width, height) {
-  if (values.length === 0) return ''
-  const max = Math.max(...values, 1)
-  const min = Math.min(...values, 0)
-  const range = max - min || 1
-  const stepX = values.length > 1 ? width / (values.length - 1) : 0
-  return values
-    .map((v, i) => {
-      const x = (i * stepX).toFixed(1)
-      const y = (height - ((v - min) / range) * height).toFixed(1)
-      return `${i === 0 ? 'M' : 'L'}${x},${y}`
-    })
-    .join(' ')
+// Charts are generated server-side with ts-charts (the in-house D3
+// rewrite): scales produce honest zero-baseline axes with nice ticks,
+// shape generators emit the SVG path strings directly. No client JS.
+const { scaleLinear, scaleBand, line: chartLine, area: chartArea, curveMonotoneX } = require('ts-charts')
+
+// One geometry for every chart card: aspect-preserving (text stays
+// undistorted), left gutter for tick labels, bottom row for time labels.
+const CHART = { w: 640, h: 150, top: 8, right: 8, bottom: 22, left: 46 }
+
+function fmtDur(ms) {
+  if (ms === null || ms === undefined) return '--'
+  if (ms < 1000) return Math.round(ms) + 'ms'
+  if (ms < 60000) return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's'
+  return Math.round(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's'
 }
 
-const sparklineWidth = 600
-const sparklineHeight = 80
-const sparklinePath = buildSparkline(chartChecks.map((c) => c.response_time_ms), sparklineWidth, sparklineHeight)
 const latestResponseTime = chartChecks.length > 0 ? chartChecks[chartChecks.length - 1].response_time_ms : null
 const avgResponseTime = chartChecks.length > 0 ? Math.round(chartChecks.reduce((sum, c) => sum + c.response_time_ms, 0) / chartChecks.length) : null
+
+// Response time: zero-baseline area + monotone line, gridline ticks with
+// humanized labels, first/last check time on the x axis.
+let rtChart = null
+if (chartChecks.length > 1) {
+  const values = chartChecks.map(c => c.response_time_ms)
+  const x = scaleLinear().domain([0, values.length - 1]).range([CHART.left, CHART.w - CHART.right])
+  const y = scaleLinear().domain([0, Math.max(...values, 1)]).nice().range([CHART.h - CHART.bottom, CHART.top])
+  const lineGen = chartLine().x((_d, i) => x(i)).y(d => y(d)).curve(curveMonotoneX)
+  const areaGen = chartArea().x((_d, i) => x(i)).y0(y(0)).y1(d => y(d)).curve(curveMonotoneX)
+  const hhmm = iso => String(iso).slice(11, 16)
+  rtChart = {
+    linePath: lineGen(values),
+    areaPath: areaGen(values),
+    ticks: y.ticks(3).filter(t => t > 0).map(t => ({ y: y(t).toFixed(1), label: fmtDur(t) })),
+    baselineY: y(0).toFixed(1),
+    xFirst: hhmm(chartChecks[0].checked_at),
+    xLast: hhmm(chartChecks[chartChecks.length - 1].checked_at),
+  }
+}
 
 // Time-range filter + request-volume/CPU/RAM aggregation. `range` picks
 // both the lookback window and the bucket granularity (hourly buckets for
@@ -211,29 +229,61 @@ if (monitor) {
 
 const totalChecksInRange = volumeBuckets.reduce((sum, b) => sum + b.request_count, 0)
 
-function buildBarChart(values, width, height) {
-  if (values.length === 0) return []
-  const max = Math.max(...values, 1)
-  const barWidth = width / values.length
-  return values.map((v, i) => ({
-    x: (i * barWidth).toFixed(1),
-    y: (height - (v / max) * height).toFixed(1),
-    w: (barWidth * 0.8).toFixed(1),
-    h: ((v / max) * height || 0).toFixed(1),
-  }))
+// Dense bucket axis: every hour/day in the window exists, zero-filled.
+// Sparse buckets were the old "two giant bars" bug: only buckets that
+// happened to contain checks were drawn, each stretched across the
+// full width.
+const denseKeys = []
+{
+  const stepMs = granularity === 'hour' ? 3600000 : 86400000
+  const start = Date.now() - sinceMs
+  for (let t = start; t <= Date.now(); t += stepMs)
+    denseKeys.push(bucketKey(new Date(t).toISOString()))
+}
+const byKey = new Map(volumeBuckets.map(b => [b.bucket, b]))
+const denseBuckets = denseKeys.map(k => byKey.get(k) || { bucket: k, request_count: 0, avg_cpu: null, avg_ram: null })
+
+let volChart = null
+if (denseBuckets.length > 0) {
+  const counts = denseBuckets.map(b => b.request_count)
+  const xBand = scaleBand().domain(denseBuckets.map(b => b.bucket)).range([CHART.left, CHART.w - CHART.right]).padding(0.25)
+  const y = scaleLinear().domain([0, Math.max(...counts, 1)]).nice().range([CHART.h - CHART.bottom, CHART.top])
+  const labelEvery = Math.max(1, Math.ceil(denseBuckets.length / 6))
+  const xLabel = k => granularity === 'hour' ? k.slice(11) : k.slice(5)
+  volChart = {
+    bars: denseBuckets.map(b => ({
+      x: xBand(b.bucket).toFixed(1),
+      y: y(b.request_count).toFixed(1),
+      w: xBand.bandwidth().toFixed(1),
+      h: Math.max(0, y(0) - y(b.request_count)).toFixed(1),
+      count: b.request_count,
+      bucket: b.bucket,
+    })),
+    ticks: y.ticks(3).filter(t => t > 0 && Number.isInteger(t)).map(t => ({ y: y(t).toFixed(1), label: String(t) })),
+    baselineY: y(0).toFixed(1),
+    xLabels: denseBuckets.filter((_b, i) => i % labelEvery === 0).map(b => ({ x: (xBand(b.bucket) + xBand.bandwidth() / 2).toFixed(1), label: xLabel(b.bucket) })),
+  }
 }
 
-const volumeChartWidth = 600
-const volumeChartHeight = 80
-const volumeBars = buildBarChart(volumeBuckets.map((b) => b.request_count), volumeChartWidth, volumeChartHeight)
-
-// CPU/RAM line paths -- only meaningful when this monitor reports metrics.
-const cpuPath = monitor && monitor.reports_metrics
-  ? buildSparkline(volumeBuckets.map((b) => b.avg_cpu || 0), volumeChartWidth, volumeChartHeight)
-  : ''
-const ramPath = monitor && monitor.reports_metrics
-  ? buildSparkline(volumeBuckets.map((b) => b.avg_ram || 0), volumeChartWidth, volumeChartHeight)
-  : ''
+// CPU/RAM traces: fixed 0-100% axis, gaps where the agent sent nothing
+// (line.defined) instead of the old null-becomes-zero cliffs.
+let hostChart = null
+if (monitor && monitor.reports_metrics && denseBuckets.length > 1) {
+  const x = scaleLinear().domain([0, denseBuckets.length - 1]).range([CHART.left, CHART.w - CHART.right])
+  const y = scaleLinear().domain([0, 100]).range([CHART.h - CHART.bottom, CHART.top])
+  const gen = key => chartLine()
+    .defined(d => typeof d[key] === 'number')
+    .x((_d, i) => x(i))
+    .y(d => y(d[key]))
+    .curve(curveMonotoneX)(denseBuckets.map(b => ({ avg_cpu: b.avg_cpu, avg_ram: b.avg_ram })))
+  const latest = [...denseBuckets].reverse().find(b => b.avg_cpu !== null)
+  hostChart = {
+    cpuPath: gen('avg_cpu') || '',
+    ramPath: gen('avg_ram') || '',
+    ticks: [0, 50, 100].map(t => ({ y: y(t).toFixed(1), label: t + '%' })),
+    nowLabel: latest ? Math.round(latest.avg_cpu) + '% CPU / ' + Math.round(latest.avg_ram) + '% RAM' : '--',
+  }
+}
 
 // 90-day uptime bar: one segment per day, 'up'/'degraded'/'down'/'unknown'.
 // Grouped by day in JS (portable) rather than SQLite date()/SUM(CASE).
@@ -462,32 +512,46 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
       </div>
     </section>
 
-    @if (volumeBars.length > 0)
+    @if (volChart)
       <section class="card" aria-label="Check volume">
         <div class="card-head">
           <h3>Check volume, {{ range }}</h3>
-          <span class="sub">{{ totalChecksInRange }} checks</span>
+          <span class="sub">{{ totalChecksInRange }} check{{ totalChecksInRange === 1 ? '' : 's' }}</span>
         </div>
         <div class="card-body">
-          <svg viewBox="0 0 {{ volumeChartWidth }} {{ volumeChartHeight }}" class="mon-chart" preserveAspectRatio="none" role="img" aria-label="Check volume per bucket">
-            @foreach (volumeBars as bar)
-              <rect x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.w }}" height="{{ bar.h }}" fill="var(--accent)" opacity="0.8"></rect>
+          <svg viewBox="0 0 640 150" class="mon-chart" role="img" aria-label="Check volume per bucket">
+            @foreach (volChart.ticks as t)
+              <line x1="46" x2="632" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
+              <text x="40" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ t.label }}</text>
+            @endforeach
+            <line x1="46" x2="632" y1="{{ volChart.baselineY }}" y2="{{ volChart.baselineY }}" stroke="var(--border-strong)" stroke-width="1"></line>
+            @foreach (volChart.bars as bar)
+              <rect x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.w }}" height="{{ bar.h }}" rx="1.5" fill="var(--accent)" opacity="0.85">
+                <title>{{ bar.bucket }}: {{ bar.count }} checks</title>
+              </rect>
+            @endforeach
+            @foreach (volChart.xLabels as xl)
+              <text x="{{ xl.x }}" y="144" text-anchor="middle" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ xl.label }}</text>
             @endforeach
           </svg>
         </div>
       </section>
     @endif
 
-    @if (monitor.reports_metrics && volumeBars.length > 0)
+    @if (hostChart)
       <section class="card" aria-label="CPU and RAM usage">
         <div class="card-head">
           <h3>Host telemetry, CPU and RAM</h3>
-          <span class="sub">{{ range }}</span>
+          <span class="sub">now {{ hostChart.nowLabel }}</span>
         </div>
         <div class="card-body">
-          <svg viewBox="0 0 {{ volumeChartWidth }} {{ volumeChartHeight }}" class="mon-chart" preserveAspectRatio="none" role="img" aria-label="CPU and RAM traces">
-            <path d="{{ cpuPath }}" fill="none" stroke="var(--accent)" stroke-width="2"></path>
-            <path d="{{ ramPath }}" fill="none" stroke="var(--muted)" stroke-width="2"></path>
+          <svg viewBox="0 0 640 150" class="mon-chart" role="img" aria-label="CPU and RAM traces">
+            @foreach (hostChart.ticks as t)
+              <line x1="46" x2="632" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
+              <text x="40" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ t.label }}</text>
+            @endforeach
+            <path d="{{ hostChart.cpuPath }}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"></path>
+            <path d="{{ hostChart.ramPath }}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round"></path>
           </svg>
           <div class="mon-legend">
             <span style="color: var(--accent);">&#9632; CPU</span>
@@ -514,15 +578,23 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
       </section>
     @endif
 
-    @if (chartChecks.length > 0)
+    @if (rtChart)
       <section class="card" aria-label="Response time">
         <div class="card-head">
           <h3>Response time, last {{ chartChecks.length }} checks</h3>
-          <span class="sub">{{ latestResponseTime !== null ? 'now ' + latestResponseTime + 'ms' : '--' }} / avg {{ avgResponseTime !== null ? avgResponseTime + 'ms' : '--' }}</span>
+          <span class="sub">now {{ fmtDur(latestResponseTime) }} / avg {{ fmtDur(avgResponseTime) }}</span>
         </div>
         <div class="card-body">
-          <svg viewBox="0 0 {{ sparklineWidth }} {{ sparklineHeight }}" class="mon-chart" preserveAspectRatio="none" role="img" aria-label="Response time sparkline">
-            <path d="{{ sparklinePath }}" fill="none" stroke="var(--accent)" stroke-width="2"></path>
+          <svg viewBox="0 0 640 150" class="mon-chart" role="img" aria-label="Response time chart">
+            @foreach (rtChart.ticks as t)
+              <line x1="46" x2="632" y1="{{ t.y }}" y2="{{ t.y }}" stroke="var(--border)" stroke-width="1"></line>
+              <text x="40" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ t.label }}</text>
+            @endforeach
+            <line x1="46" x2="632" y1="{{ rtChart.baselineY }}" y2="{{ rtChart.baselineY }}" stroke="var(--border-strong)" stroke-width="1"></line>
+            <path d="{{ rtChart.areaPath }}" fill="var(--accent)" opacity="0.12"></path>
+            <path d="{{ rtChart.linePath }}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"></path>
+            <text x="46" y="144" text-anchor="start" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ rtChart.xFirst }}</text>
+            <text x="632" y="144" text-anchor="end" fill="var(--muted)" font-size="9" font-family="var(--font-mono)">{{ rtChart.xLast }}</text>
           </svg>
         </div>
       </section>
