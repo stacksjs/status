@@ -12,8 +12,57 @@
       <span class="brand-name">{{ appName }}</span>
     </a>
     <div class="nav-links" aria-label="Primary navigation">
-      <a href="/features">Features</a>
-      <a href="/for">Use cases</a>
+      <div class="nav-item">
+        <a href="/features">Features<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg></a>
+        <div class="nav-mega features">
+          <div class="nav-mega-inner">
+            <div class="mega-group">
+              <h5>Availability</h5>
+              <a href="/features/uptime-monitoring">Uptime</a>
+              <a href="/features/ping-monitoring">Ping</a>
+              <a href="/features/tcp-port-monitoring">TCP port</a>
+              <a href="/features/cron-monitoring">Cron &amp; heartbeats</a>
+              <a href="/features/health-checks">Health checks</a>
+            </div>
+            <div class="mega-group">
+              <h5>Certificates &amp; DNS</h5>
+              <a href="/features/ssl-monitoring">SSL certificates</a>
+              <a href="/features/domain-monitoring">Domains</a>
+              <a href="/features/dns-monitoring">DNS records</a>
+              <a href="/features/dns-blocklist-monitoring">DNS blocklists</a>
+            </div>
+            <div class="mega-group">
+              <h5>Performance &amp; ops</h5>
+              <a href="/features/performance-monitoring">Performance</a>
+              <a href="/features/lighthouse-monitoring">Lighthouse</a>
+              <a href="/features/broken-links">Broken links</a>
+              <a href="/features/server-monitoring">Server metrics</a>
+              <a href="/features/ai-checks">AI checks</a>
+            </div>
+            <div class="mega-foot">
+              <div class="mega-foot-links">
+                <a href="/features/status-pages">Status pages</a>
+                <a href="/features/incident-management">Incidents</a>
+                <a href="/features/notifications">Notifications</a>
+              </div>
+              <a class="mega-all" href="/features">All features<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <a href="/for">Use cases<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg></a>
+        <div class="nav-mega usecases">
+          <div class="nav-mega-inner">
+            <a class="mega-link" href="/for/agencies"><strong>Agencies</strong><span>Monitor every client site from one dashboard.</span></a>
+            <a class="mega-link" href="/for/saas"><strong>SaaS teams</strong><span>Uptime, status pages, and on-call for your product.</span></a>
+            <a class="mega-link" href="/for/ecommerce"><strong>E-commerce</strong><span>Catch checkout and payment outages fast.</span></a>
+            <a class="mega-link" href="/for/devops"><strong>DevOps &amp; SRE</strong><span>Heartbeats, health checks, and server metrics.</span></a>
+            <a class="mega-link" href="/for/stacks-developers"><strong>Stacks developers</strong><span>Drop-in monitoring for Stacks apps.</span></a>
+            <a class="mega-link" href="/compare"><strong>Compare</strong><span>See how we stack up against the alternatives.</span></a>
+          </div>
+        </div>
+      </div>
       <a href="/compare">Compare</a>
       <a href="/#pricing">Pricing</a>
       <a href="/docs" data-no-router>Docs</a>

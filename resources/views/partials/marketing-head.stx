@@ -213,6 +213,107 @@
   .nav-links a:hover { color: var(--fg); }
   .nav-links a[aria-current="true"] { color: var(--fg); }
 
+  /* ------------------------------------------------------------------ */
+  /* Mega menu (Features / Use cases hover panels)                       */
+  /* ------------------------------------------------------------------ */
+  .nav-item { position: relative; display: inline-flex; align-items: center; }
+  .nav-item > a { display: inline-flex; align-items: center; gap: 0.28rem; }
+  .nav-item > a .caret {
+    width: 13px; height: 13px; opacity: 0.7;
+    transition: transform 0.18s ease;
+  }
+  .nav-item:hover > a .caret,
+  .nav-item:focus-within > a .caret { transform: rotate(180deg); }
+
+  .nav-mega {
+    position: absolute;
+    top: 100%;
+    left: 0;                        /* open rightward from the trigger's left edge */
+    padding-top: 12px;              /* transparent bridge so hover survives the gap */
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: 60;
+  }
+  .nav-item:hover > .nav-mega,
+  .nav-item:focus-within > .nav-mega {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .nav-mega-inner {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    padding: 1.1rem;
+    transform: translateY(6px);
+    transition: transform 0.18s ease;
+  }
+  .nav-item:hover > .nav-mega .nav-mega-inner,
+  .nav-item:focus-within > .nav-mega .nav-mega-inner { transform: translateY(0); }
+
+  .nav-mega.features .nav-mega-inner {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    gap: 0.4rem 1.75rem;
+    width: min(90vw, 620px);
+  }
+  .nav-mega.usecases .nav-mega-inner {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(210px, 1fr));
+    gap: 0.2rem 0.5rem;
+    width: min(90vw, 500px);
+  }
+
+  .mega-group h5 {
+    margin: 0.15rem 0 0.35rem;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .mega-group a {
+    display: block;
+    padding: 0.32rem 0;
+    color: var(--fg);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+  .mega-group a:hover { color: var(--accent); }
+
+  .mega-link {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--radius-sm);
+  }
+  .mega-link:hover { background: var(--surface-2); }
+  .mega-link strong { color: var(--fg); font-size: 0.88rem; font-weight: 600; }
+  .mega-link span { color: var(--muted); font-size: 0.78rem; line-height: 1.35; }
+
+  .mega-foot {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-top: 0.6rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--border);
+  }
+  .mega-foot .mega-foot-links { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; }
+  .mega-foot .mega-foot-links a { color: var(--muted); font-size: 0.82rem; font-weight: 500; }
+  .mega-foot .mega-foot-links a:hover { color: var(--fg); }
+  .mega-foot .mega-all {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    color: var(--accent); font-size: 0.82rem; font-weight: 600;
+  }
+  .mega-foot .mega-all svg { width: 14px; height: 14px; }
+
   .nav-right {
     display: flex;
     align-items: center;
