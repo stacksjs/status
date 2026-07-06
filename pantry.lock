@@ -3,12 +3,15 @@
   "lockfileVersion": 2,
   "workspaces": {
     "": {
-      "name": "stacks",
+      "name": "status",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.5.29",
-        "@ts-cloud/aws-types": "^0.5.29",
-        "@ts-cloud/core": "^0.5.29",
-        "stacks": "workspace:*"
+        "@stacksjs/stx": "^0.2.76",
+        "@stacksjs/ts-cloud": "^0.7.10",
+        "@ts-cloud/aws-types": "^0.7.10",
+        "@ts-cloud/core": "^0.7.10",
+        "bun-plugin-stx": "^0.2.76",
+        "stacks": "workspace:*",
+        "ts-charts": "github:stacksjs/ts-charts"
       },
       "devDependencies": {
         "better-dx": "^0.2.15"
@@ -78,7 +81,7 @@
       "version": "0.70.45",
       "dependencies": {
         "@stacksjs/bunpress": "^0.1.5",
-        "@stacksjs/ts-cloud": "^0.5.4",
+        "@stacksjs/ts-cloud": "^0.7.10",
         "@stacksjs/ts-md": "^0.1.1"
       },
       "devDependencies": {
@@ -105,7 +108,7 @@
       "name": "@stacksjs/ai",
       "version": "0.70.45",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.5.4"
+        "@stacksjs/ts-cloud": "^0.7.10"
       },
       "devDependencies": {
         "better-dx": "^0.2.12"
@@ -193,6 +196,7 @@
         "@stacksjs/error-handling": "^0.70.23",
         "@stacksjs/events": "^0.70.23",
         "@stacksjs/git": "^0.70.23",
+        "@stacksjs/gitit": "^0.2.5",
         "@stacksjs/health": "^0.70.23",
         "@stacksjs/httx": "^0.1.10",
         "@stacksjs/lint": "^0.70.23",
@@ -211,7 +215,7 @@
         "@stacksjs/storage": "^0.70.23",
         "@stacksjs/strings": "^0.70.23",
         "@stacksjs/testing": "^0.70.23",
-        "@stacksjs/ts-cloud": "^0.5.4",
+        "@stacksjs/ts-cloud": "^0.7.10",
         "@stacksjs/tunnel": "^0.70.23",
         "@stacksjs/types": "^0.70.23",
         "@stacksjs/ui": "^0.70.23",
@@ -333,7 +337,7 @@
       "name": "@stacksjs/cloud",
       "version": "0.70.45",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.5.4"
+        "@stacksjs/ts-cloud": "^0.7.10"
       },
       "devDependencies": {
         "@stacksjs/cli": "workspace:*",
@@ -440,7 +444,7 @@
       "name": "@stacksjs/deploy",
       "version": "0.70.45",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.5.4"
+        "@stacksjs/ts-cloud": "^0.7.10"
       }
     },
     "storage/framework/core/desktop": {
@@ -461,7 +465,7 @@
       "version": "0.70.45",
       "dependencies": {
         "@stacksjs/dnsx": "^0.2.3",
-        "@stacksjs/ts-cloud": "^0.5.4"
+        "@stacksjs/ts-cloud": "^0.7.10"
       },
       "devDependencies": {
         "@stacksjs/actions": "workspace:*",
@@ -491,7 +495,7 @@
       "name": "@stacksjs/email",
       "version": "0.70.45",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.5.4"
+        "@stacksjs/ts-cloud": "^0.7.10"
       },
       "devDependencies": {
         "@stacksjs/cli": "workspace:*",
@@ -869,7 +873,7 @@
       "name": "@stacksjs/storage",
       "version": "0.70.45",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.5.4"
+        "@stacksjs/ts-cloud": "^0.7.10"
       },
       "devDependencies": {
         "@stacksjs/arrays": "workspace:*",
@@ -893,7 +897,7 @@
       "name": "@stacksjs/testing",
       "version": "0.70.45",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.5.4"
+        "@stacksjs/ts-cloud": "^0.7.10"
       },
       "devDependencies": {
         "@stacksjs/config": "workspace:*",
@@ -1022,7 +1026,7 @@
       "source": "npm",
       "dependencies": {
         "@stacksjs/bunpress": "^0.1.5",
-        "@stacksjs/ts-cloud": "^0.2.15",
+        "@stacksjs/ts-cloud": "^0.7.10",
         "@stacksjs/ts-md": "^0.1.1"
       }
     },
@@ -1031,7 +1035,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.2.15"
+        "@stacksjs/ts-cloud": "^0.7.10"
       },
       "peerDependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.79"
@@ -1053,7 +1057,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/ts-auth": "^0.4.1"
+        "@stacksjs/ts-auth": "^0.4.3"
       }
     },
     "@stacksjs/build@^0.70.23": {
@@ -1131,7 +1135,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.2.15"
+        "@stacksjs/ts-cloud": "^0.7.10"
       }
     },
     "@stacksjs/collections@^0.70.23": {
@@ -1152,7 +1156,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "bun-query-builder": "^0.1.21"
+        "bun-query-builder": "^0.1.38"
       }
     },
     "@stacksjs/desktop@^0.70.23": {
@@ -1166,7 +1170,7 @@
       "source": "npm",
       "dependencies": {
         "@stacksjs/dnsx": "^0.2.3",
-        "@stacksjs/ts-cloud": "^0.2.15"
+        "@stacksjs/ts-cloud": "^0.7.10"
       }
     },
     "@stacksjs/dnsx@^0.2.3": {
@@ -1182,7 +1186,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.2.15"
+        "@stacksjs/ts-cloud": "^0.7.10"
       }
     },
     "@stacksjs/enums@^0.70.23": {
@@ -1195,7 +1199,9 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "ts-error-handling": "^0.1.1"
+        "@stacksjs/stx": "^0.2.67",
+        "ts-error-handling": "^0.1.1",
+        "ts-syntax-highlighter": "^0.2.1"
       }
     },
     "@stacksjs/events@^0.70.23": {
@@ -1267,8 +1273,8 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/ts-validation": "^0.4.9",
-        "bun-query-builder": "^0.1.21"
+        "@stacksjs/ts-validation": "^0.5.0",
+        "bun-query-builder": "^0.1.38"
       }
     },
     "@stacksjs/path@^0.70.23": {
@@ -1294,7 +1300,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/bun-router": "^0.0.13"
+        "@stacksjs/bun-router": "0.0.16"
       }
     },
     "@stacksjs/rpx@^0.11.13": {
@@ -1333,7 +1339,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.2.15"
+        "@stacksjs/ts-cloud": "^0.7.10"
       }
     },
     "@stacksjs/strings@^0.70.23": {
@@ -1341,20 +1347,20 @@
       "version": "^0.70.23",
       "source": "npm"
     },
-    "@stacksjs/stx@^0.2.40": {
+    "@stacksjs/stx@^0.2.76": {
       "name": "@stacksjs/stx",
-      "version": "^0.2.40",
+      "version": "^0.2.76",
       "source": "npm",
       "dependencies": {
         "@cwcss/crosswind": "^0.2.6",
         "@stacksjs/clapp": "^0.2.0",
-        "@stacksjs/desktop": "0.2.73",
-        "@stacksjs/sanitizer": "0.2.73",
+        "@stacksjs/desktop": "0.2.81",
+        "@stacksjs/sanitizer": "0.2.81",
         "@stacksjs/ts-craft": "^0.0.2",
         "@stacksjs/ts-i18n": "^0.1.11",
-        "bun-plugin-stx": "0.2.73",
+        "bun-plugin-stx": "0.2.81",
         "bunfig": "^0.15.6",
-        "stx-router": "0.2.73",
+        "stx-router": "0.2.81",
         "ts-broadcasting": "^0.0.4",
         "ts-images": "^0.1.8",
         "ts-syntax-highlighter": "^0.2.1"
@@ -1368,7 +1374,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/ts-cloud": "^0.2.15"
+        "@stacksjs/ts-cloud": "^0.7.10"
       }
     },
     "@stacksjs/tlsx@^0.13.0": {
@@ -1407,9 +1413,9 @@
         "cache": "./dist/bin/cli.js"
       }
     },
-    "@stacksjs/ts-cloud@^0.5.29": {
+    "@stacksjs/ts-cloud@^0.7.10": {
       "name": "@stacksjs/ts-cloud",
-      "version": "^0.5.29",
+      "version": "^0.7.10",
       "source": "npm",
       "dependencies": {
         "@stacksjs/ts-xml": "^0.1.0",
@@ -1476,8 +1482,8 @@
       "source": "npm",
       "dependencies": {
         "@stacksjs/bunpress": "^0.1.4",
-        "@stacksjs/ts-validation": "^0.4.10",
-        "bun-query-builder": "^0.1.21"
+        "@stacksjs/ts-validation": "^0.5.0",
+        "bun-query-builder": "^0.1.38"
       }
     },
     "@stacksjs/ui@^0.70.23": {
@@ -1490,7 +1496,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/browser": "^0.70.45"
+        "@stacksjs/browser": "workspace:*"
       }
     },
     "@stacksjs/validation@^0.70.23": {
@@ -1498,7 +1504,7 @@
       "version": "^0.70.23",
       "source": "npm",
       "dependencies": {
-        "@stacksjs/ts-validation": "^0.4.9"
+        "@stacksjs/ts-validation": "^0.5.0"
       }
     },
     "@stripe/stripe-js@^8.7.0": {
@@ -1531,14 +1537,14 @@
         "@ts-charts/path": "0.2.0"
       }
     },
-    "@ts-cloud/aws-types@^0.5.29": {
+    "@ts-cloud/aws-types@^0.7.10": {
       "name": "@ts-cloud/aws-types",
-      "version": "^0.5.29",
+      "version": "^0.7.10",
       "source": "npm"
     },
-    "@ts-cloud/core@^0.5.29": {
+    "@ts-cloud/core@^0.7.10": {
       "name": "@ts-cloud/core",
-      "version": "^0.5.29",
+      "version": "^0.7.10",
       "source": "npm",
       "dependencies": {
         "@ts-cloud/aws-types": "0.5.35"
@@ -1587,6 +1593,19 @@
       "version": "^0.4.0",
       "source": "npm"
     },
+    "bun-plugin-stx@^0.2.76": {
+      "name": "bun-plugin-stx",
+      "version": "^0.2.76",
+      "source": "npm",
+      "dependencies": {
+        "@stacksjs/stx": "^0.2.72",
+        "stx-router": "^0.2.72"
+      },
+      "bin": {
+        "serve": "./dist/serve.js",
+        "stx-serve": "./dist/serve.js"
+      }
+    },
     "bun-query-builder@^0.1.26": {
       "name": "bun-query-builder",
       "version": "^0.1.26",
@@ -1619,6 +1638,11 @@
       "bin": {
         "bunfig": "./bin/cli.js"
       }
+    },
+    "github:stacksjs/ts-charts@main": {
+      "name": "github:stacksjs/ts-charts",
+      "version": "main",
+      "source": "github"
     },
     "localtunnels@^0.2.7": {
       "name": "localtunnels",
