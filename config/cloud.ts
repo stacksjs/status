@@ -594,7 +594,7 @@ export const tsCloud: TsCloudConfig = {
           root: '.',
           start: 'bun buddy queue:work --queue=checks',
           preStart: ['bun install'],
-          env: { APP_ENV: 'production', WORKER_REGION: env.WORKER_REGION || 'us-east' },
+          env: { APP_ENV: 'production', WORKER_REGION: String(env.WORKER_REGION || 'us-east') },
         },
       }
     : {
