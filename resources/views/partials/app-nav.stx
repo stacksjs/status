@@ -15,10 +15,11 @@
       <span class="brand-name">UptimeStatus</span>
     </a>
     <div class="app-links" aria-label="Dashboard sections">
-      <a href="/dashboard/monitors" class="{{ NAV_ACTIVE === 'monitors' ? 'active' : '' }}">Monitors</a>
-      <a href="/dashboard/incidents" class="{{ NAV_ACTIVE === 'incidents' ? 'active' : '' }}">Incidents</a>
-      <a href="/dashboard/status-pages" class="{{ NAV_ACTIVE === 'status-pages' ? 'active' : '' }}">Status pages</a>
-      <a href="/dashboard/settings/notifications" class="{{ NAV_ACTIVE === 'settings' ? 'active' : '' }}">Settings</a>
+      <a href="/dashboard" class="{{ NAV_ACTIVE === 'overview' ? 'active' : '' }}" data-no-router>Overview</a>
+      <a href="/dashboard/monitors" class="{{ NAV_ACTIVE === 'monitors' ? 'active' : '' }}" data-no-router>Monitors</a>
+      <a href="/dashboard/incidents" class="{{ NAV_ACTIVE === 'incidents' ? 'active' : '' }}" data-no-router>Incidents</a>
+      <a href="/dashboard/status-pages" class="{{ NAV_ACTIVE === 'status-pages' ? 'active' : '' }}" data-no-router>Status pages</a>
+      <a href="/dashboard/settings/notifications" class="{{ NAV_ACTIVE === 'settings' ? 'active' : '' }}" data-no-router>Settings</a>
     </div>
     <div class="app-nav-right">
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme">

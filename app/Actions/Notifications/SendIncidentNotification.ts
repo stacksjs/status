@@ -29,7 +29,13 @@ export default new Action({
     const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
     if (attachments.length === 0) return
 
-    const subject = `🔴 ${monitor.name} is down`
+    // Not every incident is an outage. Blocklist listings, broken links,
+    // slowdowns, and score drops are "issues" (degraded), so calling them
+    // "is down" with a red siren over-alarms. Match the wording and the
+    // channel severity to the check type.
+    const ISSUE_TYPES = new Set(['dns_blocklist', 'broken_links', 'lighthouse', 'performance', 'dns'])
+    const isIssue = ISSUE_TYPES.has(monitor.type)
+    const subject = isIssue ? `⚠️ ${monitor.name}: issue detected` : `🔴 ${monitor.name} is down`
     const message = incident.cause || `A ${monitor.type} check failed for ${monitor.url}.`
 
     for (const attachment of attachments) {
@@ -37,7 +43,7 @@ export default new Action({
         channelId: attachment.notification_channel_id,
         subject,
         message,
-        severity: 'critical',
+        severity: isIssue ? 'warning' : 'critical',
       })
     }
 

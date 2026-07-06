@@ -180,7 +180,7 @@ const hasSso = ssoProviders.length > 0
 
     <script>
       (function () {
-        var REDIRECT = '/dashboard/monitors'
+        var REDIRECT = '/dashboard'
         var errorEl = document.getElementById('error')
         var loginForm = document.getElementById('login-form')
         var twofaForm = document.getElementById('twofa-form')

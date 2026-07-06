@@ -26,6 +26,25 @@ function reverseIp(ip: string): string {
   return ip.split('.').reverse().join('.')
 }
 
+/**
+ * Well-known CDN/proxy edge ranges. A blocklist hit on one of these is the
+ * provider's shared IP, not the customer's origin server or its mail
+ * reputation, so we caveat the incident. Not exhaustive (a full PSL/WHOIS
+ * lookup would be), just the ranges customers actually sit behind. Returns
+ * the provider name or null.
+ */
+function isSharedCdnIp(ip: string): string | null {
+  const octets = ip.split('.').map(Number)
+  const [a, b] = octets
+  // Cloudflare: 104.16.0.0/13, 172.64.0.0/13, 188.114.96.0/20, 162.158.0.0/15, 173.245.48.0/20, 103.21.244.0/22
+  if ((a === 104 && b >= 16 && b <= 23) || (a === 172 && b >= 64 && b <= 71) || (a === 188 && b === 114) || (a === 162 && (b === 158 || b === 159)) || (a === 173 && b === 245))
+    return 'Cloudflare'
+  // Fastly 151.101.0.0/16; Akamai commonly 23.x / 104.64.0.0/10
+  if (a === 151 && b === 101)
+    return 'Fastly'
+  return null
+}
+
 async function isListed(reversedIp: string, zone: string): Promise<boolean> {
   try {
     await resolve4(`${reversedIp}.${zone}`)
@@ -117,14 +136,19 @@ export default new Job({
 
     const newListings = listedOn.filter(zone => !previousListedOn.includes(zone))
     if (newListings.length > 0) {
+      const sharedEdge = isSharedCdnIp(ip)
+      const cause = sharedEdge
+        ? `${ip} (a shared ${sharedEdge} edge IP, likely not your own server) is listed on ${newListings.join(', ')}. This usually reflects other sites behind the same CDN and rarely affects your own mail deliverability.`
+        : `${ip} is listed on ${newListings.join(', ')}. Mail from this IP may be filtered as spam. Request delisting from the operator and send outbound mail through a reputable relay (SES, Postmark) rather than the server directly.`
+
       await Incident.create({
         monitor_id: monitor.id,
         started_at: checkedAt,
-        cause: `${ip} newly listed on DNS blocklist(s): ${newListings.join(', ')}`,
+        cause,
         status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'dns_blocklist', newListings }]),
+        impacted_checks: JSON.stringify([{ type: 'dns_blocklist', ip, newListings, sharedEdge: sharedEdge || null }]),
       })
-      log.warn(`[job] RunBlocklistCheck: ${monitor.name} (${ip}) newly listed on ${newListings.join(', ')}`)
+      log.warn(`[job] RunBlocklistCheck: ${monitor.name} (${ip}) newly listed on ${newListings.join(', ')}${sharedEdge ? ` (shared ${sharedEdge} IP)` : ''}`)
     }
 
     // Mirror the status recorded in the CheckResult above onto the monitor -

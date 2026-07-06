@@ -1,0 +1,302 @@
+<!--
+  Overview -- the post-login landing page (auto-routes to /dashboard). One
+  glance at everything the account tracks: fleet health, open incidents,
+  and status pages, all team-scoped. Previously login dropped straight
+  onto the monitor list, which assumed the whole product was one page.
+
+  Same server-rendered convention and visual language as
+  monitors/index.stx: the marketing site's design system (emerald accent,
+  Space Grotesk display, light + dark) via partials/app-head.stx +
+  app-nav.stx, so the app reads as the same product as the site. Every
+  query is team-scoped to the resolved TEAM_ID and fails closed to no
+  data when signed out, exactly like the other dashboard pages.
+-->
+<script server>
+const { config } = require('@stacksjs/config')
+const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
+
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
+
+// Auth + team resolution -- see monitors/index.stx's copy of this block
+// for the full rationale. Resolves to null on any failure so every query
+// below fails closed to "no team" instead of defaulting to team #1.
+async function resolveAuthTeam() {
+  const guardName = config.auth?.default || 'api'
+  const guard = config.auth?.guards?.[guardName] || {}
+  const driver = guard.driver || 'token'
+  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
+
+  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
+    ? globalThis.requestContext.cookie(cookieName)
+    : null
+  if (!cookieValue) return null
+
+  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
+  if (!user || !user.id) return null
+
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
+
+  return { user, teamId: membership ? membership.team_id : null }
+}
+
+const AUTH = await resolveAuthTeam()
+const AUTH_USER = AUTH ? AUTH.user : null
+const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'overview'
+
+// One unfiltered fetch of the team's fleet; the fleet tally and the
+// monitors preview are both derived from it in JS (dialect-agnostic),
+// same approach as monitors/index.stx.
+const allMonitors = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).execute()
+const monitorCount = allMonitors.length
+
+const fleetCounts = {}
+for (const m of allMonitors) fleetCounts[m.status] = (fleetCounts[m.status] || 0) + 1
+function fleetOf(status) {
+  return fleetCounts[status] || 0
+}
+
+// Up to 12 monitors for the preview table, sorted by name.
+const MONITOR_PREVIEW_LIMIT = 12
+const monitors = allMonitors
+  .slice()
+  .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+  .slice(0, MONITOR_PREVIEW_LIMIT)
+
+// Open incidents, team-scoped via this team's monitor ids (the same
+// two-query split incidents/index.stx uses to stay dialect-agnostic).
+const monitorIds = allMonitors.map(m => m.id)
+const monitorNameById = new Map(allMonitors.map(m => [m.id, m.name]))
+
+let openIncidents = []
+let openIncidentCount = 0
+if (monitorIds.length) {
+  openIncidentCount = await db.selectFrom('incidents').whereIn('monitor_id', monitorIds).where('status', '!=', 'resolved').count()
+  const rows = await db.selectFrom('incidents')
+    .whereIn('monitor_id', monitorIds).where('status', '!=', 'resolved')
+    .orderBy('started_at', 'desc').limit(12).execute()
+  openIncidents = rows.map(i => ({
+    id: i.id, cause: i.cause, status: i.status, started_at: i.started_at,
+    monitor_id: i.monitor_id, monitor_name: monitorNameById.get(i.monitor_id) || '',
+  }))
+}
+
+// Team's status pages.
+const statusPages = await db.selectFrom('status_pages').where('team_id', '=', TEAM_ID).orderBy('title', 'asc').execute()
+const statusPageCount = statusPages.length
+
+// ---- Display-only helpers (no queries, no auth) ----
+
+// Monitor status pills + labels, copied from monitors/index.stx.
+function stClass(status) {
+  if (status === 'up') return 'pill pill-up'
+  if (status === 'degraded') return 'pill pill-degraded'
+  if (status === 'down') return 'pill pill-down'
+  return 'pill pill-unknown'
+}
+
+function stLabel(status) {
+  if (status === 'up') return 'Up'
+  if (status === 'degraded') return 'Degraded'
+  if (status === 'down') return 'Down'
+  return 'Pending'
+}
+
+function agoLabel(iso) {
+  if (!iso) return 'never'
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
+  if (s < 60) return s + 's ago'
+  if (s < 3600) return Math.floor(s / 60) + 'm ago'
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+  return Math.floor(s / 86400) + 'd ago'
+}
+
+function targetLabel(url) {
+  return String(url).replace(/^https?:\/\//, '').replace(/\/$/, '')
+}
+
+function typeLabel(t) {
+  const labels = { uptime: 'Uptime', ping: 'Ping', tcp_port: 'TCP port', ssl: 'SSL', dns: 'DNS', domain: 'Domain', broken_links: 'Crawl', lighthouse: 'Lighthouse', dns_blocklist: 'Blocklist', port_scan: 'Port scan', health: 'Health', cron: 'Heartbeat', performance: 'Performance', ai_check: 'AI check' }
+  return labels[t] || String(t).replace('_', ' ')
+}
+
+// Incident status pills + labels, copied from incidents/index.stx.
+function incidentPill(status) {
+  if (status === 'resolved') return 'pill pill-unknown'
+  if (status === 'monitoring') return 'pill pill-degraded'
+  return 'pill pill-down'
+}
+
+function incidentLabel(status) {
+  if (!status) return '--'
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Overview · UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<main class="app-shell">
+  @if (!AUTH_USER)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view your overview.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER)
+    <header class="page-head">
+      <div>
+        <h1>Overview</h1>
+        <p class="meta">{{ monitorCount }} monitor{{ monitorCount === 1 ? '' : 's' }} &middot; {{ statusPageCount }} status page{{ statusPageCount === 1 ? '' : 's' }}</p>
+      </div>
+      <div class="actions">
+        <a class="button" href="/dashboard/monitors" data-no-router>View all monitors</a>
+      </div>
+    </header>
+
+    <dl class="stat-grid">
+      <div class="stat-card">
+        <dt>Operational</dt>
+        <dd class="{{ fleetOf('up') > 0 ? 'ok' : '' }}">{{ fleetOf('up') }}</dd>
+      </div>
+      <div class="stat-card">
+        <dt>Degraded</dt>
+        <dd class="{{ fleetOf('degraded') > 0 ? 'warn' : '' }}">{{ fleetOf('degraded') }}</dd>
+      </div>
+      <div class="stat-card">
+        <dt>Down</dt>
+        <dd class="{{ fleetOf('down') > 0 ? 'bad' : '' }}">{{ fleetOf('down') }}</dd>
+      </div>
+      <div class="stat-card">
+        <dt>Open incidents</dt>
+        <dd class="{{ openIncidentCount > 0 ? 'bad' : '' }}">{{ openIncidentCount }}</dd>
+      </div>
+      <div class="stat-card">
+        <dt>Status pages</dt>
+        <dd>{{ statusPageCount }}</dd>
+      </div>
+    </dl>
+
+    <section class="card scroll-x" aria-label="Monitors">
+      <div class="card-head">
+        <h3>Monitors</h3>
+        <span class="sub">{{ monitorCount }} tracked</span>
+      </div>
+      @if (monitorCount === 0)
+        <div class="card-body">
+          <div class="empty" style="border: 0; padding: 1.5rem 0;">
+            <h3>No monitors yet</h3>
+            <p>Create a monitor via the API to start tracking uptime. <a href="/dashboard/monitors">Go to monitors</a>.</p>
+          </div>
+        </div>
+      @endif
+      @if (monitorCount > 0)
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: 110px minmax(220px, 1.7fr) 120px 92px;">
+            <span class="tcell">Status</span>
+            <span class="tcell">Monitor</span>
+            <span class="tcell">Type</span>
+            <span class="tcell num">Checked</span>
+          </div>
+          @foreach (monitors as monitor)
+            <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 120px 92px;">
+              <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data></span>
+              <span class="tcell">
+                <span class="name ellipsis" style="display: block;">{{ monitor.name }}</span>
+                <span class="sub" style="display: block;">{{ targetLabel(monitor.url) }}</span>
+              </span>
+              <span class="tcell"><span class="tag">{{ typeLabel(monitor.type) }}</span></span>
+              <span class="tcell num"><time>{{ agoLabel(monitor.last_checked_at) }}</time></span>
+            </a>
+          @endforeach
+        </div>
+        @if (monitorCount > MONITOR_PREVIEW_LIMIT)
+          <a class="card-foot" href="/dashboard/monitors" data-no-router style="display: block; padding: 0.9rem 1.25rem; border-top: 1px solid var(--border); color: var(--accent); font-size: 0.85rem; font-weight: 600;">View all {{ monitorCount }} monitors</a>
+        @endif
+      @endif
+    </section>
+
+    <section class="card scroll-x" aria-label="Open incidents">
+      <div class="card-head">
+        <h3>Open incidents</h3>
+        <span class="sub">{{ openIncidentCount }} open</span>
+      </div>
+      @if (openIncidents.length === 0)
+        <div class="card-body">
+          <div class="empty" style="border: 0; padding: 1.5rem 0;">
+            <h3>No open incidents. All clear.</h3>
+            <p>Failed checks open incidents here automatically.</p>
+          </div>
+        </div>
+      @endif
+      @if (openIncidents.length > 0)
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: 150px minmax(0, 1.6fr) minmax(0, 1fr) 110px;">
+            <span class="tcell">Status</span>
+            <span class="tcell">Cause</span>
+            <span class="tcell">Monitor</span>
+            <span class="tcell num">Opened</span>
+          </div>
+          @foreach (openIncidents as incident)
+            <a class="trow" href="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.6fr) minmax(0, 1fr) 110px;">
+              <span class="tcell"><data class="{{ incidentPill(incident.status) }}" value="{{ incident.status }}"><span class="dot"></span>{{ incidentLabel(incident.status) }}</data></span>
+              <span class="tcell ellipsis name">{{ incident.cause }}</span>
+              <span class="tcell sub ellipsis">{{ incident.monitor_name }}</span>
+              <span class="tcell num"><time>{{ agoLabel(incident.started_at) }}</time></span>
+            </a>
+          @endforeach
+        </div>
+      @endif
+    </section>
+
+    <section class="card scroll-x" aria-label="Status pages">
+      <div class="card-head">
+        <h3>Status pages</h3>
+        <span class="sub">{{ statusPageCount }} total</span>
+      </div>
+      @if (statusPageCount === 0)
+        <div class="card-body">
+          <div class="empty" style="border: 0; padding: 1.5rem 0;">
+            <h3>No status pages yet</h3>
+            <p>A status page gives your users a public view of your monitors. <a href="/dashboard/status-pages">Create your first one</a>.</p>
+          </div>
+        </div>
+      @endif
+      @if (statusPageCount > 0)
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 110px;">
+            <span class="tcell">Name</span>
+            <span class="tcell">Route</span>
+            <span class="tcell num">Visibility</span>
+          </div>
+          @foreach (statusPages as page)
+            <a class="trow" href="/dashboard/status-pages/{{ page.id }}" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 110px;">
+              <span class="tcell ellipsis name">{{ page.title }}</span>
+              <span class="tcell sub ellipsis">/status/{{ page.slug }}</span>
+              <span class="tcell num"><data class="{{ page.is_public ? 'pill pill-up' : 'pill pill-unknown' }}" value="{{ page.is_public }}"><span class="dot"></span>{{ page.is_public ? 'Public' : 'Hidden' }}</data></span>
+            </a>
+          @endforeach
+        </div>
+      @endif
+    </section>
+
+    <footer class="app-foot">
+      <span>{{ monitorCount }} monitor{{ monitorCount === 1 ? '' : 's' }} &middot; {{ openIncidentCount }} open incident{{ openIncidentCount === 1 ? '' : 's' }} &middot; {{ statusPageCount }} status page{{ statusPageCount === 1 ? '' : 's' }}</span>
+      <span>Updated {{ generatedAt }} UTC</span>
+    </footer>
+  @endif
+</main>

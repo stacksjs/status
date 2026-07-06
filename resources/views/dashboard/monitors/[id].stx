@@ -125,6 +125,44 @@ if (monitor) {
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
 }
 const assignedChannelIds = assignedChannels.map((c) => c.id)
+
+// Brand marks for notification-channel providers (kept in sync with
+// settings/notifications.stx). Slack, Discord, Teams, PagerDuty,
+// Opsgenie, Pushover, and ntfy use the official Simple Icons monochrome
+// path data; email, SMS, and webhook get generic outline marks. Rendered
+// inside a .chan-ico span at 18px, inheriting currentColor.
+function channelIcon(type) {
+  const svg = (body) => '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true">' + body + '</svg>'
+  const ICONS = {
+    slack: '<path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>',
+    discord: '<path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>',
+    teams: '<path d="M20.625 5.775a2.813 2.813 0 1 0-3.128-4.192 2.813 2.813 0 0 0 3.128 4.192zM14.727 6.786c.036.238.055.478.055.72v6.297a1.79 1.79 0 0 1-1.789 1.79h-2.588a5.53 5.53 0 0 1-.157.42 5.63 5.63 0 0 1-4.955 3.286c-.06.002-.12.003-.181.003v3.11c0 .29.15.559.396.712.246.152.552.166.812.036l7.891-3.945a1.61 1.61 0 0 0 .89-1.44V8.4a1.61 1.61 0 0 0-.89-1.44l-.02-.01a5.596 5.596 0 0 1 .845-.164zm7.756.678H16.32a.75.75 0 0 0-.75.75v6.844a4.126 4.126 0 0 0 8.244-.223V8.964a1.5 1.5 0 0 0-1.5-1.5zM11.25 7.5H1.5a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h9.75a1.5 1.5 0 0 0 1.5-1.5V9a1.5 1.5 0 0 0-1.5-1.5zM9.334 11.05H7.42v5.075H6.037V11.05H4.132V9.9h5.202z"/>',
+    pagerduty: '<path d="M16.965 1.18C15.567.436 14.599.223 12.532.223H3.66v14.443h4.552v-4.573h4.629c1.798 0 3.267-.246 4.586-1.135C19.098 7.938 20 6.116 20 4.66c0-1.617-.813-3.31-3.035-3.48zM12.98 8.297l-4.768.011V2.375h3.706c1.36 0 2.716.005 3.813.703.663.427.968 1.202.968 2.03 0 2.116-1.664 3.19-3.719 3.19zM3.66 17.363h4.552V22.7H3.66z"/>',
+    opsgenie: '<path d="M12 0C8.815 0 6.234 2.581 6.234 5.766c0 3.185 2.581 5.766 5.766 5.766s5.766-2.581 5.766-5.766C17.766 2.581 15.185 0 12 0zM4.395 13.166a2.198 2.198 0 0 0-3.11 0 2.198 2.198 0 0 0 0 3.11l6.494 6.494a4.396 4.396 0 0 0 6.442 0l6.494-6.494a2.198 2.198 0 0 0 0-3.11 2.198 2.198 0 0 0-3.11 0L12 18.674z"/>',
+    pushover: '<path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm.813 6.146l-.717 3.454c.593-.518 1.164-.9 1.712-1.146a3.998 3.998 0 0 1 1.632-.369c.663 0 1.196.185 1.6.554.404.37.606.86.606 1.472 0 .404-.079.895-.237 1.472l-.911 3.42c-.079.29-.118.5-.118.632 0 .132.03.234.092.303a.29.29 0 0 0 .224.105c.088 0 .193-.048.316-.145.325-.264.66-.694 1.006-1.29l.579.343c-.878 1.66-1.958 2.49-3.24 2.49-.492 0-.882-.138-1.171-.415-.29-.277-.435-.63-.435-1.06 0-.28.061-.653.184-1.12l.91-3.213c.106-.377.159-.677.159-.9 0-.176-.053-.317-.158-.421-.106-.106-.246-.158-.421-.158-.386 0-.79.185-1.211.554-.422.37-.774.878-1.055 1.524-.079.176-.242.703-.488 1.58l-.79 2.964H8.577l1.317-6.226c.106-.474.158-.79.158-.948 0-.211-.053-.377-.158-.5-.106-.123-.264-.184-.475-.184-.088 0-.316.026-.685.079l-.132-.579z"/>',
+    ntfy: '<path d="M4.036 5.049C1.855 5.049 0 6.79 0 8.972V17.7l2.855-2.163h11.104c2.182 0 3.925-1.74 3.925-3.923V8.972c0-2.182-1.743-3.923-3.925-3.923zm14.005 2.83v3.735c0 3.017-2.512 5.457-5.588 5.457h-6.31a5.087 5.087 0 0 0 4.253 2.277h5.716L18.967 21.5v-3.36a5.076 5.076 0 0 0 5.033-5.084V12.94a5.087 5.087 0 0 0-5.959-5.062Z"/>',
+    email: '<path d="M2 5h20a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M2.5 6.5 12 13l9.5-6.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+    sms: '<path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="8" cy="10.5" r="1"/><circle cx="12" cy="10.5" r="1"/><circle cx="16" cy="10.5" r="1"/>',
+    webhook: '<path d="M9 6a3 3 0 1 1 4.2 2.75l2.3 3.9M15 18a3 3 0 1 1-.4-4.85l2.3-3.9M9 18a3 3 0 1 1-1.9-2.8l2.3-3.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="1.1"/><circle cx="18" cy="18" r="1.1"/><circle cx="9" cy="6" r="1.1"/>',
+  }
+  return svg(ICONS[type] || ICONS.webhook)
+}
+
+function channelLabel(type) {
+  const LABELS = {
+    email: 'Email',
+    sms: 'SMS',
+    slack: 'Slack',
+    discord: 'Discord',
+    teams: 'Microsoft Teams',
+    pagerduty: 'PagerDuty',
+    opsgenie: 'Opsgenie',
+    pushover: 'Pushover',
+    ntfy: 'ntfy',
+    webhook: 'Webhook',
+  }
+  return LABELS[type] || type
+}
 let availableChannels = []
 if (monitor) {
   const teamChans = await db.selectFrom('notification_channels').where('team_id', '=', monitor.team_id).execute()
@@ -397,6 +435,36 @@ if (latestPortScan) {
   try { portScanExpected = JSON.parse(latestPortScan.expected_ports || '[]') } catch {}
 }
 
+// Blocklist detail: the latest check's recorded IP + which zones (if any)
+// list it, plus whether that IP is a shared CDN edge, so the panel can
+// caveat a listing and offer a real "check it yourself" link.
+const DNSBL_LABELS = { 'zen.spamhaus.org': 'Spamhaus ZEN', 'b.barracudacentral.org': 'Barracuda', 'dnsbl.sorbs.net': 'SORBS', 'bl.spamcop.net': 'SpamCop' }
+let blocklist = null
+if (monitor && monitor.type === 'dns_blocklist') {
+  const row = (await db.selectFrom('check_results').where('monitor_id', '=', monitor.id).orderByDesc('id').limit(1).execute())[0]
+  if (row) {
+    let meta = {}
+    try { meta = JSON.parse(row.metadata || '{}') } catch {}
+    const listedOn = Array.isArray(meta.listedOn) ? meta.listedOn : []
+    const ip = meta.ip || null
+    // Same shared-edge detection as RunBlocklistCheck, inlined (the view is
+    // self-contained and does not import job internals).
+    let sharedEdge = null
+    if (ip) {
+      const [a, b] = ip.split('.').map(Number)
+      if ((a === 104 && b >= 16 && b <= 23) || (a === 172 && b >= 64 && b <= 71) || (a === 188 && b === 114) || (a === 162 && (b === 158 || b === 159)) || (a === 173 && b === 245)) sharedEdge = 'Cloudflare'
+      else if (a === 151 && b === 101) sharedEdge = 'Fastly'
+    }
+    blocklist = {
+      ip,
+      sharedEdge,
+      checkedAt: row.checked_at,
+      zones: Object.keys(DNSBL_LABELS).map(z => ({ zone: z, label: DNSBL_LABELS[z], listed: listedOn.includes(z) })),
+      anyListed: listedOn.length > 0,
+    }
+  }
+}
+
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
 // Real document title + noindex for the app surface (the serve wrapper
@@ -463,6 +531,10 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u0
     line-height: 1.6;
     overflow-x: auto;
   }
+  /* Inline brand mark next to each channel type label. Monochrome,
+     inherits currentColor so it reads in light + dark. */
+  .chan-ico { display: inline-flex; vertical-align: middle; margin-right: 0.4rem; color: var(--muted); }
+  .chan-ico svg { width: 18px; height: 18px; }
 </style>
 
 <main class="app-shell">
@@ -755,6 +827,54 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
       </section>
     @endif
 
+    @if (monitor.type === 'dns_blocklist' && blocklist)
+      <section class="card" aria-label="Blocklist status">
+        <div class="card-head">
+          <h3>Blocklist status</h3>
+          <span class="sub" style="{{ blocklist.anyListed ? 'color: var(--amber);' : '' }}">{{ blocklist.anyListed ? 'Listed' : 'Clean' }} &middot; checked {{ formatDate(blocklist.checkedAt) }}</span>
+        </div>
+        <div class="card-body">
+          <dl class="kv" style="margin-bottom: 1rem;">
+            <div>
+              <dt>Checked IP</dt>
+              <dd class="mono">{{ blocklist.ip || 'unresolved' }}</dd>
+            </div>
+            @if (blocklist.sharedEdge)
+              <div>
+                <dt>IP owner</dt>
+                <dd>{{ blocklist.sharedEdge }} (shared CDN edge)</dd>
+              </div>
+            @endif
+          </dl>
+          @if (blocklist.sharedEdge && blocklist.anyListed)
+            <p style="margin: 0 0 1rem; padding: 0.7rem 0.9rem; border-radius: var(--radius-sm); background: var(--amber-soft); color: var(--amber); font-size: 0.85rem; line-height: 1.5;">
+              This is a shared {{ blocklist.sharedEdge }} edge IP, not your own server. A listing here reflects other sites behind the same CDN and rarely affects your mail. To monitor your real sending reputation, point a blocklist monitor at your mail server's IP instead.
+            </p>
+          @endif
+          <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
+            @foreach (blocklist.zones as z)
+              <div class="trow" style="grid-template-columns: minmax(0, 1fr) 110px; border-bottom: 1px solid var(--border);">
+                <span class="tcell name">{{ z.label }} <span class="sub mono">{{ z.zone }}</span></span>
+                <span class="tcell">
+                  @if (z.listed)
+                    <span class="pill pill-degraded"><span class="dot"></span>Listed</span>
+                  @endif
+                  @if (!z.listed)
+                    <span class="pill pill-up"><span class="dot"></span>Clean</span>
+                  @endif
+                </span>
+              </div>
+            @endforeach
+          </div>
+          @if (blocklist.ip)
+            <p style="margin: 1rem 0 0; font-size: 0.85rem;">
+              <a href="https://check.spamhaus.org/results?query={{ blocklist.ip }}" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 600;">Check {{ blocklist.ip }} on Spamhaus &rarr;</a>
+            </p>
+          @endif
+        </div>
+      </section>
+    @endif
+
     <section class="card scroll-x" aria-label="Incident history">
       <div class="card-head">
         <h3>Incident log</h3>
@@ -799,7 +919,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
           <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
             @foreach (assignedChannels as channel)
               <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
-                <span class="tcell"><span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span> <span class="sub" style="margin-left: 0.5rem;">{{ channel.type }}</span></span>
+                <span class="tcell"><span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span> <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{{ channelIcon(channel.type) }}</span>{{ channelLabel(channel.type) }}</span></span>
                 <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/remove">
                   <input type="hidden" name="channel_id" value="{{ channel.id }}" />
                   <button type="submit" class="button danger sm">Remove</button>
@@ -816,7 +936,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
               <div style="display: flex; gap: 0.6rem; align-items: stretch;">
                 <select id="mon-attach-channel" name="channel_id" class="select" style="flex: 1 1 auto; width: auto;">
                   @foreach (availableChannels as channel)
-                    <option value="{{ channel.id }}">{{ channel.name }} ({{ channel.type }})</option>
+                    <option value="{{ channel.id }}">{{ channel.name }} ({{ channelLabel(channel.type) }})</option>
                   @endforeach
                 </select>
                 <button type="submit" class="button primary">Attach</button>
