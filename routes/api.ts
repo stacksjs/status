@@ -131,6 +131,15 @@ route.post('/notification-channel-forms/monitors/{monitorId}/remove', 'Actions/N
 route.post('/team-forms/{id}/invite', 'Actions/Teams/DashboardInviteTeamMemberAction')
 route.post('/team-forms/{id}/remove', 'Actions/Teams/DashboardRemoveTeamMemberAction')
 
+// Security settings form posts (stacksjs/status#1 Phase 9 follow-up —
+// the passkey/2FA dashboard UI deferred until real dashboard auth
+// existed). Same plain-POST convention; each action resolves the
+// requester from their real credential (resolveAuthenticatedUser) since
+// native form posts carry only the login cookie, no bearer header.
+route.post('/security-forms/two-factor/enable', 'Actions/Security/DashboardEnableTwoFactorAction')
+route.post('/security-forms/two-factor/disable', 'Actions/Security/DashboardDisableTwoFactorAction')
+route.post('/security-forms/passkeys/delete', 'Actions/Security/DashboardDeletePasskeyAction')
+
 // Billing (stacksjs/status#1 Phase 9). /checkout is a dashboard form
 // post, same convention as the rest of this block. /webhook is called
 // by Stripe itself — no CSRF token to satisfy (skipCsrf, matching the

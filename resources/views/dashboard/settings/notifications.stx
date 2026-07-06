@@ -133,6 +133,7 @@ useHead({ title: 'Notification settings \u00b7 UptimeStatus', meta: [{ name: 'ro
         <span class="lbl">Settings</span>
         <a href="/dashboard/settings/team" class="chip">Team</a>
         <a href="/dashboard/settings/notifications" class="chip active">Notifications</a>
+        <a href="/dashboard/settings/security" class="chip">Security</a>
         <a href="/dashboard/settings/cloud" class="chip">Cloud</a>
         <a href="/dashboard/settings/billing" class="chip">Billing</a>
       </div>

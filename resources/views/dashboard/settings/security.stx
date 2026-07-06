@@ -1,0 +1,257 @@
+<!--
+  Security settings — TOTP two-factor auth + passkey management
+  (stacksjs/status#1 Phase 9 follow-up: the passkey/2FA dashboard UI that
+  was deferred until real dashboard login existed). Same server-rendered,
+  native-HTML-form convention as the other settings pages; form posts go
+  to /api/security-forms/* (app/Actions/Security/*).
+
+  TOTP setup is fully server-driven: visiting ?setup=1 generates a fresh
+  secret, stashes it server-side (10 minute TTL, delete-on-read — the
+  enable form only ever submits the 6-digit code, never the secret), and
+  renders the secret + otpauth URI for the authenticator app.
+-->
+<script server>
+const { config } = require('@stacksjs/config')
+const { Auth, sessionUser, getTwoFactorState, generateTwoFactorSetup, stashPendingTwoFactorSecret } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
+
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
+
+// Auth + team resolution — see resources/views/dashboard/monitors/
+// index.stx's copy of this block for the full rationale.
+async function resolveAuthTeam() {
+  const guardName = config.auth?.default || 'api'
+  const guard = config.auth?.guards?.[guardName] || {}
+  const driver = guard.driver || 'token'
+  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
+
+  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
+    ? globalThis.requestContext.cookie(cookieName)
+    : null
+  if (!cookieValue) return null
+
+  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
+  if (!user || !user.id) return null
+
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
+
+  return { user, teamId: membership ? membership.team_id : null }
+}
+
+const AUTH = await resolveAuthTeam()
+const AUTH_USER = AUTH ? AUTH.user : null
+const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'settings'
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+
+// Two-factor state + optional setup step. The users.two_factor_* columns
+// are framework guarantee-ALTERs (auth-tables.ts), read via the auth
+// helpers rather than the User model on purpose.
+let TWO_FA_ENABLED = false
+let SETUP = null
+if (AUTH_USER) {
+  const state = await getTwoFactorState(AUTH_USER.id)
+  TWO_FA_ENABLED = !!state.enabled
+
+  if (!TWO_FA_ENABLED && query.get('setup') === '1') {
+    const appName = config.app?.name || 'UptimeStatus'
+    const { secret, uri } = generateTwoFactorSetup(AUTH_USER.email || '', appName)
+    // Server-side pending stash, delete-on-read; the enable form never
+    // carries the secret. Re-visiting this step replaces the stash, so
+    // the code must always come from the LAST secret shown.
+    await stashPendingTwoFactorSecret(AUTH_USER.id, secret)
+    SETUP = { secret, uri }
+  }
+}
+
+// Passkeys. Framework-managed table (auth-tables.ts, no model), so raw
+// db access like the auth core uses. Defensive try/catch: the table is
+// created by buddy migrate's auth pass; render an empty list before then.
+let passkeys = []
+if (AUTH_USER) {
+  try {
+    passkeys = await db.selectFrom('passkeys')
+      .where('user_id', '=', AUTH_USER.id)
+      .orderBy('created_at', 'desc')
+      .execute()
+  } catch (e) {
+    passkeys = []
+  }
+}
+
+// Flash flags (redirect + query param, the app's notice convention).
+const flashEnabled = query.get('twofa') === 'enabled'
+const flashDisabled = query.get('twofa') === 'disabled'
+const flashPasskeyRemoved = query.get('passkey') === 'removed'
+const flashError = query.get('error') || ''
+
+function errorLabel(code) {
+  if (code === 'invalid_code') return 'That code did not match. Scan the current QR secret and try again.'
+  if (code === 'setup_expired') return 'That setup session expired. Start again to get a fresh secret.'
+  if (code === 'bad_password') return 'Incorrect password. Two-factor auth is still enabled.'
+  return ''
+}
+
+function dateLabel(iso) {
+  if (!iso) return '--'
+  return String(iso).slice(0, 10)
+}
+
+function credentialLabel(id) {
+  const s = String(id || '')
+  return s.length > 18 ? s.slice(0, 18) + '…' : s
+}
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Security · UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<main class="app-shell">
+  @if (!AUTH_USER)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to manage account security.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER)
+    <header class="page-head">
+      <div>
+        <h1>Security</h1>
+        <p class="meta">{{ AUTH_USER.email }} &middot; {{ TWO_FA_ENABLED ? 'Two-factor on' : 'Two-factor off' }} &middot; {{ passkeys.length }} passkey{{ passkeys.length === 1 ? '' : 's' }}</p>
+      </div>
+    </header>
+
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="lbl">Settings</span>
+        <a href="/dashboard/settings/team" class="chip">Team</a>
+        <a href="/dashboard/settings/notifications" class="chip">Notifications</a>
+        <a href="/dashboard/settings/security" class="chip active">Security</a>
+        <a href="/dashboard/settings/cloud" class="chip">Cloud</a>
+        <a href="/dashboard/settings/billing" class="chip">Billing</a>
+      </div>
+    </div>
+
+    @if (flashEnabled)
+      <div class="flash">Two-factor authentication is on. You will be asked for a code at every sign-in.</div>
+    @endif
+    @if (flashDisabled)
+      <div class="flash">Two-factor authentication is off.</div>
+    @endif
+    @if (flashPasskeyRemoved)
+      <div class="flash">Passkey removed.</div>
+    @endif
+    @if (flashError && errorLabel(flashError))
+      <div class="flash error">{{ errorLabel(flashError) }}</div>
+    @endif
+
+    <section class="card" aria-label="Two-factor authentication">
+      <div class="card-head">
+        <h2>Two-factor authentication</h2>
+        @if (TWO_FA_ENABLED)
+          <data class="pill pill-up" value="enabled"><span class="dot"></span>Enabled</data>
+        @endif
+        @if (!TWO_FA_ENABLED)
+          <data class="pill pill-unknown" value="disabled"><span class="dot"></span>Off</data>
+        @endif
+      </div>
+      <div class="card-body">
+        @if (TWO_FA_ENABLED)
+          <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6;">Signing in requires your password plus a 6-digit code from your authenticator app. Confirm your password to turn it off.</p>
+          <form method="POST" action="/api/security-forms/two-factor/disable" onsubmit="return confirm('Turn off two-factor authentication? Your account falls back to password-only sign-in.')">
+            <div class="form-row">
+              <div class="field">
+                <label>Password</label>
+                <input type="password" name="password" required class="input" autocomplete="current-password" placeholder="Confirm your password" />
+              </div>
+            </div>
+            <button type="submit" class="button danger">Turn off two-factor auth</button>
+          </form>
+        @endif
+
+        @if (!TWO_FA_ENABLED && !SETUP)
+          <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6;">Add a second factor so a stolen password alone cannot open your account. Works with any TOTP authenticator app (1Password, Google Authenticator, Authy).</p>
+          <a class="button primary" href="/dashboard/settings/security?setup=1" data-no-router>Set up two-factor auth</a>
+        @endif
+
+        @if (!TWO_FA_ENABLED && SETUP)
+          <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6;">Add this secret to your authenticator app, then enter the 6-digit code it shows to confirm. The secret is held server-side for 10 minutes.</p>
+          <div class="field">
+            <label>Secret (enter manually)</label>
+            <p class="mono" style="margin: 0; padding: 0.7rem 0.85rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.95rem; letter-spacing: 0.08em; word-break: break-all; background: var(--surface-2);">{{ SETUP.secret }}</p>
+            <p class="help">On this device? <a href="{{ SETUP.uri }}">Open in your authenticator app</a> instead of typing the secret.</p>
+          </div>
+          <form method="POST" action="/api/security-forms/two-factor/enable">
+            <div class="form-row">
+              <div class="field">
+                <label>6-digit code</label>
+                <input type="text" name="code" required class="input mono" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" />
+              </div>
+            </div>
+            <button type="submit" class="button primary">Confirm and enable</button>
+            <a class="button" href="/dashboard/settings/security" data-no-router style="margin-left: 0.5rem;">Cancel</a>
+          </form>
+        @endif
+      </div>
+    </section>
+
+    <section class="card scroll-x" aria-label="Passkeys">
+      <div class="card-head">
+        <h2>Passkeys</h2>
+        <span class="sub">{{ passkeys.length }} registered</span>
+      </div>
+      @if (passkeys.length === 0)
+        <div class="card-body">
+          <div class="empty" style="border: none; padding: 2.5rem 1rem;">
+            <h3>No passkeys yet</h3>
+            <p>Passkeys let you sign in with your device's screen lock instead of a password. Adding passkeys from this page ships once the WebAuthn enrollment plumbing lands.</p>
+          </div>
+        </div>
+      @endif
+      @if (passkeys.length > 0)
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: minmax(0, 1.5fr) 130px 110px 110px 110px;">
+            <span class="tcell">Credential</span>
+            <span class="tcell">Device</span>
+            <span class="tcell num">Added</span>
+            <span class="tcell num">Last used</span>
+            <span class="tcell num">Remove</span>
+          </div>
+          @foreach (passkeys as passkey)
+            <div class="trow" style="grid-template-columns: minmax(0, 1.5fr) 130px 110px 110px 110px;">
+              <span class="tcell ellipsis mono">{{ credentialLabel(passkey.id) }}</span>
+              <span class="tcell sub">{{ passkey.device_type || 'unknown' }}</span>
+              <span class="tcell num"><time>{{ dateLabel(passkey.created_at) }}</time></span>
+              <span class="tcell num"><time>{{ passkey.last_used_at ? dateLabel(passkey.last_used_at) : 'never' }}</time></span>
+              <span class="tcell num">
+                <form method="POST" action="/api/security-forms/passkeys/delete" onsubmit="return confirm('Remove this passkey? Devices using it can no longer sign in with it.')">
+                  <input type="hidden" name="id" value="{{ passkey.id }}" />
+                  <button type="submit" class="button danger sm">Remove</button>
+                </form>
+              </span>
+            </div>
+          @endforeach
+        </div>
+      @endif
+    </section>
+
+    <footer class="app-foot">
+      <span>{{ TWO_FA_ENABLED ? 'Two-factor on' : 'Two-factor off' }} &middot; {{ passkeys.length }} passkey{{ passkeys.length === 1 ? '' : 's' }}</span>
+      <span>Updated {{ generatedAt }} UTC</span>
+    </footer>
+  @endif
+</main>
