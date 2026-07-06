@@ -1,0 +1,194 @@
+<!--
+  Status reports (manual announcements) list + create form — dashboard
+  page (stacksjs/status#1 Phase 12 follow-up). Status reports are
+  human-authored posts distinct from Incidents (which a failing check
+  opens automatically), so they live under the Incidents nav tab as an
+  "Announcements" sub-tab. Same server-rendered, native-HTML-form
+  convention as status-pages/index.stx.
+-->
+<script server>
+const { config } = require('@stacksjs/config')
+const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
+
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
+
+// Auth + team resolution — see resources/views/dashboard/monitors/
+// index.stx's copy of this block for the full rationale.
+async function resolveAuthTeam() {
+  const guardName = config.auth?.default || 'api'
+  const guard = config.auth?.guards?.[guardName] || {}
+  const driver = guard.driver || 'token'
+  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
+
+  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
+    ? globalThis.requestContext.cookie(cookieName)
+    : null
+  if (!cookieValue) return null
+
+  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
+  if (!user || !user.id) return null
+
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
+
+  return { user, teamId: membership ? membership.team_id : null }
+}
+
+const AUTH = await resolveAuthTeam()
+const AUTH_USER = AUTH ? AUTH.user : null
+const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'incidents'
+
+const reports = AUTH_USER
+  ? await db.selectFrom('status_reports').where('team_id', '=', TEAM_ID).orderBy('started_at', 'desc').execute()
+  : []
+
+// Monitor counts per report, in one pivot query.
+const reportIds = reports.map((r) => r.id)
+const monitorCount = {}
+if (reportIds.length) {
+  const pivots = await db.selectFrom('status_report_monitors').whereIn('status_report_id', reportIds).execute()
+  for (const p of pivots) monitorCount[p.status_report_id] = (monitorCount[p.status_report_id] || 0) + 1
+}
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const flashError = query.get('error') || ''
+
+const activeCount = reports.filter((r) => r.status !== 'resolved').length
+const resolvedCount = reports.length - activeCount
+
+function statusClass(status) {
+  if (status === 'resolved') return 'pill pill-up'
+  if (status === 'monitoring') return 'pill pill-degraded'
+  return 'pill pill-unknown'
+}
+
+function statusLabel(status) {
+  const s = String(status || 'unknown')
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function dateLabel(iso) {
+  if (!iso) return '--'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '--'
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function errorLabel(code) {
+  if (code === 'title') return 'A title is required.'
+  if (code === 'status') return 'Pick a valid status.'
+  return ''
+}
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Announcements · UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<main class="app-shell">
+  @if (!AUTH_USER)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to manage announcements.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER)
+    <header class="page-head">
+      <div>
+        <h1>Announcements</h1>
+        <p class="meta">{{ reports.length }} report{{ reports.length === 1 ? '' : 's' }} &middot; {{ activeCount }} active &middot; {{ resolvedCount }} resolved</p>
+      </div>
+    </header>
+
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="lbl">Status</span>
+        <a href="/dashboard/incidents" class="chip">Incidents</a>
+        <a href="/dashboard/status-reports" class="chip active">Announcements</a>
+      </div>
+    </div>
+
+    @if (flashError && errorLabel(flashError))
+      <div class="flash error" role="alert"><span>{{ errorLabel(flashError) }}</span></div>
+    @endif
+
+    @if (reports.length === 0)
+      <div class="empty">
+        <h3>No announcements yet</h3>
+        <p>Announcements are manual posts (planned maintenance, a service advisory) shown on your status pages, separate from automated incidents. Create your first one below.</p>
+      </div>
+    @endif
+
+    @if (reports.length > 0)
+      <section class="card scroll-x" aria-label="Announcements">
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: minmax(0, 1.5fr) 140px 100px 160px;">
+            <span class="tcell">Title</span>
+            <span class="tcell">Status</span>
+            <span class="tcell num">Monitors</span>
+            <span class="tcell num">Started</span>
+          </div>
+          @foreach (reports as report)
+            <a class="trow" href="/dashboard/status-reports/{{ report.id }}" style="grid-template-columns: minmax(0, 1.5fr) 140px 100px 160px;">
+              <span class="tcell ellipsis name">{{ report.title }}</span>
+              <span class="tcell"><data class="{{ statusClass(report.status) }}" value="{{ report.status }}"><span class="dot"></span>{{ statusLabel(report.status) }}</data></span>
+              <span class="tcell num">{{ monitorCount[report.id] || 0 }}</span>
+              <span class="tcell num"><time>{{ dateLabel(report.started_at) }}</time></span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+    @endif
+
+    <section class="card" style="margin-top: 1.25rem;" aria-label="Create announcement">
+      <div class="card-head">
+        <h3>New announcement</h3>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="/api/status-report-forms/create">
+          <div class="field">
+            <label for="sr-title">Title</label>
+            <input id="sr-title" type="text" name="title" required class="input" placeholder="Scheduled database maintenance" />
+          </div>
+          <div class="field">
+            <label for="sr-body">Summary</label>
+            <textarea id="sr-body" name="body" rows="3" class="textarea" placeholder="What's happening and when."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label for="sr-status">Initial status</label>
+              <select id="sr-status" name="status" class="select">
+                <option value="investigating">Investigating</option>
+                <option value="identified">Identified</option>
+                <option value="monitoring">Monitoring</option>
+                <option value="resolved">Resolved</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="button primary">Create announcement</button>
+          <div class="field" style="margin: 0.75rem 0 0;">
+            <p class="help">Next you'll attach the affected monitors and post an update — posting an update is what emails your status page subscribers.</p>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <footer class="app-foot">
+      <span>{{ reports.length }} announcement{{ reports.length === 1 ? '' : 's' }} on this team</span>
+      <span>Updated {{ generatedAt }} UTC</span>
+    </footer>
+  @endif
+</main>

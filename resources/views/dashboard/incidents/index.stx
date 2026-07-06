@@ -162,6 +162,14 @@ useHead({ title: 'Incidents \u00b7 UptimeStatus', meta: [{ name: 'robots', conte
       </div>
     </header>
 
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="lbl">View</span>
+        <a href="/dashboard/incidents" class="chip active">Incidents</a>
+        <a href="/dashboard/status-reports" class="chip">Announcements</a>
+      </div>
+    </div>
+
     <dl class="stat-grid">
       <div class="stat-card">
         <dt>Open</dt>

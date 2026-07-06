@@ -1,0 +1,278 @@
+<!--
+  Status report (announcement) editor — dashboard page (stacksjs/status#1
+  Phase 12 follow-up). Attach the affected monitors (the pivot rows that
+  determine which status pages, and therefore which subscribers, a report
+  reaches), post timeline updates (each update emails subscribers via the
+  StatusReportUpdate observe hook), and resolve/delete. Native HTML forms,
+  same convention as status-pages/[id].stx.
+-->
+<script server>
+const { config } = require('@stacksjs/config')
+const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
+
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
+
+// Auth + team resolution — see resources/views/dashboard/monitors/
+// index.stx's copy of this block for the full rationale. Resolving to
+// TEAM_ID = -1 on any auth failure makes the team-scoped query below
+// return no rows, reusing the existing "not found" state.
+async function resolveAuthTeam() {
+  const guardName = config.auth?.default || 'api'
+  const guard = config.auth?.guards?.[guardName] || {}
+  const driver = guard.driver || 'token'
+  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
+
+  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
+    ? globalThis.requestContext.cookie(cookieName)
+    : null
+  if (!cookieValue) return null
+
+  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
+  if (!user || !user.id) return null
+
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
+
+  return { user, teamId: membership ? membership.team_id : null }
+}
+
+const AUTH = await resolveAuthTeam()
+const AUTH_USER = AUTH ? AUTH.user : null
+const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'incidents'
+const reportId = (typeof id !== 'undefined' && id) ? Number(id) : 0
+const report = reportId
+  ? (await db.selectFrom('status_reports').where('id', '=', reportId).where('team_id', '=', TEAM_ID).limit(1).execute())[0] || null
+  : null
+
+let assignedMonitors = []
+let availableMonitors = []
+let updates = []
+if (report) {
+  const pivots = await db.selectFrom('status_report_monitors').where('status_report_id', '=', report.id).execute()
+  const pivotMonIds = pivots.map(p => p.monitor_id)
+  const pivotMons = pivotMonIds.length ? await db.selectFrom('monitors').whereIn('id', pivotMonIds).execute() : []
+  const monById = new Map(pivotMons.map(m => [m.id, m]))
+  assignedMonitors = pivots
+    .map((p) => {
+      const m = monById.get(p.monitor_id)
+      return m ? { monitor_id: m.id, name: m.name, type: m.type, status: m.status } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+
+  const assignedSet = new Set(assignedMonitors.map(m => m.monitor_id))
+  const teamMons = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).execute()
+  availableMonitors = teamMons.filter(m => !assignedSet.has(m.id)).sort((a, b) => String(a.name).localeCompare(String(b.name)))
+
+  updates = await db.selectFrom('status_report_updates').where('status_report_id', '=', report.id).orderBy('posted_at', 'desc').execute()
+}
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const flashPosted = query.get('posted') === '1'
+const flashError = query.get('error') || ''
+
+function statusClass(status) {
+  if (status === 'resolved') return 'pill pill-up'
+  if (status === 'monitoring') return 'pill pill-degraded'
+  return 'pill pill-unknown'
+}
+function statusLabel(status) {
+  const s = String(status || 'unknown')
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+function stClass(status) {
+  if (status === 'up') return 'pill pill-up'
+  if (status === 'degraded') return 'pill pill-degraded'
+  if (status === 'down') return 'pill pill-down'
+  return 'pill pill-unknown'
+}
+function stLabel(status) {
+  if (status === 'up') return 'Up'
+  if (status === 'degraded') return 'Degraded'
+  if (status === 'down') return 'Down'
+  return 'Unknown'
+}
+function dateLabel(iso) {
+  if (!iso) return '--'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '--'
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+useHead({ title: (report ? report.title + ' · UptimeStatus' : 'Announcement · UptimeStatus'), meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<main class="app-shell">
+  @if (!report)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Announcement not found</h3>
+      <p>This announcement does not exist for your team, or your session has expired.</p>
+      <div class="actions"><a class="button" href="/dashboard/status-reports">Back to announcements</a></div>
+    </div>
+  @endif
+
+  @if (report)
+    <header class="page-head">
+      <div>
+        <div class="crumb"><a href="/dashboard/status-reports">Announcements</a></div>
+        <h1>{{ report.title }}</h1>
+        <p class="meta">
+          <data class="{{ statusClass(report.status) }}" value="{{ report.status }}"><span class="dot"></span>{{ statusLabel(report.status) }}</data>
+          &middot; started {{ dateLabel(report.started_at) }}
+          @if (report.status === 'resolved' && report.resolved_at)
+            &middot; resolved {{ dateLabel(report.resolved_at) }}
+          @endif
+        </p>
+      </div>
+      <div class="actions">
+        <form method="POST" action="/api/status-report-forms/{{ report.id }}/delete" onsubmit="return confirm('Delete this announcement and its updates? This cannot be undone.')">
+          <button type="submit" class="button danger sm">Delete</button>
+        </form>
+      </div>
+    </header>
+
+    @if (flashPosted)
+      <div class="flash"><span>Update posted. Subscribers of any status page showing an attached monitor have been notified.</span></div>
+    @endif
+    @if (flashError === 'update')
+      <div class="flash error"><span>An update needs a message and a valid status.</span></div>
+    @endif
+
+    @if (report.body)
+      <section class="card" aria-label="Summary">
+        <div class="card-body">
+          <p style="margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.6;">{{ report.body }}</p>
+        </div>
+      </section>
+    @endif
+
+    <section class="card" aria-label="Post an update">
+      <div class="card-head">
+        <h3>Post an update</h3>
+        <span class="sub">Notifies status page subscribers</span>
+      </div>
+      <div class="card-body">
+        @if (assignedMonitors.length === 0)
+          <p style="margin: 0 0 1rem; color: var(--amber); font-size: 0.85rem;">Attach at least one monitor below so this announcement appears on your status pages and reaches subscribers.</p>
+        @endif
+        <form method="POST" action="/api/status-report-forms/{{ report.id }}/updates">
+          <div class="field">
+            <label for="sr-message">Message</label>
+            <textarea id="sr-message" name="message" rows="3" required class="textarea" placeholder="We've begun the migration and expect a brief read-only window."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label for="sr-update-status">Status</label>
+              <select id="sr-update-status" name="status" class="select">
+                <option value="investigating" {{ report.status === 'investigating' ? 'selected' : '' }}>Investigating</option>
+                <option value="identified" {{ report.status === 'identified' ? 'selected' : '' }}>Identified</option>
+                <option value="monitoring" {{ report.status === 'monitoring' ? 'selected' : '' }}>Monitoring</option>
+                <option value="resolved" {{ report.status === 'resolved' ? 'selected' : '' }}>Resolved</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="button primary">Post update</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Timeline">
+      <div class="card-head">
+        <h3>Timeline</h3>
+        <span class="sub">{{ updates.length }} update{{ updates.length === 1 ? '' : 's' }}</span>
+      </div>
+      @if (updates.length === 0)
+        <div class="card-body">
+          <div class="empty" style="border: 0; padding: 2rem 1rem;">
+            <h3>No updates yet</h3>
+            <p>Post the first update above to announce this on your status pages.</p>
+          </div>
+        </div>
+      @endif
+      @if (updates.length > 0)
+        <div class="card-body">
+          <ol style="list-style: none; margin: 0; padding: 0;">
+            @foreach (updates as update)
+              <li style="padding: 0.9rem 0; border-bottom: 1px solid var(--border);">
+                <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.35rem;">
+                  <data class="{{ statusClass(update.status) }}" value="{{ update.status }}"><span class="dot"></span>{{ statusLabel(update.status) }}</data>
+                  <time class="sub" style="font-size: 0.8rem;">{{ dateLabel(update.posted_at) }}</time>
+                </div>
+                <p style="margin: 0; font-size: 0.92rem; line-height: 1.55;">{{ update.message }}</p>
+              </li>
+            @endforeach
+          </ol>
+        </div>
+      @endif
+    </section>
+
+    <section class="card" aria-label="Affected monitors">
+      <div class="card-head">
+        <h3>Affected monitors</h3>
+        <span class="sub">{{ assignedMonitors.length }} attached</span>
+      </div>
+
+      @if (assignedMonitors.length > 0)
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: 120px minmax(0, 1.4fr) 130px 100px;">
+            <span class="tcell">Status</span>
+            <span class="tcell">Monitor</span>
+            <span class="tcell">Type</span>
+            <span class="tcell num">Action</span>
+          </div>
+          @foreach (assignedMonitors as monitor)
+            <div class="trow" style="grid-template-columns: 120px minmax(0, 1.4fr) 130px 100px;">
+              <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data></span>
+              <span class="tcell ellipsis name">{{ monitor.name }}</span>
+              <span class="tcell sub">{{ monitor.type.replace('_', ' ') }}</span>
+              <span class="tcell num">
+                <form method="POST" action="/api/status-report-forms/{{ report.id }}/monitors/remove" style="display: inline-block;">
+                  <input type="hidden" name="monitor_id" value="{{ monitor.monitor_id }}" />
+                  <button type="submit" class="button danger sm">Remove</button>
+                </form>
+              </span>
+            </div>
+          @endforeach
+        </div>
+      @endif
+
+      @if (availableMonitors.length > 0)
+        <div style="padding: 1rem 1.25rem; border-top: 1px solid var(--border); background: var(--surface-2);">
+          <div class="field" style="margin-bottom: 0.5rem;"><span class="label">Attach a monitor</span></div>
+          <form method="POST" action="/api/status-report-forms/{{ report.id }}/monitors/add" style="display: flex; align-items: stretch; gap: 0.6rem;">
+            <select id="sr-add-monitor" name="monitor_id" class="select" style="flex: 1 1 auto; width: auto;">
+              @foreach (availableMonitors as monitor)
+                <option value="{{ monitor.id }}">{{ monitor.name }} ({{ monitor.type.replace('_', ' ') }})</option>
+              @endforeach
+            </select>
+            <button type="submit" class="button">Attach</button>
+          </form>
+        </div>
+      @endif
+
+      @if (availableMonitors.length === 0 && assignedMonitors.length === 0)
+        <div class="card-body">
+          <div class="empty" style="border: 0; padding: 2rem 1rem;">
+            <h3>No monitors on this team</h3>
+            <p>Create a monitor first, then attach it here.</p>
+          </div>
+        </div>
+      @endif
+    </section>
+
+    <footer class="app-foot">
+      <span>Announcement #{{ report.id }} &middot; {{ assignedMonitors.length }} monitor{{ assignedMonitors.length === 1 ? '' : 's' }} &middot; {{ updates.length }} update{{ updates.length === 1 ? '' : 's' }}</span>
+      <span>Updated {{ generatedAt }} UTC</span>
+    </footer>
+  @endif
+</main>
