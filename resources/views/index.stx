@@ -303,6 +303,9 @@ const faqs = [
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <meta name="description" content="{{ statusPageForHost ? statusPageForHost.title + ' status' : appName + ' is a self-hostable uptime, SSL, DNS, and status-page monitoring platform.' }}">
     <title>{{ statusPageForHost ? statusPageForHost.title : appName + ' \u00b7 Open-source uptime monitoring' }}</title>
     <meta property="og:site_name" content="{{ appName }}">

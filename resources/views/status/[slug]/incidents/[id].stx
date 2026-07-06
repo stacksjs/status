@@ -49,6 +49,16 @@ function statusBadgeClass(status) {
   if (status === 'monitoring') return 'text-xs font-medium uppercase tracking-wide text-sky-600'
   return 'text-xs font-medium uppercase tracking-wide text-amber-600'
 }
+
+// Title + favicon for this fragment view (see the status page's note).
+useHead({
+  title: incident ? 'Incident: ' + (incident.monitor_name || 'details') : 'Incident',
+  link: [
+    { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+    { rel: 'icon', href: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
+    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+  ],
+})
 </script>
 
 @section('title', pageTitle)

@@ -291,6 +291,17 @@ function bannerDotClass(tone) {
   if (tone === 'degraded') return 'h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500'
   return 'h-2.5 w-2.5 shrink-0 rounded-full bg-red-500'
 }
+
+// Real document title + brand favicon for this fragment view (the serve
+// wrapper otherwise stamps it 'stx App', which is what customers saw).
+useHead({
+  title: statusPage ? statusPage.title + ' status' : 'Status',
+  link: [
+    { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+    { rel: 'icon', href: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
+    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+  ],
+})
 </script>
 
 @section('title', pageTitle)
