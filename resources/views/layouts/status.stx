@@ -5,6 +5,70 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="@yield('description')">
     <title>@yield('title')</title>
+    <script>
+      // Resolve the final theme before first paint (no flash of the wrong
+      // theme). A status page owner's forced 'light'/'dark' wins outright;
+      // 'system' follows the visitor's stored choice (shared with the
+      // marketing site) then their OS. Forced themes render dark/light with
+      // no JS at all (the server already stamped data-theme); only 'system'
+      // needs this resolver, so a no-JS visitor on a 'system' page sees the
+      // light default — an acceptable edge.
+      (function () {
+        try {
+          var el = document.documentElement
+          var theme = el.getAttribute('data-theme')
+          if (theme !== 'light' && theme !== 'dark') {
+            var stored = localStorage.getItem('uptimestatus-theme')
+            if (stored === 'light' || stored === 'dark')
+              theme = stored
+            else
+              theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'
+          }
+          el.setAttribute('data-theme', theme)
+        }
+        catch (err) {}
+      })()
+    </script>
+    <style>
+      /* Dark theme for the public status page. The page is built from
+         Crosswind utilities with a light palette; these rules remap that
+         bounded palette when the resolved theme is dark. Scoped to
+         [data-theme="dark"] so light mode is the untouched utilities. */
+      html[data-theme="dark"] body { background-color: #080b0a; color: #f2f5f3; }
+
+      /* Surfaces */
+      html[data-theme="dark"] .bg-white { background-color: #161b19; }
+      html[data-theme="dark"] .bg-gray-50 { background-color: #080b0a; }
+      html[data-theme="dark"] .bg-gray-900 { background-color: #1d2422; }
+      html[data-theme="dark"] .bg-gray-300 { background-color: #3a423f; }
+
+      /* Text */
+      html[data-theme="dark"] .text-gray-900 { color: #f2f5f3; }
+      html[data-theme="dark"] .text-gray-600 { color: #c2ccc7; }
+      html[data-theme="dark"] .text-gray-500 { color: #97a39d; }
+      html[data-theme="dark"] .text-gray-400 { color: #737d78; }
+
+      /* Borders */
+      html[data-theme="dark"] .border-gray-200 { border-color: rgba(255, 255, 255, 0.09); }
+      html[data-theme="dark"] .border-gray-300 { border-color: rgba(255, 255, 255, 0.16); }
+
+      /* Status accents — soft backgrounds, borders, and text tuned for dark.
+         The solid status dots (bg-emerald/amber/red-500) already read well on
+         a dark surface and are left vivid. */
+      html[data-theme="dark"] .bg-emerald-50 { background-color: rgba(47, 230, 166, 0.12); }
+      html[data-theme="dark"] .bg-amber-50 { background-color: rgba(251, 191, 36, 0.12); }
+      html[data-theme="dark"] .bg-red-50 { background-color: rgba(248, 113, 113, 0.12); }
+      html[data-theme="dark"] .bg-blue-50 { background-color: rgba(96, 165, 250, 0.12); }
+      html[data-theme="dark"] .border-emerald-200 { border-color: rgba(47, 230, 166, 0.28); }
+      html[data-theme="dark"] .border-amber-200 { border-color: rgba(251, 191, 36, 0.28); }
+      html[data-theme="dark"] .border-red-200 { border-color: rgba(248, 113, 113, 0.28); }
+      html[data-theme="dark"] .border-blue-200 { border-color: rgba(96, 165, 250, 0.28); }
+      html[data-theme="dark"] .text-emerald-600 { color: #34d399; }
+      html[data-theme="dark"] .text-amber-600 { color: #fbbf24; }
+      html[data-theme="dark"] .text-red-600 { color: #f87171; }
+
+      html[data-theme="dark"] body { transition: background-color 0.15s ease, color 0.15s ease; }
+    </style>
   </head>
   <body class="min-h-screen bg-gray-50 text-gray-900 antialiased">
     @yield('content')
