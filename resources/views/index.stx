@@ -304,7 +304,16 @@ const faqs = [
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="{{ statusPageForHost ? statusPageForHost.title + ' status' : appName + ' is a self-hostable uptime, SSL, DNS, and status-page monitoring platform.' }}">
-    <title>{{ statusPageForHost ? statusPageForHost.title : appName }}</title>
+    <title>{{ statusPageForHost ? statusPageForHost.title : appName + ' \u00b7 Open-source uptime monitoring' }}</title>
+    <meta property="og:site_name" content="{{ appName }}">
+    <meta property="og:title" content="{{ statusPageForHost ? statusPageForHost.title + ' status' : appName + ' \u00b7 Open-source uptime monitoring' }}">
+    <meta property="og:description" content="{{ statusPageForHost ? 'Live service status for ' + statusPageForHost.title + '.' : 'Uptime, SSL, DNS, cron, and status-page monitoring. MIT licensed, self-hostable, or fully hosted for $9 a month.' }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/">
+    <meta name="twitter:card" content="summary">
+    @if (!statusPageForHost)
+      <link rel="canonical" href="https://uptime-status.org/">
+    @endif
     <script>
       // Apply a stored theme override before first paint to avoid a flash of
       // the wrong theme. Absence of a stored value leaves data-theme="system"
@@ -508,6 +517,7 @@ const faqs = [
         font-size: 0.95rem;
         background: var(--bg);
       }
+      .mode-subscribe input::placeholder { color: var(--muted); opacity: 0.75; }
       .mode-subscribe input:focus {
         outline: none;
         border-color: var(--accent);
@@ -680,7 +690,7 @@ const faqs = [
       }
       .button.primary:hover { filter: brightness(1.05); border-color: var(--accent); }
 
-      .button.block { width: 100%; }
+      .button.wide { width: 100%; }
 
       .hero {
         display: grid;
@@ -1524,7 +1534,7 @@ const faqs = [
             Uptime, SSL, DNS, and status-page monitoring — leave your email and we'll let you know the moment we open the doors.
           </p>
           <form class="mode-subscribe" action="/api/email/subscribe" method="POST">
-            <input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email address" required>
+            <input type="email" name="email" placeholder="you@yourcompany.com" autocomplete="email" aria-label="Email address" required>
             <button class="button primary" type="submit">Notify me</button>
           </form>
           <div class="mode-meta">
@@ -1755,10 +1765,10 @@ const faqs = [
                   @endforeach
                 </ul>
                 @if (tier.external)
-                  <a class="button {{ tier.highlighted ? 'primary' : '' }} block" href="{{ tier.href }}" target="_blank" rel="noopener">{{ tier.cta }}</a>
+                  <a class="button {{ tier.highlighted ? 'primary' : '' }} wide" href="{{ tier.href }}" target="_blank" rel="noopener">{{ tier.cta }}</a>
                 @endif
                 @if (!tier.external)
-                  <a class="button {{ tier.highlighted ? 'primary' : '' }} block" href="{{ tier.href }}" data-no-router>{{ tier.cta }}</a>
+                  <a class="button {{ tier.highlighted ? 'primary' : '' }} wide" href="{{ tier.href }}" data-no-router>{{ tier.cta }}</a>
                 @endif
               </div>
             @endforeach

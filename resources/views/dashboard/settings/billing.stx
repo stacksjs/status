@@ -93,6 +93,11 @@ function limitLabel(limit) {
 const planLabel = currentPlan === 'pro' ? 'Pro' : currentPlan === 'self-hosted' ? 'Self-hosted' : 'Free'
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Billing \u00b7 UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')

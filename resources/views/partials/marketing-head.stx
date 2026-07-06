@@ -269,7 +269,7 @@
     background: var(--accent);
   }
   .button.primary:hover { filter: brightness(1.05); border-color: var(--accent); }
-  .button.block { width: 100%; }
+  .button.wide { width: 100%; }
 
   /* ------------------------------------------------------------------ */
   /* Page hero (marketing subpages)                                      */

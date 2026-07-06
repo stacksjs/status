@@ -83,6 +83,11 @@ function reportFrequencyLabel(freq) {
 }
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Team settings \u00b7 UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')
@@ -127,7 +132,7 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
           <h2>Members</h2>
           <span class="sub">{{ activeCount }} active &middot; {{ pendingCount }} pending</span>
         </div>
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: minmax(0, 1.6fr) 110px 130px 110px 110px;">
             <span class="tcell">Member</span>
             <span class="tcell">Role</span>

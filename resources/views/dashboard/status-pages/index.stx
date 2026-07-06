@@ -65,6 +65,11 @@ function accessLabel(t) {
 }
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Status pages \u00b7 UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')
@@ -121,7 +126,7 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
     @if (statusPages.length > 0)
       <section class="card scroll-x" aria-label="Status pages">
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 140px 110px;">
             <span class="tcell">Name</span>
             <span class="tcell">Route</span>

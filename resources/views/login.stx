@@ -24,6 +24,7 @@ const hasSso = ssoProviders.length > 0
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sign in &middot; {{ appName }}</title>
     <meta name="robots" content="noindex">
+    <meta name="description" content="Sign in to your UptimeStatus dashboard.">
     <script>
       (function () {
         try {
@@ -91,6 +92,7 @@ const hasSso = ssoProviders.length > 0
         border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
         color: var(--fg); font: inherit; font-size: 0.95rem; background: var(--bg);
       }
+      input::placeholder { color: var(--muted); opacity: 0.75; }
       input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
       .button {
         display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
@@ -139,7 +141,7 @@ const hasSso = ssoProviders.length > 0
         <p class="sub">Sign in to your {{ appName }} account.</p>
         <div class="field">
           <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@yourcompany.com" required>
         </div>
         <div class="field">
           <div class="row-between">

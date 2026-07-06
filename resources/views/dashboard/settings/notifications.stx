@@ -54,6 +54,11 @@ const sent = query.get('sent') === '1'
 const enabledCount = channels.filter((c) => c.enabled).length
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Notification settings \u00b7 UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')
@@ -102,7 +107,7 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
     @if (channels.length > 0)
       <section class="card scroll-x" aria-label="Notification channels">
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: 130px minmax(0, 1.6fr) 130px 110px;">
             <span class="tcell">Type</span>
             <span class="tcell">Name</span>

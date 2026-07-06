@@ -77,6 +77,11 @@ const completedCount = steps.filter((s) => s.done).length
 const stepsDisplay = steps.map((s, i) => ({ ...s, num: String(i + 1).padStart(2, '0') }))
 const allDone = completedCount === steps.length
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Get set up \u00b7 UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')

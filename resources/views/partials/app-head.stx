@@ -416,7 +416,7 @@
   .card-body { padding: 1.25rem; }
 
   /* Row-list table: a header row + link rows, marketing preview-card DNA */
-  .table { display: block; }
+  .rows { display: block; }
   .trow {
     display: grid;
     gap: 1rem;
@@ -425,7 +425,7 @@
     border-bottom: 1px solid var(--border);
   }
   .trow:last-child { border-bottom: 0; }
-  .table .thead {
+  .rows .thead {
     color: var(--muted);
     font-size: 0.72rem;
     font-weight: 600;
@@ -509,6 +509,7 @@
     background: var(--bg);
   }
   .textarea { min-height: 0; }
+  .input::placeholder, .textarea::placeholder { color: var(--muted); opacity: 0.75; }
   .input:focus, .select:focus, .textarea:focus {
     outline: none;
     border-color: var(--accent);
@@ -554,6 +555,27 @@
   .empty .actions { margin-top: 1.25rem; display: flex; justify-content: center; gap: 0.6rem; }
   .empty a:not(.button) { color: var(--accent); font-weight: 600; }
 
+  /* Type tags: quiet bordered labels so the type column reads as metadata */
+  .tag {
+    display: inline-block;
+    padding: 0.18rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+
+  /* Mini check-history ticks for table rows (newest on the right) */
+  .ticks { display: inline-flex; gap: 2px; align-items: stretch; height: 16px; }
+  .ticks span { width: 4px; border-radius: 1px; background: var(--success); opacity: 0.8; }
+  .ticks span.warn { background: var(--amber); }
+  .ticks span.down { background: var(--danger); }
+  .ticks span.unknown { background: var(--border-strong); opacity: 0.5; }
+
   .mono { font-family: var(--font-mono); }
 
   .app-foot {
@@ -574,6 +596,6 @@
 
     /* Fixed column tracks can't fit a phone; tables scroll in-frame. */
     .card.scroll-x { overflow-x: auto; }
-    .card.scroll-x .trow { min-width: 660px; }
+    .card.scroll-x .trow { min-width: 780px; }
   }
 </style>

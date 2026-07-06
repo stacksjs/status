@@ -141,6 +141,11 @@ function accessLabel(t) {
 }
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: (statusPage ? statusPage.title + ' \u00b7 UptimeStatus' : 'Status page \u00b7 UptimeStatus'), meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')
@@ -250,7 +255,7 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
       @endif
 
       @if (assignedMonitors.length > 0)
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: 120px minmax(0, 1.4fr) 130px 100px;">
             <span class="tcell">Status</span>
             <span class="tcell">Monitor</span>
@@ -316,7 +321,7 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
           <h3>Maintenance windows</h3>
           <span class="sub">Last {{ maintenanceWindows.length }}</span>
         </div>
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: minmax(0, 1.4fr) 130px minmax(0, 1fr);">
             <span class="tcell">Window</span>
             <span class="tcell">State</span>

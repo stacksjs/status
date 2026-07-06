@@ -132,6 +132,11 @@ function statusUrl(s) {
 }
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Incidents \u00b7 UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')
@@ -203,7 +208,7 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
     @if (incidents.length > 0)
       <section class="card scroll-x" aria-label="Incident list">
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
             <span class="tcell">Status</span>
             <span class="tcell">Cause</span>

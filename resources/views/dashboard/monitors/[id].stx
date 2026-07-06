@@ -316,6 +316,11 @@ if (latestPortScan) {
 }
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: (monitor ? monitor.name + ' \u00b7 UptimeStatus' : 'Monitor \u00b7 UptimeStatus'), meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')
@@ -545,7 +550,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
           <h3>DNS snapshots</h3>
           <span class="sub">Last {{ dnsSnapshots.length }}</span>
         </div>
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: 110px minmax(0, 1fr) 140px;">
             <span class="tcell">Record</span>
             <span class="tcell">Values</span>
@@ -575,7 +580,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
 
           @if (crawlBrokenPages.length > 0)
             <p class="subhead">Broken links, by source page</p>
-            <div class="table" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
+            <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
               @foreach (crawlBrokenPages as page)
                 <div class="trow" style="grid-template-columns: 60px minmax(0, 1.4fr) minmax(0, 1fr);">
                   <span class="tcell mono" style="color: var(--danger); font-weight: 600; font-size: 0.82rem;">{{ page.status_code }}</span>
@@ -588,7 +593,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
 
           @if (crawlMixedContentPages.length > 0)
             <p class="subhead">Mixed content</p>
-            <div class="table" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
+            <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
               @foreach (crawlMixedContentPages as page)
                 <div class="trow" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);">
                   <span class="tcell" style="font-size: 0.85rem; overflow-wrap: anywhere;">{{ page.url }}</span>
@@ -647,7 +652,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
         </div>
       @endif
       @if (incidents.length > 0)
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: 130px minmax(0, 1.6fr) 140px 140px;">
             <span class="tcell">Status</span>
             <span class="tcell">Cause</span>
@@ -677,7 +682,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
         @endif
 
         @if (assignedChannels.length > 0)
-          <div class="table" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
+          <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
             @foreach (assignedChannels as channel)
               <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
                 <span class="tcell"><span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span> <span class="sub" style="margin-left: 0.5rem;">{{ channel.type }}</span></span>
@@ -722,7 +727,7 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
         </div>
       @endif
       @if (recentChecks.length > 0)
-        <div class="table">
+        <div class="rows">
           <div class="trow thead" style="grid-template-columns: 110px minmax(0, 1.6fr) 60px 100px 80px 130px;">
             <span class="tcell">Status</span>
             <span class="tcell">Message</span>

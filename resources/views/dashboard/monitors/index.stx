@@ -110,6 +110,44 @@ function lastResponseMs(id) {
   return lastResponseByMonitor[id] ?? null
 }
 
+// Crawls, port scans, and Lighthouse runs take seconds to minutes; showing
+// their duration as raw milliseconds (108413ms) reads as a bug. Humanize.
+function fmtDuration(ms) {
+  if (ms === null) return '--'
+  if (ms < 1000) return ms + 'ms'
+  if (ms < 60000) return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's'
+  return Math.round(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's'
+}
+
+// The full URL repeated per row is noise; the host + path carries the
+// same information under the monitor name.
+function targetLabel(url) {
+  return String(url).replace(/^https?:\/\//, '').replace(/\/$/, '')
+}
+
+function typeLabel(t) {
+  const labels = { uptime: 'Uptime', ping: 'Ping', tcp_port: 'TCP port', ssl: 'SSL', dns: 'DNS', domain: 'Domain', broken_links: 'Crawl', lighthouse: 'Lighthouse', dns_blocklist: 'Blocklist', port_scan: 'Port scan', health: 'Health', cron: 'Heartbeat', performance: 'Performance', ai_check: 'AI check' }
+  return labels[t] || t.replace('_', ' ')
+}
+
+// Last 12 check outcomes per displayed monitor (oldest -> newest) for the
+// mini tick strip; one bounded query per row, same pattern as the
+// last-response lookup above.
+const recentChecksByMonitor = {}
+for (const m of monitors) {
+  const rows = await db.selectFrom('check_results').where('monitor_id', '=', m.id).orderByDesc('id').limit(12).execute()
+  recentChecksByMonitor[m.id] = rows.map(r => r.status).reverse()
+}
+function tickClass(status) {
+  if (status === 'up') return ''
+  if (status === 'degraded') return 'warn'
+  if (status === 'down') return 'down'
+  return 'unknown'
+}
+function recentChecks(id) {
+  return recentChecksByMonitor[id] || []
+}
+
 function stClass(status) {
   if (status === 'up') return 'pill pill-up'
   if (status === 'degraded') return 'pill pill-degraded'
@@ -150,6 +188,11 @@ function statusUrl(s) {
 }
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'Monitors \u00b7 UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')
@@ -227,22 +270,36 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
     @if (monitors.length > 0)
       <section class="card scroll-x" aria-label="Monitor list">
-        <div class="table">
-          <div class="trow thead" style="grid-template-columns: 120px minmax(0, 1.4fr) 110px minmax(0, 1fr) 80px 100px;">
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: 110px minmax(220px, 1.7fr) 100px 112px 80px 92px;">
             <span class="tcell">Status</span>
             <span class="tcell">Monitor</span>
             <span class="tcell">Type</span>
-            <span class="tcell">Target</span>
+            <span class="tcell">Last checks</span>
             <span class="tcell num">Resp</span>
             <span class="tcell num">Checked</span>
           </div>
           @foreach (monitors as monitor)
-            <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 120px minmax(0, 1.4fr) 110px minmax(0, 1fr) 80px 100px;">
+            <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 100px 112px 80px 92px;">
               <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data></span>
-              <span class="tcell ellipsis name">{{ monitor.name }}</span>
-              <span class="tcell sub">{{ monitor.type.replace('_', ' ') }}</span>
-              <span class="tcell sub ellipsis">{{ monitor.url }}</span>
-              <span class="tcell num">{{ lastResponseMs(monitor.id) !== null ? lastResponseMs(monitor.id) + 'ms' : '--' }}</span>
+              <span class="tcell">
+                <span class="name ellipsis" style="display: block;">{{ monitor.name }}</span>
+                <span class="sub" style="display: block;">{{ targetLabel(monitor.url) }}</span>
+              </span>
+              <span class="tcell"><span class="tag">{{ typeLabel(monitor.type) }}</span></span>
+              <span class="tcell">
+                @if (recentChecks(monitor.id).length > 0)
+                  <span class="ticks" aria-label="Recent check results">
+                    @foreach (recentChecks(monitor.id) as tick)
+                      <span class="{{ tickClass(tick) }}"></span>
+                    @endforeach
+                  </span>
+                @endif
+                @if (recentChecks(monitor.id).length === 0)
+                  <span class="sub">--</span>
+                @endif
+              </span>
+              <span class="tcell num">{{ fmtDuration(lastResponseMs(monitor.id)) }}</span>
               <span class="tcell num"><time>{{ agoLabel(monitor.last_checked_at) }}</time></span>
             </a>
           @endforeach

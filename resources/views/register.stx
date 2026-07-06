@@ -9,6 +9,7 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Create your account &middot; {{ appName }}</title>
     <meta name="robots" content="noindex">
+    <meta name="description" content="Create a free UptimeStatus account and put your first monitor live in minutes.">
     <script>
       (function () {
         try {
@@ -77,6 +78,7 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
         border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
         color: var(--fg); font: inherit; font-size: 0.95rem; background: var(--bg);
       }
+      input::placeholder { color: var(--muted); opacity: 0.75; }
       input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
       .button {
         display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
@@ -115,7 +117,7 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
         </div>
         <div class="field">
           <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@yourcompany.com" required>
         </div>
         <div class="field">
           <label for="password">Password</label>
