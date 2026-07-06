@@ -121,7 +121,7 @@ function escapeHtml(value: string): string {
 }
 
 function trendLabel(trend: Trend): { symbol: string, word: string, color: string } {
-  if (trend === 'improved') return { symbol: '&#9660;', word: 'improved', color: '#059669' }
+  if (trend === 'improved') return { symbol: '&#9660;', word: 'improved', color: '#2563eb' }
   if (trend === 'degraded') return { symbol: '&#9650;', word: 'degraded', color: '#dc2626' }
   if (trend === 'steady') return { symbol: '&#8594;', word: 'steady', color: '#6b7280' }
   return { symbol: '', word: '-', color: '#9ca3af' }
@@ -144,7 +144,7 @@ function buildHtml(report: TeamReport, appName: string): string {
   const overallUptime = totalChecks > 0 ? (totalUp / totalChecks) * 100 : null
 
   const cell = 'padding:10px 12px;font-size:13px;color:#111827;border-bottom:1px solid #e5e7eb;'
-  const head = 'padding:8px 12px;font-size:11px;font-weight:bold;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;text-align:left;border-bottom:2px solid #059669;'
+  const head = 'padding:8px 12px;font-size:11px;font-weight:bold;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;text-align:left;border-bottom:2px solid #2563eb;'
 
   const monitorRows = report.monitors.map((m) => {
     const t = trendLabel(m.trend)
@@ -174,7 +174,7 @@ function buildHtml(report: TeamReport, appName: string): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:24px 0;">`
     + `<tr><td align="center">`
     + `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">`
-    + `<tr><td style="background-color:#059669;padding:20px 24px;">`
+    + `<tr><td style="background-color:#2563eb;padding:20px 24px;">`
     + `<div style="font-size:18px;font-weight:bold;color:#ffffff;">${escapeHtml(appName)} uptime report</div>`
     + `<div style="font-size:13px;color:#d1fae5;padding-top:4px;">${escapeHtml(report.teamName)} &middot; ${escapeHtml(report.label)}</div>`
     + `</td></tr>`

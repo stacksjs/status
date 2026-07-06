@@ -43,9 +43,11 @@
     --muted: #5c6864;
     --border: rgba(11, 15, 13, 0.1);
     --border-strong: rgba(11, 15, 13, 0.18);
-    --accent: #059669;
+    --accent: #2563eb;
     --accent-fg: #ffffff;
-    --accent-soft: rgba(5, 150, 105, 0.09);
+    --accent-soft: rgba(37, 99, 235, 0.09);
+    --success: #059669;
+    --success-soft: rgba(5, 150, 105, 0.12);
     --amber: #d97706;
     --amber-soft: rgba(217, 119, 6, 0.12);
     --danger: #dc2626;
@@ -68,9 +70,11 @@
       --muted: #97a39d;
       --border: rgba(255, 255, 255, 0.08);
       --border-strong: rgba(255, 255, 255, 0.15);
-      --accent: #2fe6a6;
-      --accent-fg: #04140d;
-      --accent-soft: rgba(47, 230, 166, 0.13);
+      --accent: #60a5fa;
+      --accent-fg: #071630;
+      --accent-soft: rgba(96, 165, 250, 0.14);
+      --success: #2fe6a6;
+      --success-soft: rgba(47, 230, 166, 0.14);
       --amber: #fbbf24;
       --amber-soft: rgba(251, 191, 36, 0.13);
       --danger: #f87171;
@@ -88,9 +92,11 @@
     --muted: #97a39d;
     --border: rgba(255, 255, 255, 0.08);
     --border-strong: rgba(255, 255, 255, 0.15);
-    --accent: #2fe6a6;
-    --accent-fg: #04140d;
-    --accent-soft: rgba(47, 230, 166, 0.13);
+    --accent: #60a5fa;
+    --accent-fg: #071630;
+    --accent-soft: rgba(96, 165, 250, 0.14);
+    --success: #2fe6a6;
+    --success-soft: rgba(47, 230, 166, 0.14);
     --amber: #fbbf24;
     --amber-soft: rgba(251, 191, 36, 0.13);
     --danger: #f87171;
@@ -333,7 +339,7 @@
     font-size: 0.78rem;
     font-weight: 500;
   }
-  .stat-card .ok { color: var(--accent); }
+  .stat-card .ok { color: var(--success); }
   .stat-card .warn { color: var(--amber); }
   .stat-card .bad { color: var(--danger); }
 
@@ -460,8 +466,8 @@
     white-space: nowrap;
   }
   .pill .dot { width: 7px; height: 7px; border-radius: 999px; flex: 0 0 auto; }
-  .pill-up { color: var(--accent); background: var(--accent-soft); }
-  .pill-up .dot { background: var(--accent); }
+  .pill-up { color: var(--success); background: var(--success-soft); }
+  .pill-up .dot { background: var(--success); }
   .pill-degraded { color: var(--amber); background: var(--amber-soft); }
   .pill-degraded .dot { background: var(--amber); }
   .pill-down { color: var(--danger); background: var(--danger-soft); }
@@ -471,13 +477,13 @@
 
   /* Uptime bars (public status page DNA) */
   .uptime-bars { display: flex; gap: 2px; align-items: stretch; height: 30px; }
-  .uptime-bars span { flex: 1 1 0; min-width: 1px; border-radius: 2px; background: var(--accent); opacity: 0.85; }
+  .uptime-bars span { flex: 1 1 0; min-width: 1px; border-radius: 2px; background: var(--success); opacity: 0.85; }
   .uptime-bars span.warn { background: var(--amber); }
   .uptime-bars span.down { background: var(--danger); }
   .uptime-bars span.unknown { background: var(--border-strong); opacity: 0.45; }
 
   .spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; }
-  .spark span { width: 3px; border-radius: 1px; background: var(--accent); opacity: 0.55; }
+  .spark span { width: 3px; border-radius: 1px; background: var(--success); opacity: 0.55; }
 
   /* ------------------------------------------------------------------ */
   /* Forms                                                               */

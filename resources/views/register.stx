@@ -25,7 +25,7 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
         color-scheme: light;
         --bg: #fbfbfa; --surface: #ffffff; --surface-2: #f2f3f1;
         --fg: #0b0f0d; --muted: #5c6864; --border: rgba(11,15,13,0.1); --border-strong: rgba(11,15,13,0.18);
-        --accent: #059669; --accent-fg: #ffffff; --accent-soft: rgba(5,150,105,0.09);
+        --accent: #2563eb; --accent-fg: #ffffff; --accent-soft: rgba(37,99,235,0.09);
         --danger: #dc2626; --danger-soft: rgba(220,38,38,0.08);
         --radius: 16px; --radius-sm: 10px;
         --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -36,7 +36,7 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
           color-scheme: dark;
           --bg: #080b0a; --surface: #101413; --surface-2: #161b19;
           --fg: #f2f5f3; --muted: #97a39d; --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.15);
-          --accent: #2fe6a6; --accent-fg: #04140d; --accent-soft: rgba(47,230,166,0.13);
+          --accent: #60a5fa; --accent-fg: #071630; --accent-soft: rgba(96,165,250,0.14);
           --danger: #f87171; --danger-soft: rgba(248,113,113,0.12);
         }
       }
@@ -44,7 +44,7 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
         color-scheme: dark;
         --bg: #080b0a; --surface: #101413; --surface-2: #161b19;
         --fg: #f2f5f3; --muted: #97a39d; --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.15);
-        --accent: #2fe6a6; --accent-fg: #04140d; --accent-soft: rgba(47,230,166,0.13);
+        --accent: #60a5fa; --accent-fg: #071630; --accent-soft: rgba(96,165,250,0.14);
         --danger: #f87171; --danger-soft: rgba(248,113,113,0.12);
       }
       * { box-sizing: border-box; }

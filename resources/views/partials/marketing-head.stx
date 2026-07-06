@@ -41,9 +41,11 @@
     --muted: #5c6864;
     --border: rgba(11, 15, 13, 0.1);
     --border-strong: rgba(11, 15, 13, 0.18);
-    --accent: #059669;
+    --accent: #2563eb;
     --accent-fg: #ffffff;
-    --accent-soft: rgba(5, 150, 105, 0.09);
+    --accent-soft: rgba(37, 99, 235, 0.09);
+    --success: #059669;
+    --success-soft: rgba(5, 150, 105, 0.12);
     --violet: #6d5efc;
     --amber: #d97706;
     --shadow: 0 20px 50px -18px rgba(11, 15, 13, 0.22);
@@ -64,9 +66,11 @@
       --muted: #97a39d;
       --border: rgba(255, 255, 255, 0.08);
       --border-strong: rgba(255, 255, 255, 0.15);
-      --accent: #2fe6a6;
-      --accent-fg: #04140d;
-      --accent-soft: rgba(47, 230, 166, 0.13);
+      --accent: #60a5fa;
+      --accent-fg: #071630;
+      --accent-soft: rgba(96, 165, 250, 0.14);
+      --success: #2fe6a6;
+      --success-soft: rgba(47, 230, 166, 0.14);
       --violet: #a196ff;
       --amber: #fbbf24;
       --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
@@ -82,9 +86,11 @@
     --muted: #97a39d;
     --border: rgba(255, 255, 255, 0.08);
     --border-strong: rgba(255, 255, 255, 0.15);
-    --accent: #2fe6a6;
-    --accent-fg: #04140d;
-    --accent-soft: rgba(47, 230, 166, 0.13);
+    --accent: #60a5fa;
+    --accent-fg: #071630;
+    --accent-soft: rgba(96, 165, 250, 0.14);
+    --success: #2fe6a6;
+    --success-soft: rgba(47, 230, 166, 0.14);
     --violet: #a196ff;
     --amber: #fbbf24;
     --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
@@ -430,13 +436,13 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    color: var(--accent);
+    color: var(--success);
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
-  .pill .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--accent); }
+  .pill .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--success); }
   .pill.warn { color: var(--amber); }
   .pill.warn .dot { background: var(--amber); }
   .pill.down { color: #ef4444; }
@@ -465,8 +471,8 @@
     width: 8px;
     height: 8px;
     border-radius: 999px;
-    background: var(--accent);
-    box-shadow: 0 0 0 4px var(--accent-soft);
+    background: var(--success);
+    box-shadow: 0 0 0 4px var(--success-soft);
   }
   .panel-row-main .dot.warn { background: var(--amber); box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.12); }
   .panel-row-main .dot.down { background: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12); }
@@ -497,7 +503,7 @@
   .spark span {
     width: 3px;
     border-radius: 1px;
-    background: var(--accent);
+    background: var(--success);
     opacity: 0.55;
   }
 
@@ -511,7 +517,7 @@
     flex: 1 1 0;
     min-width: 1px;
     border-radius: 2px;
-    background: var(--accent);
+    background: var(--success);
     opacity: 0.75;
   }
   .uptime-bars span.warn { background: var(--amber); }
