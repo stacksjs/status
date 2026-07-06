@@ -14,10 +14,11 @@
   today without one, same as every other check type. Listing it as a
   checklist step would silently imply a feature that isn't real.
 
-  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
-  brutalist) via partials/telemetry-head.stx. Steps render as numbered
-  panel compartments; phosphor green marks COMPLETE readouts only,
-  pending steps stay neutral (a not-yet-done setup step is not a fault).
+  Visual language: the marketing site's design system (emerald accent,
+  Space Grotesk display, light + dark) via partials/app-head.stx +
+  app-nav.stx, same as monitors/index.stx. Steps render as cards with a
+  status pill; pill-up marks complete steps only, pending steps stay
+  neutral (a not-yet-done setup step is not a fault).
 -->
 <script server>
 const { config } = require('@stacksjs/config')
@@ -72,62 +73,61 @@ const steps = [
 ]
 const completedCount = steps.filter((s) => s.done).length
 
-// Display-only: zero-padded step numbers for the panel heads.
+// Display-only: zero-padded step numbers for the card heads.
 const stepsDisplay = steps.map((s, i) => ({ ...s, num: String(i + 1).padStart(2, '0') }))
 const allDone = completedCount === steps.length
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-@include('../partials/telemetry-head.stx')
-@include('../partials/telemetry-nav.stx')
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
 
-<main class="tl-shell" style="max-width: 860px;">
+<main class="app-shell" style="max-width: 860px;">
   @if (!AUTH_USER)
-    <div class="tl-empty" style="margin: 48px 0;">
-      <span class="big">[ NO ACTIVE SESSION ]</span>
-      <span class="why">Authentication required to run the setup sequence. <a href="/login" data-no-router style="color: var(--ink); text-decoration: underline;">Sign in</a>.</span>
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view your setup checklist.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
     </div>
   @endif
 
   @if (AUTH_USER)
-    <header class="tl-banner">
-      <h1 class="tl-title">Get Online</h1>
-      <div class="tl-banner-meta">
-        <span>SETUP SEQUENCE {{ completedCount }} / {{ steps.length }} COMPLETE</span>
-        <span class="hz">{{ allDone ? 'ALL SYSTEMS CONFIGURED' : 'CONFIGURATION INCOMPLETE' }} /// {{ generatedAt }} UTC</span>
+    <header class="page-head">
+      <div>
+        <h1>Get set up</h1>
+        <p class="meta">{{ completedCount }} of {{ steps.length }} complete</p>
       </div>
     </header>
 
-    <section aria-label="Setup progress" style="margin: 24px 0;">
-      <span class="tl-label">[ Sequence progress: {{ completedCount }} of {{ steps.length }} ]</span>
-      <div class="tl-bars" style="height: 14px;">
+    <section aria-label="Setup progress" style="margin: 0 0 1.5rem;">
+      <div class="uptime-bars" style="height: 12px;">
         @foreach (stepsDisplay as step)
-          <span class="{{ step.done ? '' : 'unknown' }}" title="STEP {{ step.num }} {{ step.done ? 'COMPLETE' : 'PENDING' }}"></span>
+          <span class="{{ step.done ? '' : 'unknown' }}" title="Step {{ step.num }} {{ step.done ? 'complete' : 'pending' }}"></span>
         @endforeach
       </div>
     </section>
 
     @foreach (stepsDisplay as step)
-      <section class="tl-panel">
-        <div class="tl-panel-head">
-          <span><span class="{{ step.done ? '' : 'hz' }}">[ {{ step.num }} ]</span> {{ step.title }}</span>
+      <section class="card">
+        <div class="card-head">
+          <h3><span class="sub mono">{{ step.num }}</span> {{ step.title }}</h3>
           @if (step.done)
-            <data class="st st-up" value="done">Complete</data>
+            <data class="pill pill-up" value="done"><span class="dot"></span>Complete</data>
           @endif
           @if (!step.done)
-            <data class="st st-unknown" value="pending">Pending</data>
+            <data class="pill pill-unknown" value="pending"><span class="dot"></span>Pending</data>
           @endif
         </div>
-        <div class="tl-panel-body" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
-          <p style="margin: 0; color: var(--dim); font-size: 12px; max-width: 60ch;">{{ step.description }}</p>
-          <a href="{{ step.href }}" class="tl-btn {{ step.done ? 'ghost' : '' }}">{{ step.done ? 'Review >>' : 'Begin step >>' }}</a>
+        <div class="card-body" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+          <p style="margin: 0; color: var(--muted); font-size: 0.9rem; max-width: 34rem;">{{ step.description }}</p>
+          <a href="{{ step.href }}" class="button {{ step.done ? '' : 'primary' }}">{{ step.done ? 'Review' : 'Start' }}</a>
         </div>
       </section>
     @endforeach
 
-    <footer class="tl-footnote">
-      <span>CHECKLIST RE-DERIVED FROM LIVE DATA ON EVERY LOAD /// NO STORED WIZARD STATE</span>
-      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    <footer class="app-foot">
+      <span>{{ allDone ? 'All steps complete' : 'Checklist re-derives from live data on every load' }}</span>
+      <span>Updated {{ generatedAt }} UTC</span>
     </footer>
   @endif
 </main>

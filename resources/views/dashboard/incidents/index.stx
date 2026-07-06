@@ -2,12 +2,13 @@
   Cross-monitor incident feed -- dashboard page (stacksjs/status#1 Phase
   8). Same server-rendered convention as monitors/index.stx.
 
-  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
-  brutalist) via partials/telemetry-head.stx. Incident status readouts:
-  resolved is dim (spent), investigating/identified is hazard red
-  (active problem), monitoring is ink (watch state). Phosphor green is
-  reserved for operational/positive readouts only, so it appears here
-  solely when the open-incident count is zero.
+  Visual language: the marketing site's design system (emerald accent,
+  Space Grotesk display, light + dark) via partials/app-head.stx +
+  app-nav.stx, same as monitors/index.stx. Incident status pills reuse
+  the shared pill language: investigating and identified are live
+  problems (down), monitoring is a watch state (degraded), resolved is
+  spent (neutral). The accent green never marks an incident row, since
+  an incident is never "operational".
 -->
 <script server>
 const { config } = require('@stacksjs/config')
@@ -88,20 +89,26 @@ function tallyOf(status) {
   return row ? row.c : 0
 }
 
-// Incident status readouts: resolved is spent (dim), investigating and
-// identified are live problems (hazard), monitoring is a watch state
-// (ink). Never phosphor -- an incident row is never "operational".
-function incidentStyle(status) {
-  if (status === 'resolved') return 'color: var(--dim);'
-  if (status === 'monitoring') return 'color: var(--ink);'
-  return 'color: var(--hazard);'
+// Incident status pills: investigating and identified are live problems
+// (pill-down), monitoring is a watch state (pill-degraded), resolved is
+// spent (pill-unknown). Never pill-up, since an incident row is never
+// "operational".
+function incidentPill(status) {
+  if (status === 'resolved') return 'pill pill-unknown'
+  if (status === 'monitoring') return 'pill pill-degraded'
+  return 'pill pill-down'
+}
+
+function incidentLabel(status) {
+  if (!status) return '--'
+  return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
 function formatDate(iso) {
   if (!iso) return '--'
   const d = new Date(iso)
   if (isNaN(d.getTime())) return '--'
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: false }).toUpperCase()
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: false })
 }
 
 function durationLabel(startIso, endIso) {
@@ -110,10 +117,10 @@ function durationLabel(startIso, endIso) {
   if (isNaN(start)) return '--'
   const end = endIso ? new Date(endIso).getTime() : Date.now()
   const s = Math.max(0, Math.floor((end - start) / 1000))
-  if (s < 60) return s + 'S'
-  if (s < 3600) return Math.floor(s / 60) + 'M'
-  if (s < 86400) return Math.floor(s / 3600) + 'H ' + Math.floor((s % 3600) / 60) + 'M'
-  return Math.floor(s / 86400) + 'D ' + Math.floor((s % 86400) / 3600) + 'H'
+  if (s < 60) return s + 's'
+  if (s < 3600) return Math.floor(s / 60) + 'm'
+  if (s < 86400) return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm'
+  return Math.floor(s / 86400) + 'd ' + Math.floor((s % 86400) / 3600) + 'h'
 }
 
 function statusUrl(s) {
@@ -127,92 +134,99 @@ function statusUrl(s) {
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-@include('../partials/telemetry-head.stx')
-@include('../partials/telemetry-nav.stx')
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
 
-<main class="tl-shell">
+<main class="app-shell">
   @if (!AUTH_USER)
-    <div class="tl-empty" style="margin: 48px 0;">
-      <span class="big">[ NO ACTIVE SESSION ]</span>
-      <span class="why">Authentication required to read the incident ledger. <a href="/login" data-no-router style="color: var(--ink); text-decoration: underline;">Sign in</a>.</span>
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view your incidents.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
     </div>
   @endif
 
   @if (AUTH_USER)
-    <header class="tl-banner">
-      <h1 class="tl-title">Incidents</h1>
-      <div class="tl-banner-meta">
-        <span>{{ incidentTotal }} INCIDENT{{ incidentTotal === 1 ? '' : 'S' }} ON RECORD</span>
-        <span>{{ openCount }} OPEN NOW</span>
-        <span class="hz">LEDGER /// {{ generatedAt }} UTC</span>
+    <header class="page-head">
+      <div>
+        <h1>Incidents</h1>
+        <p class="meta">{{ incidentTotal }} on record &middot; {{ openCount }} open</p>
       </div>
     </header>
 
-    <dl class="tl-stats">
-      <div class="tl-stat">
-        <dt>[ Open ]</dt>
-        <dd class="{{ openCount > 0 ? 'bad' : 'ok' }}"><output>{{ openCount }}</output></dd>
+    <dl class="stat-grid">
+      <div class="stat-card">
+        <dt>Open</dt>
+        <dd class="{{ openCount > 0 ? 'bad' : '' }}">{{ openCount }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Investigating ]</dt>
-        <dd class="{{ tallyOf('investigating') > 0 ? 'bad' : '' }}"><output>{{ tallyOf('investigating') }}</output></dd>
+      <div class="stat-card">
+        <dt>Investigating</dt>
+        <dd>{{ tallyOf('investigating') }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Identified ]</dt>
-        <dd class="{{ tallyOf('identified') > 0 ? 'bad' : '' }}"><output>{{ tallyOf('identified') }}</output></dd>
+      <div class="stat-card">
+        <dt>Identified</dt>
+        <dd>{{ tallyOf('identified') }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Monitoring ]</dt>
-        <dd><output>{{ tallyOf('monitoring') }}</output></dd>
+      <div class="stat-card">
+        <dt>Monitoring</dt>
+        <dd>{{ tallyOf('monitoring') }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Resolved ]</dt>
-        <dd style="color: var(--dim);"><output>{{ tallyOf('resolved') }}</output></dd>
+      <div class="stat-card">
+        <dt>Resolved</dt>
+        <dd>{{ tallyOf('resolved') }}</dd>
       </div>
     </dl>
 
-    <div class="tl-filters">
-      <div class="tl-filter-group">
+    <div class="filter-bar">
+      <div class="filter-group">
         <span class="lbl">Status</span>
-        <a href="{{ statusUrl('') }}" class="tl-chip {{ filterStatus === '' ? 'active' : '' }}">All</a>
-        <a href="{{ statusUrl('investigating') }}" class="tl-chip {{ filterStatus === 'investigating' ? 'active' : '' }}">Investigating</a>
-        <a href="{{ statusUrl('identified') }}" class="tl-chip {{ filterStatus === 'identified' ? 'active' : '' }}">Identified</a>
-        <a href="{{ statusUrl('monitoring') }}" class="tl-chip {{ filterStatus === 'monitoring' ? 'active' : '' }}">Monitoring</a>
-        <a href="{{ statusUrl('resolved') }}" class="tl-chip {{ filterStatus === 'resolved' ? 'active' : '' }}">Resolved</a>
+        <a href="{{ statusUrl('') }}" class="chip {{ filterStatus === '' ? 'active' : '' }}">All</a>
+        <a href="{{ statusUrl('investigating') }}" class="chip {{ filterStatus === 'investigating' ? 'active' : '' }}">Investigating</a>
+        <a href="{{ statusUrl('identified') }}" class="chip {{ filterStatus === 'identified' ? 'active' : '' }}">Identified</a>
+        <a href="{{ statusUrl('monitoring') }}" class="chip {{ filterStatus === 'monitoring' ? 'active' : '' }}">Monitoring</a>
+        <a href="{{ statusUrl('resolved') }}" class="chip {{ filterStatus === 'resolved' ? 'active' : '' }}">Resolved</a>
       </div>
     </div>
 
     @if (incidents.length === 0)
-      <div class="tl-empty" style="margin-top: 24px;">
-        <span class="big">[ NO INCIDENTS MATCH ]</span>
-        <span class="why">Nothing on the ledger for this view. Clear the filter above, or enjoy the quiet.</span>
+      <div class="empty">
+        @if (filterStatus)
+          <h3>No incidents match this filter</h3>
+          <p>Nothing on record with this status. <a href="{{ statusUrl('') }}">Clear the filter</a> to see everything.</p>
+        @endif
+        @if (!filterStatus)
+          <h3>No incidents on record</h3>
+          <p>Quiet is good. Failed checks open incidents here automatically.</p>
+        @endif
       </div>
     @endif
 
     @if (incidents.length > 0)
-      <section class="tl-table" style="margin-top: 24px;" aria-label="Incident ledger">
-        <div class="tl-thead" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
-          <span class="tl-cell">Status</span>
-          <span class="tl-cell">Cause</span>
-          <span class="tl-cell">Unit</span>
-          <span class="tl-cell num">Opened</span>
-          <span class="tl-cell num">Duration</span>
+      <section class="card scroll-x" aria-label="Incident list">
+        <div class="table">
+          <div class="trow thead" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
+            <span class="tcell">Status</span>
+            <span class="tcell">Cause</span>
+            <span class="tcell">Monitor</span>
+            <span class="tcell num">Opened</span>
+            <span class="tcell num">Duration</span>
+          </div>
+          @foreach (incidents as incident)
+            <a class="trow" href="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
+              <span class="tcell"><data class="{{ incidentPill(incident.status) }}" value="{{ incident.status }}"><span class="dot"></span>{{ incidentLabel(incident.status) }}</data></span>
+              <span class="tcell ellipsis name">{{ incident.cause }}</span>
+              <span class="tcell sub ellipsis">{{ incident.monitor_name }}</span>
+              <span class="tcell num"><time>{{ formatDate(incident.started_at) }}</time></span>
+              <span class="tcell num">{{ durationLabel(incident.started_at, incident.resolved_at) }}{{ incident.resolved_at ? '' : '+' }}</span>
+            </a>
+          @endforeach
         </div>
-        @foreach (incidents as incident)
-          <a class="tl-row" href="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
-            <span class="tl-cell"><data class="st" style="{{ incidentStyle(incident.status) }}" value="{{ incident.status }}">{{ incident.status }}</data></span>
-            <span class="tl-cell tl-ellipsis" style="font-weight: 700;">{{ incident.cause }}</span>
-            <span class="tl-cell sub tl-ellipsis" style="text-transform: uppercase; letter-spacing: 0.06em;">{{ incident.monitor_name }}</span>
-            <span class="tl-cell num sub"><time>{{ formatDate(incident.started_at) }}</time></span>
-            <span class="tl-cell num"><samp>{{ durationLabel(incident.started_at, incident.resolved_at) }}{{ incident.resolved_at ? '' : ' +' }}</samp></span>
-          </a>
-        @endforeach
       </section>
     @endif
 
-    <footer class="tl-footnote">
-      <span>SHOWING {{ incidents.length }} / {{ incidentTotal }} ON RECORD /// NEWEST FIRST, CAP 100</span>
-      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    <footer class="app-foot">
+      <span>Showing {{ incidents.length }} of {{ incidentTotal }} incidents, newest first</span>
+      <span>Updated {{ generatedAt }} UTC</span>
     </footer>
   @endif
 </main>

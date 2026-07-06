@@ -15,9 +15,9 @@
   Wiring stacks-realtime for true live push is a real follow-up, not
   silently implied by "live" here.
 
-  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
-  brutalist) via partials/telemetry-head.stx. Phosphor green marks
-  OPERATIONAL readouts only; hazard red marks everything wrong.
+  Visual language: the marketing site's design system (emerald accent,
+  Space Grotesk display, light + dark) via partials/app-head.stx +
+  app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
 const { config } = require('@stacksjs/config')
@@ -111,26 +111,26 @@ function lastResponseMs(id) {
 }
 
 function stClass(status) {
-  if (status === 'up') return 'st st-up'
-  if (status === 'degraded') return 'st st-degraded'
-  if (status === 'down') return 'st st-down'
-  return 'st st-unknown'
+  if (status === 'up') return 'pill pill-up'
+  if (status === 'degraded') return 'pill pill-degraded'
+  if (status === 'down') return 'pill pill-down'
+  return 'pill pill-unknown'
 }
 
 function stLabel(status) {
-  if (status === 'up') return 'UP'
-  if (status === 'degraded') return 'DEGRADED'
-  if (status === 'down') return 'DOWN'
-  return 'UNKNOWN'
+  if (status === 'up') return 'Up'
+  if (status === 'degraded') return 'Degraded'
+  if (status === 'down') return 'Down'
+  return 'Pending'
 }
 
 function agoLabel(iso) {
-  if (!iso) return 'NEVER'
+  if (!iso) return 'never'
   const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (s < 60) return s + 'S AGO'
-  if (s < 3600) return Math.floor(s / 60) + 'M AGO'
-  if (s < 86400) return Math.floor(s / 3600) + 'H AGO'
-  return Math.floor(s / 86400) + 'D AGO'
+  if (s < 60) return s + 's ago'
+  if (s < 3600) return Math.floor(s / 60) + 'm ago'
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+  return Math.floor(s / 86400) + 'd ago'
 }
 
 function typeUrl(t) {
@@ -152,106 +152,107 @@ function statusUrl(s) {
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-@include('../partials/telemetry-head.stx')
-@include('../partials/telemetry-nav.stx')
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
 
-<main class="tl-shell">
+<main class="app-shell">
   @if (!AUTH_USER)
-    <div class="tl-empty" style="margin: 48px 0;">
-      <span class="big">[ NO ACTIVE SESSION ]</span>
-      <span class="why">Authentication required to read fleet telemetry. <a href="/login" data-no-router style="color: var(--ink); text-decoration: underline;">Sign in</a>.</span>
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view your monitors.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
     </div>
   @endif
 
   @if (AUTH_USER)
-    <header class="tl-banner">
-      <h1 class="tl-title">Monitors</h1>
-      <div class="tl-banner-meta">
-        <span>{{ fleetCount }} UNIT{{ fleetCount === 1 ? '' : 'S' }} REGISTERED</span>
-        <span>{{ checksInRange }} CHECKS / {{ idxRange }}</span>
-        <span class="hz">REV {{ idxRange }} /// {{ generatedAt }} UTC</span>
+    <header class="page-head">
+      <div>
+        <h1>Monitors</h1>
+        <p class="meta">{{ fleetCount }} monitor{{ fleetCount === 1 ? '' : 's' }} &middot; {{ checksInRange }} checks in the last {{ idxRange }}</p>
       </div>
     </header>
 
-    <dl class="tl-stats">
-      <div class="tl-stat">
-        <dt>[ Operational ]</dt>
-        <dd class="ok"><output>{{ fleetOf('up') }}</output></dd>
+    <dl class="stat-grid">
+      <div class="stat-card">
+        <dt>Operational</dt>
+        <dd class="{{ fleetOf('up') > 0 ? 'ok' : '' }}">{{ fleetOf('up') }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Degraded ]</dt>
-        <dd class="{{ fleetOf('degraded') > 0 ? 'bad' : '' }}"><output>{{ fleetOf('degraded') }}</output></dd>
+      <div class="stat-card">
+        <dt>Degraded</dt>
+        <dd class="{{ fleetOf('degraded') > 0 ? 'warn' : '' }}">{{ fleetOf('degraded') }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Down ]</dt>
-        <dd class="{{ fleetOf('down') > 0 ? 'bad' : '' }}"><output>{{ fleetOf('down') }}</output></dd>
+      <div class="stat-card">
+        <dt>Down</dt>
+        <dd class="{{ fleetOf('down') > 0 ? 'bad' : '' }}">{{ fleetOf('down') }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Pending first check ]</dt>
-        <dd><output>{{ fleetOf('unknown') }}</output></dd>
+      <div class="stat-card">
+        <dt>Awaiting first check</dt>
+        <dd>{{ fleetOf('unknown') }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Checks / {{ idxRange }} ]</dt>
-        <dd><output>{{ checksInRange }}</output></dd>
+      <div class="stat-card">
+        <dt>Checks / {{ idxRange }}</dt>
+        <dd>{{ checksInRange }}</dd>
       </div>
     </dl>
 
-    <div class="tl-filters">
-      <div class="tl-filter-group">
+    <div class="filter-bar">
+      <div class="filter-group">
         <span class="lbl">Type</span>
-        <a href="{{ typeUrl('') }}" class="tl-chip {{ filterType === '' ? 'active' : '' }}">All</a>
+        <a href="{{ typeUrl('') }}" class="chip {{ filterType === '' ? 'active' : '' }}">All</a>
         @foreach (allTypes as t)
-          <a href="{{ typeUrl(t) }}" class="tl-chip {{ filterType === t ? 'active' : '' }}">{{ t.replace('_', ' ') }}</a>
+          <a href="{{ typeUrl(t) }}" class="chip {{ filterType === t ? 'active' : '' }}">{{ t.replace('_', ' ') }}</a>
         @endforeach
       </div>
-      <div class="tl-filter-group">
+      <div class="filter-group">
         <span class="lbl">Status</span>
-        <a href="{{ statusUrl('') }}" class="tl-chip {{ filterStatus === '' ? 'active' : '' }}">All</a>
-        <a href="{{ statusUrl('up') }}" class="tl-chip {{ filterStatus === 'up' ? 'active' : '' }}">Up</a>
-        <a href="{{ statusUrl('degraded') }}" class="tl-chip {{ filterStatus === 'degraded' ? 'active' : '' }}">Degraded</a>
-        <a href="{{ statusUrl('down') }}" class="tl-chip {{ filterStatus === 'down' ? 'active' : '' }}">Down</a>
+        <a href="{{ statusUrl('') }}" class="chip {{ filterStatus === '' ? 'active' : '' }}">All</a>
+        <a href="{{ statusUrl('up') }}" class="chip {{ filterStatus === 'up' ? 'active' : '' }}">Up</a>
+        <a href="{{ statusUrl('degraded') }}" class="chip {{ filterStatus === 'degraded' ? 'active' : '' }}">Degraded</a>
+        <a href="{{ statusUrl('down') }}" class="chip {{ filterStatus === 'down' ? 'active' : '' }}">Down</a>
       </div>
-      <div class="tl-filter-group">
+      <div class="filter-group">
         <span class="lbl">Range</span>
-        <a href="{{ idxRangeUrl('24h') }}" class="tl-chip {{ idxRange === '24h' ? 'active' : '' }}">24h</a>
-        <a href="{{ idxRangeUrl('7d') }}" class="tl-chip {{ idxRange === '7d' ? 'active' : '' }}">7d</a>
-        <a href="{{ idxRangeUrl('30d') }}" class="tl-chip {{ idxRange === '30d' ? 'active' : '' }}">30d</a>
+        <a href="{{ idxRangeUrl('24h') }}" class="chip {{ idxRange === '24h' ? 'active' : '' }}">24h</a>
+        <a href="{{ idxRangeUrl('7d') }}" class="chip {{ idxRange === '7d' ? 'active' : '' }}">7d</a>
+        <a href="{{ idxRangeUrl('30d') }}" class="chip {{ idxRange === '30d' ? 'active' : '' }}">30d</a>
       </div>
     </div>
 
     @if (monitors.length === 0)
-      <div class="tl-empty" style="margin-top: 24px;">
-        <span class="big">[ NO UNITS MATCH ]</span>
-        <span class="why">Create a monitor via the API to start tracking uptime, or clear the filters above.</span>
+      <div class="empty">
+        <h3>No monitors match these filters</h3>
+        <p>Create a monitor via the API to start tracking uptime, or clear the filters above.</p>
       </div>
     @endif
 
     @if (monitors.length > 0)
-      <section class="tl-table" style="margin-top: 24px;" aria-label="Monitor fleet">
-        <div class="tl-thead" style="grid-template-columns: 130px minmax(0, 1.4fr) 110px minmax(0, 1fr) 90px 110px;">
-          <span class="tl-cell">Status</span>
-          <span class="tl-cell">Unit</span>
-          <span class="tl-cell">Type</span>
-          <span class="tl-cell">Target</span>
-          <span class="tl-cell num">Resp</span>
-          <span class="tl-cell num">Last check</span>
+      <section class="card scroll-x" aria-label="Monitor list">
+        <div class="table">
+          <div class="trow thead" style="grid-template-columns: 120px minmax(0, 1.4fr) 110px minmax(0, 1fr) 80px 100px;">
+            <span class="tcell">Status</span>
+            <span class="tcell">Monitor</span>
+            <span class="tcell">Type</span>
+            <span class="tcell">Target</span>
+            <span class="tcell num">Resp</span>
+            <span class="tcell num">Checked</span>
+          </div>
+          @foreach (monitors as monitor)
+            <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 120px minmax(0, 1.4fr) 110px minmax(0, 1fr) 80px 100px;">
+              <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data></span>
+              <span class="tcell ellipsis name">{{ monitor.name }}</span>
+              <span class="tcell sub">{{ monitor.type.replace('_', ' ') }}</span>
+              <span class="tcell sub ellipsis">{{ monitor.url }}</span>
+              <span class="tcell num">{{ lastResponseMs(monitor.id) !== null ? lastResponseMs(monitor.id) + 'ms' : '--' }}</span>
+              <span class="tcell num"><time>{{ agoLabel(monitor.last_checked_at) }}</time></span>
+            </a>
+          @endforeach
         </div>
-        @foreach (monitors as monitor)
-          <a class="tl-row" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 130px minmax(0, 1.4fr) 110px minmax(0, 1fr) 90px 110px;">
-            <span class="tl-cell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}">{{ stLabel(monitor.status) }}</data></span>
-            <span class="tl-cell tl-ellipsis" style="font-weight: 700;">{{ monitor.name }}</span>
-            <span class="tl-cell sub" style="text-transform: uppercase; letter-spacing: 0.08em;">{{ monitor.type.replace('_', ' ') }}</span>
-            <span class="tl-cell sub tl-ellipsis">{{ monitor.url }}</span>
-            <span class="tl-cell num"><samp>{{ lastResponseMs(monitor.id) !== null ? lastResponseMs(monitor.id) + 'MS' : '--' }}</samp></span>
-            <span class="tl-cell num sub"><time>{{ agoLabel(monitor.last_checked_at) }}</time></span>
-          </a>
-        @endforeach
       </section>
     @endif
 
-    <footer class="tl-footnote">
-      <span>UNIT COUNT {{ monitors.length }} / FLEET {{ fleetCount }}</span>
-      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    <footer class="app-foot">
+      <span>Showing {{ monitors.length }} of {{ fleetCount }} monitors</span>
+      <span>Updated {{ generatedAt }} UTC</span>
     </footer>
   @endif
 </main>

@@ -1,0 +1,54 @@
+<!--
+  App navigation for every post-login dashboard page: the marketing nav's
+  sibling (same brand block, blur backdrop, theme toggle) with section
+  links and the session controls. Expects AUTH_USER (nullable) and
+  NAV_ACTIVE ('monitors' | 'incidents' | 'status-pages' | 'settings')
+  from the including page's server script. The logout form is stamped by
+  csrf-forms.js, loaded in app-head.stx.
+-->
+<nav class="app-nav">
+  <div class="app-shell app-nav-inner">
+    <a class="brand" href="/" data-no-router aria-label="UptimeStatus home">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg>
+      </span>
+      <span class="brand-name">UptimeStatus</span>
+    </a>
+    <div class="app-links" aria-label="Dashboard sections">
+      <a href="/dashboard/monitors" class="{{ NAV_ACTIVE === 'monitors' ? 'active' : '' }}">Monitors</a>
+      <a href="/dashboard/incidents" class="{{ NAV_ACTIVE === 'incidents' ? 'active' : '' }}">Incidents</a>
+      <a href="/dashboard/status-pages" class="{{ NAV_ACTIVE === 'status-pages' ? 'active' : '' }}">Status pages</a>
+      <a href="/dashboard/settings/notifications" class="{{ NAV_ACTIVE === 'settings' ? 'active' : '' }}">Settings</a>
+    </div>
+    <div class="app-nav-right">
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36-1.41-1.41M6.05 6.05 4.64 4.64m14.72 0-1.41 1.41M6.05 17.95l-1.41 1.41"/><circle cx="12" cy="12" r="4.5"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      @if (AUTH_USER)
+        <span class="app-user" title="{{ AUTH_USER.email }}">{{ AUTH_USER.email }}</span>
+        <form method="POST" action="/api/logout">
+          <button class="button sm" type="submit">Sign out</button>
+        </form>
+      @endif
+      @if (!AUTH_USER)
+        <a class="button sm primary" href="/login" data-no-router>Sign in</a>
+      @endif
+    </div>
+  </div>
+</nav>
+<script>
+  (function () {
+    var toggle = document.getElementById('theme-toggle')
+    if (!toggle) return
+    toggle.addEventListener('click', function () {
+      var html = document.documentElement
+      var current = html.getAttribute('data-theme')
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+      var isDark = current === 'dark' || (current !== 'light' && prefersDark)
+      var next = isDark ? 'light' : 'dark'
+      html.setAttribute('data-theme', next)
+      try { localStorage.setItem('uptimestatus-theme', next) } catch (err) {}
+    })
+  })()
+</script>

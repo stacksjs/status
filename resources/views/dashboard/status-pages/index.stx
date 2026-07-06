@@ -4,9 +4,9 @@
   create form is a native HTML POST (no client JS) to
   Actions/StatusPages/DashboardCreateStatusPageAction.
 
-  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
-  brutalist) via partials/telemetry-head.stx. Phosphor green marks
-  PUBLIC/operational readouts only; hazard red marks limits and locks.
+  Visual language: the marketing site's design system (emerald accent,
+  Space Grotesk display, light + dark) via partials/app-head.stx +
+  app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
 const { config } = require('@stacksjs/config')
@@ -56,142 +56,118 @@ const restrictedCount = statusPages.length - publicCount
 const domainCount = statusPages.filter((p) => p.custom_domain).length
 
 function accessLabel(t) {
-  if (t === 'public') return 'PUBLIC'
-  if (t === 'password') return 'PASSWORD'
-  if (t === 'email_domain') return 'EMAIL DOMAIN'
-  if (t === 'ip_allowlist') return 'IP ALLOWLIST'
-  return String(t || 'UNKNOWN').toUpperCase()
+  if (t === 'public') return 'Public'
+  if (t === 'password') return 'Password'
+  if (t === 'email_domain') return 'Email domain'
+  if (t === 'ip_allowlist') return 'IP allowlist'
+  const s = String(t || 'unknown')
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-@include('../partials/telemetry-head.stx')
-@include('../partials/telemetry-nav.stx')
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
 
-<style>
-  .tl-alert {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 24px 0 0;
-    padding: 12px 16px;
-    border: 1px solid var(--hazard);
-    background: var(--panel);
-    color: var(--hazard);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  .tl-alert .why { color: var(--dim); font-weight: 400; }
-  .tl-form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-</style>
-
-<main class="tl-shell">
+<main class="app-shell">
   @if (!AUTH_USER)
-    <div class="tl-empty" style="margin: 48px 0;">
-      <span class="big">[ NO ACTIVE SESSION ]</span>
-      <span class="why">Authentication required to read broadcast channels. <a href="/login" data-no-router style="color: var(--ink); text-decoration: underline;">Sign in</a>.</span>
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view your status pages.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
     </div>
   @endif
 
   @if (AUTH_USER)
-    <header class="tl-banner">
-      <h1 class="tl-title">Status Pages</h1>
-      <div class="tl-banner-meta">
-        <span>{{ statusPages.length }} CHANNEL{{ statusPages.length === 1 ? '' : 'S' }} BROADCASTING</span>
-        <span>{{ domainCount }} CUSTOM DOMAIN{{ domainCount === 1 ? '' : 'S' }}</span>
-        <span class="hz">PUBLIC UPLINK /// {{ generatedAt }} UTC</span>
+    <header class="page-head">
+      <div>
+        <h1>Status pages</h1>
+        <p class="meta">{{ statusPages.length }} status page{{ statusPages.length === 1 ? '' : 's' }} &middot; {{ publicCount }} public &middot; {{ domainCount }} custom domain{{ domainCount === 1 ? '' : 's' }}</p>
       </div>
     </header>
 
     @if (limitError)
-      <div class="tl-alert" role="alert">
-        <span>[ LIMIT REACHED ]</span>
-        <span class="why">Status page limit reached for the current plan. Upgrade to add more.</span>
+      <div class="flash error" role="alert">
+        <span>Status page limit reached for the current plan. Upgrade to add more.</span>
       </div>
     @endif
 
-    <dl class="tl-stats">
-      <div class="tl-stat">
-        <dt>[ Channels ]</dt>
-        <dd><output>{{ statusPages.length }}</output></dd>
+    <dl class="stat-grid">
+      <div class="stat-card">
+        <dt>Status pages</dt>
+        <dd>{{ statusPages.length }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Public ]</dt>
-        <dd class="{{ publicCount > 0 ? 'ok' : '' }}"><output>{{ publicCount }}</output></dd>
+      <div class="stat-card">
+        <dt>Public</dt>
+        <dd class="{{ publicCount > 0 ? 'ok' : '' }}">{{ publicCount }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Restricted ]</dt>
-        <dd><output>{{ restrictedCount }}</output></dd>
+      <div class="stat-card">
+        <dt>Restricted</dt>
+        <dd>{{ restrictedCount }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Custom domains ]</dt>
-        <dd><output>{{ domainCount }}</output></dd>
+      <div class="stat-card">
+        <dt>Custom domains</dt>
+        <dd>{{ domainCount }}</dd>
       </div>
     </dl>
 
     @if (statusPages.length === 0)
-      <div class="tl-empty" style="margin: 24px 0;">
-        <span class="big">[ NO BROADCAST CHANNELS ]</span>
-        <span class="why">No status pages registered for this team. Provision the first one below.</span>
+      <div class="empty">
+        <h3>No status pages yet</h3>
+        <p>A status page gives your users a public view of your monitors. Create your first one below.</p>
       </div>
     @endif
 
     @if (statusPages.length > 0)
-      <section class="tl-table" style="margin: 24px 0;" aria-label="Status pages">
-        <div class="tl-thead" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 140px 110px;">
-          <span class="tl-cell">Name</span>
-          <span class="tl-cell">Route</span>
-          <span class="tl-cell">Custom domain</span>
-          <span class="tl-cell">Access</span>
-          <span class="tl-cell num">Visibility</span>
+      <section class="card scroll-x" aria-label="Status pages">
+        <div class="table">
+          <div class="trow thead" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 140px 110px;">
+            <span class="tcell">Name</span>
+            <span class="tcell">Route</span>
+            <span class="tcell">Custom domain</span>
+            <span class="tcell">Access</span>
+            <span class="tcell num">Visibility</span>
+          </div>
+          @foreach (statusPages as page)
+            <a class="trow" href="/dashboard/status-pages/{{ page.id }}" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 140px 110px;">
+              <span class="tcell ellipsis name">{{ page.title }}</span>
+              <span class="tcell sub ellipsis">/status/{{ page.slug }}</span>
+              <span class="tcell sub ellipsis">{{ page.custom_domain || '--' }}</span>
+              <span class="tcell sub">{{ accessLabel(page.access_type) }}</span>
+              <span class="tcell num"><data class="{{ page.is_public ? 'pill pill-up' : 'pill pill-unknown' }}" value="{{ page.is_public }}"><span class="dot"></span>{{ page.is_public ? 'Live' : 'Hidden' }}</data></span>
+            </a>
+          @endforeach
         </div>
-        @foreach (statusPages as page)
-          <a class="tl-row" href="/dashboard/status-pages/{{ page.id }}" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 140px 110px;">
-            <span class="tl-cell tl-ellipsis" style="font-weight: 700;">{{ page.title }}</span>
-            <span class="tl-cell sub tl-ellipsis"><samp>/status/{{ page.slug }}</samp></span>
-            <span class="tl-cell sub tl-ellipsis">{{ page.custom_domain || '--' }}</span>
-            <span class="tl-cell sub" style="text-transform: uppercase; letter-spacing: 0.08em;">{{ accessLabel(page.access_type) }}</span>
-            <span class="tl-cell num"><data class="{{ page.is_public ? 'st st-up' : 'st st-unknown' }}" value="{{ page.is_public }}">{{ page.is_public ? 'LIVE' : 'HIDDEN' }}</data></span>
-          </a>
-        @endforeach
       </section>
     @endif
 
-    <section class="tl-panel" aria-label="Create status page">
-      <div class="tl-panel-head">
-        <span>[ NEW STATUS PAGE ]</span>
-        <span class="hz">PROVISION CHANNEL</span>
+    <section class="card" style="margin-top: 1.25rem;" aria-label="Create status page">
+      <div class="card-head">
+        <h3>New status page</h3>
       </div>
-      <div class="tl-panel-body">
+      <div class="card-body">
         <form method="POST" action="/api/status-page-forms/create">
           <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
-          <div class="tl-form-grid">
-            <div>
-              <label class="tl-label" for="sp-title">Title</label>
-              <input id="sp-title" type="text" name="title" required class="tl-input" placeholder="ACME STATUS" />
+          <div class="form-row">
+            <div class="field">
+              <label for="sp-title">Title</label>
+              <input id="sp-title" type="text" name="title" required class="input" placeholder="Acme status" />
             </div>
-            <div>
-              <label class="tl-label" for="sp-slug">Slug</label>
-              <input id="sp-slug" type="text" name="slug" required class="tl-input" placeholder="orozco" />
-              <span class="tl-label" style="margin: 6px 0 0;">Public route: /status/&lt;slug&gt;</span>
+            <div class="field">
+              <label for="sp-slug">Slug</label>
+              <input id="sp-slug" type="text" name="slug" required class="input" placeholder="acme" />
+              <p class="help">Public route: /status/&lt;slug&gt;</p>
             </div>
           </div>
-          <button type="submit" class="tl-btn">Create channel</button>
+          <button type="submit" class="button primary">Create status page</button>
         </form>
       </div>
     </section>
 
-    <footer class="tl-footnote">
-      <span>CHANNEL COUNT {{ statusPages.length }} / TEAM {{ TEAM_ID }}</span>
-      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    <footer class="app-foot">
+      <span>{{ statusPages.length }} status page{{ statusPages.length === 1 ? '' : 's' }} on this team</span>
+      <span>Updated {{ generatedAt }} UTC</span>
     </footer>
   @endif
 </main>

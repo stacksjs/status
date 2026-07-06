@@ -11,10 +11,9 @@
   re-risking that. Revisit once the underlying stx bug is confirmed
   fixed.
 
-  Visual language: Tactical Telemetry (.claude/skills/stacks-design-
-  brutalist) via partials/telemetry-head.stx. Phosphor green marks
-  OPERATIONAL readouts and telemetry traces only; hazard red marks
-  everything wrong (and destructive actions).
+  Visual language: the marketing site's design system (emerald accent,
+  Space Grotesk display, light + dark) via partials/app-head.stx +
+  app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
 const { config } = require('@stacksjs/config')
@@ -65,31 +64,31 @@ const appUrl = process.env.APP_URL || 'http://localhost:3000'
 const monitorId = (typeof id !== 'undefined' && id) ? Number(id) : 0
 const monitor = monitorId ? (await db.selectFrom('monitors').where('id', '=', monitorId).where('team_id', '=', TEAM_ID).limit(1).execute())[0] || null : null
 
-// Display helpers (Tactical Telemetry) -- same contract as
-// monitors/index.stx: stClass/stLabel drive the <data class="st ...">
-// readouts, agoLabel renders relative timestamps in uppercase mono.
+// Display helpers -- same contract as monitors/index.stx: stClass/stLabel
+// drive the <data class="pill ..."> readouts, agoLabel renders relative
+// timestamps in lowercase.
 function stClass(status) {
-  if (status === 'up') return 'st st-up'
-  if (status === 'degraded') return 'st st-degraded'
-  if (status === 'down') return 'st st-down'
-  return 'st st-unknown'
+  if (status === 'up') return 'pill pill-up'
+  if (status === 'degraded') return 'pill pill-degraded'
+  if (status === 'down') return 'pill pill-down'
+  return 'pill pill-unknown'
 }
 
 function stLabel(status) {
-  if (status === 'up') return 'UP'
-  if (status === 'degraded') return 'DEGRADED'
-  if (status === 'down') return 'DOWN'
-  if (status === 'paused') return 'PAUSED'
-  return 'UNKNOWN'
+  if (status === 'up') return 'Up'
+  if (status === 'degraded') return 'Degraded'
+  if (status === 'down') return 'Down'
+  if (status === 'paused') return 'Paused'
+  return 'Pending'
 }
 
 function agoLabel(iso) {
-  if (!iso) return 'NEVER'
+  if (!iso) return '--'
   const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (s < 60) return s + 'S AGO'
-  if (s < 3600) return Math.floor(s / 60) + 'M AGO'
-  if (s < 86400) return Math.floor(s / 3600) + 'H AGO'
-  return Math.floor(s / 86400) + 'D AGO'
+  if (s < 60) return s + 's ago'
+  if (s < 3600) return Math.floor(s / 60) + 'm ago'
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+  return Math.floor(s / 86400) + 'd ago'
 }
 
 function formatDate(iso) {
@@ -97,6 +96,14 @@ function formatDate(iso) {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return '--'
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+// Incident status -> pill class: resolved reads muted, monitoring reads
+// amber, investigating/identified read danger.
+function incidentPillClass(incident) {
+  if (incident.resolved_at || incident.status === 'resolved') return 'pill pill-unknown'
+  if (incident.status === 'monitoring') return 'pill pill-degraded'
+  return 'pill pill-down'
 }
 
 const recentChecks = monitor
@@ -259,8 +266,8 @@ for (let i = 89; i >= 0; i--) {
   uptimeDays.push({ day: key, status: dayStatus })
 }
 
-// Maps a day status onto the .tl-bars tick classes (default tick is
-// phosphor = up; warn/down are hazard; unknown is faint).
+// Maps a day status onto the .uptime-bars tick classes (default tick is
+// accent = up; warn/down carry their own colors; unknown is faint).
 function dayTickClass(status) {
   if (status === 'degraded') return 'warn'
   if (status === 'down') return 'down'
@@ -311,142 +318,155 @@ if (latestPortScan) {
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-@include('../partials/telemetry-head.stx')
-@include('../partials/telemetry-nav.stx')
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
 
 <style>
-  /* Page-specific: key/value readout grid + terminal transcript block,
-     both on telemetry-head tokens. No radius anywhere (head resets it). */
-  .mon-kv {
+  /* Page-specific, on app-head tokens: key/value readout grid, chart
+     sizing, chart legends, and the agent-setup code block (the marketing
+     site's oss-code surface -- intentionally dark in both themes). */
+  .kv {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1px;
-    background: var(--line);
-    border: 1px solid var(--line);
-  }
-  .mon-kv > div { background: var(--sub); padding: 12px 14px; }
-  .mon-kv dt {
-    margin: 0 0 6px;
-    font-size: 9px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--faint);
-  }
-  .mon-kv dd { margin: 0; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
-  .mon-kv dd.big { font-size: 22px; }
-  .mon-pre {
+    gap: 1rem 1.25rem;
     margin: 0;
-    padding: 14px;
-    border: 1px solid var(--line);
-    background: var(--sub);
-    color: var(--ink);
-    font-family: var(--mono);
-    font-size: 11px;
+  }
+  .kv dt {
+    margin: 0 0 0.35rem;
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .kv dd {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .kv dd.big { font-family: var(--font-display); font-size: 1.65rem; }
+  .mon-chart { display: block; width: 100%; height: 96px; }
+  .mon-legend {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.6rem;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .subhead {
+    margin: 0 0 0.6rem;
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .code-block {
+    margin: 0;
+    padding: 1rem;
+    border-radius: var(--radius-sm);
+    background: #0d1210;
+    color: #8ce8bb;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
     line-height: 1.6;
     overflow-x: auto;
   }
-  .mon-chart { display: block; width: 100%; height: 96px; }
-  .mon-legend {
-    margin-top: 10px;
-    display: flex;
-    gap: 16px;
-    font-size: 9px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--dim);
-  }
 </style>
 
-<main class="tl-shell">
+<main class="app-shell">
   @if (!AUTH_USER)
-    <div class="tl-empty" style="margin: 48px 0;">
-      <span class="big">[ NO ACTIVE SESSION ]</span>
-      <span class="why">Authentication required to read fleet telemetry. <a href="/login" data-no-router style="color: var(--ink); text-decoration: underline;">Sign in</a>.</span>
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view your monitors.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
     </div>
   @endif
 
   @if (AUTH_USER && !monitor)
-    <div class="tl-empty" style="margin: 48px 0;">
-      <span class="big">[ UNIT NOT FOUND ]</span>
-      <span class="why">No monitor with this id is registered to your team. <a href="/dashboard/monitors" style="color: var(--ink); text-decoration: underline;">Back to the fleet</a>.</span>
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Monitor not found</h3>
+      <p>No monitor with this id is registered to your team.</p>
+      <div class="actions"><a class="button" href="/dashboard/monitors">Back to monitors</a></div>
     </div>
   @endif
 
   @if (monitor)
-    <nav style="padding-top: 20px;" aria-label="Breadcrumb">
-      <a href="/dashboard/monitors" class="tl-chip">&lt; FLEET / MONITORS</a>
-    </nav>
-
-    <header class="tl-banner" style="padding-top: 20px;">
-      <h1 class="tl-title" style="font-size: clamp(1.8rem, 4vw, 3rem); overflow-wrap: anywhere;">{{ monitor.name }}</h1>
-      <div class="tl-banner-meta">
-        <span><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}">{{ stLabel(monitor.status) }}</data></span>
-        <span style="max-width: 360px; overflow: hidden; text-overflow: ellipsis;">{{ monitor.url }}</span>
-        <span>{{ monitor.type.replace('_', ' ') }} /// EVERY {{ monitor.check_interval_seconds }}S /// {{ monitor.enabled ? 'ENABLED' : 'DISABLED' }}</span>
-        <span class="hz">UNIT #{{ monitor.id }} /// {{ generatedAt }} UTC</span>
+    <header class="page-head">
+      <div>
+        <nav class="crumb" aria-label="Breadcrumb"><a href="/dashboard/monitors">&larr; Monitors</a></nav>
+        <h1 style="overflow-wrap: anywhere;">{{ monitor.name }}</h1>
+        <p class="meta"><span class="mono">{{ monitor.url }}</span> &middot; {{ monitor.type.replace('_', ' ') }} &middot; every {{ monitor.check_interval_seconds }}s &middot; {{ monitor.enabled ? 'enabled' : 'disabled' }}</p>
+      </div>
+      <div class="actions">
+        <data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data>
       </div>
     </header>
 
-    <dl class="tl-stats">
-      <div class="tl-stat">
-        <dt>[ 90-day uptime ]</dt>
-        <dd class="{{ monitor.status === 'up' ? 'ok' : (monitor.status === 'down' || monitor.status === 'degraded' ? 'bad' : '') }}"><output>{{ uptimePercent !== null ? uptimePercent + '%' : '--' }}</output></dd>
+    <dl class="stat-grid">
+      <div class="stat-card">
+        <dt>90-day uptime</dt>
+        <dd class="{{ monitor.status === 'up' ? 'ok' : (monitor.status === 'down' || monitor.status === 'degraded' ? 'bad' : '') }}">{{ uptimePercent !== null ? uptimePercent + '%' : '--' }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Latest response ]</dt>
-        <dd><output>{{ latestResponseTime !== null ? latestResponseTime + 'MS' : '--' }}</output></dd>
+      <div class="stat-card">
+        <dt>Latest response</dt>
+        <dd>{{ latestResponseTime !== null ? latestResponseTime : '--' }} <small>{{ latestResponseTime !== null ? 'ms' : '' }}</small></dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Avg response ]</dt>
-        <dd><output>{{ avgResponseTime !== null ? avgResponseTime + 'MS' : '--' }}</output></dd>
+      <div class="stat-card">
+        <dt>Avg response</dt>
+        <dd>{{ avgResponseTime !== null ? avgResponseTime : '--' }} <small>{{ avgResponseTime !== null ? 'ms' : '' }}</small></dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Checks / {{ range }} ]</dt>
-        <dd><output>{{ totalChecksInRange }}</output></dd>
+      <div class="stat-card">
+        <dt>Checks / {{ range }}</dt>
+        <dd>{{ totalChecksInRange }}</dd>
       </div>
-      <div class="tl-stat">
-        <dt>[ Last check ]</dt>
-        <dd><small style="font-size: 14px;"><time>{{ agoLabel(monitor.last_checked_at) }}</time></small></dd>
+      <div class="stat-card">
+        <dt>Last check</dt>
+        <dd style="font-size: 1.05rem;"><time>{{ agoLabel(monitor.last_checked_at) }}</time></dd>
       </div>
     </dl>
 
-    <div class="tl-filters">
-      <div class="tl-filter-group">
+    <div class="filter-bar">
+      <div class="filter-group">
         <span class="lbl">Range</span>
-        <a href="{{ rangeUrl('24h') }}" class="tl-chip {{ range === '24h' ? 'active' : '' }}">24h</a>
-        <a href="{{ rangeUrl('7d') }}" class="tl-chip {{ range === '7d' ? 'active' : '' }}">7d</a>
-        <a href="{{ rangeUrl('30d') }}" class="tl-chip {{ range === '30d' ? 'active' : '' }}">30d</a>
+        <a href="{{ rangeUrl('24h') }}" class="chip {{ range === '24h' ? 'active' : '' }}">24h</a>
+        <a href="{{ rangeUrl('7d') }}" class="chip {{ range === '7d' ? 'active' : '' }}">7d</a>
+        <a href="{{ rangeUrl('30d') }}" class="chip {{ range === '30d' ? 'active' : '' }}">30d</a>
       </div>
     </div>
 
-    <section class="tl-panel" aria-label="90-day uptime">
-      <div class="tl-panel-head">
-        <span>[ UPTIME /// LAST 90 DAYS ]</span>
-        <span class="{{ uptimePercent !== null && (monitor.status === 'down' || monitor.status === 'degraded') ? 'hz' : '' }}">{{ uptimePercent !== null ? uptimePercent + '% UP' : 'NO DATA' }}</span>
+    <section class="card" aria-label="90-day uptime">
+      <div class="card-head">
+        <h3>Uptime, last 90 days</h3>
+        <span class="sub">{{ uptimePercent !== null ? uptimePercent + '% up' : 'No data' }}</span>
       </div>
-      <div class="tl-panel-body">
-        <div class="tl-bars">
+      <div class="card-body">
+        <div class="uptime-bars">
           @foreach (uptimeDays as d)
             <span class="{{ dayTickClass(d.status) }}" title="{{ d.day }}: {{ d.status }}"></span>
           @endforeach
         </div>
         <div class="mon-legend">
-          <span>90D AGO</span>
-          <span style="margin-left: auto;">TODAY</span>
+          <span>90d ago</span>
+          <span style="margin-left: auto;">Today</span>
         </div>
       </div>
     </section>
 
     @if (volumeBars.length > 0)
-      <section class="tl-panel" aria-label="Check volume">
-        <div class="tl-panel-head">
-          <span>[ CHECK VOLUME /// {{ range }} ]</span>
-          <span>{{ totalChecksInRange }} CHECKS</span>
+      <section class="card" aria-label="Check volume">
+        <div class="card-head">
+          <h3>Check volume, {{ range }}</h3>
+          <span class="sub">{{ totalChecksInRange }} checks</span>
         </div>
-        <div class="tl-panel-body">
+        <div class="card-body">
           <svg viewBox="0 0 {{ volumeChartWidth }} {{ volumeChartHeight }}" class="mon-chart" preserveAspectRatio="none" role="img" aria-label="Check volume per bucket">
             @foreach (volumeBars as bar)
-              <rect x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.w }}" height="{{ bar.h }}" fill="var(--phosphor)" opacity="0.8"></rect>
+              <rect x="{{ bar.x }}" y="{{ bar.y }}" width="{{ bar.w }}" height="{{ bar.h }}" fill="var(--accent)" opacity="0.8"></rect>
             @endforeach
           </svg>
         </div>
@@ -454,32 +474,33 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
     @endif
 
     @if (monitor.reports_metrics && volumeBars.length > 0)
-      <section class="tl-panel" aria-label="CPU and RAM usage">
-        <div class="tl-panel-head">
-          <span>[ HOST TELEMETRY /// CPU + RAM /// {{ range }} ]</span>
+      <section class="card" aria-label="CPU and RAM usage">
+        <div class="card-head">
+          <h3>Host telemetry, CPU and RAM</h3>
+          <span class="sub">{{ range }}</span>
         </div>
-        <div class="tl-panel-body">
+        <div class="card-body">
           <svg viewBox="0 0 {{ volumeChartWidth }} {{ volumeChartHeight }}" class="mon-chart" preserveAspectRatio="none" role="img" aria-label="CPU and RAM traces">
-            <path d="{{ cpuPath }}" fill="none" stroke="var(--phosphor)" stroke-width="2"></path>
-            <path d="{{ ramPath }}" fill="none" stroke="var(--dim)" stroke-width="2"></path>
+            <path d="{{ cpuPath }}" fill="none" stroke="var(--accent)" stroke-width="2"></path>
+            <path d="{{ ramPath }}" fill="none" stroke="var(--muted)" stroke-width="2"></path>
           </svg>
           <div class="mon-legend">
-            <span style="color: var(--phosphor);">&#9632; CPU</span>
-            <span style="color: var(--dim);">&#9632; RAM</span>
+            <span style="color: var(--accent);">&#9632; CPU</span>
+            <span style="color: var(--muted);">&#9632; RAM</span>
           </div>
         </div>
       </section>
     @endif
 
     @if (monitor.reports_metrics)
-      <section class="tl-panel" aria-label="Agent setup">
-        <div class="tl-panel-head">
-          <span>[ AGENT SETUP ]</span>
-          <span>CRON PUSH</span>
+      <section class="card" aria-label="Agent setup">
+        <div class="card-head">
+          <h3>Agent setup</h3>
+          <span class="sub">Cron push</span>
         </div>
-        <div class="tl-panel-body">
-          <p style="margin: 0 0 12px; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em;">Push CPU/RAM samples from this server on a cron schedule:</p>
-          <pre class="mon-pre">CPU=$(top -bn1 | grep Cpu | awk '{print $2}')
+        <div class="card-body">
+          <p class="subhead">Push CPU/RAM samples from this server on a cron schedule:</p>
+          <pre class="code-block">CPU=$(top -bn1 | grep Cpu | awk '{print $2}')
 read TOTAL USED &lt; &lt;(free -m | awk '/Mem:/{print $2, $3}')
 curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
   -H 'Content-Type: application/json' \
@@ -489,26 +510,26 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
     @endif
 
     @if (chartChecks.length > 0)
-      <section class="tl-panel" aria-label="Response time">
-        <div class="tl-panel-head">
-          <span>[ RESPONSE TRACE /// LAST {{ chartChecks.length }} CHECKS ]</span>
-          <span>{{ latestResponseTime !== null ? 'NOW ' + latestResponseTime + 'MS' : '--' }} / AVG {{ avgResponseTime !== null ? avgResponseTime + 'MS' : '--' }}</span>
+      <section class="card" aria-label="Response time">
+        <div class="card-head">
+          <h3>Response time, last {{ chartChecks.length }} checks</h3>
+          <span class="sub">{{ latestResponseTime !== null ? 'now ' + latestResponseTime + 'ms' : '--' }} / avg {{ avgResponseTime !== null ? avgResponseTime + 'ms' : '--' }}</span>
         </div>
-        <div class="tl-panel-body">
+        <div class="card-body">
           <svg viewBox="0 0 {{ sparklineWidth }} {{ sparklineHeight }}" class="mon-chart" preserveAspectRatio="none" role="img" aria-label="Response time sparkline">
-            <path d="{{ sparklinePath }}" fill="none" stroke="var(--phosphor)" stroke-width="2"></path>
+            <path d="{{ sparklinePath }}" fill="none" stroke="var(--accent)" stroke-width="2"></path>
           </svg>
         </div>
       </section>
     @endif
 
     @if (monitor.type === 'ssl' && sslCertificate)
-      <section class="tl-panel" aria-label="SSL certificate">
-        <div class="tl-panel-head">
-          <span>[ SSL CERTIFICATE ]</span>
+      <section class="card" aria-label="SSL certificate">
+        <div class="card-head">
+          <h3>SSL certificate</h3>
         </div>
-        <div class="tl-panel-body">
-          <dl class="mon-kv" style="margin: 0;">
+        <div class="card-body">
+          <dl class="kv">
             <div><dt>Issuer</dt><dd>{{ sslCertificate.issuer }}</dd></div>
             <div><dt>Subject</dt><dd>{{ sslCertificate.subject }}</dd></div>
             <div><dt>Valid from</dt><dd>{{ formatDate(sslCertificate.valid_from) }}</dd></div>
@@ -519,59 +540,59 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
     @endif
 
     @if (monitor.type === 'dns' && dnsSnapshots.length > 0)
-      <section class="tl-panel" aria-label="DNS snapshots">
-        <div class="tl-panel-head">
-          <span>[ DNS SNAPSHOTS ]</span>
-          <span>LAST {{ dnsSnapshots.length }}</span>
+      <section class="card scroll-x" aria-label="DNS snapshots">
+        <div class="card-head">
+          <h3>DNS snapshots</h3>
+          <span class="sub">Last {{ dnsSnapshots.length }}</span>
         </div>
-        <section class="tl-table" style="border: 0;">
-          <div class="tl-thead" style="grid-template-columns: 110px minmax(0, 1fr) 140px;">
-            <span class="tl-cell">Record</span>
-            <span class="tl-cell">Values</span>
-            <span class="tl-cell num">Checked</span>
+        <div class="table">
+          <div class="trow thead" style="grid-template-columns: 110px minmax(0, 1fr) 140px;">
+            <span class="tcell">Record</span>
+            <span class="tcell">Values</span>
+            <span class="tcell num">Checked</span>
           </div>
           @foreach (dnsSnapshots as snap)
-            <div class="tl-row" style="grid-template-columns: 110px minmax(0, 1fr) 140px;">
-              <span class="tl-cell" style="font-weight: 700; text-transform: uppercase;">{{ snap.record_type }}</span>
-              <span class="tl-cell sub" style="overflow-wrap: anywhere;">{{ snap.record_values }}</span>
-              <span class="tl-cell num sub"><time>{{ formatDate(snap.checked_at) }}</time></span>
+            <div class="trow" style="grid-template-columns: 110px minmax(0, 1fr) 140px;">
+              <span class="tcell name mono">{{ snap.record_type }}</span>
+              <span class="tcell sub" style="white-space: normal; overflow-wrap: anywhere;">{{ snap.record_values }}</span>
+              <span class="tcell num"><time>{{ formatDate(snap.checked_at) }}</time></span>
             </div>
           @endforeach
-        </section>
+        </div>
       </section>
     @endif
 
     @if (monitor.type === 'broken_links' && latestCrawl)
-      <section class="tl-panel" aria-label="Crawl report">
-        <div class="tl-panel-head">
-          <span>[ CRAWL REPORT ]</span>
-          <span class="{{ latestCrawl.broken_links_count > 0 || latestCrawl.mixed_content_count > 0 ? 'hz' : '' }}">{{ latestCrawl.pages_crawled }} PAGES /// {{ latestCrawl.broken_links_count }} BROKEN /// {{ latestCrawl.mixed_content_count }} MIXED</span>
+      <section class="card" aria-label="Crawl report">
+        <div class="card-head">
+          <h3>Crawl report</h3>
+          <span class="sub" style="{{ latestCrawl.broken_links_count > 0 || latestCrawl.mixed_content_count > 0 ? 'color: var(--danger);' : '' }}">{{ latestCrawl.pages_crawled }} pages &middot; {{ latestCrawl.broken_links_count }} broken &middot; {{ latestCrawl.mixed_content_count }} mixed</span>
         </div>
-        <div class="tl-panel-body">
+        <div class="card-body">
           @if (crawlBrokenPages.length === 0 && crawlMixedContentPages.length === 0)
-            <p style="margin: 0; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em;">No broken links or mixed content in the latest crawl.</p>
+            <p style="margin: 0; color: var(--muted); font-size: 0.88rem;">No broken links or mixed content in the latest crawl.</p>
           @endif
 
           @if (crawlBrokenPages.length > 0)
-            <p class="tl-label">[ Broken links, by source page ]</p>
-            <div style="display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 16px;">
+            <p class="subhead">Broken links, by source page</p>
+            <div class="table" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
               @foreach (crawlBrokenPages as page)
-                <div style="background: var(--sub); padding: 10px 12px; font-size: 11px;">
-                  <span style="color: var(--hazard); font-weight: 700;">{{ page.status_code }}</span>
-                  <span style="margin-left: 8px; overflow-wrap: anywhere;">{{ page.url }}</span>
-                  <span class="sub" style="margin-left: 8px; color: var(--faint);">FOUND ON {{ page.found_on_url }}</span>
+                <div class="trow" style="grid-template-columns: 60px minmax(0, 1.4fr) minmax(0, 1fr);">
+                  <span class="tcell mono" style="color: var(--danger); font-weight: 600; font-size: 0.82rem;">{{ page.status_code }}</span>
+                  <span class="tcell" style="font-size: 0.85rem; overflow-wrap: anywhere;">{{ page.url }}</span>
+                  <span class="tcell sub" style="white-space: normal; overflow-wrap: anywhere;">found on {{ page.found_on_url }}</span>
                 </div>
               @endforeach
             </div>
           @endif
 
           @if (crawlMixedContentPages.length > 0)
-            <p class="tl-label">[ Mixed content ]</p>
-            <div style="display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line);">
+            <p class="subhead">Mixed content</p>
+            <div class="table" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
               @foreach (crawlMixedContentPages as page)
-                <div style="background: var(--sub); padding: 10px 12px; font-size: 11px;">
-                  <span style="overflow-wrap: anywhere;">{{ page.url }}</span>
-                  <span class="sub" style="margin-left: 8px; color: var(--faint);">ON {{ page.found_on_url }}</span>
+                <div class="trow" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);">
+                  <span class="tcell" style="font-size: 0.85rem; overflow-wrap: anywhere;">{{ page.url }}</span>
+                  <span class="tcell sub" style="white-space: normal; overflow-wrap: anywhere;">on {{ page.found_on_url }}</span>
                 </div>
               @endforeach
             </div>
@@ -581,16 +602,16 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
     @endif
 
     @if (monitor.type === 'lighthouse' && latestLighthouse)
-      <section class="tl-panel" aria-label="Lighthouse scores">
-        <div class="tl-panel-head">
-          <span>[ LIGHTHOUSE SCORES ]</span>
-          <span>{{ formatDate(latestLighthouse.checked_at) }}</span>
+      <section class="card" aria-label="Lighthouse scores">
+        <div class="card-head">
+          <h3>Lighthouse scores</h3>
+          <span class="sub">{{ formatDate(latestLighthouse.checked_at) }}</span>
         </div>
-        <div class="tl-panel-body">
+        <div class="card-body">
           @if (lighthouseRegression)
-            <p style="margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--hazard); color: var(--hazard); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">[ PERF REGRESSION ] Performance score dropped more than 10 points since the previous run.</p>
+            <div class="flash error" style="margin-bottom: 1.25rem;">Performance regression: the score dropped more than 10 points since the previous run.</div>
           @endif
-          <dl class="mon-kv" style="margin: 0;">
+          <dl class="kv">
             <div><dt>Performance</dt><dd class="big">{{ latestLighthouse.performance_score }}</dd></div>
             <div><dt>Accessibility</dt><dd class="big">{{ latestLighthouse.accessibility_score }}</dd></div>
             <div><dt>SEO</dt><dd class="big">{{ latestLighthouse.seo_score }}</dd></div>
@@ -601,68 +622,68 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
     @endif
 
     @if (monitor.type === 'port_scan' && latestPortScan)
-      <section class="tl-panel" aria-label="Port scan">
-        <div class="tl-panel-head">
-          <span>[ PORT SCAN ]</span>
-          <span>{{ formatDate(latestPortScan.checked_at) }}</span>
+      <section class="card" aria-label="Port scan">
+        <div class="card-head">
+          <h3>Port scan</h3>
+          <span class="sub">{{ formatDate(latestPortScan.checked_at) }}</span>
         </div>
-        <div class="tl-panel-body">
-          <dl class="mon-kv" style="margin: 0;">
-            <div><dt>Open ports</dt><dd>{{ portScanOpen.join(', ') || 'NONE' }}</dd></div>
-            <div><dt>Expected ports</dt><dd>{{ portScanExpected.join(', ') || 'NONE CONFIGURED' }}</dd></div>
+        <div class="card-body">
+          <dl class="kv">
+            <div><dt>Open ports</dt><dd class="mono">{{ portScanOpen.join(', ') || 'none' }}</dd></div>
+            <div><dt>Expected ports</dt><dd class="mono">{{ portScanExpected.join(', ') || 'none configured' }}</dd></div>
           </dl>
         </div>
       </section>
     @endif
 
-    <section class="tl-panel" aria-label="Incident history">
-      <div class="tl-panel-head">
-        <span>[ INCIDENT LOG ]</span>
-        <span class="{{ incidents.length > 0 ? 'hz' : '' }}">{{ incidents.length }} RECORDED</span>
+    <section class="card scroll-x" aria-label="Incident history">
+      <div class="card-head">
+        <h3>Incident log</h3>
+        <span class="sub" style="{{ incidents.length > 0 ? 'color: var(--danger);' : '' }}">{{ incidents.length }} recorded</span>
       </div>
       @if (incidents.length === 0)
-        <div class="tl-panel-body">
-          <p style="margin: 0; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em;">No incidents recorded for this monitor.</p>
+        <div class="card-body">
+          <p style="margin: 0; color: var(--muted); font-size: 0.88rem;">No incidents recorded for this monitor.</p>
         </div>
       @endif
       @if (incidents.length > 0)
-        <section class="tl-table" style="border: 0;">
-          <div class="tl-thead" style="grid-template-columns: 120px minmax(0, 1.6fr) 140px 140px;">
-            <span class="tl-cell">Status</span>
-            <span class="tl-cell">Cause</span>
-            <span class="tl-cell num">Started</span>
-            <span class="tl-cell num">Resolved</span>
+        <div class="table">
+          <div class="trow thead" style="grid-template-columns: 130px minmax(0, 1.6fr) 140px 140px;">
+            <span class="tcell">Status</span>
+            <span class="tcell">Cause</span>
+            <span class="tcell num">Started</span>
+            <span class="tcell num">Resolved</span>
           </div>
           @foreach (incidents as incident)
-            <div class="tl-row" style="grid-template-columns: 120px minmax(0, 1.6fr) 140px 140px;">
-              <span class="tl-cell"><data class="{{ incident.resolved_at ? 'st st-unknown' : 'st st-down' }}" value="{{ incident.status }}">{{ incident.status.replace('_', ' ') }}</data></span>
-              <span class="tl-cell tl-ellipsis">{{ incident.cause }}</span>
-              <span class="tl-cell num sub"><time>{{ formatDate(incident.started_at) }}</time></span>
-              <span class="tl-cell num sub"><time>{{ incident.resolved_at ? formatDate(incident.resolved_at) : '--' }}</time></span>
+            <div class="trow" style="grid-template-columns: 130px minmax(0, 1.6fr) 140px 140px;">
+              <span class="tcell"><data class="{{ incidentPillClass(incident) }}" value="{{ incident.status }}"><span class="dot"></span>{{ incident.status.replace('_', ' ') }}</data></span>
+              <span class="tcell ellipsis" style="font-size: 0.88rem;">{{ incident.cause }}</span>
+              <span class="tcell num"><time>{{ formatDate(incident.started_at) }}</time></span>
+              <span class="tcell num"><time>{{ incident.resolved_at ? formatDate(incident.resolved_at) : '--' }}</time></span>
             </div>
           @endforeach
-        </section>
+        </div>
       @endif
     </section>
 
-    <section class="tl-panel" aria-label="Notification channels">
-      <div class="tl-panel-head">
-        <span>[ ALERT ROUTING ]</span>
-        <span class="{{ assignedChannels.length === 0 ? 'hz' : '' }}">{{ assignedChannels.length }} CHANNEL{{ assignedChannels.length === 1 ? '' : 'S' }} ATTACHED</span>
+    <section class="card" aria-label="Notification channels">
+      <div class="card-head">
+        <h3>Alert routing</h3>
+        <span class="sub" style="{{ assignedChannels.length === 0 ? 'color: var(--danger);' : '' }}">{{ assignedChannels.length }} channel{{ assignedChannels.length === 1 ? '' : 's' }} attached</span>
       </div>
-      <div class="tl-panel-body">
+      <div class="card-body">
         @if (assignedChannels.length === 0)
-          <p style="margin: 0 0 14px; font-size: 11px; color: var(--hazard); text-transform: uppercase; letter-spacing: 0.08em;">No channels attached: this monitor won't notify anyone on an incident.</p>
+          <p style="margin: 0 0 1rem; color: var(--danger); font-size: 0.88rem; font-weight: 500;">No channels attached: this monitor won't notify anyone on an incident.</p>
         @endif
 
         @if (assignedChannels.length > 0)
-          <div style="display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 16px;">
+          <div class="table" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
             @foreach (assignedChannels as channel)
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--sub); padding: 10px 12px;">
-                <p style="margin: 0; font-size: 12px; font-weight: 700;">{{ channel.name }} <span style="font-weight: 400; color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px;">{{ channel.type }}</span></p>
+              <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
+                <span class="tcell"><span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span> <span class="sub" style="margin-left: 0.5rem;">{{ channel.type }}</span></span>
                 <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/remove">
                   <input type="hidden" name="channel_id" value="{{ channel.id }}" />
-                  <button type="submit" class="tl-btn danger" style="padding: 5px 10px; font-size: 9px;">Remove</button>
+                  <button type="submit" class="button danger sm">Remove</button>
                 </form>
               </div>
             @endforeach
@@ -671,59 +692,62 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
 
         @if (availableChannels.length > 0)
           <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/assign">
-            <label class="tl-label" for="mon-attach-channel">[ Attach a channel ]</label>
-            <div style="display: flex; gap: 8px; align-items: stretch;">
-              <select id="mon-attach-channel" name="channel_id" class="tl-select" style="flex: 1 1 auto;">
-                @foreach (availableChannels as channel)
-                  <option value="{{ channel.id }}">{{ channel.name }} ({{ channel.type }})</option>
-                @endforeach
-              </select>
-              <button type="submit" class="tl-btn">Attach</button>
+            <div class="field" style="margin-bottom: 0;">
+              <label for="mon-attach-channel">Attach a channel</label>
+              <div style="display: flex; gap: 0.6rem; align-items: stretch;">
+                <select id="mon-attach-channel" name="channel_id" class="select" style="flex: 1 1 auto; width: auto;">
+                  @foreach (availableChannels as channel)
+                    <option value="{{ channel.id }}">{{ channel.name }} ({{ channel.type }})</option>
+                  @endforeach
+                </select>
+                <button type="submit" class="button primary">Attach</button>
+              </div>
             </div>
           </form>
         @endif
         @if (availableChannels.length === 0 && assignedChannels.length === 0)
-          <p style="margin: 0; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em;"><a href="/dashboard/settings/notifications" style="color: var(--ink); text-decoration: underline;">Add a notification channel</a> to attach one here.</p>
+          <p style="margin: 0; color: var(--muted); font-size: 0.88rem;"><a href="/dashboard/settings/notifications" style="color: var(--accent); font-weight: 600;">Add a notification channel</a> to attach one here.</p>
         @endif
       </div>
     </section>
 
-    <section class="tl-panel" aria-label="Recent check results">
-      <div class="tl-panel-head">
-        <span>[ CHECK TRANSCRIPT /// LAST {{ recentChecks.length }} ]</span>
+    <section class="card scroll-x" aria-label="Recent check results">
+      <div class="card-head">
+        <h3>Check transcript</h3>
+        <span class="sub">Last {{ recentChecks.length }}</span>
       </div>
       @if (recentChecks.length === 0)
-        <div class="tl-panel-body">
-          <p style="margin: 0; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em;">No checks recorded yet. First probe lands within {{ monitor.check_interval_seconds }}s of enabling.</p>
+        <div class="card-body">
+          <p style="margin: 0; color: var(--muted); font-size: 0.88rem;">No checks recorded yet. First probe lands within {{ monitor.check_interval_seconds }}s of enabling.</p>
         </div>
       @endif
       @if (recentChecks.length > 0)
-        <section class="tl-table" style="border: 0;">
-          <div class="tl-thead" style="grid-template-columns: 120px minmax(0, 1.6fr) 70px 100px 90px 130px;">
-            <span class="tl-cell">Status</span>
-            <span class="tl-cell">Message</span>
-            <span class="tl-cell num">Code</span>
-            <span class="tl-cell">Region</span>
-            <span class="tl-cell num">Resp</span>
-            <span class="tl-cell num">Checked</span>
+        <div class="table">
+          <div class="trow thead" style="grid-template-columns: 110px minmax(0, 1.6fr) 60px 100px 80px 130px;">
+            <span class="tcell">Status</span>
+            <span class="tcell">Message</span>
+            <span class="tcell num">Code</span>
+            <span class="tcell">Region</span>
+            <span class="tcell num">Resp</span>
+            <span class="tcell num">Checked</span>
           </div>
           @foreach (recentChecks as check)
-            <div class="tl-row" style="grid-template-columns: 120px minmax(0, 1.6fr) 70px 100px 90px 130px;">
-              <span class="tl-cell"><data class="{{ stClass(check.status) }}" value="{{ check.status }}">{{ stLabel(check.status) }}</data></span>
-              <span class="tl-cell sub tl-ellipsis">{{ check.message }}</span>
-              <span class="tl-cell num sub"><samp>{{ check.status_code !== null && check.status_code !== undefined ? check.status_code : '--' }}</samp></span>
-              <span class="tl-cell sub" style="text-transform: uppercase; letter-spacing: 0.08em;">{{ check.region || '--' }}</span>
-              <span class="tl-cell num"><samp>{{ check.response_time_ms !== null ? check.response_time_ms + 'MS' : '--' }}</samp></span>
-              <span class="tl-cell num sub"><time>{{ formatDate(check.checked_at) }}</time></span>
+            <div class="trow" style="grid-template-columns: 110px minmax(0, 1.6fr) 60px 100px 80px 130px;">
+              <span class="tcell"><data class="{{ stClass(check.status) }}" value="{{ check.status }}"><span class="dot"></span>{{ stLabel(check.status) }}</data></span>
+              <span class="tcell sub ellipsis">{{ check.message }}</span>
+              <span class="tcell num"><samp>{{ check.status_code !== null && check.status_code !== undefined ? check.status_code : '--' }}</samp></span>
+              <span class="tcell sub">{{ check.region || '--' }}</span>
+              <span class="tcell num"><samp>{{ check.response_time_ms !== null ? check.response_time_ms + 'ms' : '--' }}</samp></span>
+              <span class="tcell num"><time>{{ formatDate(check.checked_at) }}</time></span>
             </div>
           @endforeach
-        </section>
+        </div>
       @endif
     </section>
 
-    <footer class="tl-footnote">
-      <span>UNIT #{{ monitor.id }} /// {{ monitor.uuid }}</span>
-      <span>UPTIME///STATUS © TELEMETRY CONSOLE</span>
+    <footer class="app-foot">
+      <span class="mono">Unit #{{ monitor.id }} &middot; {{ monitor.uuid }}</span>
+      <span>Updated {{ generatedAt }} UTC</span>
     </footer>
   @endif
 </main>

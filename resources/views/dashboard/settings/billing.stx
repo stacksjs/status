@@ -4,6 +4,10 @@
   convention as team.stx. TEAM_ID is derived from the authenticated
   session (see the auth+team resolution block below), not a client
   query param.
+
+  Visual language: the marketing site's design system (emerald accent,
+  Space Grotesk display, light + dark) via partials/app-head.stx +
+  app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
 const { config } = require('@stacksjs/config')
@@ -43,6 +47,7 @@ async function resolveAuthTeam() {
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+const NAV_ACTIVE = 'settings'
 
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
 const CHECKOUT_RESULT = query.get('checkout')
@@ -84,121 +89,142 @@ function usagePct(used, limit) {
 function limitLabel(limit) {
   return isFinite(limit) ? limit : '∞'
 }
+
+const planLabel = currentPlan === 'pro' ? 'Pro' : currentPlan === 'self-hosted' ? 'Self-hosted' : 'Free'
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 </script>
 
-<div class="mx-auto px-6 py-10 max-w-3xl">
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<main class="app-shell">
   @if (!AUTH_USER)
-    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center">
-      <h3 class="font-medium text-gray-900">Sign in required</h3>
-      <p class="mt-1 text-sm text-gray-500">You need an authenticated session to view this page.</p>
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view this page.</p>
+      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
     </div>
   @endif
 
   @if (AUTH_USER)
-  <header class="mb-6">
-    <h1 class="font-semibold text-gray-900 text-xl">Billing</h1>
-    <p class="mt-1 text-gray-500 text-sm">{{ team ? team.name : 'Team #' + TEAM_ID }}</p>
-  </header>
-
-  @if (CHECKOUT_RESULT === 'success')
-    <div class="mb-6 px-4 py-3 text-green-800 text-sm bg-green-50 border border-green-200 rounded-lg">
-      Checkout complete — your plan will update within a few seconds once Stripe's webhook lands.
-    </div>
-  @endif
-  @if (CHECKOUT_RESULT === 'cancelled')
-    <div class="mb-6 px-4 py-3 text-gray-600 text-sm bg-gray-50 border border-gray-200 rounded-lg">
-      Checkout was cancelled — no changes made.
-    </div>
-  @endif
-  @if (CANCELLED === '1')
-    <div class="mb-6 px-4 py-3 text-gray-600 text-sm bg-gray-50 border border-gray-200 rounded-lg">
-      Subscription cancelled. You'll stay on Pro until the current billing period ends, then drop to Free.
-    </div>
-  @endif
-  @if (ERROR)
-    <div class="mb-6 px-4 py-3 text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg">
-      {{ ERROR === 'no_owner' ? 'This team has no active owner to bill.' : ERROR === 'no_active_subscription' ? 'No active subscription to cancel.' : ERROR }}
-    </div>
-  @endif
-
-  <section class="mb-6 p-5 bg-white border border-gray-200 rounded-xl">
-    <div class="flex items-center justify-between">
+    <header class="page-head">
       <div>
-        <h2 class="font-semibold text-gray-500 text-sm tracking-wide uppercase">Current plan</h2>
-        <p class="mt-1 font-semibold text-gray-900 text-lg">{{ currentPlan === 'pro' ? 'Pro' : currentPlan === 'self-hosted' ? 'Self-hosted' : 'Free' }}</p>
+        <h1>Billing</h1>
+        <p class="meta">{{ team ? team.name : 'Team #' + TEAM_ID }} &middot; {{ planLabel }} plan</p>
       </div>
-      @if (currentPlan === 'pro')
-        <span class="px-3 py-1 font-medium text-white text-xs bg-gray-900 rounded-full">${{ PAID_PLAN_PRICE_USD }}/mo</span>
-      @endif
-      @if (currentPlan === 'self-hosted')
-        <span class="px-3 py-1 font-medium text-green-700 text-xs bg-green-50 rounded-full">No limits</span>
-      @endif
-      @if (currentPlan === 'free')
-        <span class="px-3 py-1 font-medium text-gray-600 text-xs bg-gray-100 rounded-full">$0/mo</span>
-      @endif
+    </header>
+
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="lbl">Settings</span>
+        <a href="/dashboard/settings/team" class="chip">Team</a>
+        <a href="/dashboard/settings/notifications" class="chip">Notifications</a>
+        <a href="/dashboard/settings/billing" class="chip active">Billing</a>
+      </div>
     </div>
 
-    <div class="mt-5 space-y-3">
-      <div>
-        <div class="flex justify-between mb-1 text-gray-500 text-xs">
-          <span>Monitors</span>
-          <span>{{ monitorCount }} / {{ limitLabel(limits.monitors) }}</span>
-        </div>
-        <div class="overflow-hidden h-1.5 w-full bg-gray-100 rounded-full">
-          <div class="h-full bg-gray-900 rounded-full" style="width: {{ usagePct(monitorCount, limits.monitors) }}%"></div>
-        </div>
-      </div>
-      <div>
-        <div class="flex justify-between mb-1 text-gray-500 text-xs">
-          <span>Status pages</span>
-          <span>{{ statusPageCount }} / {{ limitLabel(limits.statusPages) }}</span>
-        </div>
-        <div class="overflow-hidden h-1.5 w-full bg-gray-100 rounded-full">
-          <div class="h-full bg-gray-900 rounded-full" style="width: {{ usagePct(statusPageCount, limits.statusPages) }}%"></div>
-        </div>
-      </div>
-      <p class="text-gray-400 text-xs">Minimum check interval: {{ limits.checkIntervalFloorSeconds }}s</p>
-    </div>
-  </section>
+    @if (CHECKOUT_RESULT === 'success')
+      <div class="flash">Checkout complete. Your plan will update within a few seconds once Stripe's webhook lands.</div>
+    @endif
+    @if (CHECKOUT_RESULT === 'cancelled')
+      <div class="flash">Checkout was cancelled. No changes were made.</div>
+    @endif
+    @if (CANCELLED === '1')
+      <div class="flash">Subscription cancelled. You'll stay on Pro until the current billing period ends, then drop to Free.</div>
+    @endif
+    @if (ERROR)
+      <div class="flash error">{{ ERROR === 'no_owner' ? 'This team has no active owner to bill.' : ERROR === 'no_active_subscription' ? 'No active subscription to cancel.' : ERROR }}</div>
+    @endif
 
-  @if (currentPlan === 'pro')
-    <section class="p-5 bg-white border border-gray-200 rounded-xl">
-      <h2 class="mb-2 font-semibold text-gray-500 text-sm tracking-wide uppercase">Manage subscription</h2>
-      <p class="mb-4 text-gray-500 text-sm">
-        @if (subscription && subscription.ends_at)
-          Cancels at the end of the current billing period.
-        @else
-          Renews automatically each month.
-        @endif
-      </p>
-      <form method="POST" action="/api/billing-forms/cancel" onsubmit="return confirm('Cancel your Pro subscription? You will drop to the Free plan at the end of the current billing period.')">
-        <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
-        <button type="submit" class="px-4 py-2 font-medium text-red-600 text-sm hover:bg-red-50 border border-red-200 rounded-lg">Cancel subscription</button>
-      </form>
+    <section class="card" aria-label="Current plan">
+      <div class="card-head">
+        <h2>Current plan</h2>
+        <span class="sub">{{ currentPlan === 'self-hosted' ? 'No limits' : (currentPlan === 'pro' ? '$' + PAID_PLAN_PRICE_USD + '/mo' : '$0/mo') }}</span>
+      </div>
+      <div class="card-body">
+        <p style="margin: 0 0 1.15rem; font-family: var(--font-display); font-size: 1.35rem; font-weight: 600;">{{ planLabel }}</p>
+
+        <div style="margin-bottom: 0.9rem;">
+          <div style="display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.4rem; color: var(--muted); font-size: 0.8rem;">
+            <span>Monitors</span>
+            <span class="mono">{{ monitorCount }} / {{ limitLabel(limits.monitors) }}</span>
+          </div>
+          <div style="height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden;">
+            <div style="height: 100%; border-radius: 999px; background: var(--accent); width: {{ usagePct(monitorCount, limits.monitors) }}%;"></div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 0.9rem;">
+          <div style="display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.4rem; color: var(--muted); font-size: 0.8rem;">
+            <span>Status pages</span>
+            <span class="mono">{{ statusPageCount }} / {{ limitLabel(limits.statusPages) }}</span>
+          </div>
+          <div style="height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden;">
+            <div style="height: 100%; border-radius: 999px; background: var(--accent); width: {{ usagePct(statusPageCount, limits.statusPages) }}%;"></div>
+          </div>
+        </div>
+
+        <p style="margin: 0; color: var(--muted); font-size: 0.8rem;">Minimum check interval: <span class="mono">{{ limits.checkIntervalFloorSeconds }}s</span></p>
+      </div>
     </section>
+
+    @if (currentPlan === 'pro')
+      <section class="card" aria-label="Manage subscription">
+        <div class="card-head">
+          <h2>Manage subscription</h2>
+        </div>
+        <div class="card-body">
+          <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem;">
+            @if (subscription && subscription.ends_at)
+              Cancels at the end of the current billing period.
+            @else
+              Renews automatically each month.
+            @endif
+          </p>
+          <form method="POST" action="/api/billing-forms/cancel" onsubmit="return confirm('Cancel your Pro subscription? You will drop to the Free plan at the end of the current billing period.')">
+            <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+            <button type="submit" class="button danger">Cancel subscription</button>
+          </form>
+        </div>
+      </section>
+    @endif
+    @if (currentPlan === 'free')
+      <section class="card" aria-label="Upgrade to Pro">
+        <div class="card-head">
+          <h2>Upgrade to Pro</h2>
+          <span class="sub">${{ PAID_PLAN_PRICE_USD }}/mo</span>
+        </div>
+        <div class="card-body">
+          <ul style="margin: 0 0 1.15rem; padding-left: 1.1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.7;">
+            <li>{{ PLAN_LIMITS.pro.monitors }} monitors (vs {{ PLAN_LIMITS.free.monitors }} on Free)</li>
+            <li>{{ PLAN_LIMITS.pro.statusPages }} status pages (vs {{ PLAN_LIMITS.free.statusPages }} on Free)</li>
+            <li>Checks as often as every {{ PLAN_LIMITS.pro.checkIntervalFloorSeconds }}s</li>
+          </ul>
+          <form method="POST" action="/api/billing-forms/checkout">
+            <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+            <button type="submit" class="button primary">Upgrade for ${{ PAID_PLAN_PRICE_USD }}/mo</button>
+          </form>
+        </div>
+      </section>
+    @endif
+    @if (currentPlan === 'self-hosted')
+      <section class="card" aria-label="Self-hosted">
+        <div class="card-head">
+          <h2>Self-hosted</h2>
+        </div>
+        <div class="card-body">
+          <p style="margin: 0; color: var(--muted); font-size: 0.9rem;">
+            This is your own install, so there are no plan limits. Monitor as much as your
+            server can handle. Billing is inactive because no payment provider is configured.
+          </p>
+        </div>
+      </section>
+    @endif
+
+    <footer class="app-foot">
+      <span>{{ monitorCount }} / {{ limitLabel(limits.monitors) }} monitors &middot; {{ statusPageCount }} / {{ limitLabel(limits.statusPages) }} status pages</span>
+      <span>Updated {{ generatedAt }} UTC</span>
+    </footer>
   @endif
-  @if (currentPlan === 'free')
-    <section class="p-5 bg-white border border-gray-200 rounded-xl">
-      <h2 class="mb-2 font-semibold text-gray-500 text-sm tracking-wide uppercase">Upgrade to Pro</h2>
-      <ul class="mb-4 space-y-1 text-gray-600 text-sm">
-        <li>&bull; {{ PLAN_LIMITS.pro.monitors }} monitors (vs {{ PLAN_LIMITS.free.monitors }} on Free)</li>
-        <li>&bull; {{ PLAN_LIMITS.pro.statusPages }} status pages (vs {{ PLAN_LIMITS.free.statusPages }} on Free)</li>
-        <li>&bull; Checks as often as every {{ PLAN_LIMITS.pro.checkIntervalFloorSeconds }}s</li>
-      </ul>
-      <form method="POST" action="/api/billing-forms/checkout">
-        <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
-        <button type="submit" class="px-4 py-2 font-medium text-sm text-white bg-gray-900 rounded-lg">Upgrade &mdash; ${{ PAID_PLAN_PRICE_USD }}/mo</button>
-      </form>
-    </section>
-  @endif
-  @if (currentPlan === 'self-hosted')
-    <section class="p-5 bg-white border border-gray-200 rounded-xl">
-      <h2 class="mb-2 font-semibold text-gray-500 text-sm tracking-wide uppercase">Self-hosted</h2>
-      <p class="text-gray-600 text-sm">
-        This is your own install, so there are no plan limits — monitor as much as your
-        server can handle. Billing is inactive because no payment provider is configured.
-      </p>
-    </section>
-  @endif
-  @endif
-</div>
+</main>
