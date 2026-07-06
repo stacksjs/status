@@ -5,12 +5,13 @@
     "": {
       "name": "status",
       "dependencies": {
-        "@stacksjs/stx": "^0.2.76",
+        "@stacksjs/stx": "^0.2.81",
         "@stacksjs/ts-cloud": "^0.7.10",
         "@ts-cloud/aws-types": "^0.7.10",
         "@ts-cloud/core": "^0.7.10",
-        "bun-plugin-stx": "^0.2.76",
+        "bun-plugin-stx": "^0.2.81",
         "stacks": "workspace:*",
+        "stx-router": "^0.2.81",
         "ts-charts": "github:stacksjs/ts-charts"
       },
       "devDependencies": {
@@ -1347,9 +1348,9 @@
       "version": "^0.70.23",
       "source": "npm"
     },
-    "@stacksjs/stx@^0.2.76": {
+    "@stacksjs/stx@^0.2.81": {
       "name": "@stacksjs/stx",
-      "version": "^0.2.76",
+      "version": "^0.2.81",
       "source": "npm",
       "dependencies": {
         "@cwcss/crosswind": "^0.2.6",
@@ -1593,9 +1594,9 @@
       "version": "^0.4.0",
       "source": "npm"
     },
-    "bun-plugin-stx@^0.2.76": {
+    "bun-plugin-stx@^0.2.81": {
       "name": "bun-plugin-stx",
-      "version": "^0.2.76",
+      "version": "^0.2.81",
       "source": "npm",
       "dependencies": {
         "@stacksjs/stx": "^0.2.72",
@@ -1680,6 +1681,11 @@
         "@types/node": ">=18"
       },
       "optionalPeers": ["@types/node"]
+    },
+    "stx-router@^0.2.81": {
+      "name": "stx-router",
+      "version": "^0.2.81",
+      "source": "npm"
     },
     "ts-broadcasting@^0.0.5": {
       "name": "ts-broadcasting",
