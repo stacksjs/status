@@ -147,12 +147,27 @@ export function readFlowCookie(cookieHeader: string | null): SsoFlowState | null
  * request (honoring x-forwarded-proto behind the reverse proxy) so dev,
  * self-hosted, and hosted installs all get the right value without extra
  * config. Must match the redirect URI registered with the IdP.
+ *
+ * Production wrinkle: the box's reverse proxy rewrites Host to its
+ * upstream (`localhost:3000`) and forwards no x-forwarded-host, so a
+ * loopback host in a production-like env can never be the real public
+ * origin — fall back to APP_URL there. (Observed live 2026-07-06:
+ * redirect_uri went out as http://localhost:3000/... and GitHub/Google
+ * rejected the mismatch.) Dev keeps the header-derived origin so
+ * localhost:4650 etc. work without config.
  */
 export function requestOrigin(headers: Headers): string {
   const host = headers.get('x-forwarded-host') ?? headers.get('host') ?? process.env.APP_URL ?? 'localhost'
   const forwardedProto = headers.get('x-forwarded-proto')
   const bareHost = host.split(':')[0] ?? host
   const isLocalHost = bareHost === 'localhost' || bareHost === '127.0.0.1' || bareHost.endsWith('.localhost')
+
+  const env = (process.env.APP_ENV ?? '').toLowerCase()
+  const isProdLike = env === 'production' || env === 'staging'
+  const appUrl = (process.env.APP_URL ?? '').replace(/\/$/, '')
+  if (isProdLike && isLocalHost && appUrl && !appUrl.includes('localhost'))
+    return appUrl.includes('://') ? appUrl : `https://${appUrl}`
+
   const proto = forwardedProto ?? (isLocalHost ? 'http' : 'https')
   return `${proto}://${host}`
 }

@@ -87,6 +87,34 @@ afterAll(async () => {
   }
 })
 
+describe('requestOrigin behind the production reverse proxy', () => {
+  test('falls back to APP_URL when a prod-like env sees a loopback Host', async () => {
+    const { requestOrigin } = await import('../../app/Actions/Auth/oidc')
+    const prevEnv = process.env.APP_ENV
+    const prevUrl = process.env.APP_URL
+    try {
+      // The box's proxy rewrites Host to its upstream and forwards no
+      // x-forwarded-host — without the fallback the redirect_uri went
+      // out as http://localhost:3000/... (live regression 2026-07-06).
+      process.env.APP_ENV = 'production'
+      process.env.APP_URL = 'https://uptime-status.org'
+      expect(requestOrigin(new Headers({ host: 'localhost:3000' }))).toBe('https://uptime-status.org')
+      // A real public Host (or forwarded host) still wins.
+      expect(requestOrigin(new Headers({ 'host': 'localhost:3000', 'x-forwarded-host': 'uptime-status.org' }))).toBe('https://uptime-status.org')
+      expect(requestOrigin(new Headers({ host: 'staging.uptime-status.org' }))).toBe('https://staging.uptime-status.org')
+    }
+    finally {
+      process.env.APP_ENV = prevEnv
+      process.env.APP_URL = prevUrl
+    }
+  })
+
+  test('dev keeps the header-derived localhost origin', async () => {
+    const { requestOrigin } = await import('../../app/Actions/Auth/oidc')
+    expect(requestOrigin(new Headers({ host: 'localhost:4650' }))).toBe('http://localhost:4650')
+  })
+})
+
 describe('SSO redirect leg (social providers)', () => {
   test('GitHub: 302 to github.com with client_id, per-request redirect_uri, state + flow cookie', async () => {
     const res = await serverHandle('http://localhost/api/auth/sso/github')
