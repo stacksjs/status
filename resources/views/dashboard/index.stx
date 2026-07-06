@@ -126,7 +126,21 @@ for (const s of siteMap.values()) {
     if (siteRank(m) > siteRank(worst))
       worst = m
   }
-  sites.push({ host: s.host, slug: s.slug, count: s.monitors.length, status: worst ? worst.status : 'pending', lastChecked: s.lastChecked })
+  const status = worst ? worst.status : 'pending'
+  // Precompute the display fields the site-card partial needs, so it renders
+  // from plain data passed via `@include(…, { site })` and needs nothing from
+  // this page's scope (helpers here are hoisted function declarations).
+  sites.push({
+    host: s.host,
+    slug: s.slug,
+    count: s.monitors.length,
+    status,
+    lastChecked: s.lastChecked,
+    pillClass: stClass(status),
+    statusLabel: stLabel(status),
+    railClass: railClass(status),
+    checkedLabel: agoLabel(s.lastChecked),
+  })
 }
 sites.sort((a, b) => (siteRank(b) - siteRank(a)) || a.host.localeCompare(b.host))
 const siteCount = sites.length
@@ -254,7 +268,19 @@ useHead({ title: 'Overview · UptimeStatus', meta: [{ name: 'robots', content: '
       @if (siteCount > 0)
         <div class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
           @foreach (sites as site)
-            @include('../partials/site-card.stx')
+            <a class="group relative flex flex-col gap-3 overflow-hidden rounded-card border border-subtle bg-surface p-4 pl-5 text-inherit no-underline transition duration-150 hover:-translate-y-0.5 hover:border-strong hover:shadow-[0_16px_34px_-20px_rgba(11,15,13,0.32)]" href="/dashboard/sites/{{ site.slug }}">
+              <span class="absolute inset-y-0 left-0 w-[3px] {{ site.railClass }}" aria-hidden="true"></span>
+              <div class="flex items-center justify-between">
+                <data class="{{ site.pillClass }}" value="{{ site.status }}"><span class="dot"></span>{{ site.statusLabel }}</data>
+                <svg class="h-[18px] w-[18px] -translate-x-1 text-muted opacity-0 transition duration-150 group-hover:translate-x-0 group-hover:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
+              </div>
+              <div class="font-display text-lg font-semibold leading-tight [overflow-wrap:anywhere]">{{ site.host }}</div>
+              <div class="flex items-center gap-1.5 text-[0.82rem] text-muted">
+                <span class="font-semibold text-fg">{{ site.count }} check{{ site.count === 1 ? '' : 's' }}</span>
+                <span aria-hidden="true">&middot;</span>
+                <span><time>{{ site.checkedLabel }}</time></span>
+              </div>
+            </a>
           @endforeach
         </div>
         <a href="/dashboard/monitors" data-no-router class="mt-4 inline-block text-[0.85rem] font-semibold text-accent">View all {{ monitorCount }} monitors &rarr;</a>

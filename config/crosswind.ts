@@ -6,7 +6,7 @@
  * palette (red-500, etc.) stays intact — these just add the app's design-system
  * tokens as named utilities, mapped to the CSS variables defined in
  * resources/views/partials/app-head.stx. Prefer these over `[var(--…)]`
- * arbitrary values: `bg-surface`, `border-border`, `text-muted`, `text-success`,
+ * arbitrary values: `bg-surface`, `border-subtle`, `text-muted`, `text-success`,
  * `font-display`, `rounded-card`, and so on.
  */
 export default {
@@ -28,8 +28,8 @@ export default {
         'surface-2': 'var(--surface-2)',
         fg: 'var(--fg)',
         muted: 'var(--muted)',
-        // Borders (border-border / border-strong)
-        border: 'var(--border)',
+        // Borders — a subtle default and a stronger one (border-subtle / border-strong)
+        subtle: 'var(--border)',
         strong: 'var(--border-strong)',
         // Brand accent
         accent: 'var(--accent)',
