@@ -140,6 +140,18 @@ route.post('/security-forms/two-factor/enable', 'Actions/Security/DashboardEnabl
 route.post('/security-forms/two-factor/disable', 'Actions/Security/DashboardDisableTwoFactorAction')
 route.post('/security-forms/passkeys/delete', 'Actions/Security/DashboardDeletePasskeyAction')
 
+// Passkey (WebAuthn) enrollment + passwordless sign-in (stacksjs/status#1
+// Phase 9 follow-up). Enrollment resolves the signed-in user from the
+// auth-token cookie (NOT the bearer/session Auth middleware, which a
+// dashboard fetch can't satisfy); sign-in is unauthenticated and mints a
+// session on success. Verification is app-owned and spec-correct — see
+// Actions/Security/webauthn.ts for why it doesn't use ts-auth's verifiers.
+// All four are CSRF-protected (the client sends the double-submit token).
+route.post('/passkeys/register/options', 'Actions/Security/PasskeyRegisterOptionsAction')
+route.post('/passkeys/register/verify', 'Actions/Security/PasskeyRegisterVerifyAction')
+route.post('/passkeys/login/options', 'Actions/Security/PasskeyLoginOptionsAction')
+route.post('/passkeys/login/verify', 'Actions/Security/PasskeyLoginVerifyAction')
+
 // Billing (stacksjs/status#1 Phase 9). /checkout is a dashboard form
 // post, same convention as the rest of this block. /webhook is called
 // by Stripe itself — no CSRF token to satisfy (skipCsrf, matching the
