@@ -22,10 +22,18 @@ import User from '../../Models/User'
  * ORM-only codepath entirely — same workaround pattern used throughout
  * this app's auth/billing schema-guarantee fixes this session.
  *
- * Handler registration happens once at module load (top-level
- * onSubscription call below), not inside `handle()` — Stripe re-hits
- * this endpoint on every event, and re-registering a handler on every
- * request would process each event N times after N requests.
+ * Handler registration happens once, lazily, on the first request (see
+ * `ensureHandlersRegistered`) — NOT at module top level. Registering at
+ * import time called `onSubscription(...)` during the framework's
+ * circular-import / async-module-evaluation window, before
+ * @stacksjs/payments' `webhook.ts` had initialized its module-level
+ * `handlers` map, throwing `Cannot access 'handlers' before
+ * initialization` — which failed the WHOLE action import, so the router
+ * dropped the webhook route entirely (POST /billing-forms/webhook 404'd).
+ * A one-shot flag keeps the "register exactly once" guarantee (Stripe
+ * re-hits this endpoint on every event; re-registering per request would
+ * process each event N times) while deferring the call to a point where
+ * every module is fully initialized.
  */
 
 async function upsertLocalSubscriptionFromStripe(sub: Stripe.Subscription): Promise<void> {
@@ -61,11 +69,24 @@ async function upsertLocalSubscriptionFromStripe(sub: Stripe.Subscription): Prom
   }
 }
 
-onSubscription({
-  created: event => upsertLocalSubscriptionFromStripe(event.data.object as Stripe.Subscription),
-  updated: event => upsertLocalSubscriptionFromStripe(event.data.object as Stripe.Subscription),
-  deleted: event => upsertLocalSubscriptionFromStripe(event.data.object as Stripe.Subscription),
-})
+let handlersRegistered = false
+
+/**
+ * Register the subscription webhook handlers exactly once. Exported so
+ * callers that drive `handleWebhookEvent` directly (e.g. feature tests)
+ * can register without going through an HTTP round trip — production
+ * registers lazily on the first `handle()` call.
+ */
+export function ensureHandlersRegistered(): void {
+  if (handlersRegistered)
+    return
+  handlersRegistered = true
+  onSubscription({
+    created: event => upsertLocalSubscriptionFromStripe(event.data.object as Stripe.Subscription),
+    updated: event => upsertLocalSubscriptionFromStripe(event.data.object as Stripe.Subscription),
+    deleted: event => upsertLocalSubscriptionFromStripe(event.data.object as Stripe.Subscription),
+  })
+}
 
 export default new Action({
   name: 'StripeWebhookAction',
@@ -73,6 +94,10 @@ export default new Action({
   method: 'POST',
 
   async handle(request: RequestInstance) {
+    // Register the subscription handlers on first use (see the module
+    // docblock for why this is lazy rather than at import time).
+    ensureHandlersRegistered()
+
     const secret = config.services?.stripe?.webhookSecret
     if (!secret)
       return response.serverError('STRIPE_WEBHOOK_SECRET is not configured')

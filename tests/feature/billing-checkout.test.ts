@@ -4,11 +4,12 @@ import { db } from '@stacksjs/database'
 import { handleWebhookEvent } from '@stacksjs/payments'
 import CancelSubscriptionAction from '../../app/Actions/Billing/CancelSubscriptionAction'
 import CreateCheckoutSessionAction from '../../app/Actions/Billing/CreateCheckoutSessionAction'
-// Import for its module-level side effect only: registers the
-// customer.subscription.* handlers with @stacksjs/payments so
-// handleWebhookEvent below actually dispatches to
-// upsertLocalSubscriptionFromStripe.
-import '../../app/Actions/Billing/StripeWebhookAction'
+// Registers the customer.subscription.* handlers with @stacksjs/payments
+// so handleWebhookEvent below dispatches to upsertLocalSubscriptionFromStripe.
+// Called explicitly (in beforeAll) rather than relying on an import side
+// effect: StripeWebhookAction now registers lazily on first request to
+// avoid an import-time circular-dependency crash.
+import { ensureHandlersRegistered } from '../../app/Actions/Billing/StripeWebhookAction'
 
 // See monitor-crud.test.ts's TEAM_ID comment — each feature test file
 // isolates its fixtures under its own team_id/user id space since Bun
@@ -39,6 +40,7 @@ describe('Billing checkout (stacksjs/status#1 Phase 9)', () => {
   let ownerToken: string
 
   beforeAll(async () => {
+    ensureHandlersRegistered()
     await db.insertInto('teams').values({ name: `Billing Test Team ${TEAM_ID}` }).execute()
     const team = await db.selectFrom('teams').where('name', '=', `Billing Test Team ${TEAM_ID}`).select(['id']).executeTakeFirst()
     realTeamId = Number(team!.id)
