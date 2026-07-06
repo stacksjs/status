@@ -1,7 +1,8 @@
 import type { Server } from 'bun'
-import { afterAll, afterEach, describe, expect, test } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import EvaluateMonitorConsensus from '../../app/Jobs/EvaluateMonitorConsensus'
 import RunUptimeCheck from '../../app/Jobs/RunUptimeCheck'
+import CheckResult from '../../app/Models/CheckResult'
 import Incident from '../../app/Models/Incident'
 import IncidentUpdate from '../../app/Models/IncidentUpdate'
 import Monitor from '../../app/Models/Monitor'
@@ -17,24 +18,37 @@ const TEAM_ID = 90003
 // observations into the monitor's status. With one region the threshold
 // clamps to 1, so a single failing check still transitions to down — this
 // suite drives the check then the consensus pass and asserts that end state.
+// Deletes every row under this file's TEAM_ID, children before parents
+// (incident_updates -> incidents -> check_results -> monitor) so the FK
+// constraints on the shared dev SQLite DB are satisfied. Sweeping by team
+// instead of tracked ids also clears rows left behind by aborted runs.
+async function cleanupTeamFixtures(): Promise<void> {
+  for (const monitor of await Monitor.where('team_id', TEAM_ID).get()) {
+    for (const incident of await Incident.where('monitor_id', monitor.id).get()) {
+      for (const update of await IncidentUpdate.where('incident_id', incident.id).get())
+        await update.delete()
+      await incident.delete()
+    }
+    for (const result of await CheckResult.where('monitor_id', monitor.id).get())
+      await result.delete()
+    await monitor.delete()
+  }
+}
+
 describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
   let server: Server
   let shouldFail = false
-  const createdMonitorIds: number[] = []
+
+  beforeAll(async () => {
+    await cleanupTeamFixtures()
+  })
 
   afterAll(() => {
     server?.stop()
   })
 
   afterEach(async () => {
-    for (const id of createdMonitorIds.splice(0)) {
-      const monitor = await Monitor.find(id)
-      if (monitor) {
-        for (const incident of await Incident.where('monitor_id', id).get())
-          await incident.delete()
-        await monitor.delete()
-      }
-    }
+    await cleanupTeamFixtures()
     shouldFail = false
   })
 
@@ -53,7 +67,6 @@ describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
       enabled: true,
       status: 'up', // starts healthy so the failing check is a real transition
     })
-    createdMonitorIds.push(monitor.id)
 
     await RunUptimeCheck.handle({ monitorId: monitor.id })
     await EvaluateMonitorConsensus.handle({})
@@ -84,7 +97,6 @@ describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
       enabled: true,
       status: 'up',
     })
-    createdMonitorIds.push(monitor.id)
 
     // First check fails -> consensus opens an incident.
     shouldFail = true

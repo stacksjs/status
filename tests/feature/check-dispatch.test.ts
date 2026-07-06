@@ -2,6 +2,8 @@ import type { Server } from 'bun'
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import DispatchDueChecks from '../../app/Jobs/DispatchDueChecks'
 import CheckResult from '../../app/Models/CheckResult'
+import Incident from '../../app/Models/Incident'
+import IncidentUpdate from '../../app/Models/IncidentUpdate'
 import Monitor from '../../app/Models/Monitor'
 
 // See monitor-crud.test.ts's TEAM_ID comment — each feature test file
@@ -9,11 +11,28 @@ import Monitor from '../../app/Models/Monitor'
 // concurrently by default.
 const TEAM_ID = 90002
 
+// Deletes every row under this file's TEAM_ID, children before parents
+// (incident_updates -> incidents -> check_results -> monitor) so the FK
+// constraints on the shared dev SQLite DB are satisfied. Sweeping by team
+// instead of tracked ids also clears rows left behind by aborted runs.
+async function cleanupTeamFixtures(): Promise<void> {
+  for (const monitor of await Monitor.where('team_id', TEAM_ID).get()) {
+    for (const incident of await Incident.where('monitor_id', monitor.id).get()) {
+      for (const update of await IncidentUpdate.where('incident_id', incident.id).get())
+        await update.delete()
+      await incident.delete()
+    }
+    for (const result of await CheckResult.where('monitor_id', monitor.id).get())
+      await result.delete()
+    await monitor.delete()
+  }
+}
+
 describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
   let server: Server
-  const createdIds: number[] = []
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    await cleanupTeamFixtures()
     server = Bun.serve({ port: 0, fetch: () => new Response('OK', { status: 200 }) })
   })
 
@@ -22,10 +41,7 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
   })
 
   afterEach(async () => {
-    for (const id of createdIds.splice(0)) {
-      const monitor = await Monitor.find(id)
-      if (monitor) await monitor.delete()
-    }
+    await cleanupTeamFixtures()
   })
 
   test('a monitor whose check_interval_seconds has elapsed gets checked (QUEUE_DRIVER=sync runs the job inline)', async () => {
@@ -39,9 +55,8 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
       last_checked_at: staleCheckedAt,
       enabled: true,
     })
-    createdIds.push(monitor.id)
 
-    await DispatchDueChecks.handle()
+    await DispatchDueChecks.handle({ teamId: TEAM_ID })
 
     const refreshed = await Monitor.find(monitor.id)
     expect(refreshed!.last_checked_at).not.toBe(staleCheckedAt)
@@ -66,9 +81,8 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
       last_checked_at: recentCheckedAt,
       enabled: true,
     })
-    createdIds.push(monitor.id)
 
-    await DispatchDueChecks.handle()
+    await DispatchDueChecks.handle({ teamId: TEAM_ID })
 
     const refreshed = await Monitor.find(monitor.id)
     expect(refreshed!.last_checked_at).toBe(recentCheckedAt)
@@ -85,9 +99,8 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
       last_checked_at: veryStale,
       enabled: false,
     })
-    createdIds.push(monitor.id)
 
-    await DispatchDueChecks.handle()
+    await DispatchDueChecks.handle({ teamId: TEAM_ID })
 
     const refreshed = await Monitor.find(monitor.id)
     expect(refreshed!.last_checked_at).toBe(veryStale)

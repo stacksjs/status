@@ -76,8 +76,15 @@ export default new Job({
   tries: 1,
   timeout: 30,
 
-  async handle() {
-    const monitors = await Monitor.where('enabled', true).get()
+  // The optional teamId scopes the sweep to one team's monitors. The
+  // scheduler never passes it (all teams, every tick); it exists for
+  // targeted dispatch — e.g. feature tests isolating fixtures by team_id
+  // on a shared dev DB, where an unscoped sweep would run real network
+  // checks against every enabled monitor inline (QUEUE_DRIVER=sync).
+  async handle(payload?: { teamId?: number }) {
+    const monitors = payload?.teamId
+      ? await Monitor.where('enabled', true).where('team_id', payload.teamId).get()
+      : await Monitor.where('enabled', true).get()
     const now = Date.now()
     let dispatched = 0
 
