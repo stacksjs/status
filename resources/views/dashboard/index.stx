@@ -143,10 +143,10 @@ function stClass(status) {
 
 // Utility bg class for a site card's left accent rail, by rolled-up status.
 function railClass(status) {
-  if (status === 'up') return 'bg-[var(--success)]'
-  if (status === 'degraded') return 'bg-[var(--amber)]'
-  if (status === 'down') return 'bg-[var(--danger)]'
-  return 'bg-[var(--border-strong)]'
+  if (status === 'up') return 'bg-success'
+  if (status === 'degraded') return 'bg-amber'
+  if (status === 'down') return 'bg-danger'
+  return 'bg-strong'
 }
 
 function stLabel(status) {
@@ -242,7 +242,7 @@ useHead({ title: 'Overview · UptimeStatus', meta: [{ name: 'robots', content: '
 
     <section aria-label="Sites">
       <div class="mt-6 mb-4 flex items-baseline justify-between gap-4">
-        <h3 class="m-0 font-[family-name:var(--font-display)] text-[1.05rem] font-semibold">Sites</h3>
+        <h3 class="m-0 font-display text-[1.05rem] font-semibold">Sites</h3>
         <span class="sub">{{ siteCount }} tracked &middot; pick one to view its checks</span>
       </div>
       @if (siteCount === 0)
@@ -254,22 +254,10 @@ useHead({ title: 'Overview · UptimeStatus', meta: [{ name: 'robots', content: '
       @if (siteCount > 0)
         <div class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
           @foreach (sites as site)
-            <a class="group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 pl-5 text-inherit no-underline transition duration-150 hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[0_16px_34px_-20px_rgba(11,15,13,0.32)]" href="/dashboard/sites/{{ site.slug }}">
-              <span class="absolute inset-y-0 left-0 w-[3px] {{ railClass(site.status) }}" aria-hidden="true"></span>
-              <div class="flex items-center justify-between">
-                <data class="{{ stClass(site.status) }}" value="{{ site.status }}"><span class="dot"></span>{{ stLabel(site.status) }}</data>
-                <svg class="h-[18px] w-[18px] -translate-x-1 text-[var(--muted)] opacity-0 transition duration-150 group-hover:translate-x-0 group-hover:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
-              </div>
-              <div class="font-[family-name:var(--font-display)] text-lg font-semibold leading-tight [overflow-wrap:anywhere]">{{ site.host }}</div>
-              <div class="flex items-center gap-1.5 text-[0.82rem] text-[var(--muted)]">
-                <span class="font-semibold text-[var(--fg)]">{{ site.count }} check{{ site.count === 1 ? '' : 's' }}</span>
-                <span aria-hidden="true">&middot;</span>
-                <span><time>{{ agoLabel(site.lastChecked) }}</time></span>
-              </div>
-            </a>
+            @include('../partials/site-card.stx')
           @endforeach
         </div>
-        <a href="/dashboard/monitors" data-no-router class="mt-4 inline-block text-[0.85rem] font-semibold text-[var(--accent)]">View all {{ monitorCount }} monitors &rarr;</a>
+        <a href="/dashboard/monitors" data-no-router class="mt-4 inline-block text-[0.85rem] font-semibold text-accent">View all {{ monitorCount }} monitors &rarr;</a>
       @endif
     </section>
 

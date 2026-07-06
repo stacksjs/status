@@ -1,0 +1,20 @@
+<!--
+  Site card — one tracked domain in the overview's site picker. Rendered inside
+  the `@foreach (sites as site)` loop in dashboard/index.stx via @include, so it
+  reads the loop's `site` and the display helpers (railClass/stClass/stLabel/
+  agoLabel) from the including page's scope. Pure Crosswind utilities + the
+  app's design-system tokens (config/crosswind.ts) — no bespoke CSS.
+-->
+<a class="group relative flex flex-col gap-3 overflow-hidden rounded-card border border-border bg-surface p-4 pl-5 text-inherit no-underline transition duration-150 hover:-translate-y-0.5 hover:border-strong hover:shadow-[0_16px_34px_-20px_rgba(11,15,13,0.32)]" href="/dashboard/sites/{{ site.slug }}">
+  <span class="absolute inset-y-0 left-0 w-[3px] {{ railClass(site.status) }}" aria-hidden="true"></span>
+  <div class="flex items-center justify-between">
+    <data class="{{ stClass(site.status) }}" value="{{ site.status }}"><span class="dot"></span>{{ stLabel(site.status) }}</data>
+    <svg class="h-[18px] w-[18px] -translate-x-1 text-muted opacity-0 transition duration-150 group-hover:translate-x-0 group-hover:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
+  </div>
+  <div class="font-display text-lg font-semibold leading-tight [overflow-wrap:anywhere]">{{ site.host }}</div>
+  <div class="flex items-center gap-1.5 text-[0.82rem] text-muted">
+    <span class="font-semibold text-fg">{{ site.count }} check{{ site.count === 1 ? '' : 's' }}</span>
+    <span aria-hidden="true">&middot;</span>
+    <span><time>{{ agoLabel(site.lastChecked) }}</time></span>
+  </div>
+</a>
