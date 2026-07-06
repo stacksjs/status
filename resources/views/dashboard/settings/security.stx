@@ -88,6 +88,7 @@ if (AUTH_USER) {
 const flashEnabled = query.get('twofa') === 'enabled'
 const flashDisabled = query.get('twofa') === 'disabled'
 const flashPasskeyRemoved = query.get('passkey') === 'removed'
+const flashPasskeyAdded = query.get('passkey') === 'added'
 const flashError = query.get('error') || ''
 
 function errorLabel(code) {
@@ -152,6 +153,9 @@ useHead({ title: 'Security · UptimeStatus', meta: [{ name: 'robots', content: '
     @if (flashDisabled)
       <div class="flash">Two-factor authentication is off.</div>
     @endif
+    @if (flashPasskeyAdded)
+      <div class="flash">Passkey added. You can now sign in with it.</div>
+    @endif
     @if (flashPasskeyRemoved)
       <div class="flash">Passkey removed.</div>
     @endif
@@ -214,11 +218,16 @@ useHead({ title: 'Security · UptimeStatus', meta: [{ name: 'robots', content: '
         <h2>Passkeys</h2>
         <span class="sub">{{ passkeys.length }} registered</span>
       </div>
+      <div class="card-body" style="border-bottom: 1px solid var(--border);">
+        <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6;">Passkeys let you sign in with your device's screen lock or a hardware key instead of a password. They're phishing-resistant and never leave your device.</p>
+        <button type="button" id="pk-add" class="button primary">Add a passkey</button>
+        <div id="pk-msg" class="pk-msg" role="status"></div>
+      </div>
       @if (passkeys.length === 0)
         <div class="card-body">
           <div class="empty" style="border: none; padding: 2.5rem 1rem;">
             <h3>No passkeys yet</h3>
-            <p>Passkeys let you sign in with your device's screen lock instead of a password. Adding passkeys from this page ships once the WebAuthn enrollment plumbing lands.</p>
+            <p>Add your first passkey above to sign in without a password.</p>
           </div>
         </div>
       @endif
@@ -255,3 +264,66 @@ useHead({ title: 'Security · UptimeStatus', meta: [{ name: 'robots', content: '
     </footer>
   @endif
 </main>
+
+<style>
+  .pk-msg { margin-top: 0.85rem; font-size: 0.85rem; display: none; }
+  .pk-msg.show { display: block; }
+  .pk-msg.ok { color: var(--success); }
+  .pk-msg.err { color: var(--danger); }
+</style>
+
+<script src="/assets/scripts/webauthn-client.js" defer></script>
+<script>
+  ;(function () {
+    var btn = document.getElementById('pk-add')
+    if (!btn) return
+    var msg = document.getElementById('pk-msg')
+
+    function say(text, kind) {
+      msg.textContent = text
+      msg.className = 'pk-msg show ' + (kind || '')
+    }
+
+    // Double-submit CSRF: mint the cookie if csrf-forms.js hasn't yet, and
+    // echo it as a header — fetch() calls aren't auto-stamped, only forms.
+    function ensureCsrf() {
+      var m = document.cookie.match(/(?:^|; )X-CSRF-Token=([^;]+)/)
+      if (m) return decodeURIComponent(m[1])
+      var arr = new Uint8Array(32)
+      window.crypto.getRandomValues(arr)
+      var tok = Array.prototype.map.call(arr, function (b) { return ('0' + b.toString(16)).slice(-2) }).join('')
+      document.cookie = 'X-CSRF-Token=' + tok + '; Path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '')
+      return tok
+    }
+
+    if (!window.stacksPasskey || !window.stacksPasskey.isSupported()) {
+      btn.disabled = true
+      say('This browser does not support passkeys.', 'err')
+      return
+    }
+
+    btn.addEventListener('click', async function () {
+      btn.disabled = true
+      var original = btn.textContent
+      btn.textContent = 'Waiting for your device…'
+      say('', '')
+      msg.className = 'pk-msg'
+      try {
+        var r = await window.stacksPasskey.register('/api/passkeys/register/options', '/api/passkeys/register/verify', ensureCsrf())
+        if (r.ok) {
+          say('Passkey added.', 'ok')
+          setTimeout(function () { window.location.href = '/dashboard/settings/security?passkey=added' }, 600)
+          return
+        }
+        say(r.error || 'Could not add the passkey.', 'err')
+      }
+      catch (e) {
+        say('Something went wrong adding the passkey.', 'err')
+      }
+      finally {
+        btn.disabled = false
+        btn.textContent = original
+      }
+    })
+  })()
+</script>

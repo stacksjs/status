@@ -154,6 +154,11 @@ const hasSso = ssoProviders.length > 0
         </div>
         <button id="login-btn" class="button" type="submit">Sign in</button>
 
+        <div class="sso-divider passkey-divider hide" id="passkey-divider">or</div>
+        <div class="sso-buttons">
+          <button type="button" id="passkey-btn" class="button sso hide">Sign in with a passkey</button>
+        </div>
+
         @if (hasSso)
           <div class="sso-divider">or</div>
           <div class="sso-buttons">
@@ -178,6 +183,7 @@ const hasSso = ssoProviders.length > 0
       <p class="alt">Don't have an account? <a href="/register" data-no-router>Create one</a></p>
     </div>
 
+    <script src="/assets/scripts/webauthn-client.js"></script>
     <script>
       (function () {
         var REDIRECT = '/dashboard'
@@ -300,6 +306,34 @@ const hasSso = ssoProviders.length > 0
             twofaBtn.textContent = 'Verify & sign in'
           }
         })
+
+        // Passwordless passkey sign-in. Progressive enhancement: the button
+        // is hidden until we confirm the browser supports WebAuthn, so a
+        // non-supporting browser just sees the password form.
+        var passkeyBtn = document.getElementById('passkey-btn')
+        if (passkeyBtn && window.stacksPasskey && window.stacksPasskey.isSupported()) {
+          document.getElementById('passkey-divider').classList.remove('hide')
+          passkeyBtn.classList.remove('hide')
+          passkeyBtn.addEventListener('click', async function () {
+            clearError()
+            passkeyBtn.disabled = true
+            var original = passkeyBtn.textContent
+            passkeyBtn.textContent = 'Waiting for your device…'
+            try {
+              var r = await window.stacksPasskey.login('/api/passkeys/login/options', '/api/passkeys/login/verify', ensureCsrf())
+              if (r.ok) {
+                window.location.href = REDIRECT
+                return
+              }
+              showError(r.error || 'Could not sign in with a passkey.')
+            } catch (err) {
+              showError('Something went wrong. Please try again.')
+            } finally {
+              passkeyBtn.disabled = false
+              passkeyBtn.textContent = original
+            }
+          })
+        }
       })()
     </script>
   </body>
