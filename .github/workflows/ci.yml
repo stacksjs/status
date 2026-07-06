@@ -151,7 +151,12 @@ jobs:
       - name: Release Check
         id: check_release
         run: |
-          if git log --format=%B -n 1 "${{ github.event.after }}" | grep -qi 'release'; then
+          # Subject line ONLY (%s, not %B): the intent is to skip deploys for
+          # bumpx-style "chore: release vX.Y.Z" commits. Matching the whole
+          # body silently skipped deploys for any commit whose description
+          # merely mentioned the word (e.g. "per-release systemd units") —
+          # which is how 06e811a and 2d169c9 never shipped.
+          if git log --format=%s -n 1 "${{ github.event.after }}" | grep -qi 'release'; then
             echo "contains_release=1" >> "$GITHUB_OUTPUT"
           else
             echo "contains_release=0" >> "$GITHUB_OUTPUT"
