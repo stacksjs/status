@@ -85,24 +85,48 @@ export default new Job({
       // bare hostname, no scheme
     }
 
-    let ip: string
+    // Prefer an explicitly configured origin IP over DNS resolution. A
+    // Cloudflare/Fastly-proxied domain resolves to the CDN's shared edge IP,
+    // not the customer's own server — so a blocklist check against the
+    // resolved address tests the CDN's reputation, not the origin whose mail
+    // deliverability actually matters (and shared edges are perpetually on
+    // some list because of other tenants). Setting config.origin_ip to the
+    // real server IP behind the proxy points the check at the origin.
+    let monitorConfig: Record<string, unknown> = {}
     try {
-      const addresses = await resolve4(hostname)
-      ip = addresses[0]!
+      monitorConfig = JSON.parse(monitor.config || '{}')
     }
     catch {
-      // reverse() as a fallback in case monitor.url is already an IP
+      // malformed config — fall back to DNS resolution below
+    }
+    const configuredOriginIp = typeof monitorConfig.origin_ip === 'string' ? monitorConfig.origin_ip.trim() : ''
+
+    let ip: string
+    let ipSource: 'origin' | 'dns'
+    if (configuredOriginIp) {
+      ip = configuredOriginIp
+      ipSource = 'origin'
+    }
+    else {
+      ipSource = 'dns'
       try {
-        await reverse(hostname)
-        ip = hostname
+        const addresses = await resolve4(hostname)
+        ip = addresses[0]!
       }
-      catch (error) {
-        log.warn(`[job] RunBlocklistCheck: could not resolve ${hostname}: ${error instanceof Error ? error.message : String(error)}`)
-        // No verdict without an IP, but last_checked_at must still advance -
-        // DispatchDueChecks schedules off it, so returning without it would
-        // re-dispatch this check every minute. The monitor keeps its status.
-        await monitor.update({ last_checked_at: new Date().toISOString() })
-        return
+      catch {
+        // reverse() as a fallback in case monitor.url is already an IP
+        try {
+          await reverse(hostname)
+          ip = hostname
+        }
+        catch (error) {
+          log.warn(`[job] RunBlocklistCheck: could not resolve ${hostname}: ${error instanceof Error ? error.message : String(error)}`)
+          // No verdict without an IP, but last_checked_at must still advance -
+          // DispatchDueChecks schedules off it, so returning without it would
+          // re-dispatch this check every minute. The monitor keeps its status.
+          await monitor.update({ last_checked_at: new Date().toISOString() })
+          return
+        }
       }
     }
 
@@ -129,26 +153,26 @@ export default new Job({
       response_time_ms: null,
       status_code: null,
       message: listedOn.length > 0 ? `Listed on: ${listedOn.join(', ')}` : 'Not listed on any checked blocklist',
-      metadata: JSON.stringify({ ip, listedOn }),
+      metadata: JSON.stringify({ ip, listedOn, ipSource }),
       region: process.env.WORKER_REGION || 'default',
       checked_at: checkedAt,
     })
 
     const newListings = listedOn.filter(zone => !previousListedOn.includes(zone))
     if (newListings.length > 0) {
-      const sharedEdge = isSharedCdnIp(ip)
+      const sharedEdge = ipSource === 'dns' ? isSharedCdnIp(ip) : null
       const cause = sharedEdge
-        ? `${ip} (a shared ${sharedEdge} edge IP, likely not your own server) is listed on ${newListings.join(', ')}. This usually reflects other sites behind the same CDN and rarely affects your own mail deliverability.`
-        : `${ip} is listed on ${newListings.join(', ')}. Mail from this IP may be filtered as spam. Request delisting from the operator and send outbound mail through a reputable relay (SES, Postmark) rather than the server directly.`
+        ? `${ip} (a shared ${sharedEdge} edge IP, likely not your own server) is listed on ${newListings.join(', ')}. This usually reflects other sites behind the same CDN and rarely affects your own mail deliverability. To check the server behind ${sharedEdge} instead, set this monitor's origin IP in its config.`
+        : `${ip}${ipSource === 'origin' ? ' (configured origin)' : ''} is listed on ${newListings.join(', ')}. Mail from this IP may be filtered as spam. Request delisting from the operator and send outbound mail through a reputable relay (SES, Postmark) rather than the server directly.`
 
       await Incident.create({
         monitor_id: monitor.id,
         started_at: checkedAt,
         cause,
         status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'dns_blocklist', ip, newListings, sharedEdge: sharedEdge || null }]),
+        impacted_checks: JSON.stringify([{ type: 'dns_blocklist', ip, newListings, sharedEdge: sharedEdge || null, ipSource }]),
       })
-      log.warn(`[job] RunBlocklistCheck: ${monitor.name} (${ip}) newly listed on ${newListings.join(', ')}${sharedEdge ? ` (shared ${sharedEdge} IP)` : ''}`)
+      log.warn(`[job] RunBlocklistCheck: ${monitor.name} (${ip}, ${ipSource}) newly listed on ${newListings.join(', ')}${sharedEdge ? ` (shared ${sharedEdge} IP)` : ''}`)
     }
 
     // Mirror the status recorded in the CheckResult above onto the monitor -
