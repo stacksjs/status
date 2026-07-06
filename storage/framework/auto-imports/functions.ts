@@ -52,7 +52,6 @@ export { useShippingMethods } from '../defaults/functions/commerce/shippings/shi
 export { useLicenseKeys } from '../defaults/functions/commerce/shippings/license-keys'
 export { useDrivers } from '../defaults/functions/commerce/shippings/drivers'
 export { useManufacturers } from '../defaults/functions/commerce/products/manufacturers'
-export { useProducts } from '../defaults/functions/commerce/products/products'
 export { useCategories } from '../defaults/functions/commerce/products/categories'
 export { useUnits } from '../defaults/functions/commerce/products/units'
 export { useVariants } from '../defaults/functions/commerce/products/variants'
