@@ -614,8 +614,11 @@ export const tsCloud: TsCloudConfig = {
           healthCheck: { path: '/' },
           // `buddy migrate` only applies pending schema changes, so running it
           // on every deploy is safe/idempotent — this is the one site that
-          // owns migrations for the shared database.
-          preStart: ['bun install', 'bun buddy migrate'],
+          // owns migrations for the shared database. `docs:build` renders the
+          // bunpress documentation to dist/docs/.bunpress, which `buddy serve`
+          // then serves in-process under /docs (see serveDocsStatic in
+          // storage/framework/core/buddy/src/commands/serve.ts).
+          preStart: ['bun install', 'bun buddy migrate', 'bun run docs:build'],
         },
 
         // API (bun-router) behind `buddy serve`'s same-origin /api proxy.

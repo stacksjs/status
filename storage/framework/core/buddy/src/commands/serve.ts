@@ -1,7 +1,7 @@
 import type { CLI } from '@stacksjs/types'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { extname, join } from 'node:path'
 import process from 'node:process'
 import { log } from '@stacksjs/cli'
 
@@ -173,8 +173,6 @@ export function serve(buddy: CLI): void {
 
           // Mirror the dev server's API forwarding: `/api/**` and any
           // non-GET/HEAD verb belong to bun-router, never stx-serve.
-          // /docs is deliberately NOT proxied — in production it is a
-          // server-static site routed by the rpx gateway, not a dev server.
           const url = new URL(req.url)
           if (isApiBoundRequest(req, url.pathname)) {
             try {
@@ -184,6 +182,18 @@ export function serve(buddy: CLI): void {
               log.error(`API proxy to ${apiBase} failed: ${(error as Error).message}`)
               return new Response('Bad Gateway', { status: 502 })
             }
+          }
+
+          // Serve the bunpress documentation under /docs from the static build
+          // (dist/docs/.bunpress, produced by `buddy docs:build` in the deploy's
+          // preStart). Handled in-process — same origin as the app, no separate
+          // gateway route — with VitePress-style extensionless URL resolution.
+          // Returns undefined when the build is absent, so the request falls
+          // through to the stx /docs landing page as a graceful fallback.
+          if (url.pathname === '/docs' || url.pathname.startsWith('/docs/')) {
+            const docsResponse = serveDocsStatic(url.pathname)
+            if (docsResponse)
+              return docsResponse
           }
 
           // Stash cookies + query string so server-script blocks rendering
@@ -198,6 +208,78 @@ export function serve(buddy: CLI): void {
 
       log.success(`Production server listening on http://0.0.0.0:${port}`)
     })
+}
+
+const DOCS_MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.json': 'application/json',
+  '.map': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
+  '.xml': 'application/xml',
+  '.txt': 'text/plain; charset=utf-8',
+}
+
+/**
+ * Serve a request under `/docs` from the built bunpress site at
+ * `dist/docs/.bunpress`. bunpress emits clean, extensionless URLs
+ * (`/docs/monitors/uptime`), so this maps a pathname to `monitors/uptime.html`,
+ * `/docs` (or `/docs/`) to `index.html`, and passes real asset files through
+ * by exact match. Returns `undefined` when the build directory is missing so
+ * the caller falls through to the stx `/docs` landing page.
+ */
+function serveDocsStatic(pathname: string): Response | undefined {
+  const DOCS_ROOT = join(process.cwd(), 'dist/docs/.bunpress')
+  if (!existsSync(DOCS_ROOT))
+    return undefined
+
+  let rel = decodeURIComponent(pathname).replace(/^\/docs/, '')
+  if (rel.includes('..')) // defend against path traversal
+    return new Response('Bad Request', { status: 400 })
+
+  const candidates: string[] = []
+  if (rel === '' || rel === '/') {
+    candidates.push(join(DOCS_ROOT, 'index.html'))
+  }
+  else {
+    rel = rel.replace(/\/+$/, '')
+    candidates.push(join(DOCS_ROOT, rel)) // exact file (assets, images, …)
+    if (!extname(rel)) {
+      candidates.push(join(DOCS_ROOT, `${rel}.html`)) // extensionless page
+      candidates.push(join(DOCS_ROOT, rel, 'index.html')) // directory index
+    }
+  }
+
+  for (const file of candidates) {
+    if (existsSync(file) && statSync(file).isFile()) {
+      return new Response(Bun.file(file), {
+        headers: { 'content-type': DOCS_MIME[extname(file)] || 'application/octet-stream' },
+      })
+    }
+  }
+
+  // Under /docs but nothing matched — serve the docs' own 404 so the user stays
+  // in the documentation shell rather than hitting the app's 404.
+  const notFound = join(DOCS_ROOT, '404.html')
+  if (existsSync(notFound)) {
+    return new Response(Bun.file(notFound), {
+      status: 404,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    })
+  }
+  return new Response('Not Found', { status: 404 })
 }
 
 async function resolveVendoredStxModule(): Promise<any | undefined> {
