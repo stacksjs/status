@@ -606,6 +606,13 @@ export const tsCloud: TsCloudConfig = {
           domain: env.APP_DOMAIN || 'uptime-status.org',
           start: 'bun storage/framework/core/buddy/src/cli.ts serve',
           port: 3000,
+          // NOT zero-downtime yet: `buddy serve` runs on stx's serve, which
+          // doesn't support SO_REUSEPORT — under ts-cloud's overlap cutover
+          // the new instance couldn't share :3000 and stx's port
+          // auto-increment would silently bind :3001 (which the gateway
+          // doesn't route). Keep the atomic-release + restart flow (seconds
+          // blip) until stx exposes reusePort, then drop this flag.
+          zeroDowntime: false,
           // `buddy migrate` only applies pending schema changes, so running it
           // on every deploy is safe/idempotent — this is the one site that
           // owns migrations for the shared database.
@@ -628,6 +635,10 @@ export const tsCloud: TsCloudConfig = {
           port: 3008,
           preStart: ['bun install'],
           env: { HOST: '127.0.0.1', APP_ENV: 'production' },
+          // Zero-downtime cutover (ts-cloud default for ported sites): the
+          // entry binds with reusePort in production, and the health gate
+          // additionally probes the router before the old instance stops.
+          healthCheck: { path: '/api/health' },
         },
 
         // Queue worker — pulls jobs the scheduler dispatches (DispatchDueChecks,
