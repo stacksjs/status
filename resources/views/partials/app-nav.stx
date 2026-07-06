@@ -14,6 +14,35 @@
       </span>
       <span class="brand-name">UptimeStatus</span>
     </a>
+    @if (AUTH_USER && typeof SWITCHABLE_TEAMS !== 'undefined' && SWITCHABLE_TEAMS && SWITCHABLE_TEAMS.length > 1)
+      <details class="team-switch">
+        <summary aria-label="Switch workspace">
+          <span class="team-switch-cur">{{ SEE_ALL ? 'All teams' : (ACTIVE_TEAM_NAME || 'Workspace') }}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="team-switch-menu" role="menu">
+          <p class="team-switch-head">Switch workspace</p>
+          @if (IS_SUPER)
+            <form method="POST" action="/api/team-forms/switch" role="none">
+              <input type="hidden" name="team_id" value="all">
+              <button type="submit" class="team-switch-item {{ SEE_ALL ? 'is-active' : '' }}" role="menuitem">
+                <span>All teams</span>
+                @if (SEE_ALL)<span class="team-switch-chk">&#10003;</span>@endif
+              </button>
+            </form>
+          @endif
+          @foreach (SWITCHABLE_TEAMS as team)
+            <form method="POST" action="/api/team-forms/switch" role="none">
+              <input type="hidden" name="team_id" value="{{ team.id }}">
+              <button type="submit" class="team-switch-item {{ (!SEE_ALL && team.id === TEAM_ID) ? 'is-active' : '' }}" role="menuitem">
+                <span class="ellipsis">{{ team.name }}</span>
+                @if (!SEE_ALL && team.id === TEAM_ID)<span class="team-switch-chk">&#10003;</span>@endif
+              </button>
+            </form>
+          @endforeach
+        </div>
+      </details>
+    @endif
     <div class="app-links" aria-label="Dashboard sections">
       <a href="/dashboard" class="{{ NAV_ACTIVE === 'overview' ? 'active' : '' }}" data-no-router>Overview</a>
       <a href="/dashboard/monitors" class="{{ NAV_ACTIVE === 'monitors' ? 'active' : '' }}" data-no-router>Monitors</a>
@@ -38,7 +67,44 @@
     </div>
   </div>
 </nav>
+<style>
+  .team-switch { position: relative; }
+  .team-switch > summary {
+    display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; list-style: none;
+    padding: 0.35rem 0.6rem; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 0.85rem; font-weight: 600; color: var(--fg); background: var(--surface, transparent);
+    max-width: 220px;
+  }
+  .team-switch > summary::-webkit-details-marker { display: none; }
+  .team-switch > summary:hover { border-color: var(--border-strong); }
+  .team-switch > summary svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
+  .team-switch-cur { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team-switch[open] > summary svg { transform: rotate(180deg); }
+  .team-switch-menu {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 240px; max-width: 320px;
+    padding: 0.35rem; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface); box-shadow: 0 18px 40px -14px rgba(11,15,13,0.28);
+  }
+  .team-switch-head { margin: 0.25rem 0.5rem 0.35rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .team-switch-menu form { margin: 0; }
+  .team-switch-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%;
+    padding: 0.5rem 0.55rem; border: 0; border-radius: 8px; cursor: pointer;
+    font: inherit; font-size: 0.9rem; text-align: left; color: var(--fg); background: transparent;
+  }
+  .team-switch-item:hover { background: var(--surface-2); }
+  .team-switch-item.is-active { color: var(--accent); font-weight: 600; }
+  .team-switch-chk { color: var(--accent); flex: none; }
+</style>
 <script>
+  (function () {
+    // Close the workspace switcher when clicking outside it.
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('details.team-switch[open]').forEach(function (d) {
+        if (!d.contains(e.target)) d.removeAttribute('open')
+      })
+    })
+  })();
   (function () {
     var toggle = document.getElementById('theme-toggle')
     if (!toggle) return

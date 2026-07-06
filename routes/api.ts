@@ -143,6 +143,12 @@ route.post('/notification-channel-forms/monitors/{monitorId}/remove', 'Actions/N
 route.post('/team-forms/{id}/invite', 'Actions/Teams/DashboardInviteTeamMemberAction')
 route.post('/team-forms/{id}/remove', 'Actions/Teams/DashboardRemoveTeamMemberAction')
 
+// Workspace switcher: pin which team the dashboard scopes to. The cookie it
+// sets is re-validated against the requester's memberships on every request
+// (see @stacksjs/auth resolveTeamContext / selectActiveTeam), so it can't be
+// used to reach a team the user isn't in.
+route.post('/team-forms/switch', 'Actions/Teams/SwitchTeamAction')
+
 // Security settings form posts (stacksjs/status#1 Phase 9 follow-up —
 // the passkey/2FA dashboard UI deferred until real dashboard auth
 // existed). Same plain-POST convention; each action resolves the

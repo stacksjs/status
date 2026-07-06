@@ -10,12 +10,10 @@
   fields, two visual cards.
 -->
 <script server>
-const { config } = require('@stacksjs/config')
-const { Auth, sessionUser } = require('@stacksjs/auth')
+const { resolveTeamContext } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
 
-const ROLE_PRIORITY = { owner: 0, admin: 1 }
 
 // Auth + team resolution — see resources/views/dashboard/monitors/
 // index.stx's copy of this block for the full rationale. Resolving to
@@ -23,31 +21,21 @@ const ROLE_PRIORITY = { owner: 0, admin: 1 }
 // returns no rows, reusing the existing "not found" state. This query
 // previously had NO team check at all (just `WHERE id = ?1`) — any
 // visitor could view/edit any team's status page by guessing its id.
-async function resolveAuthTeam() {
-  const guardName = config.auth?.default || 'api'
-  const guard = config.auth?.guards?.[guardName] || {}
-  const driver = guard.driver || 'token'
-  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
-
-  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
-    ? globalThis.requestContext.cookie(cookieName)
-    : null
-  if (!cookieValue) return null
-
-  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
-  if (!user || !user.id) return null
-
-  const memberships = await db.selectFrom('team_members')
-    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
-  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
-  const membership = memberships[0]
-
-  return { user, teamId: membership ? membership.team_id : null }
-}
-
-const AUTH = await resolveAuthTeam()
-const AUTH_USER = AUTH ? AUTH.user : null
-const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
+// which honors the workspace-switcher cookie (see dashboard/index.stx for the
+// full note). allowAnyTeam lets a super-admin switch to / see any team;
+// unpinned, a super-admin still sees every team merged.
+const TEAM_CTX = await resolveTeamContext(
+  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  { allowAnyTeam: u => !!(u && u.is_super_admin) },
+)
+const AUTH_USER = TEAM_CTX.user
+const TEAM_ID = TEAM_CTX.teamId ?? -1
+const IS_SUPER = !!(AUTH_USER && AUTH_USER.is_super_admin)
+const SWITCHABLE_TEAMS = TEAM_CTX.teams
+const SEE_ALL = IS_SUPER && !TEAM_CTX.activeTeamId
+const ACTIVE_TEAM_NAME = (TEAM_CTX.teams.find(t => t.id === TEAM_ID) || {}).name || ''
+const teamScope = qb => SEE_ALL ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'status-pages'
 const pageId = (typeof id !== 'undefined' && id) ? Number(id) : 0
 const statusPage = pageId

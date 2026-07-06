@@ -12,45 +12,29 @@
   data when signed out, exactly like the other dashboard pages.
 -->
 <script server>
-const { config } = require('@stacksjs/config')
-const { Auth, sessionUser } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
+const { resolveTeamContext } = require('@stacksjs/auth')
 
-const ROLE_PRIORITY = { owner: 0, admin: 1 }
-
-// Auth + team resolution -- see monitors/index.stx's copy of this block
-// for the full rationale. Resolves to null on any failure so every query
-// below fails closed to "no team" instead of defaulting to team #1.
-async function resolveAuthTeam() {
-  const guardName = config.auth?.default || 'api'
-  const guard = config.auth?.guards?.[guardName] || {}
-  const driver = guard.driver || 'token'
-  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
-
-  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
-    ? globalThis.requestContext.cookie(cookieName)
-    : null
-  if (!cookieValue) return null
-
-  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
-  if (!user || !user.id) return null
-
-  const memberships = await db.selectFrom('team_members')
-    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
-  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
-  const membership = memberships[0]
-
-  return { user, teamId: membership ? membership.team_id : null, isSuper: !!user.is_super_admin }
-}
-
-const AUTH = await resolveAuthTeam()
-const AUTH_USER = AUTH ? AUTH.user : null
-const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
-// Super-admins get a cross-team overview: every monitor, incident, and status
-// page of every team. Everyone else stays scoped to their own team.
-const IS_SUPER = !!(AUTH && AUTH.isSuper)
-const teamScope = qb => IS_SUPER ? qb : qb.where('team_id', '=', TEAM_ID)
+// One core call resolves the signed-in user, the ACTIVE team (honoring the
+// workspace-switcher cookie), and the teams the account can switch between —
+// see @stacksjs/auth's resolveTeamContext. The SSR cookie getter is adapted
+// from stx's requestContext. `allowAnyTeam` lets a super-admin switch to (and
+// see) any team; an unpinned super-admin still sees every team merged.
+const TEAM_CTX = await resolveTeamContext(
+  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  { allowAnyTeam: u => !!(u && u.is_super_admin) },
+)
+const AUTH_USER = TEAM_CTX.user
+const TEAM_ID = TEAM_CTX.teamId ?? -1
+const IS_SUPER = !!(AUTH_USER && AUTH_USER.is_super_admin)
+// Workspace-switcher context for the nav (partials/app-nav.stx). SEE_ALL is
+// the unpinned super-admin cross-team view; teamScope keeps every query below
+// consistent with the switch.
+const SWITCHABLE_TEAMS = TEAM_CTX.teams
+const SEE_ALL = IS_SUPER && !TEAM_CTX.activeTeamId
+const ACTIVE_TEAM_NAME = (TEAM_CTX.teams.find(t => t.id === TEAM_ID) || {}).name || ''
+const teamScope = qb => SEE_ALL ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'overview'
 
 // One unfiltered fetch of the team's fleet; the fleet tally and the
