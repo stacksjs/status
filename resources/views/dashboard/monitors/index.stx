@@ -10,10 +10,15 @@
   public status pages) ships a correct page now rather than staying
   blocked on a client-hydration issue.
 
-  "Live status" is the monitor's actual current status (re-fetched on
-  every page load) — not a websocket-pushed update without a reload.
-  Wiring stacks-realtime for true live push is a real follow-up, not
-  silently implied by "live" here.
+  Status starts from the server-rendered snapshot (current status at page
+  load) and then updates live over a WebSocket: the plain script at the
+  bottom subscribes to the `buddy realtime` broadcaster and swaps a
+  monitor's status dot in place when it transitions, so a monitor going
+  down shows without a reload. Progressive enhancement — if realtime is
+  disabled or the socket can't connect, the page keeps the on-load
+  snapshot. The WS client is a plain script (not `<script client>` +
+  state()/:for), matching login.stx, because the reactive pattern hit an
+  unresolved `:for expected an array` hydration warning on this page.
 
   Visual language: the marketing site's design system (emerald accent,
   Space Grotesk display, light + dark) via partials/app-head.stx +
@@ -62,6 +67,12 @@ async function resolveAuthTeam() {
 const AUTH = await resolveAuthTeam()
 const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// The realtime channel is keyed by the team's unguessable uuid (see
+// app/Commands/Realtime.ts) so the broadcaster's WS server can stay
+// unauthenticated without leaking a team's status feed to id-guessers.
+const TEAM_UUID = (AUTH_USER && TEAM_ID > 0)
+  ? (((await db.selectFrom('teams').where('id', '=', TEAM_ID).select(['uuid']).limit(1).execute())[0] || {}).uuid || '')
+  : ''
 // Super-admins (operator accounts) see the whole fleet, every team's monitors;
 // everyone else is scoped to their own team. `teamScope` is applied to every
 // team-filtered query below so the two paths can't drift apart.
@@ -194,6 +205,19 @@ function statusUrl(s) {
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
+// Realtime config surfaced to the client (stacksjs/status#1 Phase 8
+// follow-up). The live-status WS client (bottom of this file) connects to
+// the `buddy realtime` broadcaster and updates status dots in place. The
+// client builds the URL from the current hostname + this port/scheme;
+// when realtime is disabled the client no-ops and the page keeps its
+// on-load snapshot.
+const rtCfg = (config.realtime && config.realtime.server) ? config.realtime.server : {}
+const REALTIME = {
+  enabled: config.realtime ? config.realtime.enabled !== false : false,
+  port: Number(rtCfg.port || 6001),
+  scheme: String(rtCfg.scheme || 'ws'),
+}
+
 // Real document title + noindex for the app surface (the serve wrapper
 // otherwise stamps every fragment 'stx App'). useHead is the sanctioned
 // per-page head hook for fragment views.
@@ -216,7 +240,7 @@ useHead({ title: 'Monitors \u00b7 UptimeStatus', meta: [{ name: 'robots', conten
     <header class="page-head">
       <div>
         <h1>Monitors</h1>
-        <p class="meta">{{ fleetCount }} monitor{{ fleetCount === 1 ? '' : 's' }} &middot; {{ checksInRange }} checks in the last {{ idxRange }}</p>
+        <p class="meta">{{ fleetCount }} monitor{{ fleetCount === 1 ? '' : 's' }} &middot; {{ checksInRange }} checks in the last {{ idxRange }}<span id="rt-live" class="rt-live" hidden> &middot; <span class="rt-live-dot"></span>Live</span></p>
       </div>
     </header>
 
@@ -285,8 +309,8 @@ useHead({ title: 'Monitors \u00b7 UptimeStatus', meta: [{ name: 'robots', conten
             <span class="tcell num">Checked</span>
           </div>
           @foreach (monitors as monitor)
-            <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 100px 112px 80px 92px;">
-              <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data></span>
+            <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" data-monitor-id="{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 100px 112px 80px 92px;">
+              <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}" data-monitor-status><span class="dot"></span><span data-monitor-status-label>{{ stLabel(monitor.status) }}</span></data></span>
               <span class="tcell">
                 <span class="name ellipsis" style="display: block;">{{ monitor.name }}</span>
                 <span class="sub" style="display: block;">{{ targetLabel(monitor.url) }}</span>
@@ -318,3 +342,86 @@ useHead({ title: 'Monitors \u00b7 UptimeStatus', meta: [{ name: 'robots', conten
     </footer>
   @endif
 </main>
+
+<style>
+  .rt-live { color: var(--success); font-weight: 600; }
+  .rt-live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: var(--success); margin-right: 0.3rem; vertical-align: baseline; animation: rt-pulse 2s ease-in-out infinite; }
+  @keyframes rt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+</style>
+
+<script>
+  ;(function () {
+    // stx `{{ }}` in a script block emits JSON.stringify(value), so these
+    // land as proper JS literals (a "uuid" string, a bare number/boolean)
+    // — do not add surrounding quotes.
+    var TEAM_UUID = {{ TEAM_UUID }}
+    var RT = { enabled: {{ REALTIME.enabled }}, port: {{ REALTIME.port }}, scheme: {{ REALTIME.scheme }} }
+    if (!RT.enabled || !TEAM_UUID || typeof WebSocket === 'undefined') return
+    var TEAM_CHANNEL = 'team.' + TEAM_UUID + '.monitors'
+
+    function stClass(status) {
+      if (status === 'up') return 'pill pill-up'
+      if (status === 'degraded') return 'pill pill-degraded'
+      if (status === 'down') return 'pill pill-down'
+      return 'pill pill-unknown'
+    }
+    function stLabel(status) {
+      if (status === 'up') return 'Up'
+      if (status === 'degraded') return 'Degraded'
+      if (status === 'down') return 'Down'
+      return 'Pending'
+    }
+
+    function applyUpdate(id, status) {
+      var row = document.querySelector('[data-monitor-id="' + id + '"]')
+      if (!row) return
+      var cell = row.querySelector('[data-monitor-status]')
+      if (!cell) return
+      cell.className = stClass(status)
+      cell.setAttribute('value', status)
+      var label = cell.querySelector('[data-monitor-status-label]')
+      if (label) label.textContent = stLabel(status)
+    }
+
+    // The broadcaster listens on RT.port on the same host serving the app;
+    // over TLS it's expected to be reverse-proxied as wss on the page host.
+    var scheme = (location.protocol === 'https:') ? 'wss' : RT.scheme
+    var url = scheme + '://' + location.hostname + ':' + RT.port + '/ws'
+    var indicator = document.getElementById('rt-live')
+    var ws = null
+    var backoff = 1000
+    var closedByUs = false
+
+    function setLive(on) { if (indicator) indicator.hidden = !on }
+
+    function connect() {
+      try { ws = new WebSocket(url) }
+      catch (e) { return schedule() }
+
+      ws.addEventListener('open', function () { backoff = 1000 })
+      ws.addEventListener('message', function (ev) {
+        var msg
+        try { msg = JSON.parse(ev.data) } catch (e) { return }
+        if (msg.event === 'connection_established') {
+          ws.send(JSON.stringify({ event: 'subscribe', channel: TEAM_CHANNEL }))
+          return
+        }
+        if (msg.event === 'subscription_succeeded') { setLive(true); return }
+        if (msg.event === 'monitor:updated' && msg.data && msg.data.id != null) {
+          applyUpdate(msg.data.id, msg.data.status)
+        }
+      })
+      ws.addEventListener('close', function () { setLive(false); if (!closedByUs) schedule() })
+      ws.addEventListener('error', function () { try { ws.close() } catch (e) {} })
+    }
+
+    function schedule() {
+      setLive(false)
+      setTimeout(connect, backoff)
+      backoff = Math.min(backoff * 2, 15000) // capped exponential backoff
+    }
+
+    window.addEventListener('beforeunload', function () { closedByUs = true; if (ws) try { ws.close() } catch (e) {} })
+    connect()
+  })()
+</script>
