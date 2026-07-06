@@ -130,6 +130,30 @@ function hostUptimePctLabel(id) {
   return u.pct.toFixed(2) + '% uptime'
 }
 
+// Illustrative uptime history for the "status.yourcompany.com" marketing
+// mockup further down — purely presentational (the host-uptime showcase above
+// is the one driven by real check_results). Each helper returns SHOWCASE_BARS
+// day-bars, all "up" except the given dips ({ barIndex: status }), so the strip
+// reads like a real 90-day uptime chart: mostly green with the occasional amber
+// blip and rare red. Precomputed as named consts because the @foreach directive
+// takes a bare variable, not an object-literal argument.
+const SHOWCASE_BARS = 56
+function mockUptimeBars(dips) {
+  const map = dips || {}
+  const out = []
+  for (let i = 0; i < SHOWCASE_BARS; i++) out.push(map[i] || 'up')
+  return out
+}
+function mockBarColor(status) {
+  if (status === 'degraded') return 'var(--amber)'
+  if (status === 'down') return 'var(--danger)'
+  return 'var(--success)'
+}
+const mockBarsWebsite = mockUptimeBars({ 41: 'degraded' })
+const mockBarsApi = mockUptimeBars({ 12: 'degraded', 37: 'down' })
+const mockBarsDatabase = mockUptimeBars({})
+const mockBarsCdn = mockUptimeBars({ 49: 'degraded' })
+
 let hostActiveIncidents = []
 if (hostMonitorIds.length > 0) {
   const rows = await statusDb.selectFrom('incidents').whereIn('monitor_id', hostMonitorIds).where('status', '!=', 'resolved').execute()
@@ -350,6 +374,8 @@ const faqs = [
         --accent-soft: rgba(37, 99, 235, 0.09);
         --success: #059669;
         --success-soft: rgba(5, 150, 105, 0.12);
+        --amber: #d97706;
+        --danger: #dc2626;
         --violet: #6d5efc;
         --shadow: 0 20px 50px -18px rgba(11, 15, 13, 0.22);
         --radius: 16px;
@@ -374,6 +400,8 @@ const faqs = [
           --accent-soft: rgba(96, 165, 250, 0.14);
           --success: #2fe6a6;
           --success-soft: rgba(47, 230, 166, 0.14);
+          --amber: #fbbf24;
+          --danger: #f87171;
           --violet: #a196ff;
           --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
         }
@@ -393,6 +421,8 @@ const faqs = [
         --accent-soft: rgba(96, 165, 250, 0.14);
         --success: #2fe6a6;
         --success-soft: rgba(47, 230, 166, 0.14);
+        --amber: #fbbf24;
+        --danger: #f87171;
         --violet: #a196ff;
         --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
       }
@@ -1035,13 +1065,19 @@ const faqs = [
 
       .showcase-row {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
+        flex-direction: column;
+        gap: 0.6rem;
         padding: 0.9rem 0;
         border-bottom: 1px solid var(--border);
       }
       .showcase-row:last-child { border-bottom: 0; }
+
+      .showcase-row-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
 
       .showcase-row-main {
         display: flex;
@@ -1059,6 +1095,22 @@ const faqs = [
         color: var(--muted);
         font-family: var(--font-mono);
         font-size: 0.8rem;
+      }
+
+      /* Uptime-history strip: a row of thin day-bars, mostly green with the
+         odd amber/red blip. Decorative (the % label carries the real info),
+         so it's aria-hidden in the markup. */
+      .showcase-ticks {
+        display: flex;
+        gap: 2px;
+        align-items: stretch;
+        height: 26px;
+      }
+      .showcase-tick {
+        flex: 1 1 0;
+        min-width: 1px;
+        border-radius: 2px;
+        opacity: 0.9;
       }
 
       .oss-band {
@@ -1716,20 +1768,48 @@ const faqs = [
               <div class="showcase-banner"><span class="dot"></span> All systems operational</div>
               <div class="showcase-grid">
                 <div class="showcase-row">
-                  <div class="showcase-row-main"><span class="dot"></span> Website</div>
-                  <span class="showcase-uptime">99.99% uptime</span>
+                  <div class="showcase-row-head">
+                    <div class="showcase-row-main"><span class="dot"></span> Website</div>
+                    <span class="showcase-uptime">99.99% uptime</span>
+                  </div>
+                  <div class="showcase-ticks" aria-hidden="true">
+                    @foreach (mockBarsWebsite as barStatus)
+                      <span class="showcase-tick" style="background:{{ mockBarColor(barStatus) }};"></span>
+                    @endforeach
+                  </div>
                 </div>
                 <div class="showcase-row">
-                  <div class="showcase-row-main"><span class="dot"></span> API</div>
-                  <span class="showcase-uptime">99.98% uptime</span>
+                  <div class="showcase-row-head">
+                    <div class="showcase-row-main"><span class="dot"></span> API</div>
+                    <span class="showcase-uptime">99.98% uptime</span>
+                  </div>
+                  <div class="showcase-ticks" aria-hidden="true">
+                    @foreach (mockBarsApi as barStatus)
+                      <span class="showcase-tick" style="background:{{ mockBarColor(barStatus) }};"></span>
+                    @endforeach
+                  </div>
                 </div>
                 <div class="showcase-row">
-                  <div class="showcase-row-main"><span class="dot"></span> Database</div>
-                  <span class="showcase-uptime">100% uptime</span>
+                  <div class="showcase-row-head">
+                    <div class="showcase-row-main"><span class="dot"></span> Database</div>
+                    <span class="showcase-uptime">100% uptime</span>
+                  </div>
+                  <div class="showcase-ticks" aria-hidden="true">
+                    @foreach (mockBarsDatabase as barStatus)
+                      <span class="showcase-tick" style="background:{{ mockBarColor(barStatus) }};"></span>
+                    @endforeach
+                  </div>
                 </div>
                 <div class="showcase-row">
-                  <div class="showcase-row-main"><span class="dot"></span> CDN</div>
-                  <span class="showcase-uptime">99.99% uptime</span>
+                  <div class="showcase-row-head">
+                    <div class="showcase-row-main"><span class="dot"></span> CDN</div>
+                    <span class="showcase-uptime">99.99% uptime</span>
+                  </div>
+                  <div class="showcase-ticks" aria-hidden="true">
+                    @foreach (mockBarsCdn as barStatus)
+                      <span class="showcase-tick" style="background:{{ mockBarColor(barStatus) }};"></span>
+                    @endforeach
+                  </div>
                 </div>
               </div>
             </div>
