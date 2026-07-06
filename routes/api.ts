@@ -116,6 +116,18 @@ route.post('/status-page-forms/{id}/update', 'Actions/StatusPages/UpdateStatusPa
 route.post('/status-page-forms/{id}/monitors/add', 'Actions/StatusPages/DashboardAssignMonitorAction')
 route.post('/status-page-forms/{id}/monitors/remove', 'Actions/StatusPages/DashboardRemoveMonitorAction')
 
+// Status-report (manual announcement) authoring form posts (stacksjs/
+// status#1 Phase 12 follow-up — the dashboard surface that was missing, so
+// a report + its monitor pivots could only be created by curling the API).
+// Same /*-forms/ prefix convention (not /dashboard/status-reports/*, which
+// would collide with the dynamic [id] view). Posting an update fires the
+// StatusReportUpdate observe hook that emails status page subscribers.
+route.post('/status-report-forms/create', 'Actions/StatusPages/DashboardCreateStatusReportAction')
+route.post('/status-report-forms/{id}/monitors/add', 'Actions/StatusPages/DashboardAttachReportMonitorAction')
+route.post('/status-report-forms/{id}/monitors/remove', 'Actions/StatusPages/DashboardRemoveReportMonitorAction')
+route.post('/status-report-forms/{id}/updates', 'Actions/StatusPages/DashboardPostReportUpdateAction')
+route.post('/status-report-forms/{id}/delete', 'Actions/StatusPages/DashboardDeleteStatusReportAction')
+
 // Dashboard notification-channel form posts (stacksjs/status#1 Phase 8) —
 // same plain-POST convention, and same /*-forms/ naming to dodge the
 // dynamic-view-collision explained above (there's no [id].stx under
