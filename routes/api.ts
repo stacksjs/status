@@ -189,14 +189,21 @@ route.post('/register', 'Actions/Auth/RegisterAction').rateLimit(3, 'minute')
 route.post('/verify-two-factor-login', 'Actions/Auth/VerifyTwoFactorLoginAction').rateLimit(10, 'minute')
 route.post('/logout', 'Actions/Auth/LogoutAction').middleware('auth')
 
-// Single sign-on via OIDC (authorization code + PKCE). GET on purpose —
+// Single sign-on (authorization code + PKCE). GET on purpose —
 // both legs are full-page browser navigations driven by the IdP, not
 // XHR calls, so they live outside the SPA token flow entirely and mint
 // the same HttpOnly cookie session LoginAction does. Providers are
-// configured per install in config/sso.ts (Google, Okta, Entra ID, or
-// any spec-compliant issuer via the generic entry).
+// configured per install in config/sso.ts: social login via
+// @stacksjs/socials (Google, Apple, GitHub) and enterprise OIDC (Okta,
+// Entra ID, or any spec-compliant issuer via the generic entry).
 route.get('/auth/sso/{provider}', 'Actions/Auth/SsoRedirectAction').rateLimit(10, 'minute')
 route.get('/auth/sso/{provider}/callback', 'Actions/Auth/SsoCallbackAction').rateLimit(10, 'minute')
+// Apple mandates response_mode=form_post when name/email scopes are
+// requested, so its callback arrives as a cross-site POST from
+// appleid.apple.com — it can never carry our CSRF cookie/header pair.
+// skipCsrf is safe here: the signed sso-flow cookie + state parameter
+// are this flow's CSRF protection (that's exactly what OAuth state is).
+route.post('/auth/sso/{provider}/callback', 'Actions/Auth/SsoCallbackAction').rateLimit(10, 'minute').skipCsrf()
 
 // Cloud credentials: dashboard settings form post (same /*-forms/ convention).
 // Stores the team's AWS credentials (secret encrypted at rest) for the

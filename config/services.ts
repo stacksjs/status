@@ -21,18 +21,35 @@ export default {
     region: String(env.AWS_DEFAULT_REGION || 'us-east-1'),
   },
 
+  // github/google/apple back "Continue with ..." login via
+  // @stacksjs/socials (app/Actions/Auth/Sso*Action.ts). The redirectUrl
+  // here is only a fallback — the SSO actions override it per request
+  // from the incoming host, so dev/self-hosted/prod all work unconfigured.
   github: {
     clientId: String(env.GITHUB_CLIENT_ID || ''),
     clientSecret: String(env.GITHUB_CLIENT_SECRET || ''),
-    redirectUrl: String(env.GITHUB_REDIRECT_URL || 'http://localhost:3000/auth/github/callback'),
+    redirectUrl: String(env.GITHUB_REDIRECT_URL || 'http://localhost:3000/api/auth/sso/github/callback'),
     scopes: ['read:user', 'user:email'],
   },
 
   google: {
-    clientId: String(env.GOOGLE_CLIENT_ID || ''),
-    clientSecret: String(env.GOOGLE_CLIENT_SECRET || ''),
-    redirectUrl: String(env.GOOGLE_REDIRECT_URL || 'http://localhost:3000/auth/google/callback'),
-    scopes: ['profile', 'email'],
+    // SSO_GOOGLE_* are the legacy names from the OIDC-only SSO setup —
+    // still honored so existing installs keep working.
+    clientId: String(env.GOOGLE_CLIENT_ID || env.SSO_GOOGLE_CLIENT_ID || ''),
+    clientSecret: String(env.GOOGLE_CLIENT_SECRET || env.SSO_GOOGLE_CLIENT_SECRET || ''),
+    redirectUrl: String(env.GOOGLE_REDIRECT_URL || 'http://localhost:3000/api/auth/sso/google/callback'),
+    // openid+email identify the user; profile adds the display name we
+    // put on the provisioned account.
+    scopes: ['openid', 'profile', 'email'],
+  },
+
+  apple: {
+    clientId: String(env.APPLE_CLIENT_ID || ''), // the Services ID, e.g. org.uptime-status.web
+    teamId: String(env.APPLE_TEAM_ID || ''),
+    keyId: String(env.APPLE_KEY_ID || ''),
+    privateKey: String(env.APPLE_PRIVATE_KEY || ''), // contents of the .p8 (literal \n allowed)
+    redirectUrl: String(env.APPLE_REDIRECT_URL || 'http://localhost:3000/api/auth/sso/apple/callback'),
+    scopes: ['name', 'email'],
   },
 
   facebook: {

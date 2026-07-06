@@ -92,13 +92,18 @@ function sign(payload: string): string {
   return base64url(createHmac('sha256', hmacKey()).update(payload).digest())
 }
 
-export function buildFlowCookie(flow: SsoFlowState): string {
+export function buildFlowCookie(flow: SsoFlowState, options: { crossSitePost?: boolean } = {}): string {
   const payload = base64url(JSON.stringify(flow))
   const value = `${payload}.${sign(payload)}`
   const env = (process.env.APP_ENV ?? '').toLowerCase()
   const isLocal = env === '' || env === 'local' || env === 'development' || env === 'dev' || env === 'test' || env === 'testing'
-  const parts = [`${SSO_FLOW_COOKIE}=${value}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${FLOW_MAX_AGE_SECONDS}`]
-  if (!isLocal)
+  // Apple's form_post callback arrives as a cross-site POST, which a
+  // SameSite=Lax cookie never accompanies — the flow would always die
+  // with sso_state_mismatch. SameSite=None requires Secure, which is
+  // fine: Apple doesn't allow plain-http redirect URIs anyway.
+  const sameSite = options.crossSitePost ? 'SameSite=None; Secure' : 'SameSite=Lax'
+  const parts = [`${SSO_FLOW_COOKIE}=${value}`, 'Path=/', 'HttpOnly', sameSite, `Max-Age=${FLOW_MAX_AGE_SECONDS}`]
+  if (!isLocal && !options.crossSitePost)
     parts.push('Secure')
   return parts.join('; ')
 }
@@ -124,7 +129,9 @@ export function readFlowCookie(cookieHeader: string | null): SsoFlowState | null
 
   try {
     const flow = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')) as SsoFlowState
-    if (!flow.state || !flow.verifier || !flow.provider)
+    // verifier is '' for the social (non-PKCE) flows — only its absence
+    // (a malformed payload) is invalid.
+    if (!flow.state || !flow.provider || typeof flow.verifier !== 'string')
       return null
     if (Date.now() - flow.issuedAt > FLOW_MAX_AGE_SECONDS * 1000)
       return null

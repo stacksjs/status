@@ -6,8 +6,12 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
 // rather than importing the config). A provider appears as a button
 // only when fully configured.
 const ssoProviders = []
-if (process.env.SSO_GOOGLE_CLIENT_ID && process.env.SSO_GOOGLE_CLIENT_SECRET)
+if ((process.env.GOOGLE_CLIENT_ID || process.env.SSO_GOOGLE_CLIENT_ID) && (process.env.GOOGLE_CLIENT_SECRET || process.env.SSO_GOOGLE_CLIENT_SECRET))
   ssoProviders.push({ key: 'google', label: 'Google' })
+if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY)
+  ssoProviders.push({ key: 'apple', label: 'Apple' })
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET)
+  ssoProviders.push({ key: 'github', label: 'GitHub' })
 if (process.env.SSO_OKTA_ISSUER && process.env.SSO_OKTA_CLIENT_ID && process.env.SSO_OKTA_CLIENT_SECRET)
   ssoProviders.push({ key: 'okta', label: 'Okta' })
 if (process.env.SSO_ENTRA_TENANT_ID && process.env.SSO_ENTRA_CLIENT_ID && process.env.SSO_ENTRA_CLIENT_SECRET)
@@ -230,6 +234,7 @@ const hasSso = ssoProviders.length > 0
             sso_denied: 'Single sign-on was cancelled.',
             sso_email_unverified: 'Your identity provider reports this email as unverified, so it cannot be linked to an existing account.',
             sso_no_email: 'Your identity provider did not share an email address. Ask your admin to allow the email scope.',
+            sso_misconfigured: 'This sign-in method is not fully configured yet. Please use your password or contact support.',
           }
           showError(ssoMessages[ssoError] || 'Single sign-on failed. Please try again or use your password.')
         }
