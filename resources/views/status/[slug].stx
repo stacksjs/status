@@ -259,8 +259,8 @@ function uptimeBarColor(status) {
 
 function uptimePctLabel(monitorId) {
   const u = uptimeByMonitor[monitorId]
-  if (!u || u.pct === null) return 'No data yet'
-  return u.pct.toFixed(2) + '% uptime'
+  if (!u || u.pct === null) return t('no_data')
+  return u.pct.toFixed(2) + '% ' + t('uptime')
 }
 
 function uptimeBars(monitorId) {
@@ -314,13 +314,28 @@ if (monitorIds.length > 0) {
   }
 }
 
+// Localized UI strings (stacksjs/status#1 Phase 12 follow-up). statusPage
+// .locale drove only <html lang> before; now it translates the page chrome.
+// Self-contained per the per-view convention (stx server scripts can't
+// require app/ TS). Unknown locales fall back to English key-by-key.
+const LOCALE = String((statusPage && statusPage.locale) || 'en').toLowerCase().split('-')[0]
+const DATE_LOCALE = statusPage ? (statusPage.locale || 'en') : 'en'
+const STR = {
+  en: { not_found: "Status page not found", not_found_desc: "{{ t('not_found_desc') }}", pw_protected: "{{ t('pw_protected') }}", pw_incorrect: "{{ t('pw_incorrect') }}", pw_placeholder: "Password", unlock: "Unlock", email_restricted: "{{ t('email_restricted') }}", email_denied: "{{ t('email_denied') }}", cont: "Continue", ip_restricted: "Access restricted", ip_restricted_desc: "{{ t('ip_restricted_desc') }}", major_outage: "Major Outage", partial_outage: "Partial Outage", all_operational: "All Systems Operational", maintenance: "Scheduled maintenance", announcements: "Announcements", posted: "Posted", active_incidents: "Active incidents", started: "Started", monitors: "Monitors", days_ago_90: "90 days ago", today: "Today", past_incidents: "Past incidents", resolved: "Resolved", operational: "Operational", degraded: "Degraded", down: "Down", unknown: "Unknown", no_data: "No data yet", uptime: "uptime", meta_desc: "Live status and incident history" },
+  es: { not_found: "Página de estado no encontrada", not_found_desc: "No hay ninguna página de estado pública en esta dirección.", pw_protected: "Esta página de estado está protegida con contraseña.", pw_incorrect: "Contraseña incorrecta.", pw_placeholder: "Contraseña", unlock: "Desbloquear", email_restricted: "El acceso está restringido a dominios de correo aprobados.", email_denied: "Esa dirección de correo no pertenece a un dominio aprobado.", cont: "Continuar", ip_restricted: "Acceso restringido", ip_restricted_desc: "Esta página de estado no está disponible desde tu red.", major_outage: "Interrupción mayor", partial_outage: "Interrupción parcial", all_operational: "Todos los sistemas operativos", maintenance: "Mantenimiento programado", announcements: "Anuncios", posted: "Publicado", active_incidents: "Incidentes activos", started: "Comenzó", monitors: "Monitores", days_ago_90: "hace 90 días", today: "Hoy", past_incidents: "Incidentes anteriores", resolved: "Resuelto", operational: "Operativo", degraded: "Degradado", down: "Caído", unknown: "Desconocido", no_data: "Sin datos aún", uptime: "de disponibilidad", meta_desc: "Estado en vivo e historial de incidentes" },
+  fr: { not_found: "Page d'état introuvable", not_found_desc: "Aucune page d'état publique à cette adresse.", pw_protected: "Cette page d'état est protégée par mot de passe.", pw_incorrect: "Mot de passe incorrect.", pw_placeholder: "Mot de passe", unlock: "Déverrouiller", email_restricted: "L'accès est limité aux domaines de messagerie approuvés.", email_denied: "Cette adresse e-mail n'appartient pas à un domaine approuvé.", cont: "Continuer", ip_restricted: "Accès restreint", ip_restricted_desc: "Cette page d'état n'est pas accessible depuis votre réseau.", major_outage: "Panne majeure", partial_outage: "Panne partielle", all_operational: "Tous les systèmes opérationnels", maintenance: "Maintenance planifiée", announcements: "Annonces", posted: "Publié", active_incidents: "Incidents en cours", started: "Débuté", monitors: "Moniteurs", days_ago_90: "il y a 90 jours", today: "Aujourd'hui", past_incidents: "Incidents passés", resolved: "Résolu", operational: "Opérationnel", degraded: "Dégradé", down: "Hors service", unknown: "Inconnu", no_data: "Pas encore de données", uptime: "de disponibilité", meta_desc: "État en direct et historique des incidents" },
+  de: { not_found: "Statusseite nicht gefunden", not_found_desc: "Unter dieser Adresse gibt es keine öffentliche Statusseite.", pw_protected: "Diese Statusseite ist passwortgeschützt.", pw_incorrect: "Falsches Passwort.", pw_placeholder: "Passwort", unlock: "Entsperren", email_restricted: "Der Zugriff ist auf freigegebene E-Mail-Domains beschränkt.", email_denied: "Diese E-Mail-Adresse gehört nicht zu einer freigegebenen Domain.", cont: "Weiter", ip_restricted: "Zugriff eingeschränkt", ip_restricted_desc: "Diese Statusseite ist aus Ihrem Netzwerk nicht verfügbar.", major_outage: "Schwere Störung", partial_outage: "Teilweise Störung", all_operational: "Alle Systeme betriebsbereit", maintenance: "Geplante Wartung", announcements: "Ankündigungen", posted: "Veröffentlicht", active_incidents: "Aktive Vorfälle", started: "Begonnen", monitors: "Monitore", days_ago_90: "vor 90 Tagen", today: "Heute", past_incidents: "Frühere Vorfälle", resolved: "Behoben", operational: "Betriebsbereit", degraded: "Beeinträchtigt", down: "Ausgefallen", unknown: "Unbekannt", no_data: "Noch keine Daten", uptime: "Verfügbarkeit", meta_desc: "Live-Status und Vorfallverlauf" },
+  pt: { not_found: "Página de status não encontrada", not_found_desc: "Não há nenhuma página de status pública neste endereço.", pw_protected: "Esta página de status é protegida por senha.", pw_incorrect: "Senha incorreta.", pw_placeholder: "Senha", unlock: "Desbloquear", email_restricted: "O acesso é restrito a domínios de e-mail aprovados.", email_denied: "Esse endereço de e-mail não pertence a um domínio aprovado.", cont: "Continuar", ip_restricted: "Acesso restrito", ip_restricted_desc: "Esta página de status não está disponível na sua rede.", major_outage: "Interrupção grave", partial_outage: "Interrupção parcial", all_operational: "Todos os sistemas operacionais", maintenance: "Manutenção programada", announcements: "Comunicados", posted: "Publicado", active_incidents: "Incidentes ativos", started: "Iniciado", monitors: "Monitores", days_ago_90: "90 dias atrás", today: "Hoje", past_incidents: "Incidentes anteriores", resolved: "Resolvido", operational: "Operacional", degraded: "Degradado", down: "Fora do ar", unknown: "Desconhecido", no_data: "Sem dados ainda", uptime: "de disponibilidade", meta_desc: "Status ao vivo e histórico de incidentes" },
+}
+function t(key) { const d = STR[LOCALE] || STR.en; return (d && d[key] != null) ? d[key] : (STR.en[key] != null ? STR.en[key] : key) }
+
 const hasDown = monitors.some((m) => m.status === 'down')
 const hasDegraded = monitors.some((m) => m.status === 'degraded')
 
-const overallLabel = hasDown ? 'Major Outage' : hasDegraded ? 'Partial Outage' : 'All Systems Operational'
+const overallLabel = hasDown ? t('major_outage') : hasDegraded ? t('partial_outage') : t('all_operational')
 const overallTone = hasDown ? 'down' : hasDegraded ? 'degraded' : 'up'
 
-const pageTitle = statusPage ? statusPage.title : 'Status page not found'
+const pageTitle = statusPage ? statusPage.title : t('not_found')
 
 function monitorDotClass(status) {
   if (status === 'up') return 'bg-emerald-500'
@@ -330,16 +345,16 @@ function monitorDotClass(status) {
 }
 
 function monitorLabel(status) {
-  if (status === 'up') return 'Operational'
-  if (status === 'degraded') return 'Degraded'
-  if (status === 'down') return 'Down'
-  return 'Unknown'
+  if (status === 'up') return t('operational')
+  if (status === 'degraded') return t('degraded')
+  if (status === 'down') return t('down')
+  return t('unknown')
 }
 
 function formatDate(iso) {
   if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return d.toLocaleString(DATE_LOCALE, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function bannerClass(tone) {
@@ -367,7 +382,7 @@ useHead({
 </script>
 
 @section('title', pageTitle)
-@section('description', 'Live status and incident history')
+@section('description', t('meta_desc'))
 @section('lang', statusPage ? statusPage.locale : 'en')
 @section('theme', statusPage ? statusPage.force_theme : 'system')
 
@@ -377,7 +392,7 @@ useHead({
     @if (!statusPage)
       <div class="py-24 text-center">
         <p class="text-sm font-medium uppercase tracking-wide text-gray-400">404</p>
-        <h1 class="mt-2 text-2xl font-semibold text-gray-900">Status page not found</h1>
+        <h1 class="mt-2 text-2xl font-semibold text-gray-900">{{ t('not_found') }}</h1>
         <p class="mt-2 text-gray-500">There's no public status page at this address.</p>
       </div>
     @endif
@@ -391,8 +406,8 @@ useHead({
         @endif
         <form method="POST" action="/api/status/{{ pageSlug }}/unlock" class="mx-auto max-w-xs space-y-3">
           <input type="hidden" name="redirect" value="/status/{{ pageSlug }}" />
-          <input type="password" name="password" placeholder="Password" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-          <button type="submit" class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white">Unlock</button>
+          <input type="password" name="password" placeholder="{{ t('pw_placeholder') }}" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <button type="submit" class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white">{{ t('unlock') }}</button>
         </form>
       </div>
     @endif
@@ -407,7 +422,7 @@ useHead({
         <form method="POST" action="/api/status/{{ pageSlug }}/unlock" class="mx-auto max-w-xs space-y-3">
           <input type="hidden" name="redirect" value="/status/{{ pageSlug }}" />
           <input type="email" name="email" placeholder="you@company.com" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-          <button type="submit" class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white">Continue</button>
+          <button type="submit" class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white">{{ t('cont') }}</button>
         </form>
       </div>
     @endif
@@ -415,7 +430,7 @@ useHead({
     @if (statusPage && !accessGranted && statusPage.access_type === 'ip_allowlist')
       <div class="py-24 text-center">
         <p class="text-sm font-medium uppercase tracking-wide text-gray-400">403</p>
-        <h1 class="mt-2 text-2xl font-semibold text-gray-900">Access restricted</h1>
+        <h1 class="mt-2 text-2xl font-semibold text-gray-900">{{ t('ip_restricted') }}</h1>
         <p class="mt-2 text-gray-500">This status page isn't available from your network.</p>
       </div>
     @endif
@@ -432,7 +447,7 @@ useHead({
 
       @if (activeMaintenanceWindows.length > 0)
         <section class="mb-10">
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Scheduled maintenance</h2>
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('maintenance') }}</h2>
           <div class="space-y-3">
             @foreach (activeMaintenanceWindows as mw)
               <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
@@ -447,7 +462,7 @@ useHead({
 
       @if (activeStatusReports.length > 0)
         <section class="mb-10">
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Announcements</h2>
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('announcements') }}</h2>
           <div class="space-y-3">
             @foreach (activeStatusReports as report)
               <div class="rounded-lg border border-gray-200 bg-white p-4">
@@ -456,7 +471,7 @@ useHead({
                   <span class="text-xs font-medium uppercase tracking-wide text-gray-500">{{ report.status }}</span>
                 </div>
                 <p class="mt-1 text-sm text-gray-600">{{ report.body }}</p>
-                <p class="mt-1 text-xs text-gray-400">Posted {{ formatDate(report.started_at) }}</p>
+                <p class="mt-1 text-xs text-gray-400">{{ t('posted') }} {{ formatDate(report.started_at) }}</p>
               </div>
             @endforeach
           </div>
@@ -465,7 +480,7 @@ useHead({
 
       @if (activeIncidents.length > 0)
         <section class="mb-10">
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Active incidents</h2>
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('active_incidents') }}</h2>
           <div class="space-y-3">
             @foreach (activeIncidents as incident)
               <a href="/status/{{ pageSlug }}/incidents/{{ incident.id }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
@@ -474,7 +489,7 @@ useHead({
                   <span class="text-xs font-medium uppercase tracking-wide text-amber-600">{{ incident.status }}</span>
                 </div>
                 <p class="mt-1 text-sm text-gray-600">{{ incident.cause }}</p>
-                <p class="mt-1 text-xs text-gray-400">Started {{ formatDate(incident.started_at) }}</p>
+                <p class="mt-1 text-xs text-gray-400">{{ t('started') }} {{ formatDate(incident.started_at) }}</p>
               </a>
             @endforeach
           </div>
@@ -483,7 +498,7 @@ useHead({
 
       @if (monitorGroups.length === 0)
         <section class="mb-10">
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors</h2>
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('monitors') }}</h2>
           <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
             @foreach (monitors as monitor)
               <div class="px-4 py-4">
@@ -500,9 +515,9 @@ useHead({
                   @endforeach
                 </div>
                 <div class="mt-1.5 flex items-center justify-between text-xs text-gray-400">
-                  <span>90 days ago</span>
+                  <span>{{ t('days_ago_90') }}</span>
                   <span>{{ uptimePctLabel(monitor.id) }}</span>
-                  <span>Today</span>
+                  <span>{{ t('today') }}</span>
                 </div>
               </div>
             @endforeach
@@ -530,9 +545,9 @@ useHead({
                     @endforeach
                   </div>
                   <div class="mt-1.5 flex items-center justify-between text-xs text-gray-400">
-                    <span>90 days ago</span>
+                    <span>{{ t('days_ago_90') }}</span>
                     <span>{{ uptimePctLabel(monitor.id) }}</span>
-                    <span>Today</span>
+                    <span>{{ t('today') }}</span>
                   </div>
                 </div>
               @endforeach
@@ -543,13 +558,13 @@ useHead({
 
       @if (resolvedIncidents.length > 0)
         <section>
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Past incidents</h2>
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('past_incidents') }}</h2>
           <div class="space-y-3">
             @foreach (resolvedIncidents as incident)
               <a href="/status/{{ pageSlug }}/incidents/{{ incident.id }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
                 <div class="flex items-center justify-between gap-4">
                   <p class="font-medium text-gray-900">{{ incident.monitor_name }}</p>
-                  <span class="text-xs font-medium uppercase tracking-wide text-emerald-600">Resolved</span>
+                  <span class="text-xs font-medium uppercase tracking-wide text-emerald-600">{{ t('resolved') }}</span>
                 </div>
                 <p class="mt-1 text-sm text-gray-600">{{ incident.cause }}</p>
                 <p class="mt-1 text-xs text-gray-400">{{ formatDate(incident.started_at) }} — {{ formatDate(incident.resolved_at) }}</p>
