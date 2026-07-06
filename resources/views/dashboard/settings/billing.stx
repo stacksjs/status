@@ -6,13 +6,12 @@
   query param.
 -->
 <script server>
-const Database = require('bun:sqlite').Database
-const path = require('path')
 const { config } = require('@stacksjs/config')
 const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
 
-const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const db = new Database(dbPath, { readonly: true })
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
 
 // Auth + team resolution — see resources/views/dashboard/monitors/
 // index.stx's copy of this block for the full rationale. This page
@@ -33,12 +32,10 @@ async function resolveAuthTeam() {
   const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
   if (!user || !user.id) return null
 
-  const membership = db.query(`
-    SELECT team_id FROM team_members
-    WHERE user_id = ?1 AND status = 'active'
-    ORDER BY CASE WHEN role = 'owner' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END
-    LIMIT 1
-  `).get(user.id)
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
 
   return { user, teamId: membership ? membership.team_id : null }
 }
@@ -55,27 +52,37 @@ const ERROR = query.get('error')
 const PLAN_LIMITS = {
   free: { monitors: 5, statusPages: 1, checkIntervalFloorSeconds: 300 },
   pro: { monitors: 100, statusPages: 10, checkIntervalFloorSeconds: 30 },
+  'self-hosted': { monitors: Infinity, statusPages: Infinity, checkIntervalFloorSeconds: 10 },
 }
 const PAID_PLAN_PRICE_USD = 9
 
-const team = db.query(`SELECT id, name FROM teams WHERE id = ?1 LIMIT 1`).get(TEAM_ID)
-const owner = db.query(`SELECT user_id FROM team_members WHERE team_id = ?1 AND role = 'owner' AND status = 'active' LIMIT 1`).get(TEAM_ID)
+// Self-hosted installs leave Stripe unconfigured; billing (and therefore
+// plan tiering) is only live when a secret key is present. Mirrors
+// billingEnabled() in config/plans.ts — kept as a local check because this
+// server script talks to the DB directly rather than importing config/plans.
+const BILLING_ENABLED = Boolean(process.env.STRIPE_SECRET_KEY)
+
+const team = (await db.selectFrom('teams').where('id', '=', TEAM_ID).limit(1).execute())[0]
+const owner = (await db.selectFrom('team_members').where('team_id', '=', TEAM_ID).where('role', '=', 'owner').where('status', '=', 'active').limit(1).execute())[0]
 
 let subscription = null
-if (owner && owner.user_id) {
-  subscription = db.query(`SELECT plan, provider_status, ends_at FROM subscriptions WHERE user_id = ?1 ORDER BY id DESC LIMIT 1`).get(owner.user_id)
+if (BILLING_ENABLED && owner && owner.user_id) {
+  subscription = (await db.selectFrom('subscriptions').where('user_id', '=', owner.user_id).orderByDesc('id').limit(1).execute())[0]
 }
 
 const isActivePaid = subscription && subscription.plan === 'pro' && subscription.provider_status === 'active'
-const currentPlan = isActivePaid ? 'pro' : 'free'
+const currentPlan = !BILLING_ENABLED ? 'self-hosted' : (isActivePaid ? 'pro' : 'free')
 const limits = PLAN_LIMITS[currentPlan]
 
-const monitorCount = db.query(`SELECT COUNT(*) as c FROM monitors WHERE team_id = ?1`).get(TEAM_ID).c
-const statusPageCount = db.query(`SELECT COUNT(*) as c FROM status_pages WHERE team_id = ?1`).get(TEAM_ID).c
+const monitorCount = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).count()
+const statusPageCount = await db.selectFrom('status_pages').where('team_id', '=', TEAM_ID).count()
 
 function usagePct(used, limit) {
-  if (!limit) return 0
+  if (!limit || !isFinite(limit)) return 0
   return Math.min(100, Math.round((used / limit) * 100))
+}
+function limitLabel(limit) {
+  return isFinite(limit) ? limit : '∞'
 }
 </script>
 
@@ -118,11 +125,15 @@ function usagePct(used, limit) {
     <div class="flex items-center justify-between">
       <div>
         <h2 class="font-semibold text-gray-500 text-sm tracking-wide uppercase">Current plan</h2>
-        <p class="mt-1 font-semibold text-gray-900 text-lg">{{ currentPlan === 'pro' ? 'Pro' : 'Free' }}</p>
+        <p class="mt-1 font-semibold text-gray-900 text-lg">{{ currentPlan === 'pro' ? 'Pro' : currentPlan === 'self-hosted' ? 'Self-hosted' : 'Free' }}</p>
       </div>
       @if (currentPlan === 'pro')
         <span class="px-3 py-1 font-medium text-white text-xs bg-gray-900 rounded-full">${{ PAID_PLAN_PRICE_USD }}/mo</span>
-      @else
+      @endif
+      @if (currentPlan === 'self-hosted')
+        <span class="px-3 py-1 font-medium text-green-700 text-xs bg-green-50 rounded-full">No limits</span>
+      @endif
+      @if (currentPlan === 'free')
         <span class="px-3 py-1 font-medium text-gray-600 text-xs bg-gray-100 rounded-full">$0/mo</span>
       @endif
     </div>
@@ -131,7 +142,7 @@ function usagePct(used, limit) {
       <div>
         <div class="flex justify-between mb-1 text-gray-500 text-xs">
           <span>Monitors</span>
-          <span>{{ monitorCount }} / {{ limits.monitors }}</span>
+          <span>{{ monitorCount }} / {{ limitLabel(limits.monitors) }}</span>
         </div>
         <div class="overflow-hidden h-1.5 w-full bg-gray-100 rounded-full">
           <div class="h-full bg-gray-900 rounded-full" style="width: {{ usagePct(monitorCount, limits.monitors) }}%"></div>
@@ -140,7 +151,7 @@ function usagePct(used, limit) {
       <div>
         <div class="flex justify-between mb-1 text-gray-500 text-xs">
           <span>Status pages</span>
-          <span>{{ statusPageCount }} / {{ limits.statusPages }}</span>
+          <span>{{ statusPageCount }} / {{ limitLabel(limits.statusPages) }}</span>
         </div>
         <div class="overflow-hidden h-1.5 w-full bg-gray-100 rounded-full">
           <div class="h-full bg-gray-900 rounded-full" style="width: {{ usagePct(statusPageCount, limits.statusPages) }}%"></div>
@@ -165,7 +176,8 @@ function usagePct(used, limit) {
         <button type="submit" class="px-4 py-2 font-medium text-red-600 text-sm hover:bg-red-50 border border-red-200 rounded-lg">Cancel subscription</button>
       </form>
     </section>
-  @else
+  @endif
+  @if (currentPlan === 'free')
     <section class="p-5 bg-white border border-gray-200 rounded-xl">
       <h2 class="mb-2 font-semibold text-gray-500 text-sm tracking-wide uppercase">Upgrade to Pro</h2>
       <ul class="mb-4 space-y-1 text-gray-600 text-sm">
@@ -177,6 +189,15 @@ function usagePct(used, limit) {
         <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
         <button type="submit" class="px-4 py-2 font-medium text-sm text-white bg-gray-900 rounded-lg">Upgrade &mdash; ${{ PAID_PLAN_PRICE_USD }}/mo</button>
       </form>
+    </section>
+  @endif
+  @if (currentPlan === 'self-hosted')
+    <section class="p-5 bg-white border border-gray-200 rounded-xl">
+      <h2 class="mb-2 font-semibold text-gray-500 text-sm tracking-wide uppercase">Self-hosted</h2>
+      <p class="text-gray-600 text-sm">
+        This is your own install, so there are no plan limits — monitor as much as your
+        server can handle. Billing is inactive because no payment provider is configured.
+      </p>
     </section>
   @endif
   @endif

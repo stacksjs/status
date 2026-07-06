@@ -1,17 +1,14 @@
 @extends('layouts/status')
 
 <script server>
-const Database = require('bun:sqlite').Database
-const path = require('path')
 const { decrypt } = require('@stacksjs/security')
-
-const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const db = new Database(dbPath, { readonly: true })
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
 
 const pageSlug = (typeof slug !== 'undefined' && slug) ? String(slug) : ''
 
 const statusPage = pageSlug
-  ? db.query(`SELECT * FROM status_pages WHERE slug = ?1 AND is_public = 1 LIMIT 1`).get(pageSlug)
+  ? (await db.selectFrom('status_pages').where('slug', '=', pageSlug).where('is_public', '=', true).limit(1).execute())[0] || null
   : null
 
 // Access control (stacksjs/status#1 Phase 12). 'public' (the default) is
@@ -87,34 +84,40 @@ const unlockError = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch
   ? __stxServeSearch.includes('unlock_error=1')
   : false
 
-const monitors = statusPage
-  ? db.query(`
-      SELECT
-        m.id, m.name, m.url, m.type, m.status,
-        spm.display_name, spm.display_order, spm.status_page_component_group_id
-      FROM status_page_monitors spm
-      JOIN monitors m ON m.id = spm.monitor_id
-      WHERE spm.status_page_id = ?1
-      ORDER BY spm.display_order ASC, m.name ASC
-    `).all(statusPage.id).map((row) => ({
-      id: row.id,
-      name: row.display_name || row.name,
-      status: row.status || 'unknown',
-      groupId: row.status_page_component_group_id,
-    }))
-  : []
+// Assigned monitors, joined back to their pivots in JS (portable). A real
+// monitor-name map is kept alongside for the incident lists below, which
+// label by the actual monitor name rather than the page's display_name.
+let monitors = []
+const monitorRealNameById = new Map()
+if (statusPage) {
+  const pivots = await db.selectFrom('status_page_monitors').where('status_page_id', '=', statusPage.id).execute()
+  const pmIds = pivots.map(p => p.monitor_id)
+  const pms = pmIds.length ? await db.selectFrom('monitors').whereIn('id', pmIds).execute() : []
+  const byId = new Map(pms.map(m => [m.id, m]))
+  for (const m of pms) monitorRealNameById.set(m.id, m.name)
+  monitors = pivots
+    .map((p) => {
+      const m = byId.get(p.monitor_id)
+      if (!m) return null
+      return {
+        id: m.id,
+        name: p.display_name || m.name,
+        status: m.status || 'unknown',
+        groupId: p.status_page_component_group_id,
+        _order: p.display_order,
+        _realName: m.name,
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a._order - b._order) || String(a._realName).localeCompare(String(b._realName)))
+}
 
 // Component groups (stacksjs/status#1 Phase 12) — a status page with no
 // groups at all renders the plain flat monitor list exactly as before
 // (see `monitorGroups.length === 0` in the template below); grouping is
 // opt-in per status page, not a required migration for existing ones.
 const componentGroups = statusPage
-  ? db.query(`
-      SELECT id, name, display_order
-      FROM status_page_component_groups
-      WHERE status_page_id = ?1
-      ORDER BY display_order ASC, name ASC
-    `).all(statusPage.id)
+  ? await db.selectFrom('status_page_component_groups').where('status_page_id', '=', statusPage.id).orderBy('display_order', 'asc').orderBy('name', 'asc').execute()
   : []
 
 // Only build the grouped view when at least one monitor is actually
@@ -138,16 +141,22 @@ const monitorIds = monitors.map((m) => m.id)
 // days. Each day bucket takes its worst observed status (down beats
 // degraded beats up); days with no check at all render as "no data".
 const UPTIME_DAYS = 90
+// Cache the 90-day per-monitor rollup: it's the most expensive query on this
+// public (high-traffic) page and changes slowly, so a short TTL keeps it
+// fresh to within a minute while collapsing repeated renders to a single DB
+// pass — and getOrSet's singleflight de-dupes a burst of concurrent hits into
+// one recompute. Memory-cached on the rendering (primary) box; the checks-only
+// second region never renders, so no shared cache is needed.
+const { cache } = require('@stacksjs/cache')
+const UPTIME_TTL_SECONDS = 60
 const uptimeByMonitor = {}
-if (monitors.length > 0) {
-  const sinceMs = Date.now() - UPTIME_DAYS * 86400000
-  const sinceIso = new Date(sinceMs).toISOString()
-  for (const m of monitors) {
-    const rows = db.query(`
-      SELECT status, checked_at FROM check_results
-      WHERE monitor_id = ?1 AND checked_at >= ?2
-      ORDER BY checked_at ASC
-    `).all(m.id, sinceIso)
+for (const m of monitors) {
+  uptimeByMonitor[m.id] = await cache.getOrSet(`status-uptime:${m.id}:${UPTIME_DAYS}`, async () => {
+    const sinceMs = Date.now() - UPTIME_DAYS * 86400000
+    const sinceIso = new Date(sinceMs).toISOString()
+    const rows = await db.selectFrom('check_results')
+      .where('monitor_id', '=', m.id).where('checked_at', '>=', sinceIso)
+      .orderBy('checked_at', 'asc').execute()
 
     // Seed one bucket per day so gaps render as "no data", not collapse.
     const bars = []
@@ -175,11 +184,8 @@ if (monitors.length > 0) {
       if (rank > curRank) bar.status = r.status
     }
 
-    uptimeByMonitor[m.id] = {
-      bars,
-      pct: totalChecks > 0 ? (upChecks / totalChecks) * 100 : null,
-    }
-  }
+    return { bars, pct: totalChecks > 0 ? (upChecks / totalChecks) * 100 : null }
+  }, UPTIME_TTL_SECONDS)
 }
 
 function uptimeBarColor(status) {
@@ -199,56 +205,52 @@ function uptimeBars(monitorId) {
   return (uptimeByMonitor[monitorId] && uptimeByMonitor[monitorId].bars) || []
 }
 
-// bun:sqlite doesn't expand array bindings — build the IN clause placeholders manually.
-const placeholders = monitorIds.map((_, i) => `?${i + 1}`).join(', ')
-
-const activeIncidents = monitorIds.length > 0
-  ? db.query(`
-      SELECT i.id, i.cause, i.status, i.started_at, m.name AS monitor_name
-      FROM incidents i
-      JOIN monitors m ON m.id = i.monitor_id
-      WHERE i.monitor_id IN (${placeholders}) AND i.status != 'resolved'
-      ORDER BY i.started_at DESC
-    `).all(...monitorIds)
-  : []
-
-const resolvedIncidents = monitorIds.length > 0
-  ? db.query(`
-      SELECT i.id, i.cause, i.started_at, i.resolved_at, m.name AS monitor_name
-      FROM incidents i
-      JOIN monitors m ON m.id = i.monitor_id
-      WHERE i.monitor_id IN (${placeholders}) AND i.status = 'resolved'
-      ORDER BY i.resolved_at DESC
-      LIMIT 10
-    `).all(...monitorIds)
-  : []
+// Incidents for this page's monitors, split from the old JOIN: one fetch,
+// then partitioned active/resolved and labelled from the real-name map.
+let activeIncidents = []
+let resolvedIncidents = []
+if (monitorIds.length > 0) {
+  const incRows = await db.selectFrom('incidents').whereIn('monitor_id', monitorIds).execute()
+  const withName = (i) => ({
+    id: i.id, cause: i.cause, status: i.status,
+    started_at: i.started_at, resolved_at: i.resolved_at,
+    monitor_name: monitorRealNameById.get(i.monitor_id) || '',
+  })
+  activeIncidents = incRows.filter(i => i.status !== 'resolved')
+    .sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)))
+    .map(withName)
+  resolvedIncidents = incRows.filter(i => i.status === 'resolved')
+    .sort((a, b) => String(b.resolved_at).localeCompare(String(a.resolved_at)))
+    .slice(0, 10)
+    .map(withName)
+}
 
 // Scheduled maintenance (stacksjs/status#1 Phase 12) is deliberately
 // queried and rendered separately from incidents above — planned,
 // announced work shouldn't read as an outage to a visitor.
-const activeMaintenanceWindows = monitorIds.length > 0
-  ? db.query(`
-      SELECT DISTINCT mw.id, mw.title, mw.description, mw.starts_at, mw.ends_at
-      FROM maintenance_windows mw
-      JOIN maintenance_window_monitors mwm ON mwm.maintenance_window_id = mw.id
-      WHERE mwm.monitor_id IN (${placeholders}) AND mw.status = 'active'
-      ORDER BY mw.starts_at ASC
-    `).all(...monitorIds)
-  : []
+let activeMaintenanceWindows = []
+if (monitorIds.length > 0) {
+  const links = await db.selectFrom('maintenance_window_monitors').whereIn('monitor_id', monitorIds).execute()
+  const ids = [...new Set(links.map(l => l.maintenance_window_id))]
+  if (ids.length) {
+    const wins = await db.selectFrom('maintenance_windows').whereIn('id', ids).where('status', '=', 'active').orderBy('starts_at', 'asc').execute()
+    activeMaintenanceWindows = wins.map(w => ({ id: w.id, title: w.title, description: w.description, starts_at: w.starts_at, ends_at: w.ends_at }))
+  }
+}
 
 // Status reports (stacksjs/status#1 Phase 12) — manually-authored
 // announcements, never opened automatically by a check (unlike
 // Incident). Rendered in their own "Announcements" section so a
 // planned/informational post doesn't read as an automated outage.
-const activeStatusReports = monitorIds.length > 0
-  ? db.query(`
-      SELECT DISTINCT sr.id, sr.title, sr.body, sr.status, sr.started_at
-      FROM status_reports sr
-      JOIN status_report_monitors srm ON srm.status_report_id = sr.id
-      WHERE srm.monitor_id IN (${placeholders}) AND sr.status != 'resolved'
-      ORDER BY sr.started_at DESC
-    `).all(...monitorIds)
-  : []
+let activeStatusReports = []
+if (monitorIds.length > 0) {
+  const links = await db.selectFrom('status_report_monitors').whereIn('monitor_id', monitorIds).execute()
+  const ids = [...new Set(links.map(l => l.status_report_id))]
+  if (ids.length) {
+    const reports = await db.selectFrom('status_reports').whereIn('id', ids).where('status', '!=', 'resolved').orderBy('started_at', 'desc').execute()
+    activeStatusReports = reports.map(r => ({ id: r.id, title: r.title, body: r.body, status: r.status, started_at: r.started_at }))
+  }
+}
 
 const hasDown = monitors.some((m) => m.status === 'down')
 const hasDegraded = monitors.some((m) => m.status === 'degraded')

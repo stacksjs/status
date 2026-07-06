@@ -14,7 +14,7 @@ const modules = [
   },
   {
     title: 'Slow pages lose carts',
-    text: 'Every 15 minutes, the last hour\'s p95 response time is compared to your 7-day baseline. When a page runs twice as slow as normal, an incident opens, even while the site is technically still up.',
+    text: 'Every 10 minutes, the last hour\'s p95 response time is compared to your 7-day baseline. When a page runs twice as slow as normal, an incident opens, even while the site is technically still up.',
     href: '/features/performance-monitoring',
   },
   {
@@ -49,7 +49,7 @@ const faqs = [
   },
   {
     q: 'Will I know when the site gets slow, not just when it goes down?',
-    a: 'Yes. Every 15 minutes, each monitor\'s p95 response time over the last hour is compared against its own 7-day baseline. If it is at least 2x slower, an incident opens in a "monitoring" state: informational, because the site is often still up, just degrading.',
+    a: 'Yes. Every 10 minutes, each monitor\'s p95 response time over the last hour is compared against its own 7-day baseline. If it is at least 2x slower, an incident opens in a "monitoring" state: informational, because the site is often still up, just degrading.',
   },
   {
     q: 'What does this cost for a small store?',

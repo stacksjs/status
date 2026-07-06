@@ -1,37 +1,39 @@
 @extends('layouts/status')
 
 <script server>
-const Database = require('bun:sqlite').Database
-const path = require('path')
-
-const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const db = new Database(dbPath, { readonly: true })
+// Dialect-agnostic DB access via the framework query builder (works on
+// sqlite for self-hosted single-box installs and on the networked
+// Postgres the hosted multi-region fleet uses) — replaces the direct
+// bun:sqlite file handle these views used to open. Joins are split into
+// separate lookups rather than a single JOIN because the fluent builder's
+// aliased-join projection is unreliable.
+const { db } = require('@stacksjs/database')
 
 const pageSlug = (typeof slug !== 'undefined' && slug) ? String(slug) : ''
 const incidentId = Number((typeof id !== 'undefined' && id) || 0)
 
 const statusPage = pageSlug
-  ? db.query(`SELECT * FROM status_pages WHERE slug = ?1 AND is_public = 1 LIMIT 1`).get(pageSlug)
+  ? (await db.selectFrom('status_pages').where('slug', '=', pageSlug).where('is_public', '=', true).limit(1).execute())[0] || null
   : null
 
-const incident = (statusPage && incidentId)
-  ? db.query(`
-      SELECT i.*, m.name AS monitor_name
-      FROM incidents i
-      JOIN monitors m ON m.id = i.monitor_id
-      JOIN status_page_monitors spm ON spm.monitor_id = i.monitor_id AND spm.status_page_id = ?1
-      WHERE i.id = ?2
-      LIMIT 1
-    `).get(statusPage.id, incidentId)
-  : null
+let incident = null
+if (statusPage && incidentId) {
+  const inc = (await db.selectFrom('incidents').where('id', '=', incidentId).limit(1).execute())[0]
+  if (inc) {
+    // Only expose the incident if its monitor is actually attached to this page.
+    const link = (await db.selectFrom('status_page_monitors')
+      .where('status_page_id', '=', statusPage.id)
+      .where('monitor_id', '=', inc.monitor_id)
+      .limit(1).execute())[0]
+    if (link) {
+      const monitor = (await db.selectFrom('monitors').where('id', '=', inc.monitor_id).limit(1).execute())[0]
+      incident = { ...inc, monitor_name: monitor ? monitor.name : '' }
+    }
+  }
+}
 
 const updates = incident
-  ? db.query(`
-      SELECT message, status, posted_at
-      FROM incident_updates
-      WHERE incident_id = ?1
-      ORDER BY posted_at ASC
-    `).all(incident.id)
+  ? await db.selectFrom('incident_updates').where('incident_id', '=', incident.id).orderBy('posted_at', 'asc').execute()
   : []
 
 const pageTitle = incident ? `${incident.monitor_name} incident` : 'Incident not found'

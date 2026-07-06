@@ -20,13 +20,12 @@
   OPERATIONAL readouts only; hazard red marks everything wrong.
 -->
 <script server>
-const Database = require('bun:sqlite').Database
-const path = require('path')
 const { config } = require('@stacksjs/config')
 const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
 
-const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const db = new Database(dbPath, { readonly: true })
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
 
 // Auth + team resolution (stacksjs/status#1 Phase 9 follow-up). Driver-
 // aware — reads config/auth.ts's configured guard driver rather than
@@ -52,12 +51,10 @@ async function resolveAuthTeam() {
   const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
   if (!user || !user.id) return null
 
-  const membership = db.query(`
-    SELECT team_id FROM team_members
-    WHERE user_id = ?1 AND status = 'active'
-    ORDER BY CASE WHEN role = 'owner' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END
-    LIMIT 1
-  `).get(user.id)
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
 
   return { user, teamId: membership ? membership.team_id : null }
 }
@@ -74,7 +71,7 @@ const filterStatus = query.get('status') || ''
 const idxRange = query.get('range') || '24h'
 const IDX_RANGE_MS = { '24h': 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000, '30d': 30 * 24 * 60 * 60 * 1000 }
 const idxSince = new Date(Date.now() - (IDX_RANGE_MS[idxRange] || IDX_RANGE_MS['24h'])).toISOString()
-const checksInRange = db.query(`SELECT COUNT(*) as c FROM check_results WHERE checked_at >= ?1`).get(idxSince).c
+const checksInRange = await db.selectFrom('check_results').where('checked_at', '>=', idxSince).count()
 
 function idxRangeUrl(r) {
   const p = new URLSearchParams(query)
@@ -82,36 +79,35 @@ function idxRangeUrl(r) {
   return '/dashboard/monitors?' + p.toString()
 }
 
-const allTypes = db.query(`SELECT DISTINCT type FROM monitors WHERE team_id = ?1 ORDER BY type ASC`).all(TEAM_ID).map((r) => r.type)
+// One unfiltered fetch of the team's fleet; types, the filtered display
+// list, and the fleet tally are all derived from it in JS (dialect-agnostic).
+const allMonitors = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).execute()
+const allTypes = [...new Set(allMonitors.map(m => m.type))].sort()
 
-let sql = `SELECT id, uuid, name, url, type, status, enabled, last_checked_at FROM monitors WHERE team_id = ?1`
-const params = [TEAM_ID]
-if (filterType) {
-  sql += ` AND type = ?${params.length + 1}`
-  params.push(filterType)
-}
-if (filterStatus) {
-  sql += ` AND status = ?${params.length + 1}`
-  params.push(filterStatus)
-}
-sql += ` ORDER BY name ASC`
-
-const monitors = db.query(sql).all(...params)
+const monitors = allMonitors
+  .filter(m => (!filterType || m.type === filterType) && (!filterStatus || m.status === filterStatus))
+  .sort((a, b) => String(a.name).localeCompare(String(b.name)))
 
 // Fleet totals for the stat strip: always the UNFILTERED team fleet, so
 // the readout stays a fleet summary while filters narrow the table.
-const fleet = db.query(`SELECT status, COUNT(*) as c FROM monitors WHERE team_id = ?1 GROUP BY status`).all(TEAM_ID)
-const fleetCount = fleet.reduce((sum, r) => sum + r.c, 0)
+const fleetCounts = {}
+for (const m of allMonitors) fleetCounts[m.status] = (fleetCounts[m.status] || 0) + 1
+const fleet = Object.entries(fleetCounts).map(([status, c]) => ({ status, c }))
+const fleetCount = allMonitors.length
 function fleetOf(status) {
   const row = fleet.find(r => r.status === status)
   return row ? row.c : 0
 }
 
-// Latest response time per monitor (display only): one indexed lookup
-// per listed monitor, same per-row query pattern the status pages use.
+// Latest non-null response time per displayed monitor, precomputed (the
+// template can't await a per-row query). `>= 0` excludes NULLs portably.
+const lastResponseByMonitor = {}
+for (const m of monitors) {
+  const row = (await db.selectFrom('check_results').where('monitor_id', '=', m.id).where('response_time_ms', '>=', 0).orderByDesc('id').limit(1).execute())[0]
+  lastResponseByMonitor[m.id] = row ? row.response_time_ms : null
+}
 function lastResponseMs(id) {
-  const row = db.query(`SELECT response_time_ms FROM check_results WHERE monitor_id = ?1 AND response_time_ms IS NOT NULL ORDER BY id DESC LIMIT 1`).get(id)
-  return row && row.response_time_ms !== null ? row.response_time_ms : null
+  return lastResponseByMonitor[id] ?? null
 }
 
 function stClass(status) {

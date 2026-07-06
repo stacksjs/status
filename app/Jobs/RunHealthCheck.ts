@@ -3,7 +3,6 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
 import CheckResult from '../Models/CheckResult'
-import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
 
 /**
@@ -111,18 +110,9 @@ export default new Job({
       checked_at: checkedAt,
     })
 
-    const previousStatus = monitor.status
-    await monitor.update({ status, last_checked_at: checkedAt })
-
-    if (previousStatus !== 'down' && status === 'down') {
-      await Incident.create({
-        monitor_id: monitor.id,
-        started_at: checkedAt,
-        cause: message,
-        status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'health', message }]),
-      })
-      log.warn(`[job] RunHealthCheck: ${monitor.name} is DOWN — ${message}`)
-    }
+    // Status + incident transitions are owned centrally by
+    // EvaluateMonitorConsensus (cross-region agreement); this job just records
+    // the region observation above and advances last_checked_at.
+    await monitor.update({ last_checked_at: checkedAt })
   },
 })

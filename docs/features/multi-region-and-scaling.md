@@ -5,6 +5,10 @@ scale — distinct from application code, since this is about how you run the
 process(es), not what they do (see [stacksjs/status#1](https://github.com/stacksjs/status/issues/1),
 Phase 11).
 
+> **Step-by-step deploy:** for the concrete procedure to bring up a second
+> region (provision the box, Postgres + Redis behind WireGuard, data cutover,
+> verification), see the [second-region runbook](./second-region-runbook.md).
+
 ## Multi-region checks
 
 A monitor checked from a single network location can't distinguish "the
@@ -36,16 +40,18 @@ incident when more than one region agrees.
    increase in outbound check traffic against every monitored target — do
    not add regions before the multi-region *analysis* below exists, or
    you're 3x-ing check volume for no consensus benefit.
-3. **Not yet implemented** (net-new application code, not just deployment):
-   consensus logic in `RunUptimeCheck` et al. that only opens an `Incident`
-   once N-of-M regions report the same monitor down within a short window,
-   rather than the current single-result transition. Until that lands,
-   multi-region deployment gives you per-region `CheckResult` visibility
-   (useful for manually distinguishing a regional network issue from a real
-   outage) but every region's job still independently opens/resolves
-   incidents on its own transition — running >1 region before that lands
-   will produce *more* noise, not less, so keep `WORKER_REGION` at its
-   default single value until the consensus logic is built.
+3. **Consensus (implemented).** The per-region check jobs (`RunUptimeCheck`,
+   `RunPingCheck`, `RunTcpPortCheck`, `RunHealthCheck`) no longer open or
+   resolve incidents themselves — they just record a region-tagged
+   `CheckResult`. `app/Jobs/EvaluateMonitorConsensus.ts` (scheduled every
+   minute on the primary only) reads the latest fresh result per region and
+   decides the monitor's status from **N-of-M agreement**
+   (`config/regions.ts`: `MONITOR_REGIONS`, `CONSENSUS_MIN_REGIONS`,
+   `CONSENSUS_FRESHNESS_SECONDS`), so a single region's blip can't open an
+   incident. A single-region install (the default) clamps the threshold to 1
+   and reproduces the old "latest check wins" behavior exactly, so there's
+   nothing to configure until you actually add a region. The pure decision
+   function is unit-tested in `tests/unit/consensus.test.ts`.
 
 ## Queue scaling
 

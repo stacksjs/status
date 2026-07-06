@@ -27,6 +27,15 @@ export default function () {
     .job('CheckOverdueHeartbeats')
     .everyMinute()
 
+  // Decide each availability monitor's up/down status from cross-region
+  // agreement and open/resolve incidents accordingly (stacksjs/status#1
+  // Phase 11). The per-region check jobs only record observations now — this
+  // is where the verdict is made. MUST run on the primary only; running it in
+  // a second region would race on the shared status/incident writes.
+  schedule
+    .job('EvaluateMonitorConsensus')
+    .everyMinute()
+
   // Response-time trend analysis needs enough history per window to be
   // meaningful — no value in running it every minute. No everyFifteenMinutes
   // on the scheduler API, so everyTenMinutes is the closest fit
@@ -54,6 +63,12 @@ export default function () {
   // and report_last_sent_at) so this stays a dumb daily tick.
   schedule
     .job('SendUptimeReports')
+    .daily()
+
+  // Enforce the 90-day (configurable) history retention the marketing site
+  // advertises, and keep check_results from growing without bound.
+  schedule
+    .job('PruneOldCheckResults')
     .daily()
 
   // Run a custom action every five minutes

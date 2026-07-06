@@ -4,7 +4,6 @@ import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
-import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
 
 function checkPort(host: string, port: number, timeoutMs = 10_000): Promise<{ open: boolean, timeMs: number }> {
@@ -76,18 +75,9 @@ export default new Job({
       checked_at: checkedAt,
     })
 
-    const previousStatus = monitor.status
-    await monitor.update({ status, last_checked_at: checkedAt })
-
-    if (previousStatus !== 'down' && status === 'down') {
-      await Incident.create({
-        monitor_id: monitor.id,
-        started_at: checkedAt,
-        cause: `Port ${port} on ${host} is closed or unreachable`,
-        status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'tcp_port', port }]),
-      })
-      log.warn(`[job] RunTcpPortCheck: ${monitor.name} (${host}:${port}) down`)
-    }
+    // Status + incident transitions are owned centrally by
+    // EvaluateMonitorConsensus (cross-region agreement); this job just records
+    // the region observation above and advances last_checked_at.
+    await monitor.update({ last_checked_at: checkedAt })
   },
 })

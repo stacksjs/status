@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { planLimitsForTeam } from '../../../config/plans'
+import { limitReachedMessage, planForTeam } from '../../../config/plans'
 import Monitor from '../../Models/Monitor'
 import StatusPage from '../../Models/StatusPage'
 import StatusPageMonitor from '../../Models/StatusPageMonitor'
@@ -45,10 +45,10 @@ export default new Action({
       return response.json({ error: 'source_url is required' }, { status: 422 })
 
     const existingCount = (await StatusPage.where('team_id', teamId).get()).length
-    const limits = await planLimitsForTeam(teamId)
+    const { plan, limits } = await planForTeam(teamId)
     if (existingCount >= limits.statusPages) {
       return response.json(
-        { error: `Status page limit reached (${limits.statusPages} on the current plan). Upgrade to add more.` },
+        { error: limitReachedMessage('status pages', limits.statusPages, plan) },
         { status: 402 },
       )
     }

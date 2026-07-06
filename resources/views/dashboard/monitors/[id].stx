@@ -17,13 +17,12 @@
   everything wrong (and destructive actions).
 -->
 <script server>
-const Database = require('bun:sqlite').Database
-const path = require('path')
 const { config } = require('@stacksjs/config')
 const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
 
-const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const db = new Database(dbPath, { readonly: true })
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
 
 // Auth + team resolution (stacksjs/status#1 Phase 9 follow-up) -- see
 // monitors/index.stx's copy of this block for the full rationale.
@@ -48,12 +47,10 @@ async function resolveAuthTeam() {
   const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
   if (!user || !user.id) return null
 
-  const membership = db.query(`
-    SELECT team_id FROM team_members
-    WHERE user_id = ?1 AND status = 'active'
-    ORDER BY CASE WHEN role = 'owner' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END
-    LIMIT 1
-  `).get(user.id)
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
 
   return { user, teamId: membership ? membership.team_id : null }
 }
@@ -66,7 +63,7 @@ const NAV_ACTIVE = 'monitors'
 const appUrl = process.env.APP_URL || 'http://localhost:3000'
 
 const monitorId = (typeof id !== 'undefined' && id) ? Number(id) : 0
-const monitor = monitorId ? db.query(`SELECT * FROM monitors WHERE id = ?1 AND team_id = ?2 LIMIT 1`).get(monitorId, TEAM_ID) : null
+const monitor = monitorId ? (await db.selectFrom('monitors').where('id', '=', monitorId).where('team_id', '=', TEAM_ID).limit(1).execute())[0] || null : null
 
 // Display helpers (Tactical Telemetry) -- same contract as
 // monitors/index.stx: stClass/stLabel drive the <data class="st ...">
@@ -103,31 +100,38 @@ function formatDate(iso) {
 }
 
 const recentChecks = monitor
-  ? db.query(`SELECT id, status, response_time_ms, status_code, message, checked_at, region FROM check_results WHERE monitor_id = ?1 ORDER BY checked_at DESC LIMIT 20`).all(monitor.id)
+  ? await db.selectFrom('check_results').where('monitor_id', '=', monitor.id).orderBy('checked_at', 'desc').limit(20).execute()
   : []
 
 const incidents = monitor
-  ? db.query(`SELECT id, cause, status, started_at, resolved_at FROM incidents WHERE monitor_id = ?1 ORDER BY started_at DESC LIMIT 20`).all(monitor.id)
+  ? await db.selectFrom('incidents').where('monitor_id', '=', monitor.id).orderBy('started_at', 'desc').limit(20).execute()
   : []
 
-const assignedChannels = monitor
-  ? db.query(`
-      SELECT nc.id, nc.name, nc.type
-      FROM monitor_notification_channels mnc
-      JOIN notification_channels nc ON nc.id = mnc.notification_channel_id
-      WHERE mnc.monitor_id = ?1
-      ORDER BY nc.name ASC
-    `).all(monitor.id)
-  : []
+// Assigned channels: the pivot rows joined back to their channels in JS.
+let assignedChannels = []
+if (monitor) {
+  const links = await db.selectFrom('monitor_notification_channels').where('monitor_id', '=', monitor.id).execute()
+  const ids = links.map(l => l.notification_channel_id)
+  const chans = ids.length ? await db.selectFrom('notification_channels').whereIn('id', ids).execute() : []
+  assignedChannels = chans
+    .map(c => ({ id: c.id, name: c.name, type: c.type }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+}
 const assignedChannelIds = assignedChannels.map((c) => c.id)
-const channelPlaceholders = assignedChannelIds.map((_, i) => `?${i + 2}`).join(', ')
-const availableChannels = monitor
-  ? db.query(`SELECT id, name, type FROM notification_channels WHERE team_id = ?1 ${assignedChannelIds.length > 0 ? `AND id NOT IN (${channelPlaceholders})` : ''} ORDER BY name ASC`).all(monitor.team_id, ...assignedChannelIds)
-  : []
+let availableChannels = []
+if (monitor) {
+  const teamChans = await db.selectFrom('notification_channels').where('team_id', '=', monitor.team_id).execute()
+  const assignedSet = new Set(assignedChannelIds)
+  availableChannels = teamChans
+    .filter(c => !assignedSet.has(c.id))
+    .map(c => ({ id: c.id, name: c.name, type: c.type }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+}
 
-// Response-time sparkline: oldest -> newest, last 50 checks.
+// Response-time sparkline: oldest -> newest, last 50 checks. `>= 0`
+// excludes NULL response times portably.
 const chartChecks = monitor
-  ? db.query(`SELECT response_time_ms, checked_at FROM check_results WHERE monitor_id = ?1 AND response_time_ms IS NOT NULL ORDER BY checked_at DESC LIMIT 50`).all(monitor.id).reverse()
+  ? (await db.selectFrom('check_results').where('monitor_id', '=', monitor.id).where('response_time_ms', '>=', 0).orderBy('checked_at', 'desc').limit(50).execute()).reverse()
   : []
 
 function buildSparkline(values, width, height) {
@@ -157,11 +161,11 @@ const avgResponseTime = chartChecks.length > 0 ? Math.round(chartChecks.reduce((
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
 const range = query.get('range') || '24h'
 const RANGE_CONFIG = {
-  '24h': { sinceMs: 24 * 60 * 60 * 1000, bucketExpr: `strftime('%Y-%m-%d %H:00', checked_at)` },
-  '7d': { sinceMs: 7 * 24 * 60 * 60 * 1000, bucketExpr: `date(checked_at)` },
-  '30d': { sinceMs: 30 * 24 * 60 * 60 * 1000, bucketExpr: `date(checked_at)` },
+  '24h': { sinceMs: 24 * 60 * 60 * 1000, granularity: 'hour' },
+  '7d': { sinceMs: 7 * 24 * 60 * 60 * 1000, granularity: 'day' },
+  '30d': { sinceMs: 30 * 24 * 60 * 60 * 1000, granularity: 'day' },
 }
-const { sinceMs, bucketExpr } = RANGE_CONFIG[range] || RANGE_CONFIG['24h']
+const { sinceMs, granularity } = RANGE_CONFIG[range] || RANGE_CONFIG['24h']
 const since = new Date(Date.now() - sinceMs).toISOString()
 
 function rangeUrl(r) {
@@ -170,16 +174,33 @@ function rangeUrl(r) {
   return '/dashboard/monitors/' + monitorId + '?' + p.toString()
 }
 
-const volumeBuckets = monitor
-  ? db.query(`
-      SELECT ${bucketExpr} as bucket, COUNT(*) as request_count,
-             AVG(json_extract(metadata, '$.cpuPercent')) as avg_cpu,
-             AVG(json_extract(metadata, '$.ramPercent')) as avg_ram
-      FROM check_results
-      WHERE monitor_id = ?1 AND checked_at >= ?2
-      GROUP BY bucket ORDER BY bucket ASC
-    `).all(monitor.id, since)
-  : []
+// Request-volume + CPU/RAM aggregation, bucketed in JS (portable) rather
+// than via SQLite's strftime/json_extract. `hour` buckets reproduce the
+// old `%Y-%m-%d %H:00` key; `day` buckets reproduce `date(checked_at)`.
+// CPU/RAM come from each row's JSON metadata; the average ignores rows
+// that don't carry a numeric sample, matching SQL's AVG-skips-NULL.
+function bucketKey(iso) {
+  const s = String(iso)
+  return granularity === 'hour' ? `${s.slice(0, 10)} ${s.slice(11, 13)}:00` : s.slice(0, 10)
+}
+let volumeBuckets = []
+if (monitor) {
+  const rows = await db.selectFrom('check_results').where('monitor_id', '=', monitor.id).where('checked_at', '>=', since).execute()
+  const byBucket = new Map()
+  for (const r of rows) {
+    const key = bucketKey(r.checked_at)
+    let b = byBucket.get(key)
+    if (!b) { b = { bucket: key, request_count: 0, cpuSum: 0, cpuN: 0, ramSum: 0, ramN: 0 }; byBucket.set(key, b) }
+    b.request_count++
+    let meta = {}
+    try { meta = JSON.parse(r.metadata || '{}') } catch {}
+    if (typeof meta.cpuPercent === 'number') { b.cpuSum += meta.cpuPercent; b.cpuN++ }
+    if (typeof meta.ramPercent === 'number') { b.ramSum += meta.ramPercent; b.ramN++ }
+  }
+  volumeBuckets = [...byBucket.values()]
+    .sort((a, b) => (a.bucket < b.bucket ? -1 : a.bucket > b.bucket ? 1 : 0))
+    .map(b => ({ bucket: b.bucket, request_count: b.request_count, avg_cpu: b.cpuN ? b.cpuSum / b.cpuN : null, avg_ram: b.ramN ? b.ramSum / b.ramN : null }))
+}
 
 const totalChecksInRange = volumeBuckets.reduce((sum, b) => sum + b.request_count, 0)
 
@@ -208,20 +229,20 @@ const ramPath = monitor && monitor.reports_metrics
   : ''
 
 // 90-day uptime bar: one segment per day, 'up'/'degraded'/'down'/'unknown'.
-const dailyRows = monitor
-  ? db.query(`
-      SELECT
-        date(checked_at) as day,
-        SUM(CASE WHEN status = 'down' THEN 1 ELSE 0 END) as down_count,
-        SUM(CASE WHEN status = 'degraded' THEN 1 ELSE 0 END) as degraded_count,
-        COUNT(*) as total
-      FROM check_results
-      WHERE monitor_id = ?1 AND checked_at >= date('now', '-90 days')
-      GROUP BY day
-    `).all(monitor.id)
-  : []
+// Grouped by day in JS (portable) rather than SQLite date()/SUM(CASE).
+const since90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
 const dailyMap = {}
-for (const row of dailyRows) dailyMap[row.day] = row
+if (monitor) {
+  const rows = await db.selectFrom('check_results').where('monitor_id', '=', monitor.id).where('checked_at', '>=', since90).execute()
+  for (const r of rows) {
+    const day = String(r.checked_at).slice(0, 10)
+    let d = dailyMap[day]
+    if (!d) { d = { day, down_count: 0, degraded_count: 0, total: 0 }; dailyMap[day] = d }
+    d.total++
+    if (r.status === 'down') d.down_count++
+    else if (r.status === 'degraded') d.degraded_count++
+  }
+}
 
 const uptimeDays = []
 for (let i = 89; i >= 0; i--) {
@@ -253,32 +274,32 @@ const uptimePercent = totalDaysWithData > 0 ? ((upDays / totalDaysWithData) * 10
 
 // Per-type detail panel.
 const sslCertificate = monitor && monitor.type === 'ssl'
-  ? db.query(`SELECT * FROM ssl_certificates WHERE monitor_id = ?1 ORDER BY created_at DESC LIMIT 1`).get(monitor.id)
+  ? (await db.selectFrom('ssl_certificates').where('monitor_id', '=', monitor.id).orderBy('created_at', 'desc').limit(1).execute())[0] || null
   : null
 
 const dnsSnapshots = monitor && monitor.type === 'dns'
-  ? db.query(`SELECT * FROM dns_snapshots WHERE monitor_id = ?1 ORDER BY checked_at DESC LIMIT 10`).all(monitor.id)
+  ? await db.selectFrom('dns_snapshots').where('monitor_id', '=', monitor.id).orderBy('checked_at', 'desc').limit(10).execute()
   : []
 
 const latestCrawl = monitor && monitor.type === 'broken_links'
-  ? db.query(`SELECT * FROM crawls WHERE monitor_id = ?1 ORDER BY started_at DESC LIMIT 1`).get(monitor.id)
+  ? (await db.selectFrom('crawls').where('monitor_id', '=', monitor.id).orderBy('started_at', 'desc').limit(1).execute())[0] || null
   : null
 const crawlBrokenPages = latestCrawl
-  ? db.query(`SELECT url, found_on_url, status_code FROM crawled_pages WHERE crawl_id = ?1 AND is_broken_link = 1 LIMIT 20`).all(latestCrawl.id)
+  ? await db.selectFrom('crawled_pages').where('crawl_id', '=', latestCrawl.id).where('is_broken_link', '=', true).limit(20).execute()
   : []
 const crawlMixedContentPages = latestCrawl
-  ? db.query(`SELECT url, found_on_url FROM crawled_pages WHERE crawl_id = ?1 AND is_mixed_content = 1 LIMIT 20`).all(latestCrawl.id)
+  ? await db.selectFrom('crawled_pages').where('crawl_id', '=', latestCrawl.id).where('is_mixed_content', '=', true).limit(20).execute()
   : []
 
 const lighthouseReports = monitor && monitor.type === 'lighthouse'
-  ? db.query(`SELECT performance_score, accessibility_score, seo_score, best_practices_score, checked_at FROM lighthouse_reports WHERE monitor_id = ?1 ORDER BY checked_at DESC LIMIT 10`).all(monitor.id)
+  ? await db.selectFrom('lighthouse_reports').where('monitor_id', '=', monitor.id).orderBy('checked_at', 'desc').limit(10).execute()
   : []
 const latestLighthouse = lighthouseReports[0] || null
 const previousLighthouse = lighthouseReports[1] || null
 const lighthouseRegression = latestLighthouse && previousLighthouse && (latestLighthouse.performance_score < previousLighthouse.performance_score - 10)
 
 const latestPortScan = monitor && monitor.type === 'port_scan'
-  ? db.query(`SELECT * FROM port_scan_results WHERE monitor_id = ?1 ORDER BY checked_at DESC LIMIT 1`).get(monitor.id)
+  ? (await db.selectFrom('port_scan_results').where('monitor_id', '=', monitor.id).orderBy('checked_at', 'desc').limit(1).execute())[0] || null
   : null
 let portScanOpen = []
 let portScanExpected = []

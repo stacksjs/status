@@ -1,6 +1,22 @@
 import type { CloudConfig } from '@stacksjs/types'
 import type { CloudConfig as TsCloudConfig } from '@stacksjs/ts-cloud'
+import process from 'node:process'
 import { env } from '@stacksjs/env'
+
+/**
+ * Deploy role (stacksjs/status#1 Phase 11 — multi-region).
+ *
+ * - `primary` (default): the full box — web, loopback API, queue worker, and
+ *   the scheduler — plus the sole owner of the DB schema (migrations) and of
+ *   the every-minute DispatchDueChecks + EvaluateMonitorConsensus jobs.
+ * - `worker`: a second-region box that runs ONLY the checks queue worker. No
+ *   web/API/scheduler/migrations. Deploy it with, e.g.:
+ *     STATUS_DEPLOY_ROLE=worker HCLOUD_LOCATION=ash WORKER_REGION=us-east ./buddy deploy
+ *   It shares the primary's Redis queue + Postgres (over the WireGuard tunnel
+ *   — see docs/features/multi-region-and-scaling.md), pulls check jobs off the
+ *   shared queue, runs them from its region, and writes region-tagged results.
+ */
+const DEPLOY_ROLE = process.env.STATUS_DEPLOY_ROLE === 'worker' ? 'worker' : 'primary'
 
 /**
  * UptimeStatus Cloud Configuration
@@ -564,62 +580,78 @@ export const tsCloud: TsCloudConfig = {
    * `true` and redeploy once `dig uptime-status.org` confirms the A record
    * has propagated to the box's IP.
    */
-  sites: {
-    main: {
-      // Ship the repo (source only; node_modules/.git excluded by the packager)
-      // and install on the server via preStart, matching the Forge-style deploy.
-      root: '.',
-      path: '/',
-      domain: env.APP_DOMAIN || 'uptime-status.org',
-      start: 'bun storage/framework/core/buddy/src/cli.ts serve',
-      port: 3000,
-      // `buddy migrate` only applies pending schema changes, so running it
-      // on every deploy is safe/idempotent — this is the one site that
-      // owns migrations for the shared DB_DATABASE_PATH sqlite file.
-      preStart: ['bun install', 'bun buddy migrate'],
-    },
+  // Role-aware site set (see DEPLOY_ROLE above). The primary runs the full
+  // four-service box; a `worker`-role deploy runs only the checks queue worker.
+  sites: DEPLOY_ROLE === 'worker'
+    ? {
+        // Second-region checks worker. NO web/API/scheduler and NO migrations
+        // (the primary owns the schema). It pulls check jobs off the SHARED
+        // Redis queue and runs them from its region, tagging every CheckResult
+        // with WORKER_REGION; the primary's EvaluateMonitorConsensus then folds
+        // those regional observations into the verdict. Bounded to the `checks`
+        // queue so it never runs notification/report jobs meant for the primary.
+        checksWorker: {
+          root: '.',
+          start: 'bun buddy queue:work --queue=checks',
+          preStart: ['bun install'],
+          env: { APP_ENV: 'production', WORKER_REGION: env.WORKER_REGION || 'us-east' },
+        },
+      }
+    : {
+        main: {
+          // Ship the repo (source only; node_modules/.git excluded by the packager)
+          // and install on the server via preStart, matching the Forge-style deploy.
+          root: '.',
+          path: '/',
+          domain: env.APP_DOMAIN || 'uptime-status.org',
+          start: 'bun storage/framework/core/buddy/src/cli.ts serve',
+          port: 3000,
+          // `buddy migrate` only applies pending schema changes, so running it
+          // on every deploy is safe/idempotent — this is the one site that
+          // owns migrations for the shared database.
+          preStart: ['bun install', 'bun buddy migrate'],
+        },
 
-    // API (bun-router) behind `buddy serve`'s same-origin /api proxy.
-    // Intentionally NO `domain`/`path`: ts-cloud's rpx gateway skips
-    // domain-less sites, so the service stays loopback-only and is
-    // reached exclusively via the :3000 proxy (stacksjs/stacks#1950).
-    // Loopback isolation is enforced at the firewall too: the Hetzner
-    // deploy strips this port from the provision config
-    // (scrubLoopbackSitePortsForFirewall in buddy's deploy command), so
-    // ts-cloud never opens :3008 to 0.0.0.0/0 — without that, the
-    // HOST=127.0.0.1 bind below would be the only thing keeping the full
-    // API off the public internet.
-    api: {
-      root: '.',
-      start: 'bun storage/framework/core/actions/src/serve/api.ts',
-      port: 3008,
-      preStart: ['bun install'],
-      env: { HOST: '127.0.0.1', APP_ENV: 'production' },
-    },
+        // API (bun-router) behind `buddy serve`'s same-origin /api proxy.
+        // Intentionally NO `domain`/`path`: ts-cloud's rpx gateway skips
+        // domain-less sites, so the service stays loopback-only and is
+        // reached exclusively via the :3000 proxy (stacksjs/stacks#1950).
+        // Loopback isolation is enforced at the firewall too: the Hetzner
+        // deploy strips this port from the provision config
+        // (scrubLoopbackSitePortsForFirewall in buddy's deploy command), so
+        // ts-cloud never opens :3008 to 0.0.0.0/0 — without that, the
+        // HOST=127.0.0.1 bind below would be the only thing keeping the full
+        // API off the public internet.
+        api: {
+          root: '.',
+          start: 'bun storage/framework/core/actions/src/serve/api.ts',
+          port: 3008,
+          preStart: ['bun install'],
+          env: { HOST: '127.0.0.1', APP_ENV: 'production' },
+        },
 
-    // Queue worker — QUEUE_DRIVER=database, so jobs dispatched by the
-    // scheduler (DispatchDueChecks, CheckOverdueHeartbeats, etc. — see
-    // app/Scheduler.ts) sit in the `jobs` table until this process picks
-    // them up. No `port`: nothing to expose, just a persistent process.
-    worker: {
-      root: '.',
-      start: 'bun buddy queue:work',
-      preStart: ['bun install'],
-      env: { APP_ENV: 'production' },
-    },
+        // Queue worker — pulls jobs the scheduler dispatches (DispatchDueChecks,
+        // CheckOverdueHeartbeats, etc. — see app/Scheduler.ts) off the queue.
+        // No `port`: nothing to expose, just a persistent process.
+        worker: {
+          root: '.',
+          start: 'bun buddy queue:work',
+          preStart: ['bun install'],
+          env: { APP_ENV: 'production' },
+        },
 
-    // Scheduler — drives app/Scheduler.ts's cron-style jobs (every-minute
-    // monitor-check dispatch, heartbeat overdue checks, maintenance-window
-    // status sync, etc.). Without this running, monitors are never
-    // actually checked in production — DispatchDueChecks only fires when
-    // something invokes the scheduler loop.
-    scheduler: {
-      root: '.',
-      start: 'bun buddy schedule:run',
-      preStart: ['bun install'],
-      env: { APP_ENV: 'production' },
-    },
-  },
+        // Scheduler — drives app/Scheduler.ts's cron-style jobs (every-minute
+        // monitor-check dispatch, heartbeat overdue checks, consensus
+        // evaluation, maintenance-window status sync, etc.). Runs on the
+        // PRIMARY ONLY — a second scheduler would double-dispatch checks and
+        // race EvaluateMonitorConsensus on the shared status/incident writes.
+        scheduler: {
+          root: '.',
+          start: 'bun buddy schedule:run',
+          preStart: ['bun install'],
+          env: { APP_ENV: 'production' },
+        },
+      },
 }
 
 // Stacks cloud configuration (for existing Stacks cloud features)

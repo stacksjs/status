@@ -1,0 +1,17 @@
+CREATE TYPE "type_type" AS ENUM ('email', 'sms', 'slack', 'discord', 'teams', 'pagerduty', 'opsgenie', 'pushover', 'ntfy', 'webhook');
+CREATE TYPE "status_type" AS ENUM ('scheduled', 'active', 'completed', 'cancelled');
+CREATE TYPE "status_type" AS ENUM ('up', 'down', 'degraded');
+CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
+CREATE TYPE "role_type" AS ENUM ('owner', 'admin', 'member');
+CREATE TYPE "status_type" AS ENUM ('pending', 'active');
+CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
+CREATE TYPE "target_type" AS ENUM ('status_code', 'header', 'body', 'response_time');
+CREATE TYPE "compare_type" AS ENUM ('eq', 'not_eq', 'gt', 'gte', 'lt', 'lte', 'contains', 'not_contains', 'empty', 'not_empty');
+CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
+CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
+CREATE TYPE "type_type" AS ENUM ('uptime', 'ssl', 'broken_links', 'performance', 'lighthouse', 'domain', 'dns', 'health', 'cron', 'ping', 'tcp_port', 'port_scan', 'dns_blocklist', 'ai_check');
+CREATE TYPE "status_type" AS ENUM ('up', 'down', 'degraded', 'paused', 'unknown');
+CREATE TYPE "record_type_type" AS ENUM ('A', 'AAAA', 'MX', 'TXT', 'NS', 'CAA', 'CNAME');
+CREATE TYPE "access_type_type" AS ENUM ('public', 'password', 'email_domain', 'ip_allowlist');
+CREATE TYPE "force_theme_type" AS ENUM ('dark', 'light', 'system');
+CREATE TYPE "status_type" AS ENUM ('running', 'completed', 'failed');

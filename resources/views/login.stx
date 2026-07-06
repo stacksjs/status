@@ -74,8 +74,13 @@ const hasSso = ssoProviders.length > 0
         background: var(--surface); box-shadow: 0 20px 50px -18px rgba(11,15,13,0.22);
       }
       .brand { display: inline-flex; align-items: center; gap: 0.6rem; margin-bottom: 1.75rem; }
-      .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--accent-fg); background: var(--accent); }
-      .brand-mark svg { width: 16px; height: 16px; }
+      .brand-mark { position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--accent-fg); background: var(--accent); }
+      /* Live "pulse" — radar ring + double heartbeat so the mark reads as an active signal. Off under reduced-motion. */
+      .brand-mark::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; animation: brand-ping 2.6s cubic-bezier(0, 0, 0.2, 1) infinite; }
+      .brand-mark svg { width: 16px; height: 16px; transform-origin: center; animation: brand-beat 2.6s ease-in-out infinite; }
+      @keyframes brand-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 9px transparent; } }
+      @keyframes brand-beat { 0%, 45%, 100% { transform: scale(1); } 10% { transform: scale(1.16); } 20% { transform: scale(1); } 30% { transform: scale(1.1); } 40% { transform: scale(1); } }
+      @media (prefers-reduced-motion: reduce) { .brand-mark::after, .brand-mark svg { animation: none; } }
       .brand-name { font-family: var(--font-display); font-size: 1.12rem; font-weight: 600; }
       h1 { margin: 0 0 0.4rem; font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
       .sub { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.95rem; }
@@ -140,7 +145,7 @@ const hasSso = ssoProviders.length > 0
           <div class="row-between">
             <label for="password">Password</label>
           </div>
-          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required>
         </div>
         <button id="login-btn" class="button" type="submit">Sign in</button>
 

@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { planLimitsForTeam } from '../../../config/plans'
+import { limitReachedMessage, planForTeam } from '../../../config/plans'
 import Monitor from '../../Models/Monitor'
 
 export default new Action({
@@ -13,11 +13,11 @@ export default new Action({
       return response.json({ error: 'team_id is required' }, { status: 422 })
 
     const existingCount = (await Monitor.where('team_id', teamId).get()).length
-    const limits = await planLimitsForTeam(teamId)
+    const { plan, limits } = await planForTeam(teamId)
 
     if (existingCount >= limits.monitors) {
       return response.json(
-        { error: `Monitor limit reached (${limits.monitors} on the current plan). Upgrade to add more.` },
+        { error: limitReachedMessage('monitors', limits.monitors, plan) },
         { status: 402 },
       )
     }
@@ -25,7 +25,7 @@ export default new Action({
     const checkIntervalSeconds = Number(request.get('check_interval_seconds') ?? 60)
     if (checkIntervalSeconds < limits.checkIntervalFloorSeconds) {
       return response.json(
-        { error: `Check interval must be at least ${limits.checkIntervalFloorSeconds}s on the current plan. Upgrade to check more frequently.` },
+        { error: `Check interval must be at least ${limits.checkIntervalFloorSeconds}s on the ${plan} plan. Upgrade to check more frequently.` },
         { status: 402 },
       )
     }

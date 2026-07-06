@@ -148,6 +148,7 @@
   }
 
   .brand-mark {
+    position: relative;
     display: grid;
     flex: 0 0 auto;
     place-items: center;
@@ -157,7 +158,32 @@
     color: var(--accent-fg);
     background: var(--accent);
   }
-  .brand-mark svg { width: 16px; height: 16px; }
+  /* Live "pulse": a radar ring emanates from the mark while the waveform
+     gives a double heartbeat, so the logo reads as an active signal rather
+     than a static tile. Disabled under reduced-motion. */
+  .brand-mark::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: brand-ping 2.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  .brand-mark svg { width: 16px; height: 16px; transform-origin: center; animation: brand-beat 2.6s ease-in-out infinite; }
+  @keyframes brand-ping {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+    70%, 100% { box-shadow: 0 0 0 9px transparent; }
+  }
+  @keyframes brand-beat {
+    0%, 45%, 100% { transform: scale(1); }
+    10% { transform: scale(1.16); }
+    20% { transform: scale(1); }
+    30% { transform: scale(1.1); }
+    40% { transform: scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .brand-mark::after, .brand-mark svg { animation: none; }
+  }
 
   .brand-name {
     font-family: var(--font-display);

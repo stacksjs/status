@@ -9,13 +9,12 @@
   <form>, unchanged method/action/fields, two visual panels.
 -->
 <script server>
-const Database = require('bun:sqlite').Database
-const path = require('path')
 const { config } = require('@stacksjs/config')
 const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
 
-const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const db = new Database(dbPath, { readonly: true })
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
 
 // Auth + team resolution — see resources/views/dashboard/monitors/
 // index.stx's copy of this block for the full rationale. Resolving to
@@ -37,12 +36,10 @@ async function resolveAuthTeam() {
   const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
   if (!user || !user.id) return null
 
-  const membership = db.query(`
-    SELECT team_id FROM team_members
-    WHERE user_id = ?1 AND status = 'active'
-    ORDER BY CASE WHEN role = 'owner' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END
-    LIMIT 1
-  `).get(user.id)
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
 
   return { user, teamId: membership ? membership.team_id : null }
 }
@@ -52,42 +49,53 @@ const AUTH_USER = AUTH ? AUTH.user : null
 const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
 const NAV_ACTIVE = 'status-pages'
 const pageId = (typeof id !== 'undefined' && id) ? Number(id) : 0
-const statusPage = pageId ? db.query(`SELECT * FROM status_pages WHERE id = ?1 AND team_id = ?2 LIMIT 1`).get(pageId, TEAM_ID) : null
+const statusPage = pageId
+  ? (await db.selectFrom('status_pages').where('id', '=', pageId).where('team_id', '=', TEAM_ID).limit(1).execute())[0] || null
+  : null
 
-const assignedMonitors = statusPage
-  ? db.query(`
-      SELECT spm.id AS pivot_id, m.id AS monitor_id, m.name, m.type, m.status, spm.display_name
-      FROM status_page_monitors spm
-      JOIN monitors m ON m.id = spm.monitor_id
-      WHERE spm.status_page_id = ?1
-      ORDER BY spm.display_order ASC, m.name ASC
-    `).all(statusPage.id)
-  : []
+// Assigned monitors: the pivot rows joined back to their monitors in JS
+// (portable, and inner-join semantics preserved — a pivot whose monitor
+// was deleted drops out via the null filter).
+let assignedMonitors = []
+if (statusPage) {
+  const pivots = await db.selectFrom('status_page_monitors').where('status_page_id', '=', statusPage.id).execute()
+  const pivotMonIds = pivots.map(p => p.monitor_id)
+  const pivotMons = pivotMonIds.length ? await db.selectFrom('monitors').whereIn('id', pivotMonIds).execute() : []
+  const monById = new Map(pivotMons.map(m => [m.id, m]))
+  assignedMonitors = pivots
+    .map((p) => {
+      const m = monById.get(p.monitor_id)
+      return m ? { pivot_id: p.id, monitor_id: m.id, name: m.name, type: m.type, status: m.status, display_name: p.display_name, display_order: p.display_order } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a.display_order - b.display_order) || String(a.name).localeCompare(String(b.name)))
+}
 
 const assignedIds = assignedMonitors.map((m) => m.monitor_id)
-// Two separate placeholder strings: the first query's bound params start
-// at position 2 (TEAM_ID occupies position 1), the second's start at
-// position 1 (no leading TEAM_ID bind) — reusing one string for both
-// caused a bind-parameter-index mismatch that crashed the page render.
-const availablePlaceholders = assignedIds.map((_, i) => `?${i + 2}`).join(', ')
-const availableMonitors = statusPage
-  ? db.query(`SELECT id, name, type FROM monitors WHERE team_id = ?1 ${assignedIds.length > 0 ? `AND id NOT IN (${availablePlaceholders})` : ''} ORDER BY name ASC`).all(TEAM_ID, ...assignedIds)
-  : []
+
+// Available = the team's other monitors not already assigned to this page.
+let availableMonitors = []
+if (statusPage) {
+  const teamMons = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).execute()
+  const assignedSet = new Set(assignedIds)
+  availableMonitors = teamMons.filter(m => !assignedSet.has(m.id)).sort((a, b) => String(a.name).localeCompare(String(b.name)))
+}
 
 const componentGroups = statusPage
-  ? db.query(`SELECT id, name FROM status_page_component_groups WHERE status_page_id = ?1 ORDER BY display_order ASC, name ASC`).all(statusPage.id)
+  ? await db.selectFrom('status_page_component_groups').where('status_page_id', '=', statusPage.id).orderBy('display_order', 'asc').orderBy('name', 'asc').execute()
   : []
 
-const maintenancePlaceholders = assignedIds.map((_, i) => `?${i + 1}`).join(', ')
-const maintenanceWindows = statusPage && assignedIds.length > 0
-  ? db.query(`
-      SELECT DISTINCT mw.id, mw.title, mw.status, mw.starts_at, mw.ends_at
-      FROM maintenance_windows mw
-      JOIN maintenance_window_monitors mwm ON mwm.maintenance_window_id = mw.id
-      WHERE mwm.monitor_id IN (${maintenancePlaceholders})
-      ORDER BY mw.starts_at DESC LIMIT 10
-    `).all(...assignedIds)
-  : []
+// Maintenance windows touching any assigned monitor — resolve the pivot
+// links to distinct window ids, then fetch the newest 10.
+let maintenanceWindows = []
+if (statusPage && assignedIds.length > 0) {
+  const links = await db.selectFrom('maintenance_window_monitors').whereIn('monitor_id', assignedIds).execute()
+  const winIds = [...new Set(links.map(l => l.maintenance_window_id))]
+  if (winIds.length) {
+    const wins = await db.selectFrom('maintenance_windows').whereIn('id', winIds).orderBy('starts_at', 'desc').limit(10).execute()
+    maintenanceWindows = wins.map(w => ({ id: w.id, title: w.title, status: w.status, starts_at: w.starts_at, ends_at: w.ends_at }))
+  }
+}
 
 function formatDate(iso) {
   if (!iso) return '--'

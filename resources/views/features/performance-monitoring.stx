@@ -4,10 +4,10 @@ const appName = process.env.APP_NAME || 'UptimeStatus'
 const included = [
   { title: 'Automatic baseline', text: 'built from the preceding 7 days of your own check results and recomputed on every run. Nothing to configure.' },
   { title: 'p95, not averages', text: 'the comparison uses 95th-percentile response time, so tail latency cannot hide behind a healthy mean.' },
-  { title: 'Every 15 minutes', text: 'each enabled monitor with response-time history is evaluated, around the clock.' },
+  { title: 'Every 10 minutes', text: 'each enabled monitor with response-time history is evaluated, around the clock.' },
   { title: 'A 2x regression bar', text: 'an incident opens when the last hour\'s p95 is at least twice the baseline p95.' },
   { title: 'Sample guard', text: 'at least 5 data points required in both windows, so a quiet monitor cannot false-alarm off two slow requests.' },
-  { title: 'No alert storms', text: 'while a degradation incident is open, the check does not re-open a duplicate every 15 minutes.' },
+  { title: 'No alert storms', text: 'while a degradation incident is open, the check does not re-open a duplicate every 10 minutes.' },
 ]
 
 const faqs = [
@@ -24,7 +24,7 @@ const faqs = [
     a: 'The 95th-percentile response time of the last hour reaching at least 2x the 7-day baseline p95, with a minimum of 5 samples in each window. The incident records both numbers and the ratio between them.',
   },
   {
-    q: 'Will it page me every 15 minutes while things are slow?',
+    q: 'Will it page me every 10 minutes while things are slow?',
     a: 'No. If a degradation incident for that monitor is still open, the check skips it instead of opening a duplicate. You get one incident per slowdown, not one per evaluation.',
   },
   {
@@ -50,10 +50,10 @@ const related = [
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Performance monitoring | {{ appName }}</title>
-    <meta name="description" content="Automatic response-time regression detection: p95 of the last hour versus your 7-day baseline, checked every 15 minutes. No thresholds to tune.">
+    <meta name="description" content="Automatic response-time regression detection: p95 of the last hour versus your 7-day baseline, checked every 10 minutes. No thresholds to tune.">
     <link rel="canonical" href="https://uptime-status.org/features/performance-monitoring">
     <meta property="og:title" content="Performance monitoring | {{ appName }}">
-    <meta property="og:description" content="p95 baseline comparison every 15 minutes, no manual thresholds. Open source and self-hostable.">
+    <meta property="og:description" content="p95 baseline comparison every 10 minutes, no manual thresholds. Open source and self-hostable.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://uptime-status.org/features/performance-monitoring">
     @include('../partials/marketing-head.stx')
@@ -67,7 +67,7 @@ const related = [
           <span class="badge"><span class="dot"></span> No thresholds to configure</span>
           <h1 class="page-title">Slow is the new <span class="accent-word">down.</span></h1>
           <p class="page-lead">
-            No thresholds to guess. {{ appName }} compares last hour's p95 against your 7-day baseline every 15 minutes and flags anything twice as slow.
+            No thresholds to guess. {{ appName }} compares last hour's p95 against your 7-day baseline every 10 minutes and flags anything twice as slow.
           </p>
           <div class="page-actions">
             <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
@@ -116,7 +116,7 @@ const related = [
               A bad database index, a saturated connection pool, a dependency that started timing out and retrying: none of these fail your health check. Every probe still returns 200, and every response takes three times longer than last week.
             </p>
             <p>
-              The trend check runs every 15 minutes across all your enabled monitors. When the last hour's p95 reaches at least 2x the baseline, it opens an incident with both numbers and the ratio, so the alert arrives with its own evidence.
+              The trend check runs every 10 minutes across all your enabled monitors. When the last hour's p95 reaches at least 2x the baseline, it opens an incident with both numbers and the ratio, so the alert arrives with its own evidence.
             </p>
           </div>
           <div class="split-panel">

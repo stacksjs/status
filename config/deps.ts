@@ -1,3 +1,4 @@
+import process from "node:process";
 import type { PantryConfig } from "ts-pantry";
 
 /**
@@ -6,8 +7,18 @@ import type { PantryConfig } from "ts-pantry";
  * This file defines system-level dependencies managed by Pantry.
  * JavaScript/TypeScript dependencies remain in package.json.
  *
+ * Self-hosted installs default to SQLite and need zero services. The hosted /
+ * multi-region deploy sets DB_CONNECTION=postgres (and QUEUE_DRIVER=redis),
+ * which flips pantry to provision + autostart Postgres/Redis and run
+ * migrations on activation — the same "cd in and it's ready" flow easy-otc-api
+ * uses. Versions are pinned exactly because only specific builds are synced to
+ * the object storage (see easy-otc-api/deps.yaml's note).
+ *
  * @see https://pantry.sh/docs/configuration
  */
+const usePostgres = (process.env.DB_CONNECTION || "sqlite") === "postgres";
+const useRedis = usePostgres || process.env.QUEUE_DRIVER === "redis";
+
 export const config: PantryConfig = {
   /**
    * System dependencies with version constraints
@@ -15,13 +26,11 @@ export const config: PantryConfig = {
    */
   dependencies: {
     "bun.com": "^1.3.0",
-    "sqlite.org": "^3.47.2",
     craft: "^0.0.1",
-    // Uncomment as needed:
-    // 'redis.io': '^7.4.1',
-    // 'mailpit.axllent.org': '^1.21.8',
-    // 'openjdk.org': '^21.0.3.6',
-    // 'rust-lang.org': '^1.74.1',
+    // SQLite for self-hosted; Postgres for the hosted/multi-region deploy.
+    ...(usePostgres ? { "postgresql.org": "18.4" } : { "sqlite.org": "^3.47.2" }),
+    // Redis (real, not valkey) for the shared cross-region queue.
+    ...(useRedis ? { "redis.io": "8.8.0" } : {}),
   },
 
   /**
@@ -43,10 +52,10 @@ export const config: PantryConfig = {
      * Automatically provisions and starts the database
      */
     database: {
-      connection: "sqlite",
-      name: "stacks",
-      username: "root",
-      password: "",
+      connection: usePostgres ? "postgres" : "sqlite",
+      name: process.env.DB_DATABASE || "stacks",
+      username: usePostgres ? (process.env.DB_USERNAME || "postgres") : "root",
+      password: process.env.DB_PASSWORD || "",
       authMethod: "trust",
     },
 

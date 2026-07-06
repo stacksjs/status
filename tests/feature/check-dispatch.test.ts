@@ -45,10 +45,14 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
 
     const refreshed = await Monitor.find(monitor.id)
     expect(refreshed!.last_checked_at).not.toBe(staleCheckedAt)
-    expect(refreshed!.status).toBe('up')
 
+    // The check records a region-tagged observation; the monitor's *status*
+    // is now derived separately by EvaluateMonitorConsensus (covered by the
+    // consensus + incident-lifecycle tests), so this dispatch test asserts the
+    // observation was produced, not the derived status.
     const results = await CheckResult.where('monitor_id', monitor.id).get()
     expect(results.length).toBeGreaterThan(0)
+    expect(results[results.length - 1]!.status).toBe('up')
   })
 
   test('a monitor not yet due for a check is skipped', async () => {

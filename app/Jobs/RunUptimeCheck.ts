@@ -3,16 +3,17 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
 import CheckResult from '../Models/CheckResult'
-import Incident from '../Models/Incident'
-import IncidentUpdate from '../Models/IncidentUpdate'
 import Monitor from '../Models/Monitor'
 
 /**
- * Runs a single HTTP uptime check for one monitor, records the result, and
- * opens/resolves an Incident on a status transition (down -> up or
- * up -> down). Dispatched per-monitor by DispatchDueChecks, which runs on
- * the scheduler every minute and fans out only the monitors whose
- * checkIntervalSeconds has elapsed.
+ * Runs a single HTTP uptime check for one monitor and records the result as
+ * a region-tagged CheckResult. Dispatched per-monitor by DispatchDueChecks,
+ * which runs on the scheduler every minute and fans out only the monitors
+ * whose checkIntervalSeconds has elapsed.
+ *
+ * It does NOT set the monitor's status or open/resolve incidents itself —
+ * that is decided centrally by EvaluateMonitorConsensus from cross-region
+ * agreement, so a single region's blip can't page anyone.
  */
 export default new Job({
   name: 'RunUptimeCheck',
@@ -86,37 +87,10 @@ export default new Job({
       checked_at: checkedAt,
     })
 
-    const previousStatus = monitor.status
-    const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
-    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
-
-    if (previousStatus !== 'down' && status === 'down') {
-      await Incident.create({
-        monitor_id: monitor.id,
-        started_at: checkedAt,
-        cause: message,
-        status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'uptime', message }]),
-      })
-      log.warn(`[job] RunUptimeCheck: ${monitor.name} (${monitor.url}) went DOWN — ${message}`)
-    }
-    else if (previousStatus === 'down' && status === 'up') {
-      const openIncident = await Incident.where('monitor_id', monitor.id)
-        .where('status', '!=', 'resolved')
-        .orderByDesc('created_at')
-        .first()
-
-      if (openIncident) {
-        const resolvedAt = checkedAt
-        await openIncident.update({ status: 'resolved', resolved_at: resolvedAt })
-        await IncidentUpdate.create({
-          incident_id: openIncident.id,
-          message: 'Monitor recovered — check is passing again.',
-          status: 'resolved',
-          posted_at: resolvedAt,
-        })
-      }
-      log.info(`[job] RunUptimeCheck: ${monitor.name} (${monitor.url}) recovered`)
-    }
+    // Status + incident transitions are owned centrally by
+    // EvaluateMonitorConsensus (cross-region agreement). This job only records
+    // this region's observation as the CheckResult above and advances
+    // last_checked_at so DispatchDueChecks keeps scheduling it.
+    await monitor.update({ last_checked_at: checkedAt })
   },
 })

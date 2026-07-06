@@ -1,5 +1,6 @@
 import type { Server } from 'bun'
 import { afterAll, afterEach, describe, expect, test } from 'bun:test'
+import EvaluateMonitorConsensus from '../../app/Jobs/EvaluateMonitorConsensus'
 import RunUptimeCheck from '../../app/Jobs/RunUptimeCheck'
 import Incident from '../../app/Models/Incident'
 import IncidentUpdate from '../../app/Models/IncidentUpdate'
@@ -10,6 +11,12 @@ import Monitor from '../../app/Models/Monitor'
 // concurrently by default.
 const TEAM_ID = 90003
 
+// Status transitions + incident open/resolve moved from the check jobs into
+// EvaluateMonitorConsensus (stacksjs/status#1 Phase 11): a check now only
+// records a region-tagged CheckResult, and the consensus pass turns those
+// observations into the monitor's status. With one region the threshold
+// clamps to 1, so a single failing check still transitions to down — this
+// suite drives the check then the consensus pass and asserts that end state.
 describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
   let server: Server
   let shouldFail = false
@@ -43,11 +50,13 @@ describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
       url: `http://localhost:${server.port}/`,
       type: 'uptime',
       check_interval_seconds: 60,
+      enabled: true,
       status: 'up', // starts healthy so the failing check is a real transition
     })
     createdMonitorIds.push(monitor.id)
 
     await RunUptimeCheck.handle({ monitorId: monitor.id })
+    await EvaluateMonitorConsensus.handle({})
 
     const refreshed = await Monitor.find(monitor.id)
     expect(refreshed!.status).toBe('down')
@@ -72,13 +81,15 @@ describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
       url: `http://localhost:${server.port}/`,
       type: 'uptime',
       check_interval_seconds: 60,
+      enabled: true,
       status: 'up',
     })
     createdMonitorIds.push(monitor.id)
 
-    // First check fails -> opens an incident.
+    // First check fails -> consensus opens an incident.
     shouldFail = true
     await RunUptimeCheck.handle({ monitorId: monitor.id })
+    await EvaluateMonitorConsensus.handle({})
     const afterFailure = await Monitor.find(monitor.id)
     expect(afterFailure!.status).toBe('down')
 
@@ -86,9 +97,10 @@ describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
     expect(openIncidents.length).toBe(1)
     const incidentId = openIncidents[0]!.id
 
-    // Second check succeeds -> resolves the same incident.
+    // Second check succeeds -> consensus resolves the same incident.
     shouldFail = false
     await RunUptimeCheck.handle({ monitorId: monitor.id })
+    await EvaluateMonitorConsensus.handle({})
     const afterRecovery = await Monitor.find(monitor.id)
     expect(afterRecovery!.status).toBe('up')
 

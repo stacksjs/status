@@ -10,13 +10,12 @@
   solely when the open-incident count is zero.
 -->
 <script server>
-const Database = require('bun:sqlite').Database
-const path = require('path')
 const { config } = require('@stacksjs/config')
 const { Auth, sessionUser } = require('@stacksjs/auth')
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
+const { db } = require('@stacksjs/database')
 
-const dbPath = path.resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const db = new Database(dbPath, { readonly: true })
+const ROLE_PRIORITY = { owner: 0, admin: 1 }
 
 // Auth + team resolution -- see monitors/index.stx's copy of this block
 // for the full rationale. This feed previously joined across ALL
@@ -35,12 +34,10 @@ async function resolveAuthTeam() {
   const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
   if (!user || !user.id) return null
 
-  const membership = db.query(`
-    SELECT team_id FROM team_members
-    WHERE user_id = ?1 AND status = 'active'
-    ORDER BY CASE WHEN role = 'owner' THEN 0 WHEN role = 'admin' THEN 1 ELSE 2 END
-    LIMIT 1
-  `).get(user.id)
+  const memberships = await db.selectFrom('team_members')
+    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
+  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
+  const membership = memberships[0]
 
   return { user, teamId: membership ? membership.team_id : null }
 }
@@ -53,34 +50,38 @@ const NAV_ACTIVE = 'incidents'
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
 const filterStatus = query.get('status') || ''
 
-let sql = `
-  SELECT i.id, i.cause, i.status, i.started_at, i.resolved_at, m.id AS monitor_id, m.name AS monitor_name
-  FROM incidents i
-  JOIN monitors m ON m.id = i.monitor_id
-  WHERE m.team_id = ?1
-`
-const params = [TEAM_ID]
-if (filterStatus) {
-  sql += ` AND i.status = ?${params.length + 1}`
-  params.push(filterStatus)
+// Team scoping is done by first resolving this team's monitor ids, then
+// filtering incidents to them — the old cross-table JOIN is split into
+// two portable queries (the fluent builder's aliased-join projection is
+// unreliable). The monitor name is joined back in JS from the same fetch.
+const teamMonitors = await db.selectFrom('monitors').where('team_id', '=', TEAM_ID).execute()
+const monitorIds = teamMonitors.map(m => m.id)
+const monitorNameById = new Map(teamMonitors.map(m => [m.id, m.name]))
+
+let incidents = []
+let openCount = 0
+let statusTally = []
+if (monitorIds.length) {
+  let q = db.selectFrom('incidents').whereIn('monitor_id', monitorIds)
+  if (filterStatus)
+    q = q.where('status', '=', filterStatus)
+  const rows = await q.orderBy('started_at', 'desc').limit(100).execute()
+  incidents = rows.map(i => ({
+    id: i.id, cause: i.cause, status: i.status, started_at: i.started_at,
+    resolved_at: i.resolved_at, monitor_id: i.monitor_id,
+    monitor_name: monitorNameById.get(i.monitor_id) || '',
+  }))
+
+  openCount = await db.selectFrom('incidents').whereIn('monitor_id', monitorIds).where('status', '!=', 'resolved').count()
+
+  // Per-status tally for the stat strip: always the UNFILTERED team-wide
+  // ledger, so the readout stays a summary while filters narrow the
+  // table below it. Grouped in JS to stay dialect-agnostic.
+  const all = await db.selectFrom('incidents').whereIn('monitor_id', monitorIds).execute()
+  const counts = {}
+  for (const r of all) counts[r.status] = (counts[r.status] || 0) + 1
+  statusTally = Object.entries(counts).map(([status, c]) => ({ status, c }))
 }
-sql += ` ORDER BY i.started_at DESC LIMIT 100`
-
-const incidents = db.query(sql).all(...params)
-
-const openCount = db.query(`
-  SELECT COUNT(*) as c FROM incidents i JOIN monitors m ON m.id = i.monitor_id
-  WHERE i.status != 'resolved' AND m.team_id = ?1
-`).get(TEAM_ID).c
-
-// Per-status tally for the stat strip: always the UNFILTERED team-wide
-// ledger (same GROUP BY pattern as the fleet tally on monitors/
-// index.stx), so the readout stays a summary while filters narrow the
-// table below it.
-const statusTally = db.query(`
-  SELECT i.status, COUNT(*) as c FROM incidents i JOIN monitors m ON m.id = i.monitor_id
-  WHERE m.team_id = ?1 GROUP BY i.status
-`).all(TEAM_ID)
 const incidentTotal = statusTally.reduce((sum, r) => sum + r.c, 0)
 function tallyOf(status) {
   const row = statusTally.find(r => r.status === status)

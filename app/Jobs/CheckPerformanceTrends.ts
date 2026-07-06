@@ -14,7 +14,7 @@ function percentile(sorted: number[], p: number): number {
 }
 
 /**
- * Runs every 15 minutes (see app/Scheduler.ts) — cheap enough to check
+ * Runs every 10 minutes (see app/Scheduler.ts) — cheap enough to check
  * every monitor with response-time history, unlike an every-minute job.
  * For each monitor, compares the last hour's p95 response time against the
  * preceding 7-day baseline (excluding the last hour, so a currently-ongoing

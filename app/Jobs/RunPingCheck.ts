@@ -4,7 +4,6 @@ import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
-import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
 
 /**
@@ -75,18 +74,9 @@ export default new Job({
       checked_at: checkedAt,
     })
 
-    const previousStatus = monitor.status
-    await monitor.update({ status, last_checked_at: checkedAt })
-
-    if (previousStatus !== 'down' && status === 'down') {
-      await Incident.create({
-        monitor_id: monitor.id,
-        started_at: checkedAt,
-        cause: `Host ${host} is unreachable (ping)`,
-        status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'ping' }]),
-      })
-      log.warn(`[job] RunPingCheck: ${monitor.name} (${host}) unreachable`)
-    }
+    // Status + incident transitions are owned centrally by
+    // EvaluateMonitorConsensus (cross-region agreement); this job just records
+    // the region observation above and advances last_checked_at.
+    await monitor.update({ last_checked_at: checkedAt })
   },
 })

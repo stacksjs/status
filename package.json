@@ -73,7 +73,14 @@
     "@ts-cloud/aws-types": "^0.5.29",
     "@ts-cloud/core": "^0.5.29",
     "bun-plugin-stx": "^0.2.76",
-    "stacks": "workspace:*"
+    "stacks": "workspace:*",
+    "openssl.org": "^3.6.1",
+    "gnu.org/readline": "^8.3.0",
+    "zlib.net": "^1.3.2",
+    "lz4.org": "^1.10.0",
+    "gnome.org/libxml2": "^2.15.3",
+    "curl.se/ca-certs": "^2026.3.19",
+    "invisible-island.net/ncurses": "^6.6.0"
   },
   "devDependencies": {
     "better-dx": "^0.2.15"
