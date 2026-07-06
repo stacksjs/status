@@ -94,13 +94,17 @@ const hasSso = ssoProviders.length > 0
       .sub { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.95rem; }
       label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; }
       .field { margin-bottom: 1.1rem; }
-      input {
-        width: 100%; min-height: 46px; padding: 0.7rem 0.95rem; line-height: 1.4;
+      /* Scoped to `.field input` (specificity 0,1,1) so it beats Crosswind's
+         preflight `input { padding: 0 }` (0,0,1) regardless of stylesheet
+         order — otherwise the reset zeroed the padding and the placeholder sat
+         flush against the border. */
+      .field input {
+        width: 100%; min-height: 46px; padding: 0.7rem 0.95rem; line-height: 1.4; box-sizing: border-box;
         border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
         color: var(--fg); font: inherit; font-size: 0.95rem; background: var(--bg);
       }
-      input::placeholder { color: var(--muted); opacity: 0.75; }
-      input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+      .field input::placeholder { color: var(--muted); opacity: 0.75; }
+      .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
       .button {
         display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
         width: 100%; min-height: 46px; padding: 0 1.2rem; margin-top: 0.35rem;

@@ -1,0 +1,146 @@
+<script server>
+const appName = process.env.APP_NAME || 'UptimeStatus'
+
+// Getting-started path — the four things a new account does in order.
+const steps = [
+  { n: '1', title: 'Create your account', text: 'Sign up free (5 monitors, no card). Or self-host the whole thing from the GitHub repo.', href: '/register' },
+  { n: '2', title: 'Add your first monitor', text: 'Point a monitor at a URL, host, or port. Uptime, SSL, DNS, ping and more each become a check on that site.', href: '/features/uptime-monitoring' },
+  { n: '3', title: 'Route your alerts', text: 'Attach Email, SMS, Slack, Discord, Teams, PagerDuty, Opsgenie, Pushover, ntfy, or a webhook to a monitor.', href: '/features/notifications' },
+  { n: '4', title: 'Publish a status page', text: 'Give customers a public (or access-controlled) page that reflects your monitors in real time.', href: '/features/status-pages' },
+]
+
+// Every monitor type, grouped, each linking to its own reference page.
+const groups = [
+  {
+    heading: 'Availability',
+    items: [
+      { title: 'Uptime monitoring', text: 'HTTP(S) checks with status, latency, and keyword assertions.', href: '/features/uptime-monitoring' },
+      { title: 'Ping monitoring', text: 'ICMP reachability for hosts that do not speak HTTP.', href: '/features/ping-monitoring' },
+      { title: 'TCP port monitoring', text: 'Confirm a port accepts connections (databases, SMTP, custom services).', href: '/features/tcp-port-monitoring' },
+      { title: 'Cron / heartbeat', text: 'Watch scheduled jobs by expecting a ping on a cadence.', href: '/features/cron-monitoring' },
+      { title: 'Health checks', text: 'Parse a JSON health endpoint and alert on degraded fields.', href: '/features/health-checks' },
+    ],
+  },
+  {
+    heading: 'Certificates & DNS',
+    items: [
+      { title: 'SSL certificate monitoring', text: 'Expiry warnings at 30/14/7/1 days and fingerprint-change detection.', href: '/features/ssl-monitoring' },
+      { title: 'Domain monitoring', text: 'WHOIS-based registration-expiry warnings.', href: '/features/domain-monitoring' },
+      { title: 'DNS monitoring', text: 'Snapshot A, AAAA, MX, TXT, NS, CAA and alert on record changes.', href: '/features/dns-monitoring' },
+      { title: 'DNS blocklist monitoring', text: 'Watch your origin IP against public spam/abuse blocklists.', href: '/features/dns-blocklist-monitoring' },
+    ],
+  },
+  {
+    heading: 'Performance & security',
+    items: [
+      { title: 'Lighthouse monitoring', text: 'Scheduled Lighthouse audits with performance-trend alerts.', href: '/features/lighthouse-monitoring' },
+      { title: 'Performance monitoring', text: 'Track response-time trends and catch slow regressions.', href: '/features/performance-monitoring' },
+      { title: 'Broken-link crawls', text: 'Crawl a site and report broken links and mixed content.', href: '/features/broken-links' },
+      { title: 'Port-scan monitoring', text: 'Detect newly exposed ports on your servers.', href: '/features/port-scan-monitoring' },
+      { title: 'Server metrics', text: 'Push CPU/RAM from your box and chart host telemetry.', href: '/features/server-monitoring' },
+      { title: 'AI checks', text: 'Describe an assertion in plain language; an AI check verifies it.', href: '/features/ai-checks' },
+    ],
+  },
+  {
+    heading: 'Operate',
+    items: [
+      { title: 'Incident management', text: 'Failed checks open a timeline incident automatically; acknowledge and resolve.', href: '/features/incident-management' },
+      { title: 'Notifications', text: 'Ten channels, routed per monitor, with issue-vs-down severity.', href: '/features/notifications' },
+      { title: 'Status pages', text: 'Public or access-controlled pages, custom domains, subscribers.', href: '/features/status-pages' },
+    ],
+  },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Documentation | {{ appName }}</title>
+    <meta name="description" content="UptimeStatus documentation: get started in four steps, then a reference page for every monitor type, notifications, incidents, status pages, and self-hosting.">
+    <link rel="canonical" href="https://uptime-status.org/docs">
+    <meta property="og:title" content="Documentation | {{ appName }}">
+    <meta property="og:description" content="Get started in four steps, then a reference for every monitor type, notifications, incidents, and status pages.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://uptime-status.org/docs">
+    @include('./partials/marketing-head.stx')
+  </head>
+  <body>
+    @include('./partials/marketing-nav.stx')
+
+    <main>
+      <section class="site-shell">
+        <div class="page-hero">
+          <h1 class="page-title">Documentation.</h1>
+          <p class="page-lead">
+            Everything {{ appName }} monitors, and how to wire it up. New here? Start with the four steps below — most teams have their first alert routed in a few minutes.
+          </p>
+          <div class="page-actions">
+            <a class="button primary" href="/register" data-no-router>Start free</a>
+            <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host &amp; source</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-shell section" aria-labelledby="start-heading">
+        <div class="section-head">
+          <h2 id="start-heading" class="section-title">Get started.</h2>
+        </div>
+        <div class="feature-grid">
+          @foreach (steps as step)
+            <a class="feature-card" href="{{ step.href }}">
+              <h3>{{ step.n }}. {{ step.title }}</h3>
+              <p>{{ step.text }}</p>
+              <span class="card-more">Learn more</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+
+      @foreach (groups as group)
+        <section class="site-shell section" aria-label="{{ group.heading }}">
+          <div class="section-head">
+            <h2 class="section-title">{{ group.heading }}.</h2>
+          </div>
+          <div class="feature-grid">
+            @foreach (group.items as item)
+              <a class="feature-card" href="{{ item.href }}">
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.text }}</p>
+                <span class="card-more">Reference</span>
+              </a>
+            @endforeach
+          </div>
+        </section>
+      @endforeach
+
+      <section class="site-shell section" aria-labelledby="selfhost-heading">
+        <div class="section-head">
+          <h2 id="selfhost-heading" class="section-title">Self-hosting &amp; API.</h2>
+        </div>
+        <div class="feature-grid">
+          <a class="feature-card" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">
+            <h3>Self-host</h3>
+            <p>Run the whole stack yourself — it is open source and built on the Stacks framework. Setup and deploy instructions live in the repo README.</p>
+            <span class="card-more">Open the repo</span>
+          </a>
+          <a class="feature-card" href="/compare">
+            <h3>Compare</h3>
+            <p>How {{ appName }} stacks up against Oh Dear and rolling your own with open-source pieces.</p>
+            <span class="card-more">See the comparison</span>
+          </a>
+          <a class="feature-card" href="https://github.com/stacksjs/status/issues" target="_blank" rel="noopener">
+            <h3>Ask a question</h3>
+            <p>Something missing from these docs? Open an issue and we will fill the gap.</p>
+            <span class="card-more">Open an issue</span>
+          </a>
+        </div>
+      </section>
+
+      @include('./partials/marketing-cta.stx')
+    </main>
+
+    @include('./partials/marketing-footer.stx')
+  </body>
+</html>
