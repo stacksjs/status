@@ -6,6 +6,7 @@ import Crawl from '../Models/Crawl'
 import CrawledPage from '../Models/CrawledPage'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 const MAX_PAGES = 200
 const FETCH_TIMEOUT_MS = 15_000
@@ -141,6 +142,10 @@ export default new Job({
       // to up/down/degraded and none of those fits "could not run", so the
       // monitor keeps its current status.
       await monitor.update({ last_checked_at: new Date().toISOString() })
+      // Push this check outcome to the live-status broadcaster so the
+      // dashboard updates sub-second. Fire-and-forget; a no-op unless
+      // Redis fan-out is enabled (the poller is the fallback).
+      void broadcastMonitorUpdate(monitor.id)
       return
     }
 
@@ -295,6 +300,7 @@ export default new Job({
     // schedules off it, so skipping it would re-dispatch this check every minute.
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
     await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
+    void broadcastMonitorUpdate(monitor.id)
   },
 })
 

@@ -7,6 +7,7 @@ import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
 import PortScanResult from '../Models/PortScanResult'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 const WELL_KNOWN_RANGE_END = 1024
 const FULL_RANGE_END = 65535
@@ -150,5 +151,9 @@ export default new Job({
     // schedules off it, so skipping it would re-dispatch this check every minute.
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
     await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
+    // Push this check outcome to the live-status broadcaster so the
+    // dashboard updates sub-second. Fire-and-forget; a no-op unless
+    // Redis fan-out is enabled (the poller is the fallback).
+    void broadcastMonitorUpdate(monitor.id)
   },
 })

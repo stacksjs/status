@@ -4,6 +4,7 @@ import { Job } from '@stacksjs/queue'
 import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
 import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 /**
  * Application health monitoring contract: the target app exposes a JSON
@@ -114,5 +115,9 @@ export default new Job({
     // EvaluateMonitorConsensus (cross-region agreement); this job just records
     // the region observation above and advances last_checked_at.
     await monitor.update({ last_checked_at: checkedAt })
+    // Push this check outcome to the live-status broadcaster so the
+    // dashboard updates sub-second. Fire-and-forget; a no-op unless
+    // Redis fan-out is enabled (the poller is the fallback).
+    void broadcastMonitorUpdate(monitor.id)
   },
 })

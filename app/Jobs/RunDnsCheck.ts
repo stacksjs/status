@@ -7,6 +7,7 @@ import CheckResult from '../Models/CheckResult'
 import DnsSnapshot from '../Models/DnsSnapshot'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 const RESOLVERS: Record<string, (host: string) => Promise<unknown>> = {
   A: host => resolve4(host),
@@ -141,5 +142,9 @@ export default new Job({
     // schedules off it, so skipping it would re-dispatch this check every minute.
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
     await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
+    // Push this check outcome to the live-status broadcaster so the
+    // dashboard updates sub-second. Fire-and-forget; a no-op unless
+    // Redis fan-out is enabled (the poller is the fallback).
+    void broadcastMonitorUpdate(monitor.id)
   },
 })

@@ -3,6 +3,7 @@ import { Job } from '@stacksjs/queue'
 import HeartbeatMonitor from '../Models/HeartbeatMonitor'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 /**
  * Runs every minute (see app/Scheduler.ts). Unlike the other check types,
@@ -35,6 +36,10 @@ export default new Job({
         continue
 
       await monitor.update({ status: 'down', last_checked_at: new Date().toISOString() })
+      // Push this check outcome to the live-status broadcaster so the
+      // dashboard updates sub-second. Fire-and-forget; a no-op unless
+      // Redis fan-out is enabled (the poller is the fallback).
+      void broadcastMonitorUpdate(monitor.id)
       await Incident.create({
         monitor_id: monitor.id,
         started_at: new Date().toISOString(),

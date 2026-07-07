@@ -4,6 +4,7 @@ import { Job } from '@stacksjs/queue'
 import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
 import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 /**
  * Runs a single HTTP uptime check for one monitor and records the result as
@@ -92,5 +93,9 @@ export default new Job({
     // this region's observation as the CheckResult above and advances
     // last_checked_at so DispatchDueChecks keeps scheduling it.
     await monitor.update({ last_checked_at: checkedAt })
+    // Push this check outcome to the live-status broadcaster so the
+    // dashboard updates sub-second. Fire-and-forget; a no-op unless
+    // Redis fan-out is enabled (the poller is the fallback).
+    void broadcastMonitorUpdate(monitor.id)
   },
 })

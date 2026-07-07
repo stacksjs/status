@@ -9,6 +9,7 @@ import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import LighthouseReport from '../Models/LighthouseReport'
 import Monitor from '../Models/Monitor'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 const SCORE_REGRESSION_THRESHOLD = 15 // percentage points
 
@@ -90,6 +91,10 @@ export default new Job({
         // constrained to up/down/degraded and none of those fits a skip, so
         // the monitor keeps its current status and the message lives in the log.
         await monitor.update({ last_checked_at: checkedAt })
+        // Push this check outcome to the live-status broadcaster so the
+        // dashboard updates sub-second. Fire-and-forget; a no-op unless
+        // Redis fan-out is enabled (the poller is the fallback).
+        void broadcastMonitorUpdate(monitor.id)
         return
       }
 
@@ -155,6 +160,7 @@ export default new Job({
       // schedules off it, so skipping it would re-dispatch this check every minute.
       const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
       await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
+      void broadcastMonitorUpdate(monitor.id)
     }
     catch (error) {
       log.warn(`[job] RunLighthouseAudit: failed for ${monitor.name}: ${error instanceof Error ? error.message : String(error)}`)
@@ -162,6 +168,7 @@ export default new Job({
       // last_checked_at still has to move so the audit isn't re-dispatched
       // every minute.
       await monitor.update({ last_checked_at: checkedAt })
+      void broadcastMonitorUpdate(monitor.id)
     }
     finally {
       await rm(workDir, { recursive: true, force: true }).catch(() => {})

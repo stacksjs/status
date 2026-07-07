@@ -5,6 +5,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 /**
  * Shells out to the system `ping` binary — Bun/Node have no raw ICMP socket
@@ -78,5 +79,9 @@ export default new Job({
     // EvaluateMonitorConsensus (cross-region agreement); this job just records
     // the region observation above and advances last_checked_at.
     await monitor.update({ last_checked_at: checkedAt })
+    // Push this check outcome to the live-status broadcaster so the
+    // dashboard updates sub-second. Fire-and-forget; a no-op unless
+    // Redis fan-out is enabled (the poller is the fallback).
+    void broadcastMonitorUpdate(monitor.id)
   },
 })

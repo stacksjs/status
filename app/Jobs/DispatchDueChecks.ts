@@ -14,6 +14,7 @@ import RunPortScan from './RunPortScan'
 import RunSslCheck from './RunSslCheck'
 import RunTcpPortCheck from './RunTcpPortCheck'
 import RunUptimeCheck from './RunUptimeCheck'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 /**
  * Runs every minute (see app/Scheduler.ts) and fans out the right check job
@@ -105,6 +106,10 @@ export default new Job({
         // last_checked_at directly so this monitor doesn't get redispatched
         // every minute — RunAiCheck opens its own incidents per assertion.
         await monitor.update({ last_checked_at: new Date().toISOString() })
+        // Push this check outcome to the live-status broadcaster so the
+        // dashboard updates sub-second. Fire-and-forget; a no-op unless
+        // Redis fan-out is enabled (the poller is the fallback).
+        void broadcastMonitorUpdate(monitor.id)
         dispatched++
         continue
       }

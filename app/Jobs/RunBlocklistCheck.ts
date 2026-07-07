@@ -6,6 +6,7 @@ import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 /**
  * Public DNSBL (DNS-based Blocklist) zones. A listing means "queried IP
@@ -125,6 +126,10 @@ export default new Job({
           // DispatchDueChecks schedules off it, so returning without it would
           // re-dispatch this check every minute. The monitor keeps its status.
           await monitor.update({ last_checked_at: new Date().toISOString() })
+          // Push this check outcome to the live-status broadcaster so the
+          // dashboard updates sub-second. Fire-and-forget; a no-op unless
+          // Redis fan-out is enabled (the poller is the fallback).
+          void broadcastMonitorUpdate(monitor.id)
           return
         }
       }
@@ -181,5 +186,6 @@ export default new Job({
     const status: 'up' | 'degraded' = listedOn.length > 0 ? 'degraded' : 'up'
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
     await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
+    void broadcastMonitorUpdate(monitor.id)
   },
 })

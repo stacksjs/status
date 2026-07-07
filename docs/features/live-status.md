@@ -64,5 +64,5 @@ Every process (workers, all broadcasters) must share the **same** `BROADCAST_RED
 
 ## Notes
 
-- **The poll is always the safety net.** Even with Redis on, the reconciling broadcaster keeps polling, so nothing is missed if a push is dropped, and monitor types whose push isn't wired yet still update within one interval. Today the instant push covers **consensus status transitions** (uptime / ping / TCP / health going up or down, decided by `EvaluateMonitorConsensus`); the poll covers everything else (other check types, response time, last-checked). Wiring the push into the remaining check jobs is a mechanical follow-up — the poll means there's no coverage gap in the meantime.
+- **Every check pushes; the poll is the safety net.** Each check job publishes its outcome the moment it writes the monitor row - consensus status transitions (uptime / ping / TCP / health, via `EvaluateMonitorConsensus`), the inline types' own status writes (SSL / DNS / domain / Lighthouse / port scan / blocklist / crawl / heartbeat), response time, and last-checked all push instantly. The reconciling broadcaster keeps polling anyway, so nothing is lost if a push is ever dropped.
 - Without Redis, the poller detects changes every few seconds, so an update surfaces within roughly one poll interval — a deliberate simplicity/robustness trade for the single-instance default.

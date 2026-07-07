@@ -9,6 +9,7 @@ import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
 import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SendNotification from './SendNotification'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 const WARNING_THRESHOLDS_DAYS = [30, 14, 7, 1]
 
@@ -120,6 +121,10 @@ export default new Job({
       // misrepresent "could not determine", so the monitor keeps its
       // current status and the warning lives in the log.
       await monitor.update({ status: monitor.status || 'unknown', last_checked_at: checkedAt })
+      // Push this check outcome to the live-status broadcaster so the
+      // dashboard updates sub-second. Fire-and-forget; a no-op unless
+      // Redis fan-out is enabled (the poller is the fallback).
+      void broadcastMonitorUpdate(monitor.id)
       return
     }
 
@@ -127,6 +132,7 @@ export default new Job({
       log.warn(`[job] RunDomainCheck: no parsed WHOIS data for ${domain}`)
       // Same as the lookup-failure path above: bump last_checked_at, keep status.
       await monitor.update({ status: monitor.status || 'unknown', last_checked_at: checkedAt })
+      void broadcastMonitorUpdate(monitor.id)
       return
     }
 
@@ -138,6 +144,7 @@ export default new Job({
       log.warn(`[job] RunDomainCheck: could not find an expiry date in WHOIS response for ${domain}`)
       // Same as the lookup-failure path above: bump last_checked_at, keep status.
       await monitor.update({ status: monitor.status || 'unknown', last_checked_at: checkedAt })
+      void broadcastMonitorUpdate(monitor.id)
       return
     }
 
@@ -146,6 +153,7 @@ export default new Job({
       log.warn(`[job] RunDomainCheck: unparseable expiry date '${expiryRaw}' for ${domain}`)
       // Same as the lookup-failure path above: bump last_checked_at, keep status.
       await monitor.update({ status: monitor.status || 'unknown', last_checked_at: checkedAt })
+      void broadcastMonitorUpdate(monitor.id)
       return
     }
 
@@ -221,5 +229,6 @@ export default new Job({
 
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
     await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
+    void broadcastMonitorUpdate(monitor.id)
   },
 })

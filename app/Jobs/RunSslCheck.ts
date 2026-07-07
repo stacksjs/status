@@ -9,6 +9,7 @@ import Monitor from '../Models/Monitor'
 import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SslCertificate from '../Models/SslCertificate'
 import SendNotification from './SendNotification'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 /** Alert thresholds, in days before expiry. */
 const WARNING_THRESHOLDS_DAYS = [30, 14, 7, 1]
@@ -88,6 +89,10 @@ export default new Job({
       // last_checked_at must advance on every terminal path - DispatchDueChecks
       // schedules off it, so skipping it would re-dispatch this check every minute.
       await monitor.update({ status: 'down', last_checked_at: checkedAt, consecutive_failures: monitor.consecutive_failures + 1 })
+      // Push this check outcome to the live-status broadcaster so the
+      // dashboard updates sub-second. Fire-and-forget; a no-op unless
+      // Redis fan-out is enabled (the poller is the fallback).
+      void broadcastMonitorUpdate(monitor.id)
       await Incident.create({
         monitor_id: monitor.id,
         started_at: checkedAt,
@@ -183,5 +188,6 @@ export default new Job({
 
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
     await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
+    void broadcastMonitorUpdate(monitor.id)
   },
 })
