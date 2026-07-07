@@ -2,6 +2,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import { consensusStatus, CONSENSUS_TYPES, regionsConfig } from '../../config/regions'
 import CheckResult from '../Models/CheckResult'
+import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 import Incident from '../Models/Incident'
 import IncidentUpdate from '../Models/IncidentUpdate'
 import Monitor from '../Models/Monitor'
@@ -81,6 +82,13 @@ export default new Job({
         continue
 
       await monitor.update({ status: next })
+
+      // Push this transition to the live-status broadcaster at once via the
+      // Redis fan-out, so the dashboard reflects a monitor going down/up
+      // sub-second instead of on the next poll. Fire-and-forget and a no-op
+      // unless Redis is enabled (the `buddy realtime` poller is the
+      // single-instance fallback) — never allowed to fail the verdict.
+      void broadcastMonitorUpdate(monitor.id)
 
       if (prev !== 'down' && next === 'down') {
         const downRegions = votes.filter(r => r.status === 'down').map(r => r.region || 'default')

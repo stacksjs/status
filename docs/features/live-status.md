@@ -40,18 +40,29 @@ BROADCAST_HOST=0.0.0.0
 BROADCAST_SCHEME=ws      # ws locally; wss behind a TLS proxy
 ```
 
-## Scaling
+## Scaling with Redis (push path + multiple instances)
 
-One broadcaster serves every connected browser and reads the shared database, so a single instance is the right default for a self-host. The `bun` driver's broadcasts only reach clients of the **same process**, so to run more than one broadcaster instance behind a load balancer (for connection headroom or HA), enable the Redis adapter so a broadcast from any instance fans out to clients connected to any other:
+The single poller is the right default for a self-host. Two things change when you turn on the Redis fan-out:
 
 ```bash
 BROADCAST_REDIS_ENABLED=true
 REDIS_HOST=...
 REDIS_PORT=6379
+BROADCAST_REDIS_PREFIX=stacks:realtime:   # must match across every process
 ```
 
-The config is already wired for it (`config/realtime.ts` → `server.redis`); `buddy realtime` just doesn't require it for the single-instance default.
+1. **The check pipeline pushes instead of waiting for a poll.** When a monitor's status changes, the worker/scheduler publishes the update straight into the Redis fan-out and a Redis-enabled broadcaster relays it to browsers **sub-second**, rather than on the next poll tick. (The `bun` driver's in-process `emit()` can't reach browsers from a worker, which is exactly why this goes through Redis.)
+
+2. **You can run more than one broadcaster.** The `bun` driver only reaches clients of the same process, so for connection headroom or HA, run one broadcaster normally (it keeps polling as the reconciliation backstop) and any extra instances with `--no-poll` — pure relays that just forward what Redis feeds them:
+
+```bash
+buddy realtime                 # relays + polls (the reconciler)
+buddy realtime --no-poll       # extra instance: relay only, no DB polling
+```
+
+Every process (workers, all broadcasters) must share the **same** `BROADCAST_REDIS_PREFIX` — the fan-out key is `<prefix>channel`, and a mismatch silently drops the relay.
 
 ## Notes
 
-- The broadcaster detects changes by polling (every few seconds), so an update surfaces within roughly one poll interval — not sub-second. For the self-host scale this targets, that's a deliberate simplicity/robustness trade: no coupling to the worker processes, and it works regardless of how many workers run. Broadcasting directly from the check jobs is a natural future optimization once the multi-process fan-out (Redis) is the norm.
+- **The poll is always the safety net.** Even with Redis on, the reconciling broadcaster keeps polling, so nothing is missed if a push is dropped, and monitor types whose push isn't wired yet still update within one interval. Today the instant push covers **consensus status transitions** (uptime / ping / TCP / health going up or down, decided by `EvaluateMonitorConsensus`); the poll covers everything else (other check types, response time, last-checked). Wiring the push into the remaining check jobs is a mechanical follow-up — the poll means there's no coverage gap in the meantime.
+- Without Redis, the poller detects changes every few seconds, so an update surfaces within roughly one poll interval — a deliberate simplicity/robustness trade for the single-instance default.

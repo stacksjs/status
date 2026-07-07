@@ -4,6 +4,7 @@ import { config } from '@stacksjs/config'
 import { db } from '@stacksjs/database'
 import { log } from '@stacksjs/logging'
 import { createServer, emit, stopServer } from '@stacksjs/realtime'
+import { resolveRedisBroadcastConfig } from '../Realtime/broadcastMonitorUpdate'
 
 export interface MonitorRow { id: number, team_id: number, status: string, last_checked_at: string | null }
 export interface MonitorSnapshot { status: string, lastChecked: string | null }
@@ -73,17 +74,30 @@ export default function (cli: CLI) {
     .command('realtime', 'Start the realtime monitor-status broadcaster (WebSocket)')
     .option('--port <port>', 'WebSocket port (defaults to BROADCAST_PORT / config.realtime.server.port)')
     .option('--interval <ms>', 'Poll interval in milliseconds', { default: 3000 })
-    .action(async (options: { port?: string, interval?: number }) => {
+    .option('--no-poll', 'Relay only — do not poll the DB. For extra broadcaster instances behind a load balancer when Redis fan-out is on (the workers push; one poller reconciles).')
+    .action(async (options: { port?: string, interval?: number, poll?: boolean }) => {
       const rt = config.realtime as { server?: { host?: string, port?: number, scheme?: string } }
       const host = rt.server?.host || '0.0.0.0'
       const port = Number(options.port || rt.server?.port || 6001)
       const interval = Math.max(500, Number(options.interval || 3000))
 
+      // When Redis fan-out is on, wire the adapter into the server so it
+      // RELAYS broadcasts published by worker/scheduler processes (the push
+      // path) to this instance's connected browsers. keyPrefix must match
+      // the publisher's exactly — both read it from the shared resolver.
+      const redisCfg = resolveRedisBroadcastConfig()
+      // `--no-poll` yields `poll: false` (cac negates `--no-*`). Only honor
+      // it when Redis relaying is on — a poll-less, Redis-less broadcaster
+      // would sit silent, so fall back to polling in that misconfiguration.
+      const polling = options.poll !== false || !redisCfg
+
       await createServer({
         default: 'bun',
         connections: { bun: { host, port, scheme: (rt.server?.scheme as 'ws' | 'wss') || 'ws' } },
+        ...(redisCfg ? { redis: redisCfg } : {}),
       } as never)
-      log.info(`[realtime] broadcaster listening on ws://${host}:${port}/ws (polling every ${interval}ms)`)
+      const mode = redisCfg ? (polling ? 'redis relay + poll' : 'redis relay (no poll)') : 'poll'
+      log.info(`[realtime] broadcaster listening on ws://${host}:${port}/ws (${mode}${polling ? `, every ${interval}ms` : ''})`)
 
       // Snapshot of the last-seen status + last_checked_at per monitor. A
       // monitor seen for the FIRST time (prev === undefined) is only
@@ -139,11 +153,18 @@ export default function (cli: CLI) {
         }
       }
 
-      await poll()
-      const timer = setInterval(poll, interval)
+      // In relay-only mode the workers push every update via Redis, so this
+      // instance does no DB polling — it just relays what the adapter feeds
+      // it to its connected browsers.
+      let timer: ReturnType<typeof setInterval> | null = null
+      if (polling) {
+        await poll()
+        timer = setInterval(poll, interval)
+      }
 
       const shutdown = async () => {
-        clearInterval(timer)
+        if (timer)
+          clearInterval(timer)
         await stopServer().catch(() => {})
         log.info('[realtime] broadcaster stopped')
         process.exit(0)
