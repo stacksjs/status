@@ -48,7 +48,11 @@ export default defineModel({
       fillable: true,
       required: true,
       validation: {
-        rule: schema.string().required().max(2048),
+        // A webhook target is always a real URL we POST to — validate the
+        // format (rejects javascript:, file://, and other non-URL junk) rather
+        // than accepting any string, unlike Monitor.url which also stores bare
+        // hosts for ping/tcp checks.
+        rule: schema.string().required().url().max(2048),
       },
       factory: faker => faker.internet.url(),
     },
@@ -59,6 +63,9 @@ export default defineModel({
       order: 2,
       fillable: true,
       required: true,
+      // HMAC signing key — leaking it lets an attacker forge valid webhook
+      // signatures, so keep it out of API responses (write-only).
+      hidden: true,
       validation: {
         rule: schema.string().required().max(255),
       },

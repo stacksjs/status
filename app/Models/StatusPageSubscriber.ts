@@ -48,6 +48,9 @@ export default defineModel({
       order: 2,
       fillable: true,
       required: true,
+      // Bearer capability for the one-click unsubscribe link — exposing it
+      // lets anyone unsubscribe arbitrary subscribers, so keep it hidden.
+      hidden: true,
       validation: {
         rule: schema.string().required().max(64),
       },

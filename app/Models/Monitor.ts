@@ -179,6 +179,10 @@ export default defineModel({
     metricsToken: {
       order: 11,
       fillable: true,
+      // The token IS the auth for the metrics-push endpoint — anyone who can
+      // read it can inject fake samples, so it must never serialize into an
+      // API response (same reasoning as User.password's hidden flag).
+      hidden: true,
       validation: {
         rule: schema.string().max(64),
       },
