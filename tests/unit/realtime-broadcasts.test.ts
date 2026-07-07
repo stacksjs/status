@@ -1,58 +1,65 @@
 import { describe, expect, test } from 'bun:test'
-import { computeMonitorBroadcasts } from '../../app/Commands/Realtime'
+import { computeMonitorBroadcasts, type MonitorRow, type MonitorSnapshot } from '../../app/Commands/Realtime'
 
 const uuids = new Map<number, string>([[5, 'uuid-team-5'], [7, 'uuid-team-7']])
+const mon = (id: number, team_id: number, status: string, last_checked_at: string | null): MonitorRow => ({ id, team_id, status, last_checked_at })
 
-describe('computeMonitorBroadcasts (realtime transition detection)', () => {
+describe('computeMonitorBroadcasts (realtime change detection)', () => {
   test('first poll primes silently — no broadcasts for first-seen monitors', () => {
-    const last = new Map<number, string>()
-    const out = computeMonitorBroadcasts(last, [{ id: 1, team_id: 5, status: 'up' }, { id: 2, team_id: 5, status: 'down' }], uuids)
+    const last = new Map<number, MonitorSnapshot>()
+    const out = computeMonitorBroadcasts(last, [mon(1, 5, 'up', 't1'), mon(2, 5, 'down', 't1')], uuids)
     expect(out).toHaveLength(0)
-    expect(last.get(1)).toBe('up')
-    expect(last.get(2)).toBe('down')
+    expect(last.get(1)).toEqual({ status: 'up', lastChecked: 't1' })
+    expect(last.get(2)).toEqual({ status: 'down', lastChecked: 't1' })
   })
 
-  test('a status transition of a tracked monitor broadcasts once, on the team uuid channel', () => {
-    const last = new Map<number, string>([[1, 'up']])
-    const out = computeMonitorBroadcasts(last, [{ id: 1, team_id: 5, status: 'down' }], uuids)
-    expect(out).toEqual([{ channel: 'team.uuid-team-5.monitors', id: 1, status: 'down' }])
-    expect(last.get(1)).toBe('down')
+  test('a status transition broadcasts once, on the team uuid channel, with the new lastCheckedAt', () => {
+    const last = new Map<number, MonitorSnapshot>([[1, { status: 'up', lastChecked: 't1' }]])
+    const out = computeMonitorBroadcasts(last, [mon(1, 5, 'down', 't2')], uuids)
+    expect(out).toEqual([{ channel: 'team.uuid-team-5.monitors', id: 1, status: 'down', lastCheckedAt: 't2' }])
   })
 
-  test('unchanged status does not broadcast', () => {
-    const last = new Map<number, string>([[1, 'up']])
-    expect(computeMonitorBroadcasts(last, [{ id: 1, team_id: 5, status: 'up' }], uuids)).toHaveLength(0)
+  test('a fresh check (last_checked_at change) broadcasts even when status is unchanged', () => {
+    const last = new Map<number, MonitorSnapshot>([[1, { status: 'up', lastChecked: 't1' }]])
+    const out = computeMonitorBroadcasts(last, [mon(1, 5, 'up', 't2')], uuids)
+    expect(out).toEqual([{ channel: 'team.uuid-team-5.monitors', id: 1, status: 'up', lastCheckedAt: 't2' }])
   })
 
-  test('a monitor created after priming is recorded silently, then broadcasts on its next transition', () => {
-    const last = new Map<number, string>([[1, 'up']])
-    // Monitor 9 appears for the first time — recorded, not broadcast.
-    expect(computeMonitorBroadcasts(last, [{ id: 1, team_id: 5, status: 'up' }, { id: 9, team_id: 7, status: 'up' }], uuids)).toHaveLength(0)
-    expect(last.get(9)).toBe('up')
-    // Now it transitions — broadcast.
-    const out = computeMonitorBroadcasts(last, [{ id: 1, team_id: 5, status: 'up' }, { id: 9, team_id: 7, status: 'down' }], uuids)
-    expect(out).toEqual([{ channel: 'team.uuid-team-7.monitors', id: 9, status: 'down' }])
+  test('a genuinely unchanged monitor (same status AND last_checked_at) does not broadcast', () => {
+    const last = new Map<number, MonitorSnapshot>([[1, { status: 'up', lastChecked: 't1' }]])
+    expect(computeMonitorBroadcasts(last, [mon(1, 5, 'up', 't1')], uuids)).toHaveLength(0)
+  })
+
+  test('a monitor created after priming is recorded silently, then broadcasts on its next change', () => {
+    const last = new Map<number, MonitorSnapshot>([[1, { status: 'up', lastChecked: 't1' }]])
+    expect(computeMonitorBroadcasts(last, [mon(1, 5, 'up', 't1'), mon(9, 7, 'up', 't1')], uuids)).toHaveLength(0)
+    const out = computeMonitorBroadcasts(last, [mon(1, 5, 'up', 't1'), mon(9, 7, 'down', 't2')], uuids)
+    expect(out).toEqual([{ channel: 'team.uuid-team-7.monitors', id: 9, status: 'down', lastCheckedAt: 't2' }])
   })
 
   test('a team without a uuid produces no broadcast (unguessable-channel guard)', () => {
-    const last = new Map<number, string>([[3, 'up']])
-    // team 99 has no uuid mapping
-    expect(computeMonitorBroadcasts(last, [{ id: 3, team_id: 99, status: 'down' }], uuids)).toHaveLength(0)
+    const last = new Map<number, MonitorSnapshot>([[3, { status: 'up', lastChecked: 't1' }]])
+    expect(computeMonitorBroadcasts(last, [mon(3, 99, 'down', 't2')], uuids)).toHaveLength(0)
   })
 
-  test('a disappeared monitor is dropped so a re-created id cannot inherit a stale status', () => {
-    const last = new Map<number, string>([[1, 'up'], [2, 'down']])
-    computeMonitorBroadcasts(last, [{ id: 1, team_id: 5, status: 'up' }], uuids) // monitor 2 gone
+  test('a disappeared monitor is dropped so a re-created id cannot inherit a stale snapshot', () => {
+    const last = new Map<number, MonitorSnapshot>([[1, { status: 'up', lastChecked: 't1' }], [2, { status: 'down', lastChecked: 't1' }]])
+    computeMonitorBroadcasts(last, [mon(1, 5, 'up', 't1')], uuids) // monitor 2 gone
     expect(last.has(2)).toBe(false)
-    // A new monitor re-using id 2 is treated as first-seen (no spurious broadcast).
-    expect(computeMonitorBroadcasts(last, [{ id: 1, team_id: 5, status: 'up' }, { id: 2, team_id: 5, status: 'up' }], uuids)).toHaveLength(0)
+    expect(computeMonitorBroadcasts(last, [mon(1, 5, 'up', 't1'), mon(2, 5, 'up', 't1')], uuids)).toHaveLength(0)
   })
 
-  test('multiple transitions in one poll each broadcast on their own team channel', () => {
-    const last = new Map<number, string>([[1, 'up'], [9, 'up']])
-    const out = computeMonitorBroadcasts(last, [{ id: 1, team_id: 5, status: 'degraded' }, { id: 9, team_id: 7, status: 'down' }], uuids)
-    expect(out).toContainEqual({ channel: 'team.uuid-team-5.monitors', id: 1, status: 'degraded' })
-    expect(out).toContainEqual({ channel: 'team.uuid-team-7.monitors', id: 9, status: 'down' })
+  test('multiple changes in one poll each broadcast on their own team channel', () => {
+    const last = new Map<number, MonitorSnapshot>([[1, { status: 'up', lastChecked: 't1' }], [9, { status: 'up', lastChecked: 't1' }]])
+    const out = computeMonitorBroadcasts(last, [mon(1, 5, 'degraded', 't2'), mon(9, 7, 'up', 't2')], uuids)
+    expect(out).toContainEqual({ channel: 'team.uuid-team-5.monitors', id: 1, status: 'degraded', lastCheckedAt: 't2' })
+    expect(out).toContainEqual({ channel: 'team.uuid-team-7.monitors', id: 9, status: 'up', lastCheckedAt: 't2' })
     expect(out).toHaveLength(2)
+  })
+
+  test('null last_checked_at is handled and a transition to a real timestamp broadcasts', () => {
+    const last = new Map<number, MonitorSnapshot>([[1, { status: 'unknown', lastChecked: null }]])
+    const out = computeMonitorBroadcasts(last, [mon(1, 5, 'up', 't1')], uuids)
+    expect(out).toEqual([{ channel: 'team.uuid-team-5.monitors', id: 1, status: 'up', lastCheckedAt: 't1' }])
   })
 })

@@ -315,8 +315,8 @@ useHead({ title: 'Monitors \u00b7 UptimeStatus', meta: [{ name: 'robots', conten
                   <span class="sub">--</span>
                 @endif
               </span>
-              <span class="tcell num">{{ fmtDuration(lastResponseMs(monitor.id)) }}</span>
-              <span class="tcell num"><time>{{ agoLabel(monitor.last_checked_at) }}</time></span>
+              <span class="tcell num" data-monitor-response>{{ fmtDuration(lastResponseMs(monitor.id)) }}</span>
+              <span class="tcell num"><time data-monitor-checked datetime="{{ monitor.last_checked_at }}">{{ agoLabel(monitor.last_checked_at) }}</time></span>
             </a>
           @endforeach
         </div>
@@ -359,16 +359,53 @@ useHead({ title: 'Monitors \u00b7 UptimeStatus', meta: [{ name: 'robots', conten
       return 'Pending'
     }
 
-    function applyUpdate(id, status) {
-      var row = document.querySelector('[data-monitor-id="' + id + '"]')
-      if (!row) return
-      var cell = row.querySelector('[data-monitor-status]')
-      if (!cell) return
-      cell.className = stClass(status)
-      cell.setAttribute('value', status)
-      var label = cell.querySelector('[data-monitor-status-label]')
-      if (label) label.textContent = stLabel(status)
+    // Mirror the server-side fmtDuration / agoLabel so live updates format
+    // identically to the on-load render.
+    function fmtDuration(ms) {
+      if (ms == null) return '--'
+      if (ms < 1000) return ms + 'ms'
+      if (ms < 60000) return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's'
+      return Math.round(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's'
     }
+    function agoLabel(iso) {
+      if (!iso) return 'never'
+      var s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
+      if (s < 60) return s + 's ago'
+      if (s < 3600) return Math.floor(s / 60) + 'm ago'
+      if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+      return Math.floor(s / 86400) + 'd ago'
+    }
+
+    function applyUpdate(data) {
+      var row = document.querySelector('[data-monitor-id="' + data.id + '"]')
+      if (!row) return
+
+      var cell = row.querySelector('[data-monitor-status]')
+      if (cell) {
+        cell.className = stClass(data.status)
+        cell.setAttribute('value', data.status)
+        var label = cell.querySelector('[data-monitor-status-label]')
+        if (label) label.textContent = stLabel(data.status)
+      }
+      if (data.responseTimeMs !== undefined) {
+        var resp = row.querySelector('[data-monitor-response]')
+        if (resp) resp.textContent = fmtDuration(data.responseTimeMs)
+      }
+      if (data.lastCheckedAt !== undefined) {
+        var chk = row.querySelector('[data-monitor-checked]')
+        if (chk) { chk.setAttribute('datetime', data.lastCheckedAt || ''); chk.textContent = agoLabel(data.lastCheckedAt) }
+      }
+    }
+
+    // Keep the relative "last checked" labels fresh between checks (they'd
+    // otherwise freeze at whatever a new event last set them to).
+    setInterval(function () {
+      var nodes = document.querySelectorAll('[data-monitor-checked]')
+      for (var i = 0; i < nodes.length; i++) {
+        var iso = nodes[i].getAttribute('datetime')
+        if (iso) nodes[i].textContent = agoLabel(iso)
+      }
+    }, 30000)
 
     // The broadcaster listens on RT.port on the same host serving the app;
     // over TLS it's expected to be reverse-proxied as wss on the page host.
@@ -395,7 +432,7 @@ useHead({ title: 'Monitors \u00b7 UptimeStatus', meta: [{ name: 'robots', conten
         }
         if (msg.event === 'subscription_succeeded') { setLive(true); return }
         if (msg.event === 'monitor:updated' && msg.data && msg.data.id != null) {
-          applyUpdate(msg.data.id, msg.data.status)
+          applyUpdate(msg.data)
         }
       })
       ws.addEventListener('close', function () { setLive(false); if (!closedByUs) schedule() })
