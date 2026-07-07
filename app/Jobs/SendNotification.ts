@@ -13,6 +13,17 @@ interface NotificationPayload {
   severity: 'critical' | 'warning' | 'info'
 }
 
+/**
+ * Drain the response body, then enforce a 2xx/3xx. Draining matters even on
+ * success: an unconsumed Bun fetch body can hold its socket out of the
+ * connection pool until GC, leaking file descriptors under notification
+ * fan-out (many channels × many incidents).
+ */
+async function ensureOk(response: Response, service: string): Promise<void> {
+  await response.text().catch(() => {})
+  if (!response.ok) throw new Error(`${service} responded ${response.status}`)
+}
+
 async function sendPagerDuty(config: { routingKey?: string }, payload: NotificationPayload): Promise<void> {
   if (!config.routingKey) throw new Error('pagerduty channel is missing routingKey')
   const response = await fetch('https://events.pagerduty.com/v2/enqueue', {
@@ -29,7 +40,7 @@ async function sendPagerDuty(config: { routingKey?: string }, payload: Notificat
       },
     }),
   })
-  if (!response.ok) throw new Error(`PagerDuty responded ${response.status}`)
+  await ensureOk(response, 'PagerDuty')
 }
 
 async function sendOpsgenie(config: { apiKey?: string }, payload: NotificationPayload): Promise<void> {
@@ -46,7 +57,7 @@ async function sendOpsgenie(config: { apiKey?: string }, payload: NotificationPa
       priority: payload.severity === 'critical' ? 'P1' : payload.severity === 'warning' ? 'P3' : 'P5',
     }),
   })
-  if (!response.ok) throw new Error(`Opsgenie responded ${response.status}`)
+  await ensureOk(response, 'Opsgenie')
 }
 
 async function sendPushover(config: { userKey?: string, apiToken?: string }, payload: NotificationPayload): Promise<void> {
@@ -62,7 +73,7 @@ async function sendPushover(config: { userKey?: string, apiToken?: string }, pay
       priority: payload.severity === 'critical' ? '1' : '0',
     }),
   })
-  if (!response.ok) throw new Error(`Pushover responded ${response.status}`)
+  await ensureOk(response, 'Pushover')
 }
 
 async function sendNtfy(config: { server?: string, topic?: string }, payload: NotificationPayload): Promise<void> {
@@ -76,7 +87,7 @@ async function sendNtfy(config: { server?: string, topic?: string }, payload: No
     },
     body: payload.message,
   })
-  if (!response.ok) throw new Error(`ntfy responded ${response.status}`)
+  await ensureOk(response, 'ntfy')
 }
 
 async function sendWebhook(config: { url?: string, headers?: Record<string, string> }, payload: NotificationPayload): Promise<void> {
@@ -86,7 +97,7 @@ async function sendWebhook(config: { url?: string, headers?: Record<string, stri
     headers: { 'Content-Type': 'application/json', ...config.headers },
     body: JSON.stringify({ subject: payload.subject, message: payload.message, severity: payload.severity }),
   })
-  if (!response.ok) throw new Error(`Webhook responded ${response.status}`)
+  await ensureOk(response, 'Webhook')
 }
 
 /**

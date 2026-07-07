@@ -57,7 +57,10 @@ export default new Job({
     if (!heartbeatUrl) return
 
     try {
-      await fetch(heartbeatUrl, { method: 'GET', signal: AbortSignal.timeout(10_000) })
+      // Drain the body so Bun can return the socket to the pool rather than
+      // holding the fd open until GC across repeated heartbeat pings.
+      const response = await fetch(heartbeatUrl, { method: 'GET', signal: AbortSignal.timeout(10_000) })
+      await response.text().catch(() => {})
     }
     catch (error) {
       log.warn(`[job] CheckWorkerHealth: failed to ping WORKER_HEARTBEAT_URL: ${error instanceof Error ? error.message : String(error)}`)

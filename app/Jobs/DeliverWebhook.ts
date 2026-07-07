@@ -34,6 +34,10 @@ export default new Job({
         body,
         signal: AbortSignal.timeout(10_000),
       })
+      // Drain the body even though we don't use it: an unconsumed Bun fetch
+      // response can keep its socket out of the connection pool until GC, which
+      // leaks file descriptors under sustained webhook fan-out.
+      await response.text().catch(() => {})
       if (!response.ok)
         throw new Error(`Webhook endpoint responded ${response.status}`)
     }
