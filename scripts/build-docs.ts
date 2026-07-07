@@ -22,6 +22,9 @@ const GITHUB_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3
 const BLUESKY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.789.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8Z"/></svg>'
 const WORDMARK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg>'
 
+// Brand mark for the top-nav title (bunpress renders the title as plain text).
+const NAVMARK = `<span class="dx-navmark">${WORDMARK_SVG}</span>`
+
 const li = (href: string, text: string) => `<li><a href="${href}">${text}</a></li>`
 
 const FOOTER = `
@@ -110,18 +113,29 @@ if (!existsSync(OUT)) {
 // footer — on doc pages the fixed left sidebar and right TOC would overlay a
 // bottom footer, and a big marketing footer under every reference page is
 // unusual anyway. `class="BPSidebar"` marks a doc-layout page.
-let injected = 0
-let skipped = 0
+let footers = 0
+let logos = 0
 for (const rel of new Glob('**/*.html').scanSync({ cwd: OUT })) {
   const file = path.join(OUT, rel)
-  const html = await Bun.file(file).text()
-  if (html.includes('class="dx-footer"') || !html.includes('</body>'))
-    continue
-  if (html.includes('class="BPSidebar"')) {
-    skipped++
-    continue
+  let html = await Bun.file(file).text()
+  let changed = false
+
+  // Brand mark in the top-nav title — on every page (the nav is everywhere).
+  if (!html.includes('class="dx-navmark"') && html.includes('class="BPNavBarTitle">')) {
+    html = html.replace('class="BPNavBarTitle">', `class="BPNavBarTitle">${NAVMARK}`)
+    logos++
+    changed = true
   }
-  await Bun.write(file, html.replace('</body>', `${FOOTER}\n</body>`))
-  injected++
+
+  // Marketing footer — only on sidebar-less pages (the home): a doc page's
+  // fixed left sidebar + right TOC would overlay a bottom footer.
+  if (!html.includes('class="dx-footer"') && html.includes('</body>') && !html.includes('class="BPSidebar"')) {
+    html = html.replace('</body>', `${FOOTER}\n</body>`)
+    footers++
+    changed = true
+  }
+
+  if (changed)
+    await Bun.write(file, html)
 }
-console.log(`✓ injected marketing footer into ${injected} page(s); skipped ${skipped} sidebar doc page(s)`)
+console.log(`✓ injected nav brand mark into ${logos} page(s); marketing footer into ${footers} page(s)`)

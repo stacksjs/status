@@ -114,7 +114,9 @@ h1, h2, h3, h4, h5, h6,
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--bp-c-divider);
 }
-.BPNavBarTitle { font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+.BPNavBarTitle { display: inline-flex; align-items: center; gap: 0.6rem; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+.dx-navmark { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 auto; border-radius: 8px; color: #fff; background: var(--bp-c-brand-1); }
+.dx-navmark svg { width: 16px; height: 16px; }
 
 /* ---- Hero action buttons: marketing .button / .button.primary ---- */
 .BPButton { border-radius: 12px; font-weight: 600; height: 46px; padding: 0 1.2rem; font-size: 0.95rem; }
