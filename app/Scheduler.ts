@@ -27,6 +27,14 @@ export default function () {
     .job('CheckOverdueHeartbeats')
     .everyMinute()
 
+  // Server-metrics monitors are passive too — watch for a stalled agent
+  // (no metrics pushed within the monitor's window) the same way, since a
+  // host that stops pushing is exactly what "missed-push works like a
+  // heartbeat" means (stacksjs/status#1 server metrics).
+  schedule
+    .job('CheckStaleMetrics')
+    .everyMinute()
+
   // Decide each availability monitor's up/down status from cross-region
   // agreement and open/resolve incidents accordingly (stacksjs/status#1
   // Phase 11). The per-region check jobs only record observations now — this
