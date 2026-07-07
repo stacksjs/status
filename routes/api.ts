@@ -94,11 +94,15 @@ route.post('/status-report-updates', 'Actions/StatusPages/CreateStatusReportUpda
 
 // Password/email-domain gate for access-controlled status pages
 // (stacksjs/status#1 Phase 12) — public, no auth (this route IS the auth).
-route.post('/status/{slug}/unlock', 'Actions/StatusPages/UnlockStatusPageAction')
+// Rate-limited: this endpoint verifies a password/allowed email, so throttle
+// brute-force guessing the same way the login/2FA routes below are throttled.
+route.post('/status/{slug}/unlock', 'Actions/StatusPages/UnlockStatusPageAction').rateLimit(5, 'minute')
 
-// Status page subscriber signup/unsubscribe — public, no auth.
-route.post('/status/{slug}/subscribe', 'Actions/StatusPages/SubscribeAction')
-route.get('/status/{slug}/unsubscribe/{token}', 'Actions/StatusPages/UnsubscribeAction')
+// Status page subscriber signup/unsubscribe — public, no auth. Rate-limited:
+// subscribe sends a confirmation email (so throttle mail-flood / signup spam),
+// and unsubscribe takes a bearer token in the URL (throttle token guessing).
+route.post('/status/{slug}/subscribe', 'Actions/StatusPages/SubscribeAction').rateLimit(10, 'minute')
+route.get('/status/{slug}/unsubscribe/{token}', 'Actions/StatusPages/UnsubscribeAction').rateLimit(10, 'minute')
 route.get('/status/{slug}/feed', 'Actions/StatusPages/IncidentFeedAction')
 
 // Dashboard status-page builder form posts (stacksjs/status#1 Phase 8) —
