@@ -35,6 +35,22 @@ const statusPageForHost = requestHost
 // yet), not a security gap — gated content is never leaked here.
 const hostAccessGated = statusPageForHost && statusPageForHost.access_type && statusPageForHost.access_type !== 'public'
 
+// Localized UI strings for the custom-domain status page (stacksjs/
+// status#1 Phase 12 follow-up). Mirrors the dict in resources/views/
+// status/[slug].stx (keep in sync); the two views are self-contained
+// per the per-view convention. Unknown locales fall back to English.
+const LOCALE = String((statusPageForHost && statusPageForHost.locale) || 'en').toLowerCase().split('-')[0]
+const DATE_LOCALE = statusPageForHost ? (statusPageForHost.locale || 'en') : 'en'
+const STR = {
+  en: { major_outage: "Major Outage", partial_outage: "Partial Outage", all_operational: "All Systems Operational", maintenance: "Scheduled maintenance", announcements: "Announcements", posted: "Posted", active_incidents: "Active incidents", monitors: "Monitors", days_ago_90: "90 days ago", today: "Today", operational: "Operational", degraded: "Degraded", down: "Down", unknown: "Unknown", no_data: "No data yet", uptime: "uptime", host_restricted: "This status page is access-restricted.", gate_visit_pre: "Visit", gate_visit_post: "to sign in." },
+  es: { major_outage: "Interrupción mayor", partial_outage: "Interrupción parcial", all_operational: "Todos los sistemas operativos", maintenance: "Mantenimiento programado", announcements: "Anuncios", posted: "Publicado", active_incidents: "Incidentes activos", monitors: "Monitores", days_ago_90: "hace 90 días", today: "Hoy", operational: "Operativo", degraded: "Degradado", down: "Caído", unknown: "Desconocido", no_data: "Sin datos aún", uptime: "de disponibilidad", host_restricted: "Esta página de estado tiene acceso restringido.", gate_visit_pre: "Visita", gate_visit_post: "para iniciar sesión." },
+  fr: { major_outage: "Panne majeure", partial_outage: "Panne partielle", all_operational: "Tous les systèmes opérationnels", maintenance: "Maintenance planifiée", announcements: "Annonces", posted: "Publié", active_incidents: "Incidents en cours", monitors: "Moniteurs", days_ago_90: "il y a 90 jours", today: "Aujourd'hui", operational: "Opérationnel", degraded: "Dégradé", down: "Hors service", unknown: "Inconnu", no_data: "Pas encore de données", uptime: "de disponibilité", host_restricted: "L'accès à cette page d'état est restreint.", gate_visit_pre: "Visitez", gate_visit_post: "pour vous connecter." },
+  de: { major_outage: "Schwere Störung", partial_outage: "Teilweise Störung", all_operational: "Alle Systeme betriebsbereit", maintenance: "Geplante Wartung", announcements: "Ankündigungen", posted: "Veröffentlicht", active_incidents: "Aktive Vorfälle", monitors: "Monitore", days_ago_90: "vor 90 Tagen", today: "Heute", operational: "Betriebsbereit", degraded: "Beeinträchtigt", down: "Ausgefallen", unknown: "Unbekannt", no_data: "Noch keine Daten", uptime: "Verfügbarkeit", host_restricted: "Diese Statusseite ist zugriffsbeschränkt.", gate_visit_pre: "Besuchen Sie", gate_visit_post: "um sich anzumelden." },
+  pt: { major_outage: "Interrupção grave", partial_outage: "Interrupção parcial", all_operational: "Todos os sistemas operacionais", maintenance: "Manutenção programada", announcements: "Comunicados", posted: "Publicado", active_incidents: "Incidentes ativos", monitors: "Monitores", days_ago_90: "90 dias atrás", today: "Hoje", operational: "Operacional", degraded: "Degradado", down: "Fora do ar", unknown: "Desconhecido", no_data: "Sem dados ainda", uptime: "de disponibilidade", host_restricted: "Esta página de status tem acesso restrito.", gate_visit_pre: "Acesse", gate_visit_post: "para entrar." },
+}
+function t(key) { const d = STR[LOCALE] || STR.en; return (d && d[key] != null) ? d[key] : (STR.en[key] != null ? STR.en[key] : key) }
+
+
 // Assigned monitors joined back to their pivots in JS (portable); a real
 // monitor-name map is kept for the incident list below.
 let hostMonitors = []
@@ -126,8 +142,8 @@ function hostUptimeBarColor(status) {
 
 function hostUptimePctLabel(id) {
   const u = hostUptimeByMonitor[id]
-  if (!u || u.pct === null) return 'No data yet'
-  return u.pct.toFixed(2) + '% uptime'
+  if (!u || u.pct === null) return t('no_data')
+  return u.pct.toFixed(2) + '% ' + t('uptime')
 }
 
 // Illustrative uptime history for the "status.yourcompany.com" marketing
@@ -184,7 +200,7 @@ if (hostMonitorIds.length > 0) {
 
 const hostHasDown = hostMonitors.some((m) => m.status === 'down')
 const hostHasDegraded = hostMonitors.some((m) => m.status === 'degraded')
-const hostOverallLabel = hostHasDown ? 'Major Outage' : hostHasDegraded ? 'Partial Outage' : 'All Systems Operational'
+const hostOverallLabel = hostHasDown ? t('major_outage') : hostHasDegraded ? t('partial_outage') : t('all_operational')
 
 // A custom-domain hit always resolves to a status page (or the marketing
 // page when no custom domain matches) — never a mix, so a single <html>
@@ -195,7 +211,7 @@ const docTheme = statusPageForHost ? statusPageForHost.force_theme : 'system'
 function hostFormatDate(iso) {
   if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return d.toLocaleString(DATE_LOCALE, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function hostMonitorDotClass(status) {
@@ -206,10 +222,10 @@ function hostMonitorDotClass(status) {
 }
 
 function hostMonitorLabel(status) {
-  if (status === 'up') return 'Operational'
-  if (status === 'degraded') return 'Degraded'
-  if (status === 'down') return 'Down'
-  return 'Unknown'
+  if (status === 'up') return t('operational')
+  if (status === 'degraded') return t('degraded')
+  if (status === 'down') return t('down')
+  return t('unknown')
 }
 
 // Icon paths (24x24, Heroicons-outline-style) keyed by name, so the feature
@@ -1475,8 +1491,8 @@ const faqs = [
     @if (hostAccessGated)
       <div class="mx-auto max-w-3xl px-6 py-24 text-center">
         <h1 class="text-2xl font-semibold text-gray-900">{{ statusPageForHost.title }}</h1>
-        <p class="mt-2 text-gray-500">This status page is access-restricted.</p>
-        <p class="mt-1 text-gray-500">Visit <a class="underline" href="/status/{{ statusPageForHost.slug }}">/status/{{ statusPageForHost.slug }}</a> to sign in.</p>
+        <p class="mt-2 text-gray-500">{{ t('host_restricted') }}</p>
+        <p class="mt-1 text-gray-500">{{ t('gate_visit_pre') }} <a class="underline" href="/status/{{ statusPageForHost.slug }}">/status/{{ statusPageForHost.slug }}</a> {{ t('gate_visit_post') }}</p>
       </div>
     @endif
 
@@ -1492,7 +1508,7 @@ const faqs = [
 
         @if (hostActiveMaintenanceWindows.length > 0)
           <section class="mb-10">
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Scheduled maintenance</h2>
+            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('maintenance') }}</h2>
             <div class="space-y-3">
               @foreach (hostActiveMaintenanceWindows as mw)
                 <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
@@ -1507,7 +1523,7 @@ const faqs = [
 
         @if (hostActiveStatusReports.length > 0)
           <section class="mb-10">
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Announcements</h2>
+            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('announcements') }}</h2>
             <div class="space-y-3">
               @foreach (hostActiveStatusReports as report)
                 <div class="rounded-lg border border-gray-200 bg-white p-4">
@@ -1516,7 +1532,7 @@ const faqs = [
                     <span class="text-xs font-medium uppercase tracking-wide text-gray-500">{{ report.status }}</span>
                   </div>
                   <p class="mt-1 text-sm text-gray-600">{{ report.body }}</p>
-                  <p class="mt-1 text-xs text-gray-400">Posted {{ hostFormatDate(report.started_at) }}</p>
+                  <p class="mt-1 text-xs text-gray-400">{{ t('posted') }} {{ hostFormatDate(report.started_at) }}</p>
                 </div>
               @endforeach
             </div>
@@ -1525,7 +1541,7 @@ const faqs = [
 
         @if (hostActiveIncidents.length > 0)
           <section class="mb-10">
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Active incidents</h2>
+            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('active_incidents') }}</h2>
             <div class="space-y-3">
               @foreach (hostActiveIncidents as incident)
                 <div class="rounded-lg border border-gray-200 bg-white p-4">
@@ -1542,7 +1558,7 @@ const faqs = [
 
         @if (hostMonitorGroups.length === 0)
           <section>
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Monitors</h2>
+            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('monitors') }}</h2>
             <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
               @foreach (hostMonitors as monitor)
                 <div class="px-4 py-4">
@@ -1559,9 +1575,9 @@ const faqs = [
                     @endforeach
                   </div>
                   <div class="mt-1.5 flex items-center justify-between text-xs text-gray-400">
-                    <span>90 days ago</span>
+                    <span>{{ t('days_ago_90') }}</span>
                     <span>{{ hostUptimePctLabel(monitor.id) }}</span>
-                    <span>Today</span>
+                    <span>{{ t('today') }}</span>
                   </div>
                 </div>
               @endforeach
@@ -1589,9 +1605,9 @@ const faqs = [
                       @endforeach
                     </div>
                     <div class="mt-1.5 flex items-center justify-between text-xs text-gray-400">
-                      <span>90 days ago</span>
+                      <span>{{ t('days_ago_90') }}</span>
                       <span>{{ hostUptimePctLabel(monitor.id) }}</span>
-                      <span>Today</span>
+                      <span>{{ t('today') }}</span>
                     </div>
                   </div>
                 @endforeach
