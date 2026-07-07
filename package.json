@@ -36,7 +36,7 @@
     "format": "./buddy format",
     "format:check": "./buddy format:check",
     "serve": "./buddy serve",
-    "docs:build": "bun node_modules/@stacksjs/bunpress/dist/bin/cli.js build --dir ./docs --outdir ./dist/docs",
+    "docs:build": "bun scripts/build-docs.ts",
     "make": "./buddy make",
     "make:component": "./buddy make:component",
     "make:function": "./buddy make:function",
