@@ -1,5 +1,7 @@
 import { Action } from '@stacksjs/actions'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { log } from '@stacksjs/logging'
+import { response } from '@stacksjs/router'
 import AiCheck from '../../Models/AiCheck'
 import Monitor from '../../Models/Monitor'
 import RunAiCheck from '../../Jobs/RunAiCheck'
@@ -42,8 +44,14 @@ export default new Action({
   description: 'Run an on-demand check for a monitor',
 
   async handle(request) {
+    const authTeamId = await resolveAuthenticatedTeamId(request)
+    if (!authTeamId)
+      return response.unauthorized('Authentication required')
+
     const id = request.get('id')
-    const monitor = await Monitor.find(Number(id))
+    // Scope by team: without this any authenticated user could trigger checks
+    // on another team's monitor by guessing its id (IDOR).
+    const monitor = await Monitor.where('id', Number(id)).where('team_id', authTeamId).first()
 
     if (!monitor)
       return { success: false, message: `Monitor ${id} not found` }

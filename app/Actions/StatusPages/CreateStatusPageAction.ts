@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import { limitReachedMessage, planForTeam } from '../../../config/plans'
 import StatusPage from '../../Models/StatusPage'
@@ -14,9 +15,18 @@ export default new Action({
   description: 'Create a status page, enforcing the team\'s plan limit',
 
   async handle(request) {
-    const teamId = Number(request.get('team_id'))
-    if (!teamId)
-      return response.json({ error: 'team_id is required' }, { status: 422 })
+    // Bind the status page to the authenticated team, not a client-supplied
+    // team_id (that trust let a cross-team caller create pages under any team
+    // and consume its quota — IDOR). A body team_id must match the caller's.
+    const authTeamId = await resolveAuthenticatedTeamId(request)
+    if (!authTeamId)
+      return response.unauthorized('Authentication required')
+
+    const requestedTeamId = request.get('team_id') != null ? Number(request.get('team_id')) : authTeamId
+    if (requestedTeamId !== authTeamId)
+      return response.forbidden('You do not have access to this team')
+
+    const teamId = authTeamId
 
     const existingCount = (await StatusPage.where('team_id', teamId).get()).length
     const { plan, limits } = await planForTeam(teamId)

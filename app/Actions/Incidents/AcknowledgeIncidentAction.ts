@@ -1,6 +1,9 @@
 import { Action } from '@stacksjs/actions'
+import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
+import { response } from '@stacksjs/router'
 import Incident from '../../Models/Incident'
 import IncidentUpdate from '../../Models/IncidentUpdate'
+import Monitor from '../../Models/Monitor'
 
 /**
  * `POST /incidents/:id/acknowledge` — fills the one gap the auto-generated
@@ -17,10 +20,21 @@ export default new Action({
   description: 'Acknowledge an open incident',
 
   async handle(request) {
+    const authTeamId = await resolveAuthenticatedTeamId(request)
+    if (!authTeamId)
+      return response.unauthorized('Authentication required')
+
     const id = request.get('id')
     const incident = await Incident.find(Number(id))
 
     if (!incident)
+      return { success: false, message: `Incident ${id} not found` }
+
+    // Incident has no team_id of its own — ownership flows through its
+    // monitor. Verify the monitor belongs to the caller's team so one team
+    // can't acknowledge another team's incidents by guessing the id (IDOR).
+    const monitor = await Monitor.where('id', incident.monitor_id).where('team_id', authTeamId).first()
+    if (!monitor)
       return { success: false, message: `Incident ${id} not found` }
 
     if (incident.status !== 'investigating')
