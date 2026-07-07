@@ -99,5 +99,8 @@
   },
   "trustedDependencies": [
     "ts-charts"
-  ]
+  ],
+  "overrides": {
+    "@stacksjs/bunpress": "0.1.11"
+  }
 }

@@ -16,6 +16,16 @@ const config: BunPressOptions = {
   docsDir: './docs',
   outDir: './dist/docs',
 
+  // Load the marketing site's typefaces (bunpress emits the Google Fonts
+  // <link> tags into every page head); referenced from `markdown.css` below.
+  fonts: {
+    google: [
+      'Space Grotesk:wght@500;600;700',
+      'Inter:wght@400;500;600;700',
+      'JetBrains Mono:wght@400;600',
+    ],
+  },
+
   // Top navigation
   nav: [
     { text: 'Guide', link: '/introduction' },
@@ -39,14 +49,31 @@ const config: BunPressOptions = {
       maxDepth: 3,
     },
 
-    // Load the marketing site's typefaces so the docs match.
-    fonts: {
-      google: [
-        'Space+Grotesk:wght@500;600;700',
-        'Inter:wght@400;500;600;700',
-        'JetBrains+Mono:wght@400;600',
-      ],
-    },
+    // Brand the theme to match uptime-status.org. bunpress folds `markdown.css`
+    // into every page's stylesheet additively (after the theme CSS), so this
+    // repoints the theme's brand color (default indigo) to the marketing blue
+    // and pins the display/body/mono typefaces loaded via top-level `fonts`.
+    css: `
+:root {
+  --bp-c-brand-1: #2563eb;
+  --bp-c-brand-2: #3b82f6;
+  --bp-c-brand-3: #60a5fa;
+  --bp-c-brand-soft: rgba(37, 99, 235, 0.14);
+}
+.dark {
+  --bp-c-brand-1: #60a5fa;
+  --bp-c-brand-2: #3b82f6;
+  --bp-c-brand-3: #2563eb;
+  --bp-c-brand-soft: rgba(96, 165, 250, 0.16);
+}
+h1, h2, h3, h4, h5, h6,
+.hero-container .name, .hero-container .text {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+body { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; }
+code, pre, kbd, tt { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+`,
 
     sidebar: {
       '/': [
@@ -116,19 +143,9 @@ const config: BunPressOptions = {
     },
 
     themeConfig: {
-      // Brand knobs (accent + typefaces) for bunpress's theme. NOTE: the
-      // installed bunpress (0.1.9) ships its default theme and does not yet
-      // honor these — they're declared for the theme version that does, so a
-      // bunpress bump brands the docs to the marketing palette (blue accent,
-      // Space Grotesk display, Inter body) with no further change.
-      colors: {
-        accent: '#2563eb',
-      },
-      fonts: {
-        heading: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
-        body: '"Inter", ui-sans-serif, system-ui, sans-serif',
-        mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
-      },
+      // Brand palette + typefaces are applied via top-level `fonts` and the
+      // `markdown.css` override above (bunpress's theme reads --bp-c-brand-* for
+      // its accent, which markdown.css repoints to the marketing blue).
       darkMode: 'auto',
       footer: {
         message: 'Released under the MIT License.',
