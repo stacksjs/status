@@ -50,6 +50,13 @@ export default new Job({
     let metadata: Record<string, unknown> = {}
 
     try {
+      // SSRF guard: only fetch http/https. url derives from user-supplied
+      // monitor.url, and Bun's fetch honors file:/data:/blob: — an unguarded
+      // fetch would read local files into the health result.
+      const scheme = new URL(url).protocol
+      if (scheme !== 'http:' && scheme !== 'https:')
+        throw new Error('Invalid monitor URL: only http/https targets are supported')
+
       const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
       const rawBody = await response.text().catch(() => '')
       const body = ((): { status?: string, checks?: Record<string, boolean> } | null => {

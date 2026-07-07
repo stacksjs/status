@@ -62,11 +62,16 @@ export default new Job({
           latestByRegion.set(region, r)
       }
 
-      // Count only configured regions; but if the config lists regions that
-      // none of the reporting workers use (mis-set env), fall back to every
-      // region that did report rather than blinding ourselves.
+      // Count only configured regions. (`regions` already contains 'default'
+      // for the single-box case — see parseRegions — so an unregioned worker's
+      // votes are kept there without a special case.) The previous
+      // `|| regions.includes('default')` term was a per-monitor constant: when
+      // 'default' happened to be configured it disabled the filter entirely and
+      // let votes from *unconfigured* regions through. If the config lists
+      // regions no worker uses (mis-set env), the fallback below still keeps us
+      // from blinding ourselves.
       const configured = [...latestByRegion.entries()]
-        .filter(([region]) => regions.includes(region) || regions.includes('default'))
+        .filter(([region]) => regions.includes(region))
         .map(([, r]) => r)
       const votes = configured.length > 0 ? configured : [...latestByRegion.values()]
 
@@ -78,10 +83,22 @@ export default new Job({
       const next: Status = consensusStatus(votes.map(r => r.status), consensus.minRegionsToConfirm)
 
       const prev = monitor.status
+
+      // Maintain consecutive_failures here — this job is the single writer of a
+      // consensus monitor's verdict, so counting failures anywhere else (e.g.
+      // per-region in the check jobs) would double-count across regions and
+      // race. Without this the counter stays 0 forever and DispatchDueChecks'
+      // backoff never engages, so a long-down monitor is re-probed at full
+      // frequency indefinitely. 'up' resets; anything else (down/degraded)
+      // increments. Persist it even when the status itself hasn't changed (a
+      // monitor that stays down must keep accumulating) — but skip the write
+      // when nothing moved, to avoid a write per monitor per tick when healthy.
+      const nextFailures = next === 'up' ? 0 : (monitor.consecutive_failures || 0) + 1
+      if (next !== prev || nextFailures !== (monitor.consecutive_failures || 0))
+        await monitor.update({ status: next, consecutive_failures: nextFailures })
+
       if (next === prev)
         continue
-
-      await monitor.update({ status: next })
 
       // Push this transition to the live-status broadcaster at once via the
       // Redis fan-out, so the dashboard reflects a monitor going down/up

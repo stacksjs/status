@@ -38,6 +38,33 @@ export default new Job({
     let statusCode: number | undefined
     let message = ''
 
+    // SSRF guard: only ever fetch http/https. monitor.url is user-supplied and
+    // Bun's fetch honors file:/data:/blob: schemes, so an unguarded fetch turns
+    // a monitor into a local-file/SSRF read whose contents land in CheckResult.
+    let allowed = false
+    try {
+      const scheme = new URL(monitor.url).protocol
+      allowed = scheme === 'http:' || scheme === 'https:'
+    }
+    catch { allowed = false }
+
+    if (!allowed) {
+      const checkedAt = new Date().toISOString()
+      await CheckResult.create({
+        monitor_id: monitor.id,
+        status: 'down',
+        response_time_ms: 0,
+        status_code: 0,
+        message: 'Invalid monitor URL: only http/https targets are supported',
+        metadata: JSON.stringify({}),
+        region: process.env.WORKER_REGION || 'default',
+        checked_at: checkedAt,
+      })
+      await monitor.update({ last_checked_at: checkedAt })
+      void broadcastMonitorUpdate(monitor.id)
+      return
+    }
+
     try {
       const response = await fetch(monitor.url, {
         method: 'GET',
