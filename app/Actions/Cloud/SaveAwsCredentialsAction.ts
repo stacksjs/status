@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
-import { randomUUID } from 'node:crypto'
+import { randomUUIDv7 } from 'bun'
 import { db } from '@stacksjs/database'
 import { encryptSecret } from './cloudCrypto'
 
