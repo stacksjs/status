@@ -6,6 +6,7 @@ hero:
   name: UptimeStatus
   text: Know the moment something breaks.
   tagline: Open-source uptime, SSL, DNS, and status-page monitoring — self-hosted, or fully managed by us.
+  image: /hero-monitor.svg
   actions:
     - theme: brand
       text: Quick start

@@ -123,6 +123,19 @@ h1, h2, h3, h4, h5, h6,
 .BPButton-alt { background: var(--bp-c-bg-elv); border: 1px solid var(--bp-c-border); color: var(--bp-c-text-1); }
 .BPButton-alt:hover { border-color: var(--bp-c-brand-1); color: var(--bp-c-brand-1); background: var(--bp-c-bg-elv); }
 
+/* ---- Hero: more top room + a right-side status-dashboard visual.
+   !important because the hero template ships its own inline <style> with
+   equal-specificity rules that would otherwise win on source order. ---- */
+.BPHomeHero { padding-top: 132px !important; padding-bottom: 44px !important; }
+.hero-container { align-items: center !important; }
+.hero-content { flex: 1 1 auto !important; }
+.hero-image { flex: 0 0 auto !important; width: min(46%, 500px) !important; margin-top: 0 !important; }
+.hero-image img { max-width: 100% !important; width: 100% !important; height: auto !important; }
+@media (max-width: 959px) {
+  .BPHomeHero { padding-top: 100px !important; }
+  .hero-image { width: 100% !important; max-width: 440px !important; margin-top: 24px !important; }
+}
+
 /* ---- Home landing: marketing sectioned card grids ---- */
 .dx-section { max-width: 1152px; margin: 0 auto; padding: clamp(2.5rem, 6vw, 4rem) 24px 0; }
 .dx-section:last-of-type { padding-bottom: 3rem; }
