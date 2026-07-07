@@ -49,42 +49,90 @@ const config: BunPressOptions = {
       maxDepth: 3,
     },
 
-    // Brand the theme to match uptime-status.org. bunpress folds `markdown.css`
-    // into every page's stylesheet additively (after the theme CSS), so this
-    // repoints the theme's brand color (default indigo) to the marketing blue
-    // and pins the display/body/mono typefaces loaded via top-level `fonts`.
+    // UptimeStatus docs theme — reskins bunpress to the marketing design
+    // system (uptime-status.org). bunpress folds `markdown.css` into every
+    // page additively (after the theme CSS), so repointing the ~15 SEMANTIC
+    // tokens below cascades through nav, sidebar, content and code — then a few
+    // component overrides (nav, hero buttons, cards) carry the polish across.
     css: `
+/* ---- Palette: light (marketing --bg/--surface/--fg/--muted/--accent) ---- */
 :root {
+  --bp-c-bg: #fbfbfa;
+  --bp-c-bg-alt: #ffffff;
+  --bp-c-bg-elv: #ffffff;
+  --bp-c-bg-soft: #f2f3f1;
+
+  --bp-c-border: rgba(11, 15, 13, 0.14);
+  --bp-c-divider: rgba(11, 15, 13, 0.08);
+  --bp-c-gutter: rgba(11, 15, 13, 0.06);
+
+  --bp-c-text-1: #0b0f0d;
+  --bp-c-text-2: #5c6864;
+  --bp-c-text-3: #8a938c;
+
   --bp-c-brand-1: #2563eb;
   --bp-c-brand-2: #3b82f6;
   --bp-c-brand-3: #60a5fa;
-  --bp-c-brand-soft: rgba(37, 99, 235, 0.14);
+  --bp-c-brand-soft: rgba(37, 99, 235, 0.10);
+
+  --bp-font-family-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* ---- Palette: dark ---- */
 .dark {
+  --bp-c-bg: #080b0a;
+  --bp-c-bg-alt: #101413;
+  --bp-c-bg-elv: #101413;
+  --bp-c-bg-soft: #161b19;
+
+  --bp-c-border: rgba(255, 255, 255, 0.13);
+  --bp-c-divider: rgba(255, 255, 255, 0.07);
+  --bp-c-gutter: rgba(255, 255, 255, 0.05);
+
+  --bp-c-text-1: #f2f5f3;
+  --bp-c-text-2: #97a39d;
+  --bp-c-text-3: #6f7a75;
+
   --bp-c-brand-1: #60a5fa;
   --bp-c-brand-2: #3b82f6;
   --bp-c-brand-3: #2563eb;
   --bp-c-brand-soft: rgba(96, 165, 250, 0.16);
 }
-h1, h2, h3, h4, h5, h6,
-.hero-container .name, .hero-container .text {
-  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -0.01em;
-}
-body { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; }
-code, pre, kbd, tt { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-/* Custom home landing — marketing-style sectioned card grids, matching
-   uptime-status.org (hero stays the bunpress home hero above these). */
+/* ---- Typography: Space Grotesk display, tight tracking (marketing) ---- */
+h1, h2, h3, h4, h5, h6,
+.BPHomeHero .name, .BPHomeHero .text, .hero-container .name, .hero-container .text {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+.BPHomeHero .text, .hero-container .text { line-height: 1.08; }
+
+/* ---- Nav bar: translucent + blurred + hairline border (marketing nav) ---- */
+.BPNav {
+  background: color-mix(in srgb, var(--bp-c-bg) 80%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--bp-c-divider);
+}
+.BPNavBarTitle { font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+
+/* ---- Hero action buttons: marketing .button / .button.primary ---- */
+.BPButton { border-radius: 12px; font-weight: 600; height: 46px; padding: 0 1.2rem; font-size: 0.95rem; }
+.BPButton-brand { background: var(--bp-c-brand-1); border: 1px solid var(--bp-c-brand-1); color: #ffffff; }
+.BPButton-brand:hover { filter: brightness(1.06); }
+.BPButton-alt { background: var(--bp-c-bg-elv); border: 1px solid var(--bp-c-border); color: var(--bp-c-text-1); }
+.BPButton-alt:hover { border-color: var(--bp-c-brand-1); color: var(--bp-c-brand-1); background: var(--bp-c-bg-elv); }
+
+/* ---- Home landing: marketing sectioned card grids ---- */
 .dx-section { max-width: 1152px; margin: 0 auto; padding: clamp(2.5rem, 6vw, 4rem) 24px 0; }
-.dx-section:last-of-type { padding-bottom: 2.5rem; }
+.dx-section:last-of-type { padding-bottom: 3rem; }
 .dx-head { max-width: 44rem; margin: 0 0 1.75rem; }
 .dx-eyebrow { display: block; margin-bottom: 0.6rem; color: var(--bp-c-brand-1); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
-.dx-title { margin: 0 0 0.5rem; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-size: clamp(1.55rem, 3vw, 2.05rem); font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; }
+.dx-title { margin: 0 0 0.5rem; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-size: clamp(1.55rem, 3vw, 2.05rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
 .dx-lead { margin: 0; color: var(--bp-c-text-2); font-size: 1.05rem; line-height: 1.6; }
 .dx-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-a.dx-card { display: block; position: relative; padding: 1.5rem; border: 1px solid var(--bp-c-divider); border-radius: 14px; background: var(--bp-c-bg-soft); color: var(--bp-c-text-1); text-decoration: none !important; transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
-a.dx-card:hover { border-color: var(--bp-c-brand-1); transform: translateY(-2px); box-shadow: 0 16px 32px -20px rgba(0, 0, 0, 0.3); }
+a.dx-card { display: block; position: relative; padding: 1.6rem; border: 1px solid var(--bp-c-divider); border-radius: 16px; background: var(--bp-c-bg-elv); color: var(--bp-c-text-1); text-decoration: none !important; box-shadow: 0 1px 2px rgba(11, 15, 13, 0.03); transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+a.dx-card:hover { border-color: var(--bp-c-brand-1); transform: translateY(-2px); box-shadow: 0 18px 34px -22px rgba(11, 15, 13, 0.32); }
 .dx-card h3 { margin: 0 0 0.4rem; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-size: 1.05rem; font-weight: 600; color: var(--bp-c-text-1); }
 .dx-card p { margin: 0; color: var(--bp-c-text-2); font-size: 0.9rem; line-height: 1.55; }
 .dx-card code { font-size: 0.85em; padding: 0.1em 0.35em; }
