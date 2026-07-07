@@ -73,6 +73,26 @@ h1, h2, h3, h4, h5, h6,
 }
 body { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; }
 code, pre, kbd, tt { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* Custom home landing — marketing-style sectioned card grids, matching
+   uptime-status.org (hero stays the bunpress home hero above these). */
+.dx-section { max-width: 1152px; margin: 0 auto; padding: clamp(2.5rem, 6vw, 4rem) 24px 0; }
+.dx-section:last-of-type { padding-bottom: 2.5rem; }
+.dx-head { max-width: 44rem; margin: 0 0 1.75rem; }
+.dx-eyebrow { display: block; margin-bottom: 0.6rem; color: var(--bp-c-brand-1); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.dx-title { margin: 0 0 0.5rem; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-size: clamp(1.55rem, 3vw, 2.05rem); font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; }
+.dx-lead { margin: 0; color: var(--bp-c-text-2); font-size: 1.05rem; line-height: 1.6; }
+.dx-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+a.dx-card { display: block; position: relative; padding: 1.5rem; border: 1px solid var(--bp-c-divider); border-radius: 14px; background: var(--bp-c-bg-soft); color: var(--bp-c-text-1); text-decoration: none !important; transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+a.dx-card:hover { border-color: var(--bp-c-brand-1); transform: translateY(-2px); box-shadow: 0 16px 32px -20px rgba(0, 0, 0, 0.3); }
+.dx-card h3 { margin: 0 0 0.4rem; font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-size: 1.05rem; font-weight: 600; color: var(--bp-c-text-1); }
+.dx-card p { margin: 0; color: var(--bp-c-text-2); font-size: 0.9rem; line-height: 1.55; }
+.dx-card code { font-size: 0.85em; padding: 0.1em 0.35em; }
+.dx-more { display: inline-block; margin-top: 0.9rem; color: var(--bp-c-brand-1); font-size: 0.85rem; font-weight: 600; }
+.dx-step { padding-top: 1.5rem; }
+.dx-num { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-bottom: 0.9rem; border-radius: 9px; background: var(--bp-c-brand-soft); color: var(--bp-c-brand-1); font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; font-weight: 700; font-size: 0.95rem; }
+@media (max-width: 900px) { .dx-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .dx-grid { grid-template-columns: minmax(0, 1fr); } }
 `,
 
     sidebar: {
