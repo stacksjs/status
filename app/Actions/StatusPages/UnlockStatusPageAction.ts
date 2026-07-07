@@ -4,6 +4,22 @@ import StatusPage from '../../Models/StatusPage'
 import { isEmailDomainAllowed } from './AccessControl'
 
 /**
+ * The `redirect` field is attacker-controlled (it comes straight off the
+ * unlock form) and lands in a 302 `Location` header — so an unsanitized value
+ * is a classic open redirect (`?redirect=https://evil.com` phishes the visitor
+ * right after they type the real password). Only same-origin, absolute-path
+ * targets are allowed: a single leading slash, no scheme, no protocol-relative
+ * `//host`, and no backslash (browsers normalize `\` to `/` in the authority).
+ * Anything else falls back to the page's own URL.
+ */
+function safeRedirectPath(target: string, slug: string): string {
+  const fallback = `/status/${slug}`
+  if (!target.startsWith('/') || target.startsWith('//') || target.includes('\\'))
+    return fallback
+  return target
+}
+
+/**
  * `POST /status/{slug}/unlock` — the gate for StatusPage.accessType
  * 'password' and 'email_domain' (stacksjs/status#1 Phase 12).
  * 'ip_allowlist' needs no unlock step (it's checked per-request from the
@@ -23,7 +39,7 @@ export default new Action({
 
   async handle(request) {
     const slug = String(request.get('slug') ?? '')
-    const redirectTo = String(request.get('redirect') ?? `/status/${slug}`)
+    const redirectTo = safeRedirectPath(String(request.get('redirect') ?? `/status/${slug}`), slug)
 
     const statusPage = await StatusPage.where('slug', slug).where('is_public', true).first()
     if (!statusPage)

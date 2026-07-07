@@ -6,6 +6,51 @@
  * resources/views/index.stx), from the SSR script-server blocks that
  * render the gate.
  */
+import { decrypt } from '@stacksjs/security'
+
+/**
+ * Whether a visitor may see a status page's content, given its access_type.
+ * The single source of truth for the *decision* (the [slug].stx view still
+ * inlines the same branches per the per-view convention above, since stx
+ * script-server blocks can't import TS under app/Actions). Any server action
+ * that exposes page-scoped data — the RSS feed, incident detail, etc. — must
+ * gate on this so a `password`/`email_domain`/`ip_allowlist` page never leaks
+ * through a side channel that only checked `is_public`.
+ *
+ * - `public` (or unset): always granted.
+ * - `ip_allowlist`: the visitor IP must match `allowedIpRanges` (JSON array).
+ * - `password` / `email_domain`: gated by the encrypted unlock cookie that
+ *   UnlockStatusPageAction sets on success (`unlock:{statusPageId}`).
+ */
+export async function isStatusPageAccessGranted(params: {
+  accessType?: string | null
+  statusPageId: number
+  allowedIpRanges?: string | null
+  ip?: string | null
+  unlockCookie?: string | null
+}): Promise<boolean> {
+  const accessType = params.accessType
+  if (!accessType || accessType === 'public')
+    return true
+
+  if (accessType === 'ip_allowlist') {
+    let ranges: string[] = []
+    try { ranges = JSON.parse(params.allowedIpRanges || '[]') }
+    catch { ranges = [] }
+    return isIpAllowed(params.ip || '', ranges)
+  }
+
+  // 'password' / 'email_domain' — both resolve to the same unlock cookie.
+  if (!params.unlockCookie)
+    return false
+  try {
+    const decoded = await decrypt(decodeURIComponent(params.unlockCookie))
+    return decoded === `unlock:${params.statusPageId}`
+  }
+  catch {
+    return false
+  }
+}
 
 /**
  * Whether `email`'s domain is in `allowedDomains`. This is a SOFT gate —

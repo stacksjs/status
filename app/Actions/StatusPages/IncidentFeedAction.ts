@@ -3,6 +3,7 @@ import StatusPage from '../../Models/StatusPage'
 import StatusPageMonitor from '../../Models/StatusPageMonitor'
 import Incident from '../../Models/Incident'
 import Monitor from '../../Models/Monitor'
+import { isStatusPageAccessGranted } from './AccessControl'
 
 function escapeXml(value: string): string {
   return value
@@ -28,6 +29,21 @@ export default new Action({
     const statusPage = await StatusPage.where('slug', slug).where('is_public', true).first()
 
     if (!statusPage) {
+      return new Response('Not found', { status: 404 })
+    }
+
+    // Access-controlled pages must gate the feed too — `is_public` alone is
+    // not the gate. Without this, a password/email/IP-restricted page's entire
+    // incident history leaks in machine-readable form at /feed. Return the
+    // same 404 as a missing page so the feed doesn't confirm the page exists.
+    const accessGranted = await isStatusPageAccessGranted({
+      accessType: statusPage.access_type,
+      statusPageId: statusPage.id,
+      allowedIpRanges: statusPage.allowed_ip_ranges,
+      ip: request.ip(),
+      unlockCookie: request.cookie(`status_unlock_${slug}`),
+    })
+    if (!accessGranted) {
       return new Response('Not found', { status: 404 })
     }
 
