@@ -146,6 +146,24 @@ const unlockError = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch
   ? __stxServeSearch.includes('unlock_error=1')
   : false
 
+// Per-page branding (stacksjs/status#1): a logo and an accent color, stored
+// as JSON on the status page ({ logoUrl?, primaryColor? }, same convention as
+// Monitor.config). Both optional. primaryColor is interpolated into an inline
+// style, so it's constrained to a hex literal; logoUrl must be an http(s) or
+// root-relative URL. Anything else is dropped rather than trusted into markup.
+let brandLogoUrl = ''
+let brandAccent = ''
+if (statusPage && statusPage.branding) {
+  try {
+    const b = JSON.parse(statusPage.branding) || {}
+    if (typeof b.logoUrl === 'string' && /^(?:https?:\/\/|\/)/.test(b.logoUrl.trim()))
+      brandLogoUrl = b.logoUrl.trim()
+    if (typeof b.primaryColor === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(b.primaryColor.trim()))
+      brandAccent = b.primaryColor.trim()
+  }
+  catch {}
+}
+
 // Assigned monitors, joined back to their pivots in JS (portable). A real
 // monitor-name map is kept alongside for the incident lists below, which
 // label by the actual monitor name rather than the page's display_name.
@@ -387,6 +405,10 @@ useHead({
 @section('theme', statusPage ? statusPage.force_theme : 'system')
 
 @section('content')
+  @if (brandAccent)
+    <div style="position:fixed;top:0;left:0;right:0;height:4px;background:{{ brandAccent }};z-index:50;"></div>
+  @endif
+
   <div class="mx-auto max-w-3xl px-6 py-16">
 
     @if (!statusPage)
@@ -399,6 +421,9 @@ useHead({
 
     @if (statusPage && !accessGranted && statusPage.access_type === 'password')
       <div class="py-24">
+        @if (brandLogoUrl)
+          <img src="{{ brandLogoUrl }}" alt="{{ statusPage.title }}" class="mx-auto mb-6 h-10 w-auto" />
+        @endif
         <h1 class="mb-2 text-center text-xl font-semibold text-gray-900">{{ statusPage.title }}</h1>
         <p class="mb-6 text-center text-sm text-gray-500">This status page is password protected.</p>
         @if (unlockError)
@@ -414,6 +439,9 @@ useHead({
 
     @if (statusPage && !accessGranted && statusPage.access_type === 'email_domain')
       <div class="py-24">
+        @if (brandLogoUrl)
+          <img src="{{ brandLogoUrl }}" alt="{{ statusPage.title }}" class="mx-auto mb-6 h-10 w-auto" />
+        @endif
         <h1 class="mb-2 text-center text-xl font-semibold text-gray-900">{{ statusPage.title }}</h1>
         <p class="mb-6 text-center text-sm text-gray-500">Access is restricted to approved email domains.</p>
         @if (unlockError)
@@ -437,6 +465,9 @@ useHead({
 
     @if (statusPage && accessGranted)
       <header class="mb-10">
+        @if (brandLogoUrl)
+          <img src="{{ brandLogoUrl }}" alt="{{ statusPage.title }}" class="mb-4 h-10 w-auto" />
+        @endif
         <h1 class="text-2xl font-semibold text-gray-900">{{ statusPage.title }}</h1>
       </header>
 

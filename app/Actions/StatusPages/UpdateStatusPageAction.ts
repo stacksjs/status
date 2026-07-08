@@ -39,6 +39,19 @@ export default new Action({
     const isPublic = request.get('is_public')
     if (isPublic !== undefined) fields.is_public = isPublic === 'true' || isPublic === '1' || isPublic === 'on'
 
+    // Branding is stored as a { logoUrl, primaryColor } JSON blob; the editor
+    // form submits the two fields separately, so assemble them here when
+    // either is present. Empty strings are kept (they clear the logo/accent);
+    // the public view validates and ignores anything malformed at render time.
+    const logoUrl = request.get('logo_url')
+    const primaryColor = request.get('primary_color')
+    if (logoUrl !== undefined || primaryColor !== undefined) {
+      fields.branding = JSON.stringify({
+        logoUrl: typeof logoUrl === 'string' ? logoUrl.trim() : '',
+        primaryColor: typeof primaryColor === 'string' ? primaryColor.trim() : '',
+      })
+    }
+
     await statusPage.update(fields)
 
     return new Response(null, { status: 302, headers: { Location: `/dashboard/status-pages/${id}` } })

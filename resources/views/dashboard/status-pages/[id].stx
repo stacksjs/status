@@ -42,6 +42,18 @@ const statusPage = pageId
   ? (await db.selectFrom('status_pages').where('id', '=', pageId).where('team_id', '=', TEAM_ID).limit(1).execute())[0] || null
   : null
 
+// Branding ({ logoUrl?, primaryColor? }, JSON) pre-fill for the editor form.
+let brandingLogoUrl = ''
+let brandingPrimaryColor = ''
+if (statusPage && statusPage.branding) {
+  try {
+    const b = JSON.parse(statusPage.branding) || {}
+    brandingLogoUrl = typeof b.logoUrl === 'string' ? b.logoUrl : ''
+    brandingPrimaryColor = typeof b.primaryColor === 'string' ? b.primaryColor : ''
+  }
+  catch {}
+}
+
 // Assigned monitors: the pivot rows joined back to their monitors in JS
 // (portable, and inner-join semantics preserved — a pivot whose monitor
 // was deleted drops out via the null filter).
@@ -200,6 +212,27 @@ useHead({ title: (statusPage ? statusPage.title + ' \u00b7 UptimeStatus' : 'Stat
               <label for="sp-domain">Custom domain</label>
               <input id="sp-domain" type="text" name="custom_domain" value="{{ statusPage.custom_domain }}" placeholder="status.yourcompany.com" class="input" />
               <p class="help">The slug is fixed at creation: <span class="mono">/status/{{ statusPage.slug }}</span></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Branding">
+        <div class="card-head">
+          <h3>Branding</h3>
+          <span class="sub">Your logo and accent color on the public page</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="field">
+              <label for="sp-logo">Logo URL</label>
+              <input id="sp-logo" type="url" name="logo_url" value="{{ brandingLogoUrl }}" placeholder="https://yourcompany.com/logo.svg" class="input" />
+              <p class="help">Shown above the page title. Leave blank for no logo.</p>
+            </div>
+            <div class="field">
+              <label for="sp-accent">Accent color</label>
+              <input id="sp-accent" type="text" name="primary_color" value="{{ brandingPrimaryColor }}" placeholder="#2563eb" pattern="#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})" class="input" />
+              <p class="help">A hex color (e.g. #2563eb) for the top accent bar. Leave blank for none.</p>
             </div>
           </div>
         </div>

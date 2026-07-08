@@ -40,6 +40,6 @@ Visitors can **subscribe** to a page to be notified when incidents are posted or
 
 ## Branding
 
-Make the page yours: upload a **logo**, set an **accent color**, and (on a custom domain) drop the URL prefix entirely. There is no UptimeStatus watermark on any plan.
+Make the page yours: add a **logo** (by URL), set an **accent color** for the top bar, and (on a custom domain) drop the URL prefix entirely. Both live under the status page's **Branding** card in the dashboard. There is no UptimeStatus watermark on any plan.
 
 Status pages are powered by the same realtime layer as the dashboard, so a monitor going down updates the page in place — see the [live status](/features/live-status) source for how the broadcaster works.
