@@ -26,11 +26,10 @@ Each channel stores its own credentials (a Slack webhook URL, a PagerDuty routin
 
 ## Attaching channels to a monitor
 
-1. Open the monitor in the dashboard and go to its **Notifications** tab.
-2. Pick one or more channels to attach.
-3. For each attachment, choose which severities it fires on — **down** only, **issue** only, or both.
+1. Open the monitor in the dashboard, find the **Alert routing** card, and pick a channel to attach.
+2. For each attachment, choose which severities it fires on: `down` only, `issue` only, or `both` (the default). You can change this per attachment at any time from the same card.
 
-This severity filter is the core of a sane alerting setup: page the whole team on `down`, but route soft `issue` events (slow responses, SSL expiring soon, DNS drift) to a quieter channel like email or a Slack room.
+This severity filter is the core of a sane alerting setup: page the whole team on `down`, but route soft `issue` events (slow responses, SSL or domain expiring soon, DNS drift, blocklistings) to a quieter channel like email or a Slack room. A down-only channel stays silent for those issue events, and an issue-only channel stays silent for hard outages.
 
 ## Escalation
 

@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
+import { normalizeFiresOn } from '../../lib/notificationSeverity'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotificationChannel from '../../Models/NotificationChannel'
@@ -26,6 +27,7 @@ export default new Action({
 
     const monitorId = Number(request.get('monitorId'))
     const channelId = Number(request.get('channel_id'))
+    const firesOn = normalizeFiresOn(request.get('fires_on'))
 
     if (monitorId && channelId) {
       const monitor = await Monitor.where('id', monitorId).where('team_id', authTeamId).first()
@@ -34,12 +36,10 @@ export default new Action({
         return response.forbidden('You do not have access to this monitor or channel')
 
       const existing = await MonitorNotificationChannel.where('monitor_id', monitorId).where('notification_channel_id', channelId).first()
-      if (!existing) {
-        await MonitorNotificationChannel.create({
-          monitor_id: monitorId,
-          notification_channel_id: channelId,
-        })
-      }
+      if (existing)
+        await existing.update({ fires_on: firesOn })
+      else
+        await MonitorNotificationChannel.create({ monitor_id: monitorId, notification_channel_id: channelId, fires_on: firesOn })
     }
 
     return new Response(null, { status: 302, headers: { Location: `/dashboard/monitors/${monitorId}` } })

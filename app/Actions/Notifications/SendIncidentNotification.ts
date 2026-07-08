@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { log } from '@stacksjs/logging'
 import { isMonitorInMaintenance } from '../../lib/maintenance'
+import { channelFiresFor, incidentSeverityForType } from '../../lib/notificationSeverity'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
@@ -44,15 +45,19 @@ export default new Action({
     // slowdowns, and score drops are "issues" (degraded), so calling them
     // "is down" with a red siren over-alarms. Match the wording and the
     // channel severity to the check type.
-    const ISSUE_TYPES = new Set(['dns_blocklist', 'broken_links', 'lighthouse', 'performance', 'dns'])
-    const isIssue = ISSUE_TYPES.has(monitor.type)
+    const severity = incidentSeverityForType(monitor.type)
+    const isIssue = severity === 'issue'
     const subject = isIssue ? `⚠️ ${monitor.name}: issue detected` : `🔴 ${monitor.name} is down`
     const message = incident.cause || `A ${monitor.type} check failed for ${monitor.url}.`
 
     const monitorContext = { id: monitor.id, name: monitor.name, url: monitor.url }
     const incidentContext = { id: incident.id ?? 0, status: incident.status, started_at: incident.started_at ?? '' }
 
-    for (const attachment of attachments) {
+    // Respect each attachment's per-severity routing (fires_on: down/issue/both).
+    // Status-page subscribers are a separate audience and are always notified.
+    const firing = attachments.filter(attachment => channelFiresFor(attachment.fires_on, severity))
+
+    for (const attachment of firing) {
       await SendNotification.dispatch({
         channelId: attachment.notification_channel_id,
         subject,
@@ -66,6 +71,6 @@ export default new Action({
 
     await NotifyStatusPageSubscribers.dispatch({ monitorId: monitor.id, subject, message })
 
-    log.debug(`[listener] SendIncidentNotification: notified ${attachments.length} channel(s) for ${monitor.name}`)
+    log.debug(`[listener] SendIncidentNotification: notified ${firing.length}/${attachments.length} channel(s) for ${monitor.name} (${severity})`)
   },
 })

@@ -128,9 +128,11 @@ let assignedChannels = []
 if (monitor) {
   const links = await db.selectFrom('monitor_notification_channels').where('monitor_id', '=', monitor.id).execute()
   const ids = links.map(l => l.notification_channel_id)
+  const firesOnByChannel = {}
+  for (const l of links) firesOnByChannel[l.notification_channel_id] = l.fires_on || 'both'
   const chans = ids.length ? await db.selectFrom('notification_channels').whereIn('id', ids).execute() : []
   assignedChannels = chans
-    .map(c => ({ id: c.id, name: c.name, type: c.type }))
+    .map(c => ({ id: c.id, name: c.name, type: c.type, firesOn: firesOnByChannel[c.id] || 'both' }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
 }
 const assignedChannelIds = assignedChannels.map((c) => c.id)
@@ -969,8 +971,17 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
         @if (assignedChannels.length > 0)
           <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
             @foreach (assignedChannels as channel)
-              <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
+              <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto auto;">
                 <span class="tcell"><span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span> <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelLabel(channel.type) }}</span></span>
+                <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/assign" style="display: flex; gap: 0.4rem; align-items: stretch;">
+                  <input type="hidden" name="channel_id" value="{{ channel.id }}" />
+                  <select name="fires_on" class="select sm" style="width: auto;" aria-label="Fires on">
+                    <option value="both" {{ channel.firesOn === 'both' ? 'selected' : '' }}>Down + issues</option>
+                    <option value="down" {{ channel.firesOn === 'down' ? 'selected' : '' }}>Down only</option>
+                    <option value="issue" {{ channel.firesOn === 'issue' ? 'selected' : '' }}>Issues only</option>
+                  </select>
+                  <button type="submit" class="button sm">Save</button>
+                </form>
                 <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/remove">
                   <input type="hidden" name="channel_id" value="{{ channel.id }}" />
                   <button type="submit" class="button danger sm">Remove</button>
@@ -990,9 +1001,15 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
                     <option value="{{ channel.id }}">{{ channel.name }} ({{ channelLabel(channel.type) }})</option>
                   @endforeach
                 </select>
+                <select name="fires_on" class="select" style="width: auto;" aria-label="Fires on">
+                  <option value="both">Down + issues</option>
+                  <option value="down">Down only</option>
+                  <option value="issue">Issues only</option>
+                </select>
                 <button type="submit" class="button primary">Attach</button>
               </div>
             </div>
+            <p class="help" style="margin-top: 0.5rem;">Choose which severities each channel fires on: hard outages (down), soft issues like SSL/domain expiry and blocklistings (issues), or both.</p>
           </form>
         @endif
         @if (availableChannels.length === 0 && assignedChannels.length === 0)

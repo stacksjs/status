@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { log } from '@stacksjs/logging'
 import { isMonitorInMaintenance } from '../../lib/maintenance'
+import { channelFiresFor, incidentSeverityForType } from '../../lib/notificationSeverity'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
@@ -41,7 +42,13 @@ export default new Action({
     const monitorContext = { id: monitor.id, name: monitor.name, url: monitor.url }
     const incidentContext = { id: incident.id ?? 0, status: incident.status, started_at: incident.started_at ?? '' }
 
-    for (const attachment of attachments) {
+    // The recovery goes to exactly the channels that would have heard the open,
+    // so a down-only channel gets the all-clear for a down incident and an
+    // issue-only channel for an issue. Subscribers are notified regardless.
+    const severity = incidentSeverityForType(monitor.type)
+    const firing = attachments.filter(attachment => channelFiresFor(attachment.fires_on, severity))
+
+    for (const attachment of firing) {
       await SendNotification.dispatch({
         channelId: attachment.notification_channel_id,
         subject,
@@ -55,6 +62,6 @@ export default new Action({
 
     await NotifyStatusPageSubscribers.dispatch({ monitorId: monitor.id, subject, message })
 
-    log.debug(`[listener] SendIncidentResolvedNotification: notified ${attachments.length} channel(s) for ${monitor.name}`)
+    log.debug(`[listener] SendIncidentResolvedNotification: notified ${firing.length}/${attachments.length} channel(s) for ${monitor.name}`)
   },
 })

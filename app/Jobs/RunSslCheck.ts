@@ -4,8 +4,9 @@ import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import { configBool, parseMonitorConfig } from '../lib/monitorConfig'
-import CheckResult from '../Models/CheckResult'
 import { openIncident } from '../lib/maintenance'
+import { channelFiresFor } from '../lib/notificationSeverity'
+import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
 import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SslCertificate from '../Models/SslCertificate'
@@ -149,7 +150,10 @@ export default new Job({
         : crossedThreshold(previousDaysUntilExpiry)
 
       if (threshold !== null && threshold !== previousThreshold) {
-        const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
+        // SSL warnings are soft "issue" events, so only channels that fire on
+        // issues (or both) hear them - a down-only pager stays quiet.
+        const attachments = (await MonitorNotificationChannel.where('monitor_id', monitor.id).get())
+          .filter(attachment => channelFiresFor(attachment.fires_on, 'issue'))
         for (const attachment of attachments) {
           await SendNotification.dispatch({
             channelId: attachment.notification_channel_id,
@@ -169,7 +173,10 @@ export default new Job({
       // opt-in (config `alertOnFingerprintChange`) for people who want to
       // catch an UNEXPECTED swap (mis-issue, MITM). When off we just note it.
       if (configBool(parseMonitorConfig(monitor.config), 'alertOnFingerprintChange', false)) {
-        const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
+        // SSL warnings are soft "issue" events, so only channels that fire on
+        // issues (or both) hear them - a down-only pager stays quiet.
+        const attachments = (await MonitorNotificationChannel.where('monitor_id', monitor.id).get())
+          .filter(attachment => channelFiresFor(attachment.fires_on, 'issue'))
         for (const attachment of attachments) {
           await SendNotification.dispatch({
             channelId: attachment.notification_channel_id,

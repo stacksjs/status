@@ -3,9 +3,10 @@ import { URL } from 'node:url'
 import { lookup } from '@stacksjs/whois'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import { openIncident } from '../lib/maintenance'
+import { channelFiresFor } from '../lib/notificationSeverity'
 import CheckResult from '../Models/CheckResult'
 import DomainRegistration from '../Models/DomainRegistration'
-import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SendNotification from './SendNotification'
@@ -192,7 +193,10 @@ export default new Job({
       const previousThreshold = previousDaysUntilExpiry === null ? null : crossedThreshold(previousDaysUntilExpiry)
 
       if (threshold !== null && threshold !== previousThreshold) {
-        const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
+        // Domain-expiry warnings are soft "issue" events, so only channels that
+        // fire on issues (or both) hear them - a down-only pager stays quiet.
+        const attachments = (await MonitorNotificationChannel.where('monitor_id', monitor.id).get())
+          .filter(attachment => channelFiresFor(attachment.fires_on, 'issue'))
         for (const attachment of attachments) {
           await SendNotification.dispatch({
             channelId: attachment.notification_channel_id,

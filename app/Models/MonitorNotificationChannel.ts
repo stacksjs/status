@@ -1,4 +1,5 @@
 import { defineModel } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation'
 
 /**
  * Pivot: which notification channels are attached to which monitors. A
@@ -18,5 +19,19 @@ export default defineModel({
 
   belongsTo: ['Monitor', 'NotificationChannel'],
 
-  attributes: {},
+  attributes: {
+    // Which incident severities this attachment fires on: 'down' (hard
+    // outages only), 'issue' (soft/degraded events only), or 'both'. Lets one
+    // channel page on outages while another only hears about issues. Default
+    // 'both' preserves fire-on-everything for attachments made before this
+    // column existed. See app/lib/notificationSeverity.ts for the match.
+    firesOn: {
+      order: 0,
+      fillable: true,
+      default: 'both',
+      validation: {
+        rule: schema.enum(['down', 'issue', 'both']),
+      },
+    },
+  },
 } as const)
