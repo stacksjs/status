@@ -99,6 +99,20 @@ export default defineModel({
       },
       factory: faker => faker.helpers.arrayElement(['scheduled', 'active', 'completed', 'cancelled']),
     },
+
+    // Optional recurrence: a 5-field cron expression (or @weekly-style nickname)
+    // for the START of each occurrence. starts_at/ends_at define the duration of
+    // each occurrence; null means a one-off window. See app/lib/maintenance.ts
+    // (expandWindowIntervals). Fail-safe: an unparseable expression is treated
+    // as one-off rather than silently never applying.
+    recurrenceCron: {
+      order: 6,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(120),
+      },
+      factory: () => null,
+    },
   },
 
   dashboard: {

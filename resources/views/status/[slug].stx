@@ -226,6 +226,38 @@ function inAnyInterval(atMs, intervals) {
   }
   return false
 }
+// Recurring windows (recurrence_cron) expand into several intervals across the
+// history this page shows. This mirrors app/lib/maintenance.ts
+// expandWindowIntervals - KEEP IN SYNC. The stx server script can't import
+// app/ TS but can require npm packages, so it uses the same @stacksjs/cron
+// parser. Range = the 90-day uptime window below, which also covers "now" for
+// the maintenance banner.
+const { parseCron } = require('@stacksjs/cron')
+const MAINT_FROM_MS = Date.now() - 90 * 86400000
+const MAINT_TO_MS = Date.now()
+function expandWindowIntervals(w, fromMs, toMs) {
+  const startMs = Date.parse(w.starts_at)
+  const endMs = Date.parse(w.ends_at)
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return []
+  const cron = (w.recurrence_cron || '').trim()
+  const oneOff = () => (endMs >= fromMs && startMs <= toMs ? [{ startMs, endMs }] : [])
+  if (!cron) return oneOff()
+  const duration = endMs - startMs
+  const intervals = []
+  try {
+    let cursor = fromMs - duration - 1
+    for (let i = 0; i < 10000; i++) {
+      const next = parseCron(cron, cursor)
+      if (!next) break
+      const occStart = next.getTime()
+      if (occStart > toMs) break
+      const occEnd = occStart + duration
+      if (occEnd >= fromMs) intervals.push({ startMs: occStart, endMs: occEnd })
+      cursor = occStart
+    }
+  } catch { return oneOff() }
+  return intervals
+}
 const maintenanceIntervalsByMonitorId = {}
 if (monitorIds.length > 0) {
   const mLinks = await db.selectFrom('maintenance_window_monitors').whereIn('monitor_id', monitorIds).execute()
@@ -234,17 +266,13 @@ if (monitorIds.length > 0) {
     ? (await db.selectFrom('maintenance_windows').whereIn('id', mWinIds).execute()).filter((w) => w.status !== 'cancelled')
     : []
   const ivByWin = new Map()
-  for (const w of mWins) {
-    const startMs = Date.parse(w.starts_at)
-    const endMs = Date.parse(w.ends_at)
-    if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs)
-      ivByWin.set(w.id, { startMs, endMs })
-  }
+  for (const w of mWins)
+    ivByWin.set(w.id, expandWindowIntervals(w, MAINT_FROM_MS, MAINT_TO_MS))
   for (const link of mLinks) {
-    const iv = ivByWin.get(link.maintenance_window_id)
-    if (!iv) continue
+    const ivs = ivByWin.get(link.maintenance_window_id)
+    if (!ivs || !ivs.length) continue
     const arr = maintenanceIntervalsByMonitorId[link.monitor_id] || (maintenanceIntervalsByMonitorId[link.monitor_id] = [])
-    arr.push(iv)
+    for (const iv of ivs) arr.push(iv)
   }
 }
 

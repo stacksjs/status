@@ -10,6 +10,7 @@
  * keep the two in sync.)
  */
 
+import { parseCron } from '@stacksjs/cron'
 import { db } from '@stacksjs/database'
 import { log } from '@stacksjs/logging'
 import Incident from '../Models/Incident'
@@ -25,13 +26,75 @@ export function inAnyInterval(atMs: number, intervals: Interval[]): boolean {
   return false
 }
 
+// Safety bound on recurrence expansion so a pathological range can never spin.
+const MAX_OCCURRENCES = 10_000
+
 /**
- * Maintenance intervals per monitor for the given monitor IDs. Cancelled
- * windows are skipped - a cancelled window means the maintenance did not
- * happen, so its time still counts against uptime and still pages. Returns
- * monitorId -> intervals; a monitor with no covering window is simply absent.
+ * Expand a maintenance window into the concrete [start,end] intervals that
+ * overlap [fromMs, toMs]. A one-off window (no recurrence_cron) yields its
+ * single interval when it overlaps the range. A recurring window uses
+ * recurrence_cron for each occurrence's start and the anchor's own duration
+ * (ends_at - starts_at) for each occurrence's length. An unparseable cron
+ * expression is fail-safe: treated as one-off, so a typo can't silently make a
+ * window never apply.
+ *
+ * KEEP IN SYNC with the inline copy in resources/views/status/[slug].stx
+ * (the stx server script can require npm packages like @stacksjs/cron but
+ * cannot import app/ TS).
  */
-export async function maintenanceIntervalsByMonitor(monitorIds: number[]): Promise<Map<number, Interval[]>> {
+export function expandWindowIntervals(
+  win: { starts_at: string, ends_at: string, recurrence_cron?: string | null },
+  fromMs: number,
+  toMs: number,
+): Interval[] {
+  const startMs = Date.parse(win.starts_at)
+  const endMs = Date.parse(win.ends_at)
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs)
+    return []
+
+  const cron = win.recurrence_cron?.trim()
+  const oneOff = (): Interval[] => (endMs >= fromMs && startMs <= toMs ? [{ startMs, endMs }] : [])
+  if (!cron)
+    return oneOff()
+
+  const duration = endMs - startMs
+  const intervals: Interval[] = []
+  try {
+    // Scan from just before the earliest occurrence that could still cover
+    // fromMs (one that began up to `duration` earlier).
+    let cursor = fromMs - duration - 1
+    for (let i = 0; i < MAX_OCCURRENCES; i++) {
+      const next = parseCron(cron, cursor)
+      if (!next)
+        break
+      const occStart = next.getTime()
+      if (occStart > toMs)
+        break
+      const occEnd = occStart + duration
+      if (occEnd >= fromMs)
+        intervals.push({ startMs: occStart, endMs: occEnd })
+      cursor = occStart // parseCron searches from the next minute, so this advances
+    }
+  }
+  catch {
+    return oneOff()
+  }
+  return intervals
+}
+
+/**
+ * Maintenance intervals per monitor for the given monitor IDs, expanded across
+ * `range` (recurring windows can produce several intervals in a range; a
+ * one-off produces at most one). Cancelled windows are skipped - a cancelled
+ * window means the maintenance did not happen, so its time still counts against
+ * uptime and still pages. Returns monitorId -> intervals; a monitor with no
+ * covering window is simply absent. `range` defaults to the current instant,
+ * which is what the point-in-time checks need.
+ */
+export async function maintenanceIntervalsByMonitor(
+  monitorIds: number[],
+  range: { fromMs: number, toMs: number } = { fromMs: Date.now(), toMs: Date.now() },
+): Promise<Map<number, Interval[]>> {
   const byMonitor = new Map<number, Interval[]>()
   if (monitorIds.length === 0)
     return byMonitor
@@ -44,20 +107,16 @@ export async function maintenanceIntervalsByMonitor(monitorIds: number[]): Promi
   const windows = (await db.selectFrom('maintenance_windows').whereIn('id', windowIds).execute())
     .filter((w: any) => w.status !== 'cancelled')
 
-  const intervalByWindow = new Map<number, Interval>()
-  for (const w of windows) {
-    const startMs = Date.parse(w.starts_at)
-    const endMs = Date.parse(w.ends_at)
-    if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs)
-      intervalByWindow.set(w.id, { startMs, endMs })
-  }
+  const intervalsByWindow = new Map<number, Interval[]>()
+  for (const w of windows)
+    intervalsByWindow.set(w.id, expandWindowIntervals(w, range.fromMs, range.toMs))
 
   for (const link of links) {
-    const iv = intervalByWindow.get(link.maintenance_window_id)
-    if (!iv)
+    const ivs = intervalsByWindow.get(link.maintenance_window_id)
+    if (!ivs || ivs.length === 0)
       continue
     const list = byMonitor.get(link.monitor_id) ?? []
-    list.push(iv)
+    list.push(...ivs)
     byMonitor.set(link.monitor_id, list)
   }
   return byMonitor
@@ -65,7 +124,7 @@ export async function maintenanceIntervalsByMonitor(monitorIds: number[]): Promi
 
 /** Whether the monitor sits inside a (non-cancelled) maintenance window at `atMs` (default now). */
 export async function isMonitorInMaintenance(monitorId: number, atMs: number = Date.now()): Promise<boolean> {
-  const byMonitor = await maintenanceIntervalsByMonitor([monitorId])
+  const byMonitor = await maintenanceIntervalsByMonitor([monitorId], { fromMs: atMs, toMs: atMs })
   return inAnyInterval(atMs, byMonitor.get(monitorId) ?? [])
 }
 

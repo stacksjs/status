@@ -20,7 +20,7 @@ When the window ends, normal monitoring resumes automatically. If a monitor is s
 ## Creating a window
 
 1. In the dashboard, go to **Maintenance** and click **Schedule window**.
-2. Set the **start** and **end** times (and a timezone). One-off windows cover a single planned change; you can also schedule recurring windows for regular work like weekly reboots.
+2. Set the **start** and **end** times (and a timezone). One-off windows cover a single planned change. For regular work like weekly reboots, add a **recurrence** as a cron expression (for example `0 2 * * 0` for every Sunday at 02:00 UTC, or `@daily`); each occurrence keeps the same duration as the start-to-end you set here.
 3. Add a short **description** — this is the message shown on the status page (e.g. "Scheduled database upgrade, expect ~10 min of downtime").
 4. **Attach the monitors** the work affects. Only attached monitors are silenced; everything else keeps alerting normally, so an unrelated outage during your maintenance window still pages.
 5. Save. The window is now active on schedule.

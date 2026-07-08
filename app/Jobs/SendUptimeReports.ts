@@ -283,7 +283,13 @@ export default new Job({
         // latency stats (docs/operate/maintenance.md) - a planned outage must
         // not dent the numbers. Fetched once for the whole team, then applied
         // per monitor below.
-        const maintenanceByMonitor = await maintenanceIntervalsByMonitor(monitors.map((m: any) => m.id))
+        // Expand across the full span the report inspects (previous period
+        // through the report end) so recurring windows are excluded everywhere
+        // their occurrences land, not just at "now".
+        const maintenanceByMonitor = await maintenanceIntervalsByMonitor(
+          monitors.map((m: any) => m.id),
+          { fromMs: Date.parse(prevStartIso), toMs: Date.parse(endIso) },
+        )
 
         const monitorReports: MonitorReport[] = []
         let incidentCount = 0
