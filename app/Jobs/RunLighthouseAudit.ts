@@ -9,6 +9,7 @@ import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import LighthouseReport from '../Models/LighthouseReport'
 import Monitor from '../Models/Monitor'
+import { parseMonitorConfig } from '../lib/monitorConfig'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 const SCORE_REGRESSION_THRESHOLD = 15 // percentage points
@@ -20,13 +21,9 @@ interface LighthouseCategories {
   'best-practices'?: { score: number | null }
 }
 
-function runLighthouse(url: string, outputPath: string): Promise<{ code: number, stderr: string }> {
+function runLighthouse(url: string, outputPath: string, device: 'mobile' | 'desktop'): Promise<{ code: number, stderr: string }> {
   return new Promise((resolve) => {
-    // process.execPath is the running bun binary: `bun x` is bunx without
-    // depending on a `bunx` symlink existing on the worker's PATH (systemd
-    // units get a minimal PATH; found in production as "Executable not
-    // found in $PATH: bunx").
-    const child = spawn(process.execPath, [
+    const args = [
       'x',
       '--bun',
       'lighthouse',
@@ -35,7 +32,20 @@ function runLighthouse(url: string, outputPath: string): Promise<{ code: number,
       `--output-path=${outputPath}`,
       '--chrome-flags=--headless --no-sandbox --disable-gpu',
       '--quiet',
-    ])
+    ]
+    // Mobile is Lighthouse's own default form factor, so we pass no flag for
+    // it - the mobile audit stays byte-identical to before. `--preset=desktop`
+    // sets form factor + screen emulation + throttling together; passing
+    // `--form-factor=desktop` alone would leave a mobile screen emulation in
+    // place and emit an emulation-mismatch warning that corrupts the scores.
+    if (device === 'desktop')
+      args.push('--preset=desktop')
+
+    // process.execPath is the running bun binary: `bun x` is bunx without
+    // depending on a `bunx` symlink existing on the worker's PATH (systemd
+    // units get a minimal PATH; found in production as "Executable not
+    // found in $PATH: bunx").
+    const child = spawn(process.execPath, args)
 
     let stderr = ''
     child.stderr?.on('data', (chunk) => { stderr += chunk.toString() })
@@ -71,13 +81,18 @@ export default new Job({
       return
     }
 
+    // Per-monitor device profile from the shared `config` JSON column, same
+    // convention every other check job uses. Default 'mobile' matches
+    // Lighthouse's own default, so existing monitors keep scoring as before.
+    const device = parseMonitorConfig(monitor.config).device === 'desktop' ? 'desktop' : 'mobile'
+
     const startedAt = performance.now()
     const workDir = await mkdtemp(join(tmpdir(), 'lighthouse-'))
     const outputPath = join(workDir, 'report.json')
     const checkedAt = new Date().toISOString()
 
     try {
-      const { code, stderr } = await runLighthouse(monitor.url, outputPath)
+      const { code, stderr } = await runLighthouse(monitor.url, outputPath, device)
 
       if (code !== 0) {
         const chromeMissing = /could not find (a|any) chrome|no chrome installation/i.test(stderr)
@@ -151,7 +166,7 @@ export default new Job({
         response_time_ms: Math.round(performance.now() - startedAt),
         status_code: 0,
         message,
-        metadata: JSON.stringify({ performanceScore, accessibilityScore, seoScore, bestPracticesScore }),
+        metadata: JSON.stringify({ performanceScore, accessibilityScore, seoScore, bestPracticesScore, device }),
         region: process.env.WORKER_REGION || 'default',
         checked_at: checkedAt,
       })

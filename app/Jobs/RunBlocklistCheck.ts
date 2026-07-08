@@ -5,23 +5,10 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
+import IncidentUpdate from '../Models/IncidentUpdate'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
-
-/**
- * Public DNSBL (DNS-based Blocklist) zones. A listing means "queried IP
- * appears on this spam/abuse blocklist" — the standard lookup mechanism is
- * a DNS A-record query for the IP's octets reversed, prefixed onto the
- * zone (e.g. 1.2.3.4 listed on zen.spamhaus.org is queried as
- * 4.3.2.1.zen.spamhaus.org); a resolvable answer (conventionally in the
- * 127.0.0.x range) means listed, NXDOMAIN means clean.
- */
-const DNSBL_ZONES = [
-  'zen.spamhaus.org',
-  'b.barracudacentral.org',
-  'dnsbl.sorbs.net',
-  'bl.spamcop.net',
-]
+import { buildListings, DNSBL_ZONES, zoneLabel } from '../lib/dnsbl'
 
 function reverseIp(ip: string): string {
   return ip.split('.').reverse().join('.')
@@ -58,10 +45,12 @@ async function isListed(reversedIp: string, zone: string): Promise<boolean> {
 
 /**
  * Resolves the monitor's hostname to an IPv4 address (DNSBLs are IPv4-only
- * in practice) and queries each zone in DNSBL_ZONES. New listings vs the
- * last check open an incident — a fresh blocklisting on an IP that was
- * previously clean usually means something on that host (or something that
- * used to share the IP) started spamming, which is worth surfacing fast.
+ * in practice) and queries each zone in DNSBL_ZONES. A listing opens one
+ * incident and keeps it open with per-run reminders (each carrying the
+ * delisting URL for every zone) until the IP clears, at which point the
+ * incident resolves - a blocklisting usually means something on that host
+ * (or something that used to share the IP) started spamming, and it stays
+ * relevant until it is actually delisted, not just for the first run.
  */
 export default new Job({
   name: 'RunBlocklistCheck',
@@ -141,43 +130,76 @@ export default new Job({
     const results = await Promise.all(DNSBL_ZONES.map(async zone => ({ zone, listed: await isListed(reversedIp, zone) })))
     const listedOn = results.filter(r => r.listed).map(r => r.zone)
 
-    const previous = await CheckResult.where('monitor_id', monitor.id).orderByDesc('created_at').first()
-    let previousListedOn: string[] = []
-    if (previous?.metadata) {
-      try {
-        previousListedOn = JSON.parse(previous.metadata).listedOn ?? []
-      }
-      catch {
-        // malformed metadata from a differently-shaped previous check — ignore
-      }
-    }
+    // Per-zone context (label + delisting URL + reason) built once and reused
+    // for both the CheckResult metadata (dashboard rendering) and the incident.
+    const listings = buildListings(listedOn, ip)
+    const labels = listedOn.map(zoneLabel).join(', ')
 
     await CheckResult.create({
       monitor_id: monitor.id,
       status: listedOn.length > 0 ? 'degraded' : 'up',
       response_time_ms: null,
       status_code: null,
-      message: listedOn.length > 0 ? `Listed on: ${listedOn.join(', ')}` : 'Not listed on any checked blocklist',
-      metadata: JSON.stringify({ ip, listedOn, ipSource }),
+      message: listedOn.length > 0 ? `Listed on: ${labels}` : 'Not listed on any checked blocklist',
+      metadata: JSON.stringify({ ip, listedOn, ipSource, listings }),
       region: process.env.WORKER_REGION || 'default',
       checked_at: checkedAt,
     })
 
-    const newListings = listedOn.filter(zone => !previousListedOn.includes(zone))
-    if (newListings.length > 0) {
-      const sharedEdge = ipSource === 'dns' ? isSharedCdnIp(ip) : null
-      const cause = sharedEdge
-        ? `${ip} (a shared ${sharedEdge} edge IP, likely not your own server) is listed on ${newListings.join(', ')}. This usually reflects other sites behind the same CDN and rarely affects your own mail deliverability. To check the server behind ${sharedEdge} instead, set this monitor's origin IP in its config.`
-        : `${ip}${ipSource === 'origin' ? ' (configured origin)' : ''} is listed on ${newListings.join(', ')}. Mail from this IP may be filtered as spam. Request delisting from the operator and send outbound mail through a reputable relay (SES, Postmark) rather than the server directly.`
-
-      await Incident.create({
-        monitor_id: monitor.id,
-        started_at: checkedAt,
-        cause,
-        status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'dns_blocklist', ip, newListings, sharedEdge: sharedEdge || null, ipSource }]),
+    // Level-triggered incident lifecycle: one incident stays open while the IP
+    // is listed, a per-run IncidentUpdate reminds while it persists (timeline
+    // only - an IncidentUpdate emits no event, so it does not re-page), and it
+    // resolves when the IP clears. Previously this fired once per newly-added
+    // zone and never resolved, so a persistent listing went quiet after the
+    // first run and a recovered one lingered open forever (stacksjs/status#1).
+    const openIncident = (await Incident.where('monitor_id', monitor.id).where('status', '!=', 'resolved').get())
+      .find((incident) => {
+        try {
+          return JSON.parse(incident.impacted_checks || '[]')[0]?.type === 'dns_blocklist'
+        }
+        catch {
+          return false
+        }
       })
-      log.warn(`[job] RunBlocklistCheck: ${monitor.name} (${ip}, ${ipSource}) newly listed on ${newListings.join(', ')}${sharedEdge ? ` (shared ${sharedEdge} IP)` : ''}`)
+
+    if (listedOn.length > 0) {
+      const sharedEdge = ipSource === 'dns' ? isSharedCdnIp(ip) : null
+      if (!openIncident) {
+        // `cause` is capped at 500 chars, so the per-list URLs ride in
+        // impacted_checks and the prose stays short.
+        const cause = sharedEdge
+          ? `${ip} (a shared ${sharedEdge} edge IP, likely not your own server) is listed on ${labels}. This usually reflects other tenants behind the same CDN. Set this monitor's origin IP in its config to check your own server; see the incident details for delisting links.`
+          : `${ip}${ipSource === 'origin' ? ' (configured origin)' : ''} is listed on ${labels}. Mail from this IP may be filtered as spam. See the incident details for per-list delisting links, and send outbound mail through a reputable relay.`
+
+        await Incident.create({
+          monitor_id: monitor.id,
+          started_at: checkedAt,
+          cause: cause.slice(0, 500),
+          status: 'investigating',
+          impacted_checks: JSON.stringify([{ type: 'dns_blocklist', ip, ipSource, sharedEdge: sharedEdge || null, listings }]),
+        })
+        log.warn(`[job] RunBlocklistCheck: ${monitor.name} (${ip}, ${ipSource}) listed on ${labels}${sharedEdge ? ` (shared ${sharedEdge} IP)` : ''}`)
+      }
+      else {
+        const delistLines = listings.map(l => `${l.label}: ${l.delistUrl ?? 'n/a'}`).join(' | ')
+        await IncidentUpdate.create({
+          incident_id: openIncident.id,
+          message: `Still listed on ${labels}. Delisting: ${delistLines}`.slice(0, 2000),
+          status: 'monitoring',
+          posted_at: checkedAt,
+        })
+      }
+    }
+    else if (openIncident) {
+      // Cleared: resolving the incident fires the recovery notification.
+      await openIncident.update({ status: 'resolved', resolved_at: checkedAt })
+      await IncidentUpdate.create({
+        incident_id: openIncident.id,
+        message: 'No longer listed on any checked blocklist.',
+        status: 'resolved',
+        posted_at: checkedAt,
+      })
+      log.info(`[job] RunBlocklistCheck: ${monitor.name} (${ip}) delisted - incident resolved`)
     }
 
     // Mirror the status recorded in the CheckResult above onto the monitor -

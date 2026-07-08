@@ -30,7 +30,7 @@ Each alert links to the full report so you can see exactly which audits regresse
 
 1. **Add monitor** and choose **Lighthouse**.
 2. Enter the page URL to audit.
-3. Choose the **device profile** (mobile / desktop) and cadence.
+3. Choose the **device profile** (config `device`: `mobile` or `desktop`, default `mobile`) and cadence. Desktop uses Lighthouse's desktop preset (form factor, screen emulation, and throttling together).
 4. Set **minimum scores** and **regression tolerances** per category.
 5. Attach **notifications**.
 

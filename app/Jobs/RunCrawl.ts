@@ -151,6 +151,17 @@ export default new Job({
 
     const disallowedPaths = await fetchDisallowedPaths(origin)
 
+    // The broken-link count from the last completed crawl, so we alert only
+    // when the count RISES rather than re-opening an incident every crawl for
+    // the same known backlog. Filter to 'completed' so this can't pick up the
+    // 'running' row we create just below, nor a failed crawl whose count is
+    // the default 0. Read as snake_case off the hydrated model.
+    const previousCrawl = await Crawl.where('monitor_id', monitor.id)
+      .where('status', 'completed')
+      .orderByDesc('created_at')
+      .first()
+    const previousBrokenLinks = Number(previousCrawl?.broken_links_count) || 0
+
     const startedAt = new Date().toISOString()
     const crawl = await Crawl.create({
       monitor_id: monitor.id,
@@ -251,19 +262,20 @@ export default new Job({
 
     log.info(`[job] RunCrawl: ${monitor.name} — ${pagesCrawled} page(s), ${brokenLinksCount} broken link(s), ${mixedContentCount} mixed-content resource(s)`)
 
-    // Opens on every crawl that finds an issue (same convention as
-    // RunPortScan, not a status-transition diff) — a crawl runs daily by
-    // design (see DispatchDueChecks), so this can't spam the way a 30s
-    // uptime check would; drives notification dispatch via Incident's
-    // observe trait, previously crawl monitors were the one check type
-    // that silently never notified anyone (stacksjs/status#1 Phase 2).
-    if (brokenLinksCount > 0) {
+    // Opens only when the broken-link count RISES vs the last completed crawl
+    // (drives notification dispatch via Incident's observe trait). Gating on a
+    // rise, not the absolute count, means a steady known backlog (5 -> 5) stays
+    // quiet while a regression (5 -> 8, or a first crawl 0 -> N) alerts. A
+    // missing baseline counts as 0, so the first crawl that finds broken links
+    // still reports them. Previously this fired on every crawl that found any
+    // broken link, re-alerting the same backlog daily (stacksjs/status#1).
+    if (brokenLinksCount > previousBrokenLinks) {
       await Incident.create({
         monitor_id: monitor.id,
         started_at: new Date().toISOString(),
-        cause: `Crawl of ${monitor.name} found ${brokenLinksCount} broken link${brokenLinksCount === 1 ? '' : 's'}`,
+        cause: `Crawl of ${monitor.name} found ${brokenLinksCount} broken link${brokenLinksCount === 1 ? '' : 's'} (up from ${previousBrokenLinks})`,
         status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'broken_links', brokenLinksCount }]),
+        impacted_checks: JSON.stringify([{ type: 'broken_links', brokenLinksCount, previousBrokenLinks }]),
       })
     }
 

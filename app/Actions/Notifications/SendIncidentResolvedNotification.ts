@@ -17,7 +17,7 @@ export default new Action({
   name: 'SendIncidentResolvedNotification',
   description: 'Notify configured channels when an incident resolves',
 
-  async handle(incident: { monitor_id: number, status: string }) {
+  async handle(incident: { id?: number, monitor_id: number, status: string, started_at?: string }) {
     if (incident.status !== 'resolved') return
 
     const monitor = await Monitor.find(incident.monitor_id)
@@ -29,12 +29,18 @@ export default new Action({
     const subject = `✅ ${monitor.name} has recovered`
     const message = `${monitor.url} is passing its ${monitor.type} check again.`
 
+    const monitorContext = { id: monitor.id, name: monitor.name, url: monitor.url }
+    const incidentContext = { id: incident.id ?? 0, status: incident.status, started_at: incident.started_at ?? '' }
+
     for (const attachment of attachments) {
       await SendNotification.dispatch({
         channelId: attachment.notification_channel_id,
         subject,
         message,
         severity: 'info',
+        event: 'incident.resolved',
+        monitor: monitorContext,
+        incident: incidentContext,
       })
     }
 

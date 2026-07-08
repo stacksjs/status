@@ -22,7 +22,7 @@ export default new Action({
   name: 'SendIncidentNotification',
   description: 'Notify configured channels when an incident opens',
 
-  async handle(incident: { monitor_id: number, cause?: string, status: string }) {
+  async handle(incident: { id?: number, monitor_id: number, cause?: string, status: string, started_at?: string }) {
     const monitor = await Monitor.find(incident.monitor_id)
     if (!monitor) return
 
@@ -38,12 +38,18 @@ export default new Action({
     const subject = isIssue ? `⚠️ ${monitor.name}: issue detected` : `🔴 ${monitor.name} is down`
     const message = incident.cause || `A ${monitor.type} check failed for ${monitor.url}.`
 
+    const monitorContext = { id: monitor.id, name: monitor.name, url: monitor.url }
+    const incidentContext = { id: incident.id ?? 0, status: incident.status, started_at: incident.started_at ?? '' }
+
     for (const attachment of attachments) {
       await SendNotification.dispatch({
         channelId: attachment.notification_channel_id,
         subject,
         message,
         severity: isIssue ? 'warning' : 'critical',
+        event: 'incident.opened',
+        monitor: monitorContext,
+        incident: incidentContext,
       })
     }
 

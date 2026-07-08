@@ -5,7 +5,7 @@ description: Route UptimeStatus alerts to ten channels per monitor, with issue-v
 
 # Notifications
 
-When an [incident](/operate/incidents) opens, acknowledges, or resolves, UptimeStatus notifies the people who need to know. Notifications are configured per monitor, so a critical production API can page on-call while a staging site only emails.
+When an [incident](/operate/incidents) opens or resolves, UptimeStatus notifies the people who need to know. Notifications are configured per monitor, so a critical production API can page on-call while a staging site only emails.
 
 ## Supported channels
 
@@ -38,24 +38,29 @@ Escalation is driven by incident state. When an incident opens it fires the atta
 
 ## Webhook payload
 
-The generic **Webhook** channel POSTs a JSON body to your endpoint on every event, so you can wire UptimeStatus into anything:
+The generic **Webhook** channel POSTs a JSON body to your endpoint, so you can wire UptimeStatus into anything. An incident notification carries structured `event`, `monitor`, and `incident` objects alongside the human-readable `subject`/`message`:
 
 ```json
 {
   "event": "incident.opened",
-  "severity": "down",
+  "severity": "critical",
+  "subject": "🔴 API is down",
+  "message": "A uptime check failed for https://api.example.com/health.",
   "monitor": {
     "id": 42,
-    "name": "API — api.example.com",
+    "name": "API",
     "url": "https://api.example.com/health"
   },
   "incident": {
     "id": 1087,
-    "status": "open",
+    "status": "investigating",
     "started_at": "2026-07-06T14:22:05Z"
-  },
-  "region_votes": { "eu-central": "down", "us-east": "down" }
+  }
 }
 ```
 
-The same payload shape is sent for `incident.acknowledged` and `incident.resolved`, with the relevant timestamps filled in.
+- `event` is `incident.opened` when an incident opens and `incident.resolved` when it clears (the resolved payload carries `incident.status: "resolved"`).
+- `severity` is `critical` for a hard down, `warning` for a soft issue (slow response, SSL expiring, DNS drift), and `info` for a recovery.
+- `incident.status` is one of `investigating`, `identified`, `monitoring`, or `resolved`.
+
+Standalone notices that are not tied to an incident (an SSL expiry warning, a domain-expiry reminder) omit the `event`, `monitor`, and `incident` objects and send just `subject`, `message`, and `severity`.

@@ -11,6 +11,16 @@ interface NotificationPayload {
   message: string
   /** 'critical' surfaces louder in channels that support it (Opsgenie P1, PagerDuty 'critical'). */
   severity: 'critical' | 'warning' | 'info'
+  /**
+   * Structured context for the generic Webhook channel so consumers can key
+   * off machine-readable fields instead of parsing `message`. Present for
+   * incident open/resolve notifications; absent for standalone notices (an
+   * SSL expiry warning, a domain-expiry reminder), whose webhook body then
+   * carries just subject/message/severity.
+   */
+  event?: 'incident.opened' | 'incident.resolved'
+  monitor?: { id: number, name: string, url: string }
+  incident?: { id: number, status: string, started_at: string }
 }
 
 /**
@@ -92,10 +102,20 @@ async function sendNtfy(config: { server?: string, topic?: string }, payload: No
 
 async function sendWebhook(config: { url?: string, headers?: Record<string, string> }, payload: NotificationPayload): Promise<void> {
   if (!config.url) throw new Error('webhook channel is missing url')
+  // JSON.stringify drops the undefined structured fields, so a non-incident
+  // notice sends just { severity, subject, message } while an incident event
+  // additionally carries { event, monitor, incident } for machine consumers.
   const response = await fetch(config.url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...config.headers },
-    body: JSON.stringify({ subject: payload.subject, message: payload.message, severity: payload.severity }),
+    body: JSON.stringify({
+      event: payload.event,
+      severity: payload.severity,
+      subject: payload.subject,
+      message: payload.message,
+      monitor: payload.monitor,
+      incident: payload.incident,
+    }),
   })
   await ensureOk(response, 'Webhook')
 }
