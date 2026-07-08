@@ -66,6 +66,13 @@ export default function () {
     .job('UpdateMaintenanceWindowStatus')
     .everyMinute()
 
+  // Emails status-page subscribers ahead of an upcoming maintenance window.
+  // The lead window is 24h and each occurrence is announced once, so a
+  // five-minute tick is plenty and keeps re-scan cost low.
+  schedule
+    .job('NotifyUpcomingMaintenance')
+    .everyFiveMinutes()
+
   // Periodic per-team uptime report emails. Runs daily; the job itself
   // decides which teams are due (weekly/monthly, from teams.report_frequency
   // and report_last_sent_at) so this stays a dumb daily tick.

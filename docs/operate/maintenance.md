@@ -29,4 +29,4 @@ When the window ends, normal monitoring resumes automatically. If a monitor is s
 
 - **Attach the smallest set of monitors** that the work actually touches. Over-attaching hides real, unrelated outages.
 - **Pad the window** slightly on both ends — start it a few minutes before the change and end it a few minutes after, so a slow rollout or a lingering cache doesn't page you on the boundary.
-- **Publish the description** on customer-facing pages ahead of time; subscribers to a [status page](/operate/status-pages) can be notified when a maintenance window is coming.
+- **Publish the description** on customer-facing pages ahead of time. Subscribers to a [status page](/operate/status-pages) that shows an affected monitor are emailed automatically when a window is within about a day away, so they hear about planned work before it starts. Recurring windows notify subscribers ahead of each occurrence.

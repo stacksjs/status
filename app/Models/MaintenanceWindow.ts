@@ -113,6 +113,18 @@ export default defineModel({
       },
       factory: () => null,
     },
+
+    // The start (ISO) of the occurrence subscribers were last emailed about, so
+    // NotifyUpcomingMaintenance announces each occurrence exactly once. Null =
+    // never announced. Set by the job, not user-facing.
+    subscribersNotifiedFor: {
+      order: 7,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(40),
+      },
+      factory: () => null,
+    },
   },
 
   dashboard: {
