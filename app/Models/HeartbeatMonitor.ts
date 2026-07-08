@@ -1,5 +1,6 @@
 import { defineModel } from '@stacksjs/orm'
 import { schema } from '@stacksjs/validation'
+import { isValidCron } from '../lib/cron'
 
 export default defineModel({
   name: 'HeartbeatMonitor',
@@ -57,7 +58,10 @@ export default defineModel({
       order: 8,
       fillable: true,
       validation: {
-        rule: schema.string().max(120),
+        rule: schema.string().max(120).custom(
+          (value: unknown) => typeof value !== 'string' || value.trim() === '' || isValidCron(value),
+          'Enter a valid cron expression (for example 0 2 * * *) or leave it blank',
+        ),
       },
       factory: () => null,
     },

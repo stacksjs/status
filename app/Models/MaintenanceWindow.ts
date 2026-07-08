@@ -1,5 +1,6 @@
 import { defineModel } from '@stacksjs/orm'
 import { schema } from '@stacksjs/validation'
+import { isValidCron } from '../lib/cron'
 
 /**
  * Scheduled, announced downtime (stacksjs/status#1 Phase 12) — distinct
@@ -109,7 +110,10 @@ export default defineModel({
       order: 6,
       fillable: true,
       validation: {
-        rule: schema.string().max(120),
+        rule: schema.string().max(120).custom(
+          (value: unknown) => typeof value !== 'string' || value.trim() === '' || isValidCron(value),
+          'Enter a valid cron expression (for example 0 2 * * 0) or leave it blank',
+        ),
       },
       factory: () => null,
     },

@@ -14,6 +14,9 @@
  */
 
 import { parseCron } from '@stacksjs/cron'
+import { isValidCron } from './cron'
+
+export { isValidCron }
 
 export interface HeartbeatState {
   /** created_at in ms — the baseline before the very first ping. */
@@ -34,16 +37,6 @@ export interface HeartbeatState {
 export type HeartbeatVerdict =
   | { down: false }
   | { down: true, reason: 'missed' | 'overrun' }
-
-/** Whether a cron expression parses (5-field, nicknames, ranges/steps/names). */
-export function isValidCron(expression: string): boolean {
-  try {
-    return parseCron(expression, 0) !== null
-  }
-  catch {
-    return false
-  }
-}
 
 /**
  * The next expected ping time (ms) after `baselineMs`. With a valid cron
