@@ -6,6 +6,7 @@ import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
 import DnsSnapshot from '../Models/DnsSnapshot'
 import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
@@ -104,7 +105,7 @@ export default new Job({
           .some(existing => existing.status !== 'resolved')
 
         if (!openSameCause) {
-          await Incident.create({
+          await openIncident({
             monitor_id: monitor.id,
             started_at: checkedAt,
             cause,

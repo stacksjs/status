@@ -2,6 +2,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 
 const REGRESSION_MULTIPLIER = 2
@@ -60,7 +61,7 @@ export default new Job({
           .first()
         if (recentIncident) continue // already flagged, don't re-open every 15 minutes
 
-        await Incident.create({
+        await openIncident({
           monitor_id: monitor.id,
           started_at: new Date().toISOString(),
           cause: `Response time degraded: p95 over the last hour (${recentP95}ms) is ${(recentP95 / baselineP95).toFixed(1)}x the 7-day baseline (${baselineP95}ms)`,

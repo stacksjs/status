@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import CheckResult from '../../Models/CheckResult'
 import Incident from '../../Models/Incident'
+import { openIncident } from '../../lib/maintenance'
 import IncidentUpdate from '../../Models/IncidentUpdate'
 import Monitor from '../../Models/Monitor'
 import { broadcastMonitorUpdate } from '../../Realtime/broadcastMonitorUpdate'
@@ -78,7 +79,7 @@ export default new Action({
     // other monitor jobs so a metrics alert shows up in incident history and
     // notifications exactly like an uptime outage.
     if (prev !== 'down' && status === 'down') {
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
         cause: `Host resource threshold breached: ${breaches.join('; ')}`,
@@ -87,14 +88,14 @@ export default new Action({
       })
     }
     else if (prev === 'down' && status === 'up') {
-      const openIncident = await Incident.where('monitor_id', monitor.id)
+      const existingIncident = await Incident.where('monitor_id', monitor.id)
         .where('status', '!=', 'resolved')
         .orderByDesc('created_at')
         .first()
-      if (openIncident) {
-        await openIncident.update({ status: 'resolved', resolved_at: checkedAt })
+      if (existingIncident) {
+        await existingIncident.update({ status: 'resolved', resolved_at: checkedAt })
         await IncidentUpdate.create({
-          incident_id: openIncident.id,
+          incident_id: existingIncident.id,
           message: 'Host resource usage back within thresholds.',
           status: 'resolved',
           posted_at: checkedAt,

@@ -5,6 +5,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import IncidentUpdate from '../Models/IncidentUpdate'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
@@ -152,7 +153,7 @@ export default new Job({
     // resolves when the IP clears. Previously this fired once per newly-added
     // zone and never resolved, so a persistent listing went quiet after the
     // first run and a recovered one lingered open forever (stacksjs/status#1).
-    const openIncident = (await Incident.where('monitor_id', monitor.id).where('status', '!=', 'resolved').get())
+    const existingIncident = (await Incident.where('monitor_id', monitor.id).where('status', '!=', 'resolved').get())
       .find((incident) => {
         try {
           return JSON.parse(incident.impacted_checks || '[]')[0]?.type === 'dns_blocklist'
@@ -164,14 +165,14 @@ export default new Job({
 
     if (listedOn.length > 0) {
       const sharedEdge = ipSource === 'dns' ? isSharedCdnIp(ip) : null
-      if (!openIncident) {
+      if (!existingIncident) {
         // `cause` is capped at 500 chars, so the per-list URLs ride in
         // impacted_checks and the prose stays short.
         const cause = sharedEdge
           ? `${ip} (a shared ${sharedEdge} edge IP, likely not your own server) is listed on ${labels}. This usually reflects other tenants behind the same CDN. Set this monitor's origin IP in its config to check your own server; see the incident details for delisting links.`
           : `${ip}${ipSource === 'origin' ? ' (configured origin)' : ''} is listed on ${labels}. Mail from this IP may be filtered as spam. See the incident details for per-list delisting links, and send outbound mail through a reputable relay.`
 
-        await Incident.create({
+        await openIncident({
           monitor_id: monitor.id,
           started_at: checkedAt,
           cause: cause.slice(0, 500),
@@ -183,18 +184,18 @@ export default new Job({
       else {
         const delistLines = listings.map(l => `${l.label}: ${l.delistUrl ?? 'n/a'}`).join(' | ')
         await IncidentUpdate.create({
-          incident_id: openIncident.id,
+          incident_id: existingIncident.id,
           message: `Still listed on ${labels}. Delisting: ${delistLines}`.slice(0, 2000),
           status: 'monitoring',
           posted_at: checkedAt,
         })
       }
     }
-    else if (openIncident) {
+    else if (existingIncident) {
       // Cleared: resolving the incident fires the recovery notification.
-      await openIncident.update({ status: 'resolved', resolved_at: checkedAt })
+      await existingIncident.update({ status: 'resolved', resolved_at: checkedAt })
       await IncidentUpdate.create({
-        incident_id: openIncident.id,
+        incident_id: existingIncident.id,
         message: 'No longer listed on any checked blocklist.',
         status: 'resolved',
         posted_at: checkedAt,

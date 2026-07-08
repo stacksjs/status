@@ -5,7 +5,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import { configBool, parseMonitorConfig } from '../lib/monitorConfig'
 import CheckResult from '../Models/CheckResult'
-import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SslCertificate from '../Models/SslCertificate'
@@ -94,7 +94,7 @@ export default new Job({
       // dashboard updates sub-second. Fire-and-forget; a no-op unless
       // Redis fan-out is enabled (the poller is the fallback).
       void broadcastMonitorUpdate(monitor.id)
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
         cause: `SSL check failed: ${message}`,
@@ -125,7 +125,7 @@ export default new Job({
     const expiringSoon = WARNING_THRESHOLDS_DAYS.some(days => daysUntilExpiry <= days)
 
     if (daysUntilExpiry < 0) {
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
         cause: `SSL certificate for ${hostname} expired ${Math.abs(daysUntilExpiry)} day(s) ago`,

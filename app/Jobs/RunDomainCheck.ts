@@ -5,7 +5,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
 import DomainRegistration from '../Models/DomainRegistration'
-import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SendNotification from './SendNotification'
@@ -172,7 +172,7 @@ export default new Job({
     const daysUntilExpiry = Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 
     if (daysUntilExpiry < 0) {
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
         cause: `Domain ${domain} registration expired ${Math.abs(daysUntilExpiry)} day(s) ago`,

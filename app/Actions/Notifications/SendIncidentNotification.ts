@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { log } from '@stacksjs/logging'
+import { isMonitorInMaintenance } from '../../lib/maintenance'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
@@ -25,6 +26,16 @@ export default new Action({
   async handle(incident: { id?: number, monitor_id: number, cause?: string, status: string, started_at?: string }) {
     const monitor = await Monitor.find(incident.monitor_id)
     if (!monitor) return
+
+    // Safety net for the maintenance-window contract (docs/operate/maintenance.md):
+    // the auto-incident sites already skip opening an incident during a window,
+    // but if one reaches here anyway, never page for a monitor that was in
+    // maintenance at the incident's start time.
+    const atMs = incident.started_at ? Date.parse(incident.started_at) : Date.now()
+    if (await isMonitorInMaintenance(monitor.id, Number.isFinite(atMs) ? atMs : Date.now())) {
+      log.debug(`[listener] SendIncidentNotification: ${monitor.name} is in a maintenance window - not notifying`)
+      return
+    }
 
     const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
     if (attachments.length === 0) return

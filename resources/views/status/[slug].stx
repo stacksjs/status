@@ -216,6 +216,45 @@ const monitorGroups = componentGroups.length > 0 && monitors.some((m) => m.group
 
 const monitorIds = monitors.map((m) => m.id)
 
+// Maintenance windows are excluded from the uptime percentage and the history
+// bars (docs/operate/maintenance.md): a planned outage must not read as
+// downtime. KEEP IN SYNC with app/lib/maintenance.ts, the canonical,
+// unit-tested version this mirrors (stx server scripts can't import app/ TS).
+function inAnyInterval(atMs, intervals) {
+  for (const iv of intervals) {
+    if (atMs >= iv.startMs && atMs <= iv.endMs) return true
+  }
+  return false
+}
+const maintenanceIntervalsByMonitorId = {}
+if (monitorIds.length > 0) {
+  const mLinks = await db.selectFrom('maintenance_window_monitors').whereIn('monitor_id', monitorIds).execute()
+  const mWinIds = [...new Set(mLinks.map((l) => l.maintenance_window_id))]
+  const mWins = mWinIds.length
+    ? (await db.selectFrom('maintenance_windows').whereIn('id', mWinIds).execute()).filter((w) => w.status !== 'cancelled')
+    : []
+  const ivByWin = new Map()
+  for (const w of mWins) {
+    const startMs = Date.parse(w.starts_at)
+    const endMs = Date.parse(w.ends_at)
+    if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs)
+      ivByWin.set(w.id, { startMs, endMs })
+  }
+  for (const link of mLinks) {
+    const iv = ivByWin.get(link.maintenance_window_id)
+    if (!iv) continue
+    const arr = maintenanceIntervalsByMonitorId[link.monitor_id] || (maintenanceIntervalsByMonitorId[link.monitor_id] = [])
+    arr.push(iv)
+  }
+}
+
+// Flag monitors inside an active window right now so the overall banner and
+// their row read as "under maintenance" rather than an outage - a planned
+// window must not turn the page red (docs/operate/maintenance.md).
+const nowMs = Date.now()
+for (const m of monitors)
+  m.inMaintenance = inAnyInterval(nowMs, maintenanceIntervalsByMonitorId[m.id] || [])
+
 // Uptime history charts (OhDear-style) — a strip of daily bars + an
 // uptime % per monitor, computed from check_results over the last 90
 // days. Each day bucket takes its worst observed status (down beats
@@ -234,9 +273,11 @@ for (const m of monitors) {
   uptimeByMonitor[m.id] = await cache.getOrSet(`status-uptime:${m.id}:${UPTIME_DAYS}`, async () => {
     const sinceMs = Date.now() - UPTIME_DAYS * 86400000
     const sinceIso = new Date(sinceMs).toISOString()
-    const rows = await db.selectFrom('check_results')
+    const mIntervals = maintenanceIntervalsByMonitorId[m.id] || []
+    const rows = (await db.selectFrom('check_results')
       .where('monitor_id', '=', m.id).where('checked_at', '>=', sinceIso)
-      .orderBy('checked_at', 'asc').execute()
+      .orderBy('checked_at', 'asc').execute())
+      .filter((r) => !inAnyInterval(Date.parse(r.checked_at), mIntervals))
 
     // Seed one bucket per day so gaps render as "no data", not collapse.
     const bars = []
@@ -347,22 +388,28 @@ const STR = {
 }
 function t(key) { const d = STR[LOCALE] || STR.en; return (d && d[key] != null) ? d[key] : (STR.en[key] != null ? STR.en[key] : key) }
 
-const hasDown = monitors.some((m) => m.status === 'down')
-const hasDegraded = monitors.some((m) => m.status === 'degraded')
+// Monitors under active maintenance are represented by the maintenance banner,
+// not the outage banner, so they don't count toward the overall page status.
+const hasDown = monitors.some((m) => m.status === 'down' && !m.inMaintenance)
+const hasDegraded = monitors.some((m) => m.status === 'degraded' && !m.inMaintenance)
 
 const overallLabel = hasDown ? t('major_outage') : hasDegraded ? t('partial_outage') : t('all_operational')
 const overallTone = hasDown ? 'down' : hasDegraded ? 'degraded' : 'up'
 
 const pageTitle = statusPage ? statusPage.title : t('not_found')
 
-function monitorDotClass(status) {
+function monitorDotClass(monitor) {
+  if (monitor.inMaintenance) return 'bg-blue-500'
+  const status = monitor.status
   if (status === 'up') return 'bg-emerald-500'
   if (status === 'degraded') return 'bg-amber-500'
   if (status === 'down') return 'bg-red-500'
   return 'bg-gray-300'
 }
 
-function monitorLabel(status) {
+function monitorLabel(monitor) {
+  if (monitor.inMaintenance) return t('maintenance')
+  const status = monitor.status
   if (status === 'up') return t('operational')
   if (status === 'degraded') return t('degraded')
   if (status === 'down') return t('down')
@@ -536,8 +583,8 @@ useHead({
                 <div class="flex items-center justify-between gap-4">
                   <p class="font-medium text-gray-900">{{ monitor.name }}</p>
                   <div class="flex items-center gap-2">
-                    <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
-                    <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+                    <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor) }}"></span>
+                    <span class="text-sm text-gray-500">{{ monitorLabel(monitor) }}</span>
                   </div>
                 </div>
                 <div class="uptime-bars" style="display:flex;gap:2px;align-items:stretch;height:30px;margin-top:10px;">
@@ -566,8 +613,8 @@ useHead({
                   <div class="flex items-center justify-between gap-4">
                     <p class="font-medium text-gray-900">{{ monitor.name }}</p>
                     <div class="flex items-center gap-2">
-                      <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor.status) }}"></span>
-                      <span class="text-sm text-gray-500">{{ monitorLabel(monitor.status) }}</span>
+                      <span class="h-2 w-2 rounded-full {{ monitorDotClass(monitor) }}"></span>
+                      <span class="text-sm text-gray-500">{{ monitorLabel(monitor) }}</span>
                     </div>
                   </div>
                   <div class="uptime-bars" style="display:flex;gap:2px;align-items:stretch;height:30px;margin-top:10px;">

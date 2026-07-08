@@ -4,7 +4,7 @@ import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
-import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import PortScanResult from '../Models/PortScanResult'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
@@ -101,7 +101,7 @@ export default new Job({
     const unexpectedOpen = openPorts.filter(p => expectedPorts.length > 0 && !expectedPorts.includes(p))
 
     if (missingExpected.length > 0) {
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
         cause: `Expected port(s) ${missingExpected.join(', ')} are no longer open on ${host}`,
@@ -112,7 +112,7 @@ export default new Job({
     }
 
     if (unexpectedOpen.length > 0) {
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
         cause: `Unexpected port(s) ${unexpectedOpen.join(', ')} are open on ${host}`,

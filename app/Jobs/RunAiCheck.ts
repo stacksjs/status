@@ -3,6 +3,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import AiCheck from '../Models/AiCheck'
 import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import IncidentUpdate from '../Models/IncidentUpdate'
 import Monitor from '../Models/Monitor'
 
@@ -74,7 +75,7 @@ export default new Job({
       await aiCheck.update({ last_result: result.slice(0, 2000), last_passed: false, last_checked_at: checkedAt })
       if (await findOpenAiIncident())
         return
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
         cause: result.slice(0, 500),
@@ -133,7 +134,7 @@ export default new Job({
 
     if (!passed) {
       if (!(await findOpenAiIncident())) {
-        await Incident.create({
+        await openIncident({
           monitor_id: monitor.id,
           started_at: checkedAt,
           cause: `AI check failed: ${aiCheck.prompt} - ${answer.trim()}`.slice(0, 500),

@@ -1,7 +1,7 @@
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import HeartbeatMonitor from '../Models/HeartbeatMonitor'
-import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
@@ -40,7 +40,7 @@ export default new Job({
       // dashboard updates sub-second. Fire-and-forget; a no-op unless
       // Redis fan-out is enabled (the poller is the fallback).
       void broadcastMonitorUpdate(monitor.id)
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: new Date().toISOString(),
         cause: `Scheduled task '${monitor.name}' missed its expected check-in`,

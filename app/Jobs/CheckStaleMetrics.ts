@@ -3,6 +3,7 @@ import { Job } from '@stacksjs/queue'
 import { parseMetricsThresholds } from '../Actions/Agents/metricsThresholds'
 import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
@@ -56,7 +57,7 @@ export default new Job({
       // Guard against a duplicate open incident (idempotent across ticks).
       const open = await Incident.where('monitor_id', monitor.id).where('status', '!=', 'resolved').first()
       if (!open) {
-        await Incident.create({
+        await openIncident({
           monitor_id: monitor.id,
           started_at: checkedAt,
           cause: `No metrics received from '${monitor.name}' agent within ${windowSeconds}s`,

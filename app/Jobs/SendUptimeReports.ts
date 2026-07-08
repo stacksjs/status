@@ -3,6 +3,7 @@ import { mail } from '@stacksjs/email'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import Team from '../../storage/framework/defaults/app/Models/Team'
+import { inAnyInterval, maintenanceIntervalsByMonitor } from '../lib/maintenance'
 import CheckResult from '../Models/CheckResult'
 import Crawl from '../Models/Crawl'
 import Incident from '../Models/Incident'
@@ -278,6 +279,12 @@ export default new Job({
 
         const monitors = await Monitor.where('team_id', team.id).get()
 
+        // Maintenance windows are excluded from the uptime percentage and the
+        // latency stats (docs/operate/maintenance.md) - a planned outage must
+        // not dent the numbers. Fetched once for the whole team, then applied
+        // per monitor below.
+        const maintenanceByMonitor = await maintenanceIntervalsByMonitor(monitors.map((m: any) => m.id))
+
         const monitorReports: MonitorReport[] = []
         let incidentCount = 0
         let incidentDurationMs = 0
@@ -286,9 +293,11 @@ export default new Job({
         let mixedContent = 0
 
         for (const monitor of monitors) {
-          const results = await CheckResult.where('monitor_id', monitor.id)
+          const mIntervals = maintenanceByMonitor.get(monitor.id) ?? []
+          const results = (await CheckResult.where('monitor_id', monitor.id)
             .whereBetween('checked_at', [startIso, endIso])
-            .get()
+            .get())
+            .filter((r: any) => !inAnyInterval(Date.parse(r.checked_at), mIntervals))
 
           // The check_results status CHECK only allows up/down/degraded,
           // but filter defensively so anything else never skews the
@@ -301,9 +310,10 @@ export default new Job({
             .filter((t: any): t is number => typeof t === 'number')
             .sort((a: number, b: number) => a - b)
 
-          const previous = await CheckResult.where('monitor_id', monitor.id)
+          const previous = (await CheckResult.where('monitor_id', monitor.id)
             .whereBetween('checked_at', [prevStartIso, startIso])
-            .get()
+            .get())
+            .filter((r: any) => !inAnyInterval(Date.parse(r.checked_at), mIntervals))
           const prevTimes = previous
             .map((r: any) => r.response_time_ms)
             .filter((t: any): t is number => typeof t === 'number')

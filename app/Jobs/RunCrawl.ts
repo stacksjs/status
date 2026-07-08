@@ -4,7 +4,7 @@ import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
 import Crawl from '../Models/Crawl'
 import CrawledPage from '../Models/CrawledPage'
-import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
@@ -270,7 +270,7 @@ export default new Job({
     // still reports them. Previously this fired on every crawl that found any
     // broken link, re-alerting the same backlog daily (stacksjs/status#1).
     if (brokenLinksCount > previousBrokenLinks) {
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: new Date().toISOString(),
         cause: `Crawl of ${monitor.name} found ${brokenLinksCount} broken link${brokenLinksCount === 1 ? '' : 's'} (up from ${previousBrokenLinks})`,
@@ -280,7 +280,7 @@ export default new Job({
     }
 
     if (mixedContentCount > 0) {
-      await Incident.create({
+      await openIncident({
         monitor_id: monitor.id,
         started_at: new Date().toISOString(),
         cause: `Crawl of ${monitor.name} found ${mixedContentCount} mixed-content resource${mixedContentCount === 1 ? '' : 's'}`,

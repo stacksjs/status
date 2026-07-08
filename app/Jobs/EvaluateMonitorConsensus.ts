@@ -4,6 +4,7 @@ import { consensusStatus, CONSENSUS_TYPES, regionsConfig } from '../../config/re
 import CheckResult from '../Models/CheckResult'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 import Incident from '../Models/Incident'
+import { isMonitorInMaintenance } from '../lib/maintenance'
 import IncidentUpdate from '../Models/IncidentUpdate'
 import Monitor from '../Models/Monitor'
 
@@ -83,6 +84,15 @@ export default new Job({
       const next: Status = consensusStatus(votes.map(r => r.status), consensus.minRegionsToConfirm)
 
       const prev = monitor.status
+
+      // Maintenance windows (stacksjs/status#1): a covered monitor is expected
+      // to fail during announced work, so skip its verdict entirely - don't
+      // flip status, count a failure, open/resolve an incident, or page.
+      // Leaving the status untouched means that if the monitor is still failing
+      // when the window closes, the normal prev->down transition fires and
+      // opens an incident as usual (see docs/operate/maintenance.md).
+      if (await isMonitorInMaintenance(monitor.id))
+        continue
 
       // Maintain consecutive_failures here — this job is the single writer of a
       // consensus monitor's verdict, so counting failures anywhere else (e.g.

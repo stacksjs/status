@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { log } from '@stacksjs/logging'
+import { isMonitorInMaintenance } from '../../lib/maintenance'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
@@ -22,6 +23,14 @@ export default new Action({
 
     const monitor = await Monitor.find(incident.monitor_id)
     if (!monitor) return
+
+    // No paging during an active maintenance window (docs/operate/maintenance.md),
+    // including recovery notices - a monitor flapping back up mid-window must
+    // not page. Once the window closes, a genuine recovery notifies as usual.
+    if (await isMonitorInMaintenance(monitor.id)) {
+      log.debug(`[listener] SendIncidentResolvedNotification: ${monitor.name} is in a maintenance window - not notifying`)
+      return
+    }
 
     const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
     if (attachments.length === 0) return

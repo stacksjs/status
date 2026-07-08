@@ -6,7 +6,7 @@ import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import CheckResult from '../Models/CheckResult'
-import Incident from '../Models/Incident'
+import { openIncident } from '../lib/maintenance'
 import LighthouseReport from '../Models/LighthouseReport'
 import Monitor from '../Models/Monitor'
 import { parseMonitorConfig } from '../lib/monitorConfig'
@@ -150,7 +150,7 @@ export default new Job({
       ) {
         status = 'degraded'
         message = `Performance score dropped from ${previous.performance_score} to ${performanceScore}`
-        await Incident.create({
+        await openIncident({
           monitor_id: monitor.id,
           started_at: checkedAt,
           cause: `Lighthouse performance score dropped from ${previous.performance_score} to ${performanceScore}`,
