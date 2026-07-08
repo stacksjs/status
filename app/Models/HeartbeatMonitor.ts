@@ -67,5 +67,38 @@ export default defineModel({
       },
       factory: faker => faker.date.recent().toISOString(),
     },
+
+    // When the job last signalled it began, via /ping/{token}/start. Used to
+    // measure run duration and to detect an overrun (a start with no matching
+    // success within the grace window).
+    lastStartedAt: {
+      order: 5,
+      fillable: true,
+      validation: {
+        rule: schema.string(),
+      },
+      factory: () => null,
+    },
+
+    // When the job last reported an explicit failure, via /ping/{token}/fail.
+    lastFailAt: {
+      order: 6,
+      fillable: true,
+      validation: {
+        rule: schema.string(),
+      },
+      factory: () => null,
+    },
+
+    // Duration in seconds of the last completed run (success timestamp minus
+    // the preceding /start), or null when the run was not bracketed by a start.
+    lastDurationSeconds: {
+      order: 7,
+      fillable: true,
+      validation: {
+        rule: schema.number().min(0),
+      },
+      factory: () => null,
+    },
   },
 } as const)

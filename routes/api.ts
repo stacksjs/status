@@ -55,6 +55,10 @@ route.post('/invite-forms/{uuid}/accept', 'Actions/Teams/AcceptInviteFormAction'
 // stacksjs/status#1, discovered while adding the metrics endpoint below).
 route.get('/ping/{token}', 'Actions/Heartbeats/ReceivePingAction')
 route.post('/ping/{token}', 'Actions/Heartbeats/ReceivePingAction').skipCsrf()
+// Optional /start and /fail sub-pings: a job can bracket its run to measure
+// duration and report an explicit non-zero exit. Same action, keyed on {kind}.
+route.get('/ping/{token}/{kind}', 'Actions/Heartbeats/ReceivePingAction')
+route.post('/ping/{token}/{kind}', 'Actions/Heartbeats/ReceivePingAction').skipCsrf()
 
 // Public agent metrics ingest endpoint (no auth — metrics_token IS the
 // auth, same unguessable-token pattern as /ping/{token} above). A
