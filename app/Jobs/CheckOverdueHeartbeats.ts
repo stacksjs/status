@@ -33,6 +33,7 @@ export default new Job({
         lastStartedAtMs: heartbeat.last_started_at ? new Date(heartbeat.last_started_at).getTime() : null,
         expectedIntervalSeconds: heartbeat.expected_interval_seconds,
         graceSeconds: heartbeat.grace_seconds,
+        cronExpression: heartbeat.cron_expression,
       }, now)
       if (!verdict.down)
         continue

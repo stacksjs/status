@@ -49,6 +49,19 @@ export default defineModel({
       factory: faker => faker.helpers.arrayElement([300, 3600, 86400]),
     },
 
+    // Optional 5-field cron expression (or @daily-style nickname). When set it
+    // drives the next-expected-ping deadline instead of expectedIntervalSeconds
+    // — see app/lib/heartbeat.ts. An unparseable expression is fail-safe: the
+    // monitor falls back to its interval rather than never alerting.
+    cronExpression: {
+      order: 8,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(120),
+      },
+      factory: () => null,
+    },
+
     graceSeconds: {
       order: 3,
       fillable: true,

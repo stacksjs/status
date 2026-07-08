@@ -130,6 +130,33 @@ describe('Heartbeat pings: start / fail / recovery (stacksjs/status#1)', () => {
     expect(incident!.cause).toContain('grace window')
   })
 
+  test('CheckOverdueHeartbeats uses the cron expression for the deadline, not the interval', async () => {
+    // Interval is huge, so only the every-minute cron cadence can make this
+    // overdue: last ping 10 min ago, tiny grace.
+    const { monitor } = await makeHeartbeat('cronned', {
+      expected_interval_seconds: 999_999,
+      grace_seconds: 60,
+      cron_expression: '* * * * *',
+      last_ping_at: iso(-10 * 60_000),
+    })
+    await CheckOverdueHeartbeats.handle()
+
+    expect((await Monitor.find(monitor.id))!.status).toBe('down')
+    const incident = await Incident.where('monitor_id', monitor.id).first()
+    expect(incident!.cause).toContain('missed its expected check-in')
+  })
+
+  test('a valid cron heartbeat pinged within the slot stays up despite a huge interval', async () => {
+    const { monitor } = await makeHeartbeat('cron-healthy', {
+      expected_interval_seconds: 999_999,
+      grace_seconds: 60,
+      cron_expression: '* * * * *',
+      last_ping_at: iso(-10_000), // 10s ago; next minute slot has not lapsed + grace
+    })
+    await CheckOverdueHeartbeats.handle()
+    expect((await Monitor.find(monitor.id))!.status).toBe('up')
+  })
+
   test('CheckOverdueHeartbeats opens a missed incident when the cadence lapses', async () => {
     const { monitor } = await makeHeartbeat('missed', {
       expected_interval_seconds: 300,

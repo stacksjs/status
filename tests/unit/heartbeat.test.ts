@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { evaluateHeartbeat, isPingKind, runDurationSeconds } from '../../app/lib/heartbeat'
+import { evaluateHeartbeat, isPingKind, isValidCron, nextExpectedPingMs, runDurationSeconds } from '../../app/lib/heartbeat'
 
 const MIN = 60_000
 const T0 = 1_700_000_000_000 // fixed epoch; the logic never reads the wall clock
@@ -63,6 +63,52 @@ describe('runDurationSeconds', () => {
   })
   test('null when the clocks disagree (success earlier than start)', () => {
     expect(runDurationSeconds(T0, T0 - 1000)).toBeNull()
+  })
+})
+
+describe('cron-expression cadence', () => {
+  const at2am = Date.parse('2026-07-08T02:00:00.000Z')
+  const daily2am = '0 2 * * *'
+
+  function cronState(overrides = {}) {
+    return {
+      createdAtMs: at2am,
+      lastPingAtMs: at2am,
+      lastStartedAtMs: null,
+      // A large interval that must NOT be what fires — proves cron wins.
+      expectedIntervalSeconds: 999_999,
+      graceSeconds: 300,
+      cronExpression: daily2am,
+      ...overrides,
+    }
+  }
+
+  test('nextExpectedPingMs follows the cron schedule, not the interval', () => {
+    // Next 2am after a 2am ping is the following day.
+    expect(nextExpectedPingMs(cronState(), at2am)).toBe(Date.parse('2026-07-09T02:00:00.000Z'))
+  })
+
+  test('healthy until the next scheduled slot + grace, then missed', () => {
+    // Noon the same day: the next expected slot is tomorrow 2am — fine.
+    expect(evaluateHeartbeat(cronState(), Date.parse('2026-07-08T12:00:00Z')).down).toBe(false)
+    // 10 minutes past tomorrow's 2am with a 5-minute grace — missed.
+    expect(evaluateHeartbeat(cronState(), Date.parse('2026-07-09T02:10:00Z'))).toEqual({ down: true, reason: 'missed' })
+  })
+
+  test('an unparseable cron expression fails safe to the interval deadline', () => {
+    const s = cronState({ cronExpression: 'not a cron', expectedIntervalSeconds: 300, graceSeconds: 60 })
+    // Inside interval + grace (300+60=360s): still up.
+    expect(evaluateHeartbeat(s, at2am + 359_000).down).toBe(false)
+    // Past it: down via the interval fallback, not left up forever.
+    expect(evaluateHeartbeat(s, at2am + 361_000)).toEqual({ down: true, reason: 'missed' })
+  })
+
+  test('isValidCron accepts expressions and nicknames, rejects garbage', () => {
+    expect(isValidCron('0 2 * * *')).toBe(true)
+    expect(isValidCron('@daily')).toBe(true)
+    expect(isValidCron('*/15 * * * *')).toBe(true)
+    expect(isValidCron('not a cron')).toBe(false)
+    expect(isValidCron('99 * * * *')).toBe(false)
   })
 })
 

@@ -40,7 +40,7 @@ curl -fsS https://uptime-status.org/ping/<token>/fail    # job errored
 ## Setting it up
 
 1. **Add monitor** and choose **Cron / Heartbeat**.
-2. Set the expected **cadence** (or paste a cron expression) and a **grace period**.
+2. Set the expected **cadence** and a **grace period**. Cadence can be a plain interval (every 30 seconds up to monthly) or a 5-field cron expression such as `0 2 * * *` (daily at 02:00 UTC) or a nickname like `@hourly`. When a cron expression is set, the next expected check-in is the next scheduled slot; the interval is used otherwise.
 3. Copy the generated **ping URL**.
 4. Add the `curl` ping to the end of your job, as shown above.
 5. Attach **notifications**.
