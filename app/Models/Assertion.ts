@@ -49,9 +49,11 @@ export default defineModel({
       factory: faker => faker.helpers.arrayElement(['status_code', 'header', 'body', 'response_time']),
     },
 
-    // Only meaningful when target = 'header' (the header name, e.g.
-    // "content-type"). Null/unused for the other targets — status_code,
-    // body, and response_time each only have one possible value to check.
+    // For target = 'header', the header name (e.g. "content-type"). For
+    // target = 'body', an optional JSON dot-path into the response body
+    // (e.g. "checks.database.latency_ms") - when set, the assertion inspects
+    // that nested field; when empty, it matches the whole raw body. Unused
+    // for status_code and response_time (one value each).
     property: {
       order: 2,
       fillable: true,

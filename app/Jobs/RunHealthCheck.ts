@@ -15,8 +15,14 @@ import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
  *
  * `checks` is optional structured detail (disk space, queue depth, a
  * downstream API reachability flag, ...) surfaced in the CheckResult
- * message for diagnosis; only `status` drives the up/down/degraded state
- * and incident lifecycle.
+ * message for diagnosis; `status` drives the up/down/degraded state for a
+ * monitor with no assertions.
+ *
+ * When the monitor has field assertions (see the Assertion model), those are
+ * the contract instead: after a 2xx response, every assertion must pass -
+ * including dot-path assertions into the JSON body, e.g.
+ * `checks.database.latency_ms` less-than `100`. See
+ * docs/monitors/health-checks.md and app/lib/assertionEval.ts.
  */
 export default new Job({
   name: 'RunHealthCheck',
@@ -63,8 +69,36 @@ export default new Job({
         try { return JSON.parse(rawBody) }
         catch { return null }
       })()
+      metadata = body?.checks ? { checks: body.checks } : {}
 
-      if (!response.ok || !body?.status) {
+      const headers: Record<string, string> = {}
+      response.headers.forEach((value, key) => { headers[key.toLowerCase()] = value })
+      const evaluation = await EvaluateAssertionsAction.handle({
+        monitorId: monitor.id,
+        subject: { statusCode: response.status, headers, body: rawBody, responseTimeMs: Math.round(performance.now() - startedAt) },
+      })
+
+      if (evaluation.count > 0) {
+        // Field assertions are the health contract (docs/monitors/health-checks.md):
+        // a non-2xx is down, otherwise every assertion (dot-path into the JSON
+        // body, header, status code, ...) must pass. No top-level `status`
+        // field is required - the assertions define what healthy means.
+        if (!response.ok) {
+          status = 'down'
+          message = `Health endpoint returned ${response.status}`
+        }
+        else if (evaluation.passed) {
+          status = 'up'
+          message = 'All assertions passed'
+        }
+        else {
+          status = 'down'
+          message = evaluation.failures.join('; ')
+        }
+      }
+      else if (!response.ok || !body?.status) {
+        // Legacy contract for monitors with no assertions: a top-level
+        // `status` field drives the verdict.
         status = 'down'
         message = `Health endpoint returned ${response.status}${body?.status ? '' : ' with no status field'}`
       }
@@ -79,25 +113,6 @@ export default new Job({
       else {
         status = 'down'
         message = `Reported status: ${body.status}`
-      }
-      metadata = body?.checks ? { checks: body.checks } : {}
-
-      // Assertions (stacksjs/status#1 Phase 12) layer on top of the health
-      // contract above — only evaluated when the endpoint itself already
-      // reported healthy, same reasoning as RunUptimeCheck.
-      if (status === 'up') {
-        const headers: Record<string, string> = {}
-        response.headers.forEach((value, key) => { headers[key.toLowerCase()] = value })
-
-        const evaluation = await EvaluateAssertionsAction.handle({
-          monitorId: monitor.id,
-          subject: { statusCode: response.status, headers, body: rawBody, responseTimeMs: Math.round(performance.now() - startedAt) },
-        })
-
-        if (!evaluation.passed) {
-          status = 'down'
-          message = evaluation.failures.join('; ')
-        }
       }
     }
     catch (error) {
