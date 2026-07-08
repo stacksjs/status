@@ -38,7 +38,7 @@ Incidents resolve automatically once the port starts accepting connections again
 1. **Add monitor** and choose **TCP Port**.
 2. Enter the **host** and **port** (e.g. `db.example.com:5432`).
 3. Set the **check interval** and select **regions**.
-4. Optionally set a **connect-latency** warning threshold.
+4. Optionally set a **connect-latency** warning threshold (config `latencyThresholdMs`; an open-but-slow port is reported degraded).
 5. Attach **notifications**.
 
 > A successful TCP handshake confirms the port is open, not that the application behind it is fully healthy. For app-level health, add a [Health Check](/monitors/health-checks) or [Uptime](/monitors/uptime) check.

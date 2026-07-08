@@ -32,7 +32,7 @@ Renewing the certificate clears the warnings automatically on the next run.
 1. **Add monitor** and choose **SSL Certificate**.
 2. Enter the hostname (e.g. `example.com`) and port (defaults to `443`).
 3. Confirm the **warning tiers** (30/14/7/1 days) or adjust them.
-4. Enable **fingerprint-change detection** if you want rotation alerts.
+4. Enable **fingerprint-change detection** if you want rotation alerts (config `alertOnFingerprintChange`; off by default, since routine renewals also change the fingerprint).
 5. Attach **notifications**.
 
 > After an automated renewal (e.g. Let's Encrypt), enable fingerprint alerts only if your rotation cadence is predictable — otherwise expected renewals will notify.

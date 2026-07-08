@@ -3,6 +3,7 @@ import process from 'node:process'
 import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import { applyLatencyThreshold, configNumber, parseMonitorConfig, type CheckStatus } from '../lib/monitorConfig'
 import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
@@ -51,26 +52,29 @@ export default new Job({
       // bare host, no scheme
     }
 
-    let port = 443
-    try {
-      const config = monitor.config ? JSON.parse(monitor.config) : {}
-      if (typeof config.port === 'number')
-        port = config.port
-    }
-    catch {
-      // malformed config JSON — fall back to the default port
-    }
+    const cfg = parseMonitorConfig(monitor.config)
+    const port = configNumber(cfg, 'port', 443) || 443
+    const latencyThresholdMs = configNumber(cfg, 'latencyThresholdMs', 0)
 
     const checkedAt = new Date().toISOString()
     const result = await checkPort(host, port)
-    const status = result.open ? 'up' : 'down'
+    let status: CheckStatus = result.open ? 'up' : 'down'
+    let message = result.open ? `Port ${port} open` : `Port ${port} closed or unreachable`
+
+    // Open-but-slow: a reachable port over the latency threshold is
+    // 'degraded' (config `latencyThresholdMs`, 0 disables).
+    const degraded = applyLatencyThreshold(status, result.timeMs, latencyThresholdMs)
+    if (degraded !== status) {
+      status = degraded
+      message = `Port ${port} open but slow: ${result.timeMs}ms (threshold ${latencyThresholdMs}ms)`
+    }
 
     await CheckResult.create({
       monitor_id: monitor.id,
       status,
       response_time_ms: result.timeMs,
       status_code: null,
-      message: result.open ? `Port ${port} open` : `Port ${port} closed or unreachable`,
+      message,
       metadata: JSON.stringify({ port }),
       region: process.env.WORKER_REGION || 'default',
       checked_at: checkedAt,

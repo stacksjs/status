@@ -3,6 +3,7 @@ import { connect } from 'node:tls'
 import { URL } from 'node:url'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import { configBool, parseMonitorConfig } from '../lib/monitorConfig'
 import CheckResult from '../Models/CheckResult'
 import Incident from '../Models/Incident'
 import Monitor from '../Models/Monitor'
@@ -164,7 +165,24 @@ export default new Job({
       }
     }
     else if (fingerprintChanged) {
-      log.info(`[job] RunSslCheck: ${monitor.name} certificate fingerprint changed (renewed)`)
+      // A fingerprint change is usually a routine renewal, so alerting is
+      // opt-in (config `alertOnFingerprintChange`) for people who want to
+      // catch an UNEXPECTED swap (mis-issue, MITM). When off we just note it.
+      if (configBool(parseMonitorConfig(monitor.config), 'alertOnFingerprintChange', false)) {
+        const attachments = await MonitorNotificationChannel.where('monitor_id', monitor.id).get()
+        for (const attachment of attachments) {
+          await SendNotification.dispatch({
+            channelId: attachment.notification_channel_id,
+            subject: `🔑 ${monitor.name}: TLS certificate fingerprint changed`,
+            message: `The certificate for ${hostname} was replaced (new SHA-256 fingerprint ${String(fingerprint).slice(0, 32)}...). If you didn't just renew or rotate it, investigate a possible mis-issue or interception.`,
+            severity: 'warning',
+          })
+        }
+        log.warn(`[job] RunSslCheck: ${monitor.name} certificate fingerprint changed — notified ${attachments.length} channel(s)`)
+      }
+      else {
+        log.info(`[job] RunSslCheck: ${monitor.name} certificate fingerprint changed (renewed)`)
+      }
     }
 
     // An expiring-soon certificate still terminates TLS fine, so it stays

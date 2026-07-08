@@ -2,6 +2,7 @@ import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
+import { applyLatencyThreshold, configNumber, parseMonitorConfig } from '../lib/monitorConfig'
 import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
@@ -103,6 +104,16 @@ export default new Job({
 
     const responseTimeMs = Math.round(performance.now() - startedAt)
     const checkedAt = new Date().toISOString()
+
+    // Slow-but-serving: a reachable endpoint over the latency threshold is
+    // reported 'degraded' (config `latencyThresholdMs`, 0 disables), which
+    // EvaluateMonitorConsensus propagates to the monitor's status.
+    const latencyThresholdMs = configNumber(parseMonitorConfig(monitor.config), 'latencyThresholdMs', 0)
+    const degraded = applyLatencyThreshold(status, responseTimeMs, latencyThresholdMs)
+    if (degraded !== status) {
+      status = degraded
+      message = `Slow response: ${responseTimeMs}ms (threshold ${latencyThresholdMs}ms)`
+    }
 
     await CheckResult.create({
       monitor_id: monitor.id,

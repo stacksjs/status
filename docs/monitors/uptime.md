@@ -31,7 +31,7 @@ Latency-threshold breaches raise a **warning** rather than a hard down, so you c
 1. **Add monitor** in the dashboard and choose **Uptime**.
 2. Enter the target URL (e.g. `https://example.com/health`).
 3. Set the **check interval** (30s–1h) and pick your **regions**.
-4. Add assertions: expected status code, keyword match, and latency warning threshold.
+4. Add assertions: expected status code, keyword match, and a latency warning threshold (config `latencyThresholdMs`; a run at or over it is reported degraded).
 5. Attach **notifications** so the right people are alerted.
 
 ## Related

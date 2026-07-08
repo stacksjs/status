@@ -30,7 +30,7 @@ An incident resolves automatically once replies return cleanly across regions.
 1. **Add monitor** and choose **Ping**.
 2. Enter the hostname or IP address (e.g. `db.internal.example.com` or `203.0.113.10`).
 3. Set the **check interval** and select **regions**.
-4. Configure thresholds: acceptable **packet loss %** and an optional **RTT** warning.
+4. Configure thresholds: acceptable **packet loss %** (config `packetLossThresholdPercent`) and an optional **RTT** warning (`latencyThresholdMs`). The check sends `pingCount` packets (default 3) so partial loss is measurable; either threshold being crossed reports degraded.
 5. Attach **notifications**.
 
 > Ping only proves the host is up on the network — it does not verify that a service on it is accepting connections. To confirm a specific service, pair it with a [TCP Port](/monitors/tcp-port) or [Uptime](/monitors/uptime) check.
