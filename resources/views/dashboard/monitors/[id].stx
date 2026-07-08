@@ -137,6 +137,22 @@ if (monitor) {
 }
 const assignedChannelIds = assignedChannels.map((c) => c.id)
 
+// Response assertions for this monitor (dot-path health assertions, header /
+// status-code / response-time checks). Displayed and edited in the Assertions
+// card below; evaluated by EvaluateAssertionsAction on each check.
+let monitorAssertions = []
+if (monitor) {
+  monitorAssertions = (await db.selectFrom('assertions').where('monitor_id', '=', monitor.id).orderBy('sort_order', 'asc').orderBy('id', 'asc').execute())
+    .map(a => ({ id: a.id, target: a.target, property: a.property || '', compare: a.compare, expected: a.expected || '' }))
+}
+const COMPARE_LABELS = { eq: 'equals', not_eq: 'not equals', gt: 'greater than', gte: '>=', lt: 'less than', lte: '<=', contains: 'contains', not_contains: 'not contains', empty: 'is empty', not_empty: 'is present' }
+function assertionLabel(a) {
+  const subject = a.target === 'body' && a.property ? a.property : (a.target === 'header' ? `header ${a.property}` : a.target.replace('_', ' '))
+  const cmp = COMPARE_LABELS[a.compare] || a.compare
+  const needsValue = a.compare !== 'empty' && a.compare !== 'not_empty'
+  return needsValue ? `${subject} ${cmp} ${a.expected}` : `${subject} ${cmp}`
+}
+
 // Brand marks for notification-channel providers (kept in sync with
 // settings/notifications.stx). Slack, Discord, Teams, PagerDuty,
 // Opsgenie, Pushover, and ntfy use the official Simple Icons monochrome
@@ -1015,6 +1031,55 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
         @if (availableChannels.length === 0 && assignedChannels.length === 0)
           <p style="margin: 0; color: var(--muted); font-size: 0.88rem;"><a href="/dashboard/settings/notifications" style="color: var(--accent); font-weight: 600;">Add a notification channel</a> to attach one here.</p>
         @endif
+      </div>
+    </section>
+
+    <section class="card" aria-label="Response assertions">
+      <div class="card-head">
+        <h3>Response assertions</h3>
+        <span class="sub">{{ monitorAssertions.length }} assertion{{ monitorAssertions.length === 1 ? '' : 's' }}</span>
+      </div>
+      <div class="card-body">
+        @if (monitorAssertions.length > 0)
+          <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
+            @foreach (monitorAssertions as assertion)
+              <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
+                <span class="tcell"><span class="mono" style="font-size: 0.85rem;">{{ assertionLabel(assertion) }}</span></span>
+                <form method="POST" action="/api/assertion-forms/monitors/{{ monitor.id }}/remove">
+                  <input type="hidden" name="assertion_id" value="{{ assertion.id }}" />
+                  <button type="submit" class="button danger sm">Remove</button>
+                </form>
+              </div>
+            @endforeach
+          </div>
+        @endif
+
+        <form method="POST" action="/api/assertion-forms/monitors/{{ monitor.id }}/add">
+          <div style="display: flex; gap: 0.6rem; align-items: stretch; flex-wrap: wrap;">
+            <select name="target" class="select" style="width: auto;" aria-label="Assertion target">
+              <option value="body">Body (JSON path)</option>
+              <option value="status_code">Status code</option>
+              <option value="response_time">Response time (ms)</option>
+              <option value="header">Header</option>
+            </select>
+            <input name="property" class="input" style="flex: 1 1 12rem; width: auto;" placeholder="checks.database.status (path or header name)" />
+            <select name="compare" class="select" style="width: auto;" aria-label="Comparison">
+              <option value="eq">equals</option>
+              <option value="not_eq">not equals</option>
+              <option value="lt">less than</option>
+              <option value="lte">less than or equal</option>
+              <option value="gt">greater than</option>
+              <option value="gte">greater than or equal</option>
+              <option value="contains">contains</option>
+              <option value="not_contains">does not contain</option>
+              <option value="not_empty">is present</option>
+              <option value="empty">is empty</option>
+            </select>
+            <input name="expected" class="input" style="flex: 0 1 8rem; width: auto;" placeholder="value" />
+            <button type="submit" class="button primary">Add</button>
+          </div>
+          <p class="help" style="margin-top: 0.5rem;">Every assertion must pass for the check to be healthy. For a JSON health endpoint, target Body and enter a dot-path like <span class="mono">checks.database.latency_ms</span>. Leave the path blank to match the whole body.</p>
+        </form>
       </div>
     </section>
 

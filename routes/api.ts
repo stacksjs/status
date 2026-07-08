@@ -142,6 +142,12 @@ route.post('/notification-channel-forms/{id}/test-send', 'Actions/Notifications/
 route.post('/notification-channel-forms/monitors/{monitorId}/assign', 'Actions/Notifications/DashboardAssignChannelAction')
 route.post('/notification-channel-forms/monitors/{monitorId}/remove', 'Actions/Notifications/DashboardRemoveChannelAction')
 
+// Response-assertion form posts on the monitor detail page (dot-path health
+// assertions and header/status/response-time checks) — same plain-POST,
+// team-scoped convention as the notification-channel forms above.
+route.post('/assertion-forms/monitors/{monitorId}/add', 'Actions/Assertions/DashboardCreateAssertionAction')
+route.post('/assertion-forms/monitors/{monitorId}/remove', 'Actions/Assertions/DashboardRemoveAssertionAction')
+
 // Dashboard team settings form posts (stacksjs/status#1 Phase 8) — same
 // plain-POST convention.
 route.post('/team-forms/{id}/invite', 'Actions/Teams/DashboardInviteTeamMemberAction')
