@@ -6,9 +6,6 @@
       "name": "status",
       "dependencies": {
         "@stacksjs/stx": "^0.2.82",
-        "@stacksjs/ts-cloud": "^0.7.10",
-        "@ts-cloud/aws-types": "^0.7.10",
-        "@ts-cloud/core": "^0.7.10",
         "bun-plugin-stx": "^0.2.82",
         "stacks": "workspace:*",
         "stx-router": "^0.2.82",
