@@ -38,8 +38,10 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # ./buddy (the sh wrapper), NOT `bun buddy`: the wrapper bootstraps pantry
+      # and puts pantry/.bin on PATH before the CLI runs (matches the deploy job).
       - name: Reconcile probe fleet
-        run: bun node_modules/@stacksjs/buddy/dist/cli.js deploy:probes --yes ${{ github.event.inputs.dryRun == 'true' && '--dry-run' || '' }}
+        run: ./buddy deploy:probes --yes ${{ github.event.inputs.dryRun == 'true' && '--dry-run' || '' }}
         env:
           APP_ENV: production
           # The reconcile only needs the Hetzner token to list/provision/destroy
