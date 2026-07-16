@@ -32,4 +32,7 @@ export default {
   // the WebSocket server and pushes monitor status changes to the
   // dashboard. See app/Commands/Realtime.ts.
   'realtime': 'Realtime',
+  // Reconcile the Hetzner probe fleet to config/probes.ts (provision declared,
+  // decommission removed). See app/Commands/DeployProbes.ts.
+  'deploy:probes': 'DeployProbes',
 } satisfies CommandRegistry
