@@ -1,0 +1,50 @@
+name: Probe Fleet
+
+# Push-to-deploy for the multi-region probe fleet. Reconciles the running
+# Hetzner probe boxes to config/probes.ts on every change to the fleet:
+#   - a probe added to config/probes.ts is PROVISIONED (worker-role deploy)
+#   - a probe removed from config/probes.ts is DECOMMISSIONED (server destroyed)
+# So editing config/probes.ts and pushing is the whole workflow — no manual
+# `hcloud server delete`, no orphaned boxes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - config/probes.ts
+      - app/Commands/DeployProbes.ts
+      - .github/workflows/probes.yml
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: Plan only (no provision/decommission)
+        type: boolean
+        default: false
+
+concurrency:
+  group: probe-fleet
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Reconcile probe fleet
+        run: bun node_modules/@stacksjs/buddy/dist/cli.js deploy:probes --yes ${{ github.event.inputs.dryRun == 'true' && '--dry-run' || '' }}
+        env:
+          APP_ENV: production
+          # The reconcile only needs the Hetzner token to list/provision/destroy
+          # probe boxes; provisioning a new probe additionally decrypts the app's
+          # .env.production for the worker's runtime secrets.
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          COPYFILE_DISABLE: '1'
