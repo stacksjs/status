@@ -45,18 +45,18 @@
     "deploy": "bun deploy.ts"
   },
   "dependencies": {
-    "@stacksjs/config": "workspace:*",
-    "@stacksjs/dns": "workspace:*",
+    "@stacksjs/config": "workspace:*0.70.163",
+    "@stacksjs/dns": "workspace:*0.70.163",
     "@stacksjs/logging": "workspace:*",
     "@stacksjs/path": "workspace:*",
     "@stacksjs/queue": "workspace:*",
     "@stacksjs/router": "workspace:*",
     "@stacksjs/storage": "workspace:*",
     "@stacksjs/utils": "workspace:*",
-    "@stacksjs/validation": "workspace:*"
+    "@stacksjs/validation": "workspace:*0.70.163"
   },
   "devDependencies": {
-    "@stacksjs/cli": "workspace:*",
+    "@stacksjs/cli": "workspace:*0.70.163",
     "better-dx": "^0.2.7",
     "@stacksjs/env": "workspace:*"
   }

@@ -56,14 +56,14 @@
   },
   "devDependencies": {
     "@stacksjs/actions": "workspace:*",
-    "@stacksjs/arrays": "workspace:*",
+    "@stacksjs/arrays": "workspace:*0.70.163",
     "@stacksjs/cli": "workspace:*",
     "@stacksjs/config": "workspace:*",
     "better-dx": "^0.2.12",
-    "@stacksjs/lint": "workspace:*",
+    "@stacksjs/lint": "workspace:*0.70.163",
     "@stacksjs/path": "workspace:*",
     "@stacksjs/storage": "workspace:*",
-    "@stacksjs/strings": "workspace:*",
+    "@stacksjs/strings": "workspace:*0.70.163",
     "@stacksjs/types": "workspace:*"
   }
 }

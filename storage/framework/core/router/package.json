@@ -49,18 +49,18 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
-    "@stacksjs/bun-router": "0.0.16"
+    "@stacksjs/bun-router": "0.0.20"
   },
   "devDependencies": {
-    "@stacksjs/actions": "workspace:*",
+    "@stacksjs/actions": "workspace:*0.70.163",
     "@stacksjs/config": "workspace:*",
     "better-dx": "^0.2.12",
     "@stacksjs/error-handling": "workspace:*",
     "@stacksjs/logging": "workspace:*",
-    "@stacksjs/orm": "workspace:*",
+    "@stacksjs/orm": "workspace:*0.70.163",
     "@stacksjs/path": "workspace:*",
     "@stacksjs/storage": "workspace:*",
-    "@stacksjs/types": "workspace:*",
+    "@stacksjs/types": "workspace:*0.70.163",
     "@stacksjs/validation": "workspace:*"
   }
 }

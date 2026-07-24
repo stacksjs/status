@@ -48,10 +48,10 @@
   },
   "devDependencies": {
     "better-dx": "^0.2.5",
-    "@stacksjs/logging": "workspace:*",
-    "@stacksjs/path": "workspace:*",
-    "@stacksjs/router": "workspace:*",
-    "@stacksjs/storage": "workspace:*",
-    "@stacksjs/utils": "workspace:*"
+    "@stacksjs/logging": "workspace:*0.70.163",
+    "@stacksjs/path": "workspace:*0.70.163",
+    "@stacksjs/router": "workspace:*0.70.163",
+    "@stacksjs/storage": "workspace:*0.70.163",
+    "@stacksjs/utils": "workspace:*0.70.163"
   }
 }

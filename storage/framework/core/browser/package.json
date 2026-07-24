@@ -48,9 +48,9 @@
   },
   "dependencies": {
     "@stacksjs/composables": "workspace:*",
-    "@stacksjs/stx": "^0.2.82",
-    "@stripe/stripe-js": "^9.0.0",
-    "bun-query-builder": "^0.1.38",
+    "@stacksjs/stx": "^0.2.99",
+    "@stripe/stripe-js": "^9.12.0",
+    "bun-query-builder": "^0.1.57",
     "magic-regexp": "^0.11.0"
   },
   "devDependencies": {

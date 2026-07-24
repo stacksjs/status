@@ -8,12 +8,12 @@
     "preview": "bunpress preview"
   },
   "dependencies": {
-    "@stacksjs/alias": "workspace:*",
+    "@stacksjs/alias": "workspace:*0.70.163",
     "@stacksjs/cli": "workspace:*",
     "@stacksjs/config": "workspace:*",
     "@stacksjs/env": "workspace:*",
     "@stacksjs/path": "workspace:*",
-    "@stacksjs/server": "workspace:*",
+    "@stacksjs/server": "workspace:*0.70.163",
     "@stacksjs/storage": "workspace:*"
   }
 }
