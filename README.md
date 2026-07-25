@@ -2,7 +2,7 @@
 
 [![GitHub Actions](https://img.shields.io/github/actions/workflow/status/stacksjs/status/ci.yml?style=flat-square&branch=main)](https://github.com/stacksjs/status/actions?query=workflow%3Aci)
 [![License](https://img.shields.io/github/license/stacksjs/status?style=flat-square)](LICENSE.md)
-[![Discord](https://img.shields.io/discord/1039191667654455337?style=flat-square&label=discord)](https://discord.gg/stacksjs)
+[![Discord](https://img.shields.io/discord/1039191667654455337?style=flat-square&label=discord)](https://stacksjs.com/discord)
 
 A self-hostable **status page and uptime monitoring platform** — the same category as [Oh Dear](https://ohdear.app), [OpenStatus](https://github.com/openstatusHQ/openstatus), and Better Stack, built entirely as a [Stacks](https://github.com/stacksjs/stacks) app: `defineModel()` for schema, stx for views, `app/Jobs` + a cron-style scheduler for background checks, and `buddy` for everything else.
 
@@ -81,7 +81,7 @@ Small, conventional commits (`feat:`, `fix:`, `chore:`, …) per logical unit.
 
 ## Community
 
-[Discussions on GitHub](https://github.com/stacksjs/status/discussions) · [Stacks Discord](https://discord.gg/stacksjs)
+[Discussions on GitHub](https://github.com/stacksjs/status/discussions) · [Stacks Discord](https://stacksjs.com/discord)
 
 ## Credits
 
