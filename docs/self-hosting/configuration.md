@@ -1,11 +1,11 @@
 ---
 title: Configuration
-description: The environment variables and config files that drive a self-hosted UptimeStatus instance.
+description: The environment variables and config files that drive a self-hosted StatusHQ instance.
 ---
 
 # Configuration
 
-UptimeStatus is configured in two layers: a `.env` file for secrets and per-environment values, and typed files in the `config/` directory for structured, version-controlled defaults.
+StatusHQ is configured in two layers: a `.env` file for secrets and per-environment values, and typed files in the `config/` directory for structured, version-controlled defaults.
 
 ## The `config/` directory
 

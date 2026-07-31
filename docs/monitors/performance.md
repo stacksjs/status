@@ -40,4 +40,4 @@ Performance monitoring evaluates against a **rolling baseline** as well as fixed
 
 - [Uptime](/monitors/uptime) · [Lighthouse](/monitors/lighthouse) · [Health Checks](/monitors/health-checks)
 - [Notifications](/operate/notifications)
-- Marketing: [Performance monitoring feature](https://uptime-status.org/features/performance-monitoring)
+- Marketing: [Performance monitoring feature](https://statushq.org/features/performance-monitoring)

@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 // Getting-started path — the four things a new account does in order.
 const steps = [
@@ -58,12 +58,12 @@ const groups = [
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Documentation | {{ appName }}</title>
-    <meta name="description" content="UptimeStatus documentation: get started in four steps, then a reference page for every monitor type, notifications, incidents, status pages, and self-hosting.">
-    <link rel="canonical" href="https://uptime-status.org/docs">
+    <meta name="description" content="StatusHQ documentation: get started in four steps, then a reference page for every monitor type, notifications, incidents, status pages, and self-hosting.">
+    <link rel="canonical" href="https://statushq.org/docs">
     <meta property="og:title" content="Documentation | {{ appName }}">
     <meta property="og:description" content="Get started in four steps, then a reference for every monitor type, notifications, incidents, and status pages.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/docs">
+    <meta property="og:url" content="https://statushq.org/docs">
     @include('./partials/marketing-head.stx')
   </head>
   <body>

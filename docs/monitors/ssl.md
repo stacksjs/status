@@ -41,4 +41,4 @@ Renewing the certificate clears the warnings automatically on the next run.
 
 - [Domains](/monitors/domains) · [DNS](/monitors/dns) · [Uptime](/monitors/uptime)
 - [Notifications](/operate/notifications)
-- Marketing: [SSL monitoring feature](https://uptime-status.org/features/ssl-monitoring)
+- Marketing: [SSL monitoring feature](https://statushq.org/features/ssl-monitoring)

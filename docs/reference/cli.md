@@ -1,11 +1,11 @@
 ---
 title: CLI reference (buddy)
-description: The buddy commands you use to run, migrate, and deploy a UptimeStatus instance.
+description: The buddy commands you use to run, migrate, and deploy a StatusHQ instance.
 ---
 
 # CLI reference (buddy)
 
-`buddy` is the [Stacks](https://stacksjs.org) CLI that ships with UptimeStatus. You invoke it as `./buddy <command>` from the project root. This page covers the commands relevant to operating an instance; run `./buddy --help` for the full list.
+`buddy` is the [Stacks](https://stacksjs.org) CLI that ships with StatusHQ. You invoke it as `./buddy <command>` from the project root. This page covers the commands relevant to operating an instance; run `./buddy --help` for the full list.
 
 ## `buddy serve`
 

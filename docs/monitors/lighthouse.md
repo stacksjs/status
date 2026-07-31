@@ -9,7 +9,7 @@ Lighthouse monitoring runs Google's Lighthouse audit against your page on a sche
 
 ## How it works
 
-On each run UptimeStatus loads your page in a headless browser and runs a full **Lighthouse** audit, capturing the four category scores (0–100):
+On each run StatusHQ loads your page in a headless browser and runs a full **Lighthouse** audit, capturing the four category scores (0–100):
 
 - **Performance** — including Core Web Vitals: LCP, CLS, TBT.
 - **Accessibility**
@@ -38,4 +38,4 @@ Each alert links to the full report so you can see exactly which audits regresse
 
 - [Performance](/monitors/performance) · [Broken Links](/monitors/broken-links) · [Uptime](/monitors/uptime)
 - [Notifications](/operate/notifications)
-- Marketing: [Lighthouse monitoring feature](https://uptime-status.org/features/lighthouse-monitoring)
+- Marketing: [Lighthouse monitoring feature](https://statushq.org/features/lighthouse-monitoring)

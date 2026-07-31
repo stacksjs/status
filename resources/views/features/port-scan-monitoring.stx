@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Well-known ports by default', text: 'every scan sweeps ports 1 through 1024, plus any ports you declare as expected, so the usual suspects are always covered.' },
@@ -47,11 +47,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Port scan monitoring | {{ appName }}</title>
     <meta name="description" content="Open-source port scan monitoring. Scheduled scans find ports that should not be open, like a deploy exposing a database, and open incidents automatically.">
-    <link rel="canonical" href="https://uptime-status.org/features/port-scan-monitoring">
+    <link rel="canonical" href="https://statushq.org/features/port-scan-monitoring">
     <meta property="og:title" content="Port scan monitoring | {{ appName }}">
     <meta property="og:description" content="Declare which ports should be open. Get an incident when anything else appears, or when an expected port disappears. Open source and self-hostable.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/port-scan-monitoring">
+    <meta property="og:url" content="https://statushq.org/features/port-scan-monitoring">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -169,7 +169,7 @@ const related = [
             </p>
           </div>
           <div class="split-panel">
-            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/monitors \
+            <div class="code-panel"><pre>curl -X POST https://statushq.org/api/monitors \
   -H <span class="str">'Content-Type: application/json'</span> \
   -d <span class="str">'{
     "name": "db-1 exposure scan",

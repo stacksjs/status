@@ -1,11 +1,11 @@
 ---
 title: API reference
-description: Query monitors, incidents, and status over the same-origin JSON API exposed by UptimeStatus.
+description: Query monitors, incidents, and status over the same-origin JSON API exposed by StatusHQ.
 ---
 
 # API reference
 
-UptimeStatus exposes a JSON API (built on [bun-router](https://github.com/stacksjs/router)) for reading monitors, incidents, and status programmatically. The API is served **same-origin under `/api`** — on a self-host that's `https://<your-domain>/api`, and on managed hosting it's `https://uptime-status.org/api`.
+StatusHQ exposes a JSON API (built on [bun-router](https://github.com/stacksjs/router)) for reading monitors, incidents, and status programmatically. The API is served **same-origin under `/api`** — on a self-host that's `https://<your-domain>/api`, and on managed hosting it's `https://statushq.org/api`.
 
 ## Authentication
 
@@ -24,7 +24,7 @@ Tokens are scoped to your team, so the API only ever returns data for the team t
 Returns every monitor in the team, with current status and last-check metadata.
 
 ```bash
-curl -s https://uptime-status.org/api/monitors \
+curl -s https://statushq.org/api/monitors \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -48,7 +48,7 @@ curl -s https://uptime-status.org/api/monitors \
 Fetch a single monitor by id, including its recent check results.
 
 ```bash
-curl -s https://uptime-status.org/api/monitors/42 \
+curl -s https://statushq.org/api/monitors/42 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -57,7 +57,7 @@ curl -s https://uptime-status.org/api/monitors/42 \
 Returns [incidents](/operate/incidents) across the team's monitors. Filter by state or monitor with query parameters.
 
 ```bash
-curl -s "https://uptime-status.org/api/incidents?status=open" \
+curl -s "https://statushq.org/api/incidents?status=open" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

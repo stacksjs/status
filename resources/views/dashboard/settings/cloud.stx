@@ -57,7 +57,7 @@ const IAM_POLICY = JSON.stringify({
   Version: '2012-10-17',
   Statement: [
     {
-      Sid: 'UptimeStatusAgentProvisioning',
+      Sid: 'StatusHQAgentProvisioning',
       Effect: 'Allow',
       Action: [
         'ec2:DescribeInstances',
@@ -68,7 +68,7 @@ const IAM_POLICY = JSON.stringify({
   ],
 }, null, 2)
 
-useHead({ title: 'Cloud credentials · UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+useHead({ title: 'Cloud credentials · StatusHQ', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')

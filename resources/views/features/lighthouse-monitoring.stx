@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Four categories tracked', text: 'performance, accessibility, SEO, and best practices, each scored 0 to 100 like the Lighthouse you already know.' },
@@ -47,11 +47,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Lighthouse monitoring | {{ appName }}</title>
     <meta name="description" content="Track Lighthouse performance, accessibility, SEO, and best-practices scores over time. Automatic incidents on performance drops. Open source.">
-    <link rel="canonical" href="https://uptime-status.org/features/lighthouse-monitoring">
+    <link rel="canonical" href="https://statushq.org/features/lighthouse-monitoring">
     <meta property="og:title" content="Lighthouse monitoring | {{ appName }}">
     <meta property="og:description" content="Real Lighthouse audits on a schedule, with score history and incidents on performance regressions.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/lighthouse-monitoring">
+    <meta property="og:url" content="https://statushq.org/features/lighthouse-monitoring">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -187,11 +187,11 @@ const related = [
           </div>
           <div class="split-panel">
             <div class="code-panel"><pre><span class="cmt"># list Lighthouse reports for your monitors</span>
-curl https://uptime-status.org/api/lighthouse-reports \
+curl https://statushq.org/api/lighthouse-reports \
   -H <span class="str">'Accept: application/json'</span>
 
 <span class="cmt"># fetch one report, full JSON included</span>
-curl https://uptime-status.org/api/lighthouse-reports/142</pre></div>
+curl https://statushq.org/api/lighthouse-reports/142</pre></div>
           </div>
         </div>
       </section>

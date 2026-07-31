@@ -1,11 +1,11 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 // "Choose X if..." verdicts. Ours leads, the rest are genuinely honest --
 // recommending competitors where they win is the whole credibility play.
 const verdicts = [
   {
-    name: 'UptimeStatus',
+    name: 'StatusHQ',
     tag: 'Open source and hosted',
     text: 'You want every website check the paid tools sell, with the option to self-host for free or pay $9 a month to never think about it.',
     lead: true,
@@ -134,11 +134,11 @@ const faqs = [
   },
   {
     q: 'How is this different from Uptime Kuma?',
-    a: 'Kuma covers uptime, ping, TCP, and certificates well. UptimeStatus adds the website layer: broken-link crawling, mixed-content and sitemap checks, DNS change detection, Lighthouse audits, automatic p95 slowdown detection, plain-English AI checks, and status page subscribers, plus a hosted option when you are done maintaining a VPS.',
+    a: 'Kuma covers uptime, ping, TCP, and certificates well. StatusHQ adds the website layer: broken-link crawling, mixed-content and sitemap checks, DNS change detection, Lighthouse audits, automatic p95 slowdown detection, plain-English AI checks, and status page subscribers, plus a hosted option when you are done maintaining a VPS.',
   },
   {
     q: 'How is this different from Oh Dear?',
-    a: 'Feature for feature the two are close, and we think that is a compliment to Oh Dear. The differences: UptimeStatus is MIT-licensed and free to self-host, the hosted plan is a flat $9 a month instead of per-site pricing, and a server metrics agent is included. Oh Dear counters with a longer track record, and its single sign-on is SAML-based where ours is OIDC (Google Workspace, Okta, Entra ID, or any OIDC issuer).',
+    a: 'Feature for feature the two are close, and we think that is a compliment to Oh Dear. The differences: StatusHQ is MIT-licensed and free to self-host, the hosted plan is a flat $9 a month instead of per-site pricing, and a server metrics agent is included. Oh Dear counters with a longer track record, and its single sign-on is SAML-based where ours is OIDC (Google Workspace, Okta, Entra ID, or any OIDC issuer).',
   },
   {
     q: 'Can I migrate from Statuspage, Instatus, or Better Stack?',
@@ -154,11 +154,11 @@ const faqs = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ appName }} vs. open-source and hosted monitoring</title>
     <meta name="description" content="How {{ appName }} compares to Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, and the classic self-hosted suites: every check side by side, honestly.">
-    <link rel="canonical" href="https://uptime-status.org/compare">
+    <link rel="canonical" href="https://statushq.org/compare">
     <meta property="og:title" content="{{ appName }} vs. open-source and hosted monitoring">
-    <meta property="og:description" content="Every check side by side: UptimeStatus against Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, Nagios, and Zabbix.">
+    <meta property="og:description" content="Every check side by side: StatusHQ against Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, Nagios, and Zabbix.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/compare">
+    <meta property="og:url" content="https://statushq.org/compare">
     @include('./partials/marketing-head.stx')
   </head>
   <body>

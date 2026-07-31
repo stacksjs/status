@@ -44,7 +44,7 @@ export default {
   },
 
   apple: {
-    clientId: String(env.APPLE_CLIENT_ID || ''), // the Services ID, e.g. org.uptime-status.web
+    clientId: String(env.APPLE_CLIENT_ID || ''), // the Services ID, e.g. org.statushq.web
     teamId: String(env.APPLE_TEAM_ID || ''),
     keyId: String(env.APPLE_KEY_ID || ''),
     privateKey: String(env.APPLE_PRIVATE_KEY || ''), // contents of the .p8 (literal \n allowed)

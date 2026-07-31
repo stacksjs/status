@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Real ICMP probes', text: 'each check sends a ping with a five second ceiling, so a dead host is confirmed fast and a slow one is measured honestly.' },
@@ -47,11 +47,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ping monitoring | {{ appName }}</title>
     <meta name="description" content="Open-source ping monitoring. Know whether a host is reachable at the network level, with round-trip latency recorded per region and automatic incidents.">
-    <link rel="canonical" href="https://uptime-status.org/features/ping-monitoring">
+    <link rel="canonical" href="https://statushq.org/features/ping-monitoring">
     <meta property="og:title" content="Ping monitoring | {{ appName }}">
     <meta property="og:description" content="ICMP reachability checks with per-region latency, automatic incidents, and 90 days of history. Open source and self-hostable.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/ping-monitoring">
+    <meta property="og:url" content="https://statushq.org/features/ping-monitoring">
     @include('../partials/marketing-head.stx')
   </head>
   <body>

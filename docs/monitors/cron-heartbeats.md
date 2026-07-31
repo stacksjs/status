@@ -5,11 +5,11 @@ description: Watch scheduled jobs by expecting a ping on a cadence and alert the
 
 # Cron & Heartbeat Monitoring
 
-Cron and heartbeat monitoring is inside-out: instead of UptimeStatus reaching out to your service, *your job reaches out to UptimeStatus*. Each successful run pings a unique URL. If the expected ping doesn't arrive on schedule, we alert you — so a backup that silently stopped running gets caught, not just one that errored loudly.
+Cron and heartbeat monitoring is inside-out: instead of StatusHQ reaching out to your service, *your job reaches out to StatusHQ*. Each successful run pings a unique URL. If the expected ping doesn't arrive on schedule, we alert you — so a backup that silently stopped running gets caught, not just one that errored loudly.
 
 ## How it works
 
-Every heartbeat monitor has a unique ping URL and an expected **cadence** plus a **grace period**. Your job requests that URL when it finishes successfully. UptimeStatus records the ping and starts a countdown for the next one:
+Every heartbeat monitor has a unique ping URL and an expected **cadence** plus a **grace period**. Your job requests that URL when it finishes successfully. StatusHQ records the ping and starts a countdown for the next one:
 
 - **Received on time** → the monitor stays healthy.
 - **Overdue past the grace period** → the monitor goes down and alerts fire.
@@ -21,14 +21,14 @@ Have the job ping on success — a plain GET or POST is enough:
 ```bash
 # Run at the end of your cron job, only on success
 0 2 * * *  /usr/local/bin/backup.sh && curl -fsS -m 10 --retry 3 \
-  https://uptime-status.org/ping/9f3c1a2e-heartbeat-token
+  https://statushq.org/ping/9f3c1a2e-heartbeat-token
 ```
 
 You can also signal **start** and **failure** to measure run duration and catch non-zero exits:
 
 ```bash
-curl -fsS https://uptime-status.org/ping/<token>/start   # job began
-curl -fsS https://uptime-status.org/ping/<token>/fail    # job errored
+curl -fsS https://statushq.org/ping/<token>/start   # job began
+curl -fsS https://statushq.org/ping/<token>/fail    # job errored
 ```
 
 ## What triggers an alert
@@ -49,4 +49,4 @@ curl -fsS https://uptime-status.org/ping/<token>/fail    # job errored
 
 - [Health Checks](/monitors/health-checks) · [Uptime](/monitors/uptime) · [Server Metrics](/monitors/server-metrics)
 - [Notifications](/operate/notifications)
-- Marketing: [Cron & heartbeat monitoring feature](https://uptime-status.org/features/cron-monitoring)
+- Marketing: [Cron & heartbeat monitoring feature](https://statushq.org/features/cron-monitoring)

@@ -59,7 +59,7 @@ if (AUTH_USER) {
   TWO_FA_ENABLED = !!state.enabled
 
   if (!TWO_FA_ENABLED && query.get('setup') === '1') {
-    const appName = config.app?.name || 'UptimeStatus'
+    const appName = config.app?.name || 'StatusHQ'
     const { secret, uri } = generateTwoFactorSetup(AUTH_USER.email || '', appName)
     // Server-side pending stash, delete-on-read; the enable form never
     // carries the secret. Re-visiting this step replaces the stash, so
@@ -113,7 +113,7 @@ const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 // Real document title + noindex for the app surface (the serve wrapper
 // otherwise stamps every fragment 'stx App'). useHead is the sanctioned
 // per-page head hook for fragment views.
-useHead({ title: 'Security · UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')

@@ -5,7 +5,7 @@ description: HTTP(S) uptime checks with status-code, latency, and keyword assert
 
 # Uptime Monitoring
 
-Uptime monitoring is the core availability check: UptimeStatus fetches a URL on a schedule from multiple regions and tells you the moment it stops responding the way it should. It is the check most people mean when they say "is my site down?"
+Uptime monitoring is the core availability check: StatusHQ fetches a URL on a schedule from multiple regions and tells you the moment it stops responding the way it should. It is the check most people mean when they say "is my site down?"
 
 ## How it works
 
@@ -38,4 +38,4 @@ Latency-threshold breaches raise a **warning** rather than a hard down, so you c
 
 - [Ping](/monitors/ping) · [TCP Port](/monitors/tcp-port) · [Health Checks](/monitors/health-checks) · [Performance](/monitors/performance)
 - [Notifications](/operate/notifications)
-- Marketing: [Uptime monitoring feature](https://uptime-status.org/features/uptime-monitoring)
+- Marketing: [Uptime monitoring feature](https://statushq.org/features/uptime-monitoring)

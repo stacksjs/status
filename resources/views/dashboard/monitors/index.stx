@@ -208,7 +208,7 @@ const REALTIME = {
 // Real document title + noindex for the app surface (the serve wrapper
 // otherwise stamps every fragment 'stx App'). useHead is the sanctioned
 // per-page head hook for fragment views.
-useHead({ title: 'Monitors \u00b7 UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')

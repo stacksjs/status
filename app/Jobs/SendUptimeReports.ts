@@ -247,7 +247,7 @@ export default new Job({
 
   async handle() {
     const now = new Date()
-    const appName = config.app?.name || 'UptimeStatus'
+    const appName = config.app?.name || 'StatusHQ'
 
     let teams: any[]
     try {

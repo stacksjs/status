@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 // SSO providers, mirroring config/sso.ts's env contract (this view is
 // self-contained by the app's convention, so it reads env directly
@@ -31,7 +31,7 @@ const hasSso = ssoProviders.length > 0
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <title>Sign in &middot; {{ appName }}</title>
     <meta name="robots" content="noindex">
-    <meta name="description" content="Sign in to your UptimeStatus dashboard.">
+    <meta name="description" content="Sign in to your StatusHQ dashboard.">
     <script>
       (function () {
         try {

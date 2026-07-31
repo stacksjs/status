@@ -1,11 +1,11 @@
 ---
 title: Monitors
-description: An overview of UptimeStatus monitor types and how sites group your checks across availability, certificates, DNS, performance, and security.
+description: An overview of StatusHQ monitor types and how sites group your checks across availability, certificates, DNS, performance, and security.
 ---
 
 # Monitors
 
-A **monitor** is a single check that runs on a schedule and tells you whether one specific thing is healthy. UptimeStatus groups related monitors under a **site** — a site is the thing you care about (an app, an API, a marketing page), and it can hold many monitors at once.
+A **monitor** is a single check that runs on a schedule and tells you whether one specific thing is healthy. StatusHQ groups related monitors under a **site** — a site is the thing you care about (an app, an API, a marketing page), and it can hold many monitors at once.
 
 That means one site can have an [Uptime](/monitors/uptime) check on its homepage, a [Health Check](/monitors/health-checks) on its API, an [SSL](/monitors/ssl) check on its certificate, and a [DNS](/monitors/dns) check on its records — all reporting into the same place, the same incident timeline, and the same [status page](/operate/status-pages). Most monitors run from multiple regions with consensus, as often as every **30 seconds**, and every one can attach [notifications](/operate/notifications).
 
@@ -45,4 +45,4 @@ Is it fast, well-built, and not leaking attack surface?
 2. Add one or more monitors from the categories above.
 3. Attach [notifications](/operate/notifications) and publish a [status page](/operate/status-pages).
 
-Marketing: browse all [monitoring features](https://uptime-status.org/features).
+Marketing: browse all [monitoring features](https://statushq.org/features).

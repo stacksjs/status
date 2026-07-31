@@ -22,24 +22,24 @@ import { mergeSiteDeployEnv } from '../src/commands/deploy'
 describe('mergeSiteDeployEnv', () => {
   it('merges the resolved deploy env underneath a site with no explicit env', () => {
     const sites = { main: { root: '.', start: 'bun serve', port: 3000 } }
-    const resolved = { APP_NAME: 'UptimeStatus', DB_CONNECTION: 'sqlite', PORT: '3000' }
+    const resolved = { APP_NAME: 'StatusHQ', DB_CONNECTION: 'sqlite', PORT: '3000' }
 
     const merged = mergeSiteDeployEnv(sites, resolved)
 
-    expect(merged.main.env.APP_NAME).toBe('UptimeStatus')
+    expect(merged.main.env.APP_NAME).toBe('StatusHQ')
     expect(merged.main.env.DB_CONNECTION).toBe('sqlite')
   })
 
   it("strips a general PORT when the site declares its own — the systemd unit's Environment=PORT is authoritative", () => {
     const sites = { api: { root: '.', start: 'bun api', port: 3008, env: { HOST: '127.0.0.1', APP_ENV: 'production' } } }
-    const resolved = { APP_NAME: 'UptimeStatus', PORT: '3000' } // PORT here is main's port, not api's
+    const resolved = { APP_NAME: 'StatusHQ', PORT: '3000' } // PORT here is main's port, not api's
 
     const merged = mergeSiteDeployEnv(sites, resolved)
 
     expect(merged.api.env.PORT).toBeUndefined()
     expect(merged.api.env.HOST).toBe('127.0.0.1')
     expect(merged.api.env.APP_ENV).toBe('production')
-    expect(merged.api.env.APP_NAME).toBe('UptimeStatus')
+    expect(merged.api.env.APP_NAME).toBe('StatusHQ')
   })
 
   it("a site's own explicit env always wins over the resolved deploy env for the same key", () => {
@@ -53,7 +53,7 @@ describe('mergeSiteDeployEnv', () => {
 
   it('keeps PORT from the resolved deploy env when a site has no port of its own (background worker/scheduler)', () => {
     const sites = { worker: { root: '.', start: 'bun buddy queue:work' } }
-    const resolved = { APP_NAME: 'UptimeStatus', PORT: '3000' }
+    const resolved = { APP_NAME: 'StatusHQ', PORT: '3000' }
 
     const merged = mergeSiteDeployEnv(sites, resolved)
 
@@ -64,14 +64,14 @@ describe('mergeSiteDeployEnv', () => {
 
   it('passes through a falsy/missing site untouched (bucket sites, sparse maps)', () => {
     const sites = { docs: null }
-    const merged = mergeSiteDeployEnv(sites as any, { APP_NAME: 'UptimeStatus' })
+    const merged = mergeSiteDeployEnv(sites as any, { APP_NAME: 'StatusHQ' })
     expect(merged.docs).toBeNull()
   })
 
   it('does not mutate the input sites object', () => {
     const sites = { main: { root: '.', start: 'bun serve', port: 3000 } }
     const before = JSON.stringify(sites)
-    mergeSiteDeployEnv(sites, { APP_NAME: 'UptimeStatus' })
+    mergeSiteDeployEnv(sites, { APP_NAME: 'StatusHQ' })
     expect(JSON.stringify(sites)).toBe(before)
   })
 })

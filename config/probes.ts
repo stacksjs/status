@@ -15,7 +15,7 @@
  *
  * So adding/removing an entry is the whole workflow — deploy applies the diff.
  * Boxes are matched by the labels the worker deploy stamps:
- * `app=uptime-status, role=probe, region=<region>`.
+ * `app=statushq, role=probe, region=<region>`.
  */
 export interface Probe {
   /** Logical region tag — becomes WORKER_REGION + the box's `region` label. */

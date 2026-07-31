@@ -1,11 +1,11 @@
 ---
 title: Scaling & multi-region
-description: Scale UptimeStatus workers horizontally and add geographic check regions with the push-probe consensus model.
+description: Scale StatusHQ workers horizontally and add geographic check regions with the push-probe consensus model.
 ---
 
 # Scaling & multi-region
 
-A single UptimeStatus box handles a real monitoring workload, but two things eventually push you past it: **volume** (too many checks for one worker) and **false positives** (one probe location can't tell a real outage from its own lost route). This page covers both.
+A single StatusHQ box handles a real monitoring workload, but two things eventually push you past it: **volume** (too many checks for one worker) and **false positives** (one probe location can't tell a real outage from its own lost route). This page covers both.
 
 ## Queue scaling
 

@@ -7,7 +7,7 @@ import { probes } from '../../config/probes'
  * `buddy deploy:probes` — reconcile the running probe fleet to `config/probes.ts`.
  *
  * The probe list is declarative: this command diffs it against the actual
- * Hetzner boxes labelled `app=uptime-status,role=probe` and applies the delta —
+ * Hetzner boxes labelled `app=statushq,role=probe` and applies the delta —
  *   - declared but not running  → PROVISION (worker-role deploy for its region)
  *   - running but not declared   → DECOMMISSION (destroy the server)
  *
@@ -21,7 +21,7 @@ interface DeployProbesOptions {
 }
 
 const HCLOUD_API = 'https://api.hetzner.cloud/v1'
-const PROJECT = 'uptime-status'
+const PROJECT = 'statushq'
 
 interface HetznerServer {
   id: number

@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const groups = [
   {
@@ -126,11 +126,11 @@ const groups = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Features | {{ appName }}</title>
     <meta name="description" content="Uptime, SSL, DNS, cron, Lighthouse, security scanning, and status pages: every monitoring feature in one open-source, MIT-licensed product. Hosted or self-hosted.">
-    <link rel="canonical" href="https://uptime-status.org/features">
+    <link rel="canonical" href="https://statushq.org/features">
     <meta property="og:title" content="Features | {{ appName }}">
     <meta property="og:description" content="Every monitoring feature in one open-source, MIT-licensed product. Hosted or self-hosted.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features">
+    <meta property="og:url" content="https://statushq.org/features">
     @include('../partials/marketing-head.stx')
   </head>
   <body>

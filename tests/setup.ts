@@ -26,7 +26,7 @@ if (!Bun.env.GOOGLE_CLIENT_ID) {
   Bun.env.GOOGLE_CLIENT_SECRET = 'test-google-secret'
 }
 if (!Bun.env.APPLE_CLIENT_ID) {
-  Bun.env.APPLE_CLIENT_ID = 'org.uptime-status.test'
+  Bun.env.APPLE_CLIENT_ID = 'org.statushq.test'
   Bun.env.APPLE_TEAM_ID = 'TESTTEAM01'
   Bun.env.APPLE_KEY_ID = 'TESTKEY001'
   // The Apple driver signs a real ES256 JWT, so the key must parse.

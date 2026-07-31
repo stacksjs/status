@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Daily full-site crawls', text: 'breadth-first from your monitor URL, same-origin, up to 200 pages per run.' },
@@ -51,11 +51,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Broken link monitoring | {{ appName }}</title>
     <meta name="description" content="Daily site crawls that catch broken links, mixed content, and dead sitemap URLs in one monitor. Open-source monitoring with automatic incidents.">
-    <link rel="canonical" href="https://uptime-status.org/features/broken-links">
+    <link rel="canonical" href="https://statushq.org/features/broken-links">
     <meta property="og:title" content="Broken link monitoring | {{ appName }}">
     <meta property="og:description" content="Broken links, mixed content, and sitemap checks in one daily crawl. Open source and self-hostable.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/broken-links">
+    <meta property="og:url" content="https://statushq.org/features/broken-links">
     @include('../partials/marketing-head.stx')
   </head>
   <body>

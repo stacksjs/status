@@ -1,9 +1,9 @@
 ---
-title: UptimeStatus Documentation
+title: StatusHQ Documentation
 description: Open-source uptime, SSL, DNS, and status-page monitoring. Self-hosted, or fully managed by us.
 layout: home
 hero:
-  name: UptimeStatus
+  name: StatusHQ
   text: Know the moment something breaks.
   tagline: Open-source uptime, SSL, DNS, and status-page monitoring — self-hosted, or fully managed by us.
   image: /hero-monitor.svg
@@ -13,7 +13,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: Open the dashboard
-      link: https://uptime-status.org/dashboard
+      link: https://statushq.org/dashboard
     - theme: alt
       text: View on GitHub
       link: https://github.com/stacksjs/status

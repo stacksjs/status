@@ -5,7 +5,7 @@ description: Schedule maintenance windows so planned work doesn't page on-call o
 
 # Maintenance windows
 
-Planned work — a deploy, a database migration, a provider upgrade — will make your checks fail. Without a heads-up, UptimeStatus would open [incidents](/operate/incidents), page on-call, and dock your uptime percentage for work you scheduled on purpose. A **maintenance window** tells UptimeStatus "this is expected."
+Planned work — a deploy, a database migration, a provider upgrade — will make your checks fail. Without a heads-up, StatusHQ would open [incidents](/operate/incidents), page on-call, and dock your uptime percentage for work you scheduled on purpose. A **maintenance window** tells StatusHQ "this is expected."
 
 ## What a window does
 

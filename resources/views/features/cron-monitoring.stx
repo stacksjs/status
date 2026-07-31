@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'A unique ping URL per job', text: 'GET or POST, no auth headers, no client library. The unguessable token in the URL is the whole secret.' },
@@ -51,11 +51,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Cron job monitoring | {{ appName }}</title>
     <meta name="description" content="Heartbeat monitoring for cron jobs and scheduled tasks. Your job pings a unique URL on every run. Silence past the grace period opens an incident.">
-    <link rel="canonical" href="https://uptime-status.org/features/cron-monitoring">
+    <link rel="canonical" href="https://statushq.org/features/cron-monitoring">
     <meta property="og:title" content="Cron job monitoring | {{ appName }}">
     <meta property="og:description" content="Your scheduled job pings a unique URL on every run. Silence past the grace period opens an incident and alerts your team.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/cron-monitoring">
+    <meta property="og:url" content="https://statushq.org/features/cron-monitoring">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -132,7 +132,7 @@ set -euo pipefail
 pg_dump <span class="str">"$DATABASE_URL"</span> | gzip &gt; /backups/nightly.sql.gz
 
 <span class="cmt"># last line: report in. no ping means an alert.</span>
-curl -fsS https://uptime-status.org/api/ping/9f2ac81d54e04b7f</pre></div>
+curl -fsS https://statushq.org/api/ping/9f2ac81d54e04b7f</pre></div>
           </div>
         </div>
       </section>
@@ -159,7 +159,7 @@ curl -fsS https://uptime-status.org/api/ping/9f2ac81d54e04b7f</pre></div>
               Cron, systemd timers, Kubernetes CronJobs, GitHub Actions on a schedule, a Windows task: the runner does not matter. Anything that can hit a URL once per run gets deadline monitoring, incident history, and alerting through your existing channels.
             </p>
           </div>
-          <div class="oss-code">curl -fsS https://uptime-status.org/api/ping/&lt;token&gt;</div>
+          <div class="oss-code">curl -fsS https://statushq.org/api/ping/&lt;token&gt;</div>
         </div>
       </section>
 

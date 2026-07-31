@@ -1,15 +1,15 @@
 ---
 title: Notifications
-description: Route UptimeStatus alerts to ten channels per monitor, with issue-vs-down severity and escalation.
+description: Route StatusHQ alerts to ten channels per monitor, with issue-vs-down severity and escalation.
 ---
 
 # Notifications
 
-When an [incident](/operate/incidents) opens or resolves, UptimeStatus notifies the people who need to know. Notifications are configured per monitor, so a critical production API can page on-call while a staging site only emails.
+When an [incident](/operate/incidents) opens or resolves, StatusHQ notifies the people who need to know. Notifications are configured per monitor, so a critical production API can page on-call while a staging site only emails.
 
 ## Supported channels
 
-UptimeStatus ships ten notification channels out of the box:
+StatusHQ ships ten notification channels out of the box:
 
 - **Email**
 - **SMS**
@@ -33,11 +33,11 @@ This severity filter is the core of a sane alerting setup: page the whole team o
 
 ## Escalation
 
-Escalation is driven by incident state. When an incident opens it fires the attached channels immediately. If no one **acknowledges** it, higher-tier channels (PagerDuty, Opsgenie) keep escalating according to their own on-call policy — UptimeStatus hands off the incident and lets the pager provider manage rotations. Acknowledging the incident stops repeat pages; resolving it (or an automatic recovery) sends the all-clear.
+Escalation is driven by incident state. When an incident opens it fires the attached channels immediately. If no one **acknowledges** it, higher-tier channels (PagerDuty, Opsgenie) keep escalating according to their own on-call policy — StatusHQ hands off the incident and lets the pager provider manage rotations. Acknowledging the incident stops repeat pages; resolving it (or an automatic recovery) sends the all-clear.
 
 ## Webhook payload
 
-The generic **Webhook** channel POSTs a JSON body to your endpoint, so you can wire UptimeStatus into anything. An incident notification carries structured `event`, `monitor`, and `incident` objects alongside the human-readable `subject`/`message`:
+The generic **Webhook** channel POSTs a JSON body to your endpoint, so you can wire StatusHQ into anything. An incident notification carries structured `event`, `monitor`, and `incident` objects alongside the human-readable `subject`/`message`:
 
 ```json
 {

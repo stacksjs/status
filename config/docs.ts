@@ -1,15 +1,15 @@
 import type { BunPressOptions } from '@stacksjs/bunpress'
 
 /**
- * UptimeStatus documentation (bunpress).
+ * StatusHQ documentation (bunpress).
  *
- * Built to `dist/docs/.bunpress` and served at https://uptime-status.org/docs
+ * Built to `dist/docs/.bunpress` and served at https://statushq.org/docs
  * — `sitemap.baseUrl`'s `/docs` pathname is what tells bunpress to emit every
  * internal link under `/docs`, so the built site mounts cleanly at that path
  * behind the production rpx gateway (see the `docs` static site in
  * config/cloud.ts). Theme mirrors the marketing site's design tokens (Space
  * Grotesk display, Inter body, blue accent, light + dark) so the docs read as
- * the same product as uptime-status.org.
+ * the same product as statushq.org.
  */
 const config: BunPressOptions = {
   verbose: false,
@@ -31,16 +31,16 @@ const config: BunPressOptions = {
     { text: 'Guide', link: '/introduction' },
     { text: 'Monitors', link: '/monitors/' },
     { text: 'Self-hosting', link: '/self-hosting/deploy' },
-    { text: 'Dashboard', link: 'https://uptime-status.org/dashboard' },
+    { text: 'Dashboard', link: 'https://statushq.org/dashboard' },
     { text: 'GitHub', link: 'https://github.com/stacksjs/status' },
   ],
 
   // Markdown configuration
   markdown: {
-    title: 'UptimeStatus Docs',
+    title: 'StatusHQ Docs',
     meta: {
-      description: 'Documentation for UptimeStatus — open-source uptime, SSL, DNS, and status-page monitoring. Self-hosted, or fully managed.',
-      author: 'UptimeStatus',
+      description: 'Documentation for StatusHQ — open-source uptime, SSL, DNS, and status-page monitoring. Self-hosted, or fully managed.',
+      author: 'StatusHQ',
     },
     syntaxHighlightTheme: 'github-dark',
     toc: {
@@ -49,8 +49,8 @@ const config: BunPressOptions = {
       maxDepth: 3,
     },
 
-    // UptimeStatus docs theme — reskins bunpress to the marketing design
-    // system (uptime-status.org). bunpress folds `markdown.css` into every
+    // StatusHQ docs theme — reskins bunpress to the marketing design
+    // system (statushq.org). bunpress folds `markdown.css` into every
     // page additively (after the theme CSS), so repointing the ~15 SEMANTIC
     // tokens below cascades through nav, sidebar, content and code — then a few
     // component overrides (nav, hero buttons, cards) carry the polish across.
@@ -184,7 +184,7 @@ a.dx-card:hover { border-color: var(--bp-c-brand-1); transform: translateY(-2px)
         {
           text: 'Introduction',
           items: [
-            { text: 'What is UptimeStatus', link: '/introduction' },
+            { text: 'What is StatusHQ', link: '/introduction' },
             { text: 'Quick start', link: '/getting-started' },
           ],
         },
@@ -253,11 +253,11 @@ a.dx-card:hover { border-color: var(--bp-c-brand-1); transform: translateY(-2px)
       darkMode: 'auto',
       footer: {
         message: 'Released under the MIT License.',
-        copyright: 'Copyright 2024-present UptimeStatus',
+        copyright: 'Copyright 2024-present StatusHQ',
       },
       socialLinks: [
         { icon: 'github', link: 'https://github.com/stacksjs/status' },
-        { icon: 'bluesky', link: 'https://bsky.app/profile/uptime-status.org' },
+        { icon: 'bluesky', link: 'https://bsky.app/profile/statushq.org' },
       ],
     },
   },
@@ -265,7 +265,7 @@ a.dx-card:hover { border-color: var(--bp-c-brand-1); transform: translateY(-2px)
   // SEO — the `/docs` pathname here sets the site's base path (see header note).
   sitemap: {
     enabled: true,
-    baseUrl: 'https://uptime-status.org/docs',
+    baseUrl: 'https://statushq.org/docs',
   },
 
   robots: {

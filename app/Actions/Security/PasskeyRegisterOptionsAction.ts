@@ -36,7 +36,7 @@ export default new Action({
 
     return response.json({
       challenge,
-      rp: { id: rpId, name: config.app?.name || 'UptimeStatus' },
+      rp: { id: rpId, name: config.app?.name || 'StatusHQ' },
       user: {
         // A stable per-user handle. base64url of the numeric id keeps it
         // an opaque byte string for the authenticator; the client decodes

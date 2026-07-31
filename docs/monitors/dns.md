@@ -40,7 +40,7 @@ After you review a change, accept the new snapshot as the baseline so it stops a
 
 1. **Add monitor** and choose **DNS**.
 2. Enter the domain and select the **record types** to watch.
-3. UptimeStatus captures the initial **baseline snapshot**.
+3. StatusHQ captures the initial **baseline snapshot**.
 4. Set the **check interval**.
 5. Attach **notifications**.
 
@@ -48,4 +48,4 @@ After you review a change, accept the new snapshot as the baseline so it stops a
 
 - [Domains](/monitors/domains) · [SSL](/monitors/ssl) · [DNS Blocklist](/monitors/dns-blocklist)
 - [Notifications](/operate/notifications)
-- Marketing: [DNS monitoring feature](https://uptime-status.org/features/dns-monitoring)
+- Marketing: [DNS monitoring feature](https://statushq.org/features/dns-monitoring)

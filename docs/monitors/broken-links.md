@@ -39,4 +39,4 @@ Each report lists the offending URL, the page it was found on, and the status re
 
 - [Lighthouse](/monitors/lighthouse) · [Performance](/monitors/performance) · [Uptime](/monitors/uptime)
 - [Notifications](/operate/notifications)
-- Marketing: [Broken-link monitoring feature](https://uptime-status.org/features/broken-link-monitoring)
+- Marketing: [Broken-link monitoring feature](https://statushq.org/features/broken-link-monitoring)

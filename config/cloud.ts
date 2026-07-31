@@ -19,7 +19,7 @@ import { env } from '@stacksjs/env'
 const DEPLOY_ROLE = process.env.STATUS_DEPLOY_ROLE === 'worker' ? 'worker' : 'primary'
 
 /**
- * UptimeStatus Cloud Configuration
+ * StatusHQ Cloud Configuration
  *
  * Single Hetzner Cloud box (Forge-style, no AWS) running the app, its
  * loopback-only API process, the queue worker, and the scheduler as
@@ -35,7 +35,7 @@ const DEPLOY_ROLE = process.env.STATUS_DEPLOY_ROLE === 'worker' ? 'worker' : 'pr
  * Environment variables:
  * - CLOUD_PROVIDER=hetzner
  * - HCLOUD_TOKEN / HCLOUD_LOCATION (apiToken/location fall back to these)
- * - APP_DOMAIN=uptime-status.org
+ * - APP_DOMAIN=statushq.org
  *
  * @see https://github.com/stacksjs/ts-cloud
  */
@@ -46,8 +46,8 @@ export const tsCloud: TsCloudConfig = {
    * Project configuration
    */
   project: {
-    name: 'uptime-status',
-    slug: 'uptime-status',
+    name: 'statushq',
+    slug: 'statushq',
     region: 'us-east-1', // Unused on the Hetzner path — kept for the AWS driver interface.
   },
 
@@ -238,11 +238,11 @@ export const tsCloud: TsCloudConfig = {
       webServer: 'rpx',
       proxy: {
         engine: 'rpx',
-        // uptime-status.org's A record now resolves to this box's IP
+        // statushq.org's A record now resolves to this box's IP
         // (confirmed via `dig`), so the Let's Encrypt HTTP-01 challenge
         // can complete.
         onDemandTls: true,
-        onDemandTlsEmail: 'admin@uptime-status.org',
+        onDemandTlsEmail: 'admin@statushq.org',
       },
       // Uncomment for auto-scaling:
       // autoScaling: {
@@ -347,7 +347,7 @@ export const tsCloud: TsCloudConfig = {
       domains: env.SSL_DOMAINS?.split(',') || (env.APP_DOMAIN ? [env.APP_DOMAIN] : []),
       redirectHttp: true,
       letsEncrypt: {
-        email: env.LETSENCRYPT_EMAIL || 'admin@uptime-status.org',
+        email: env.LETSENCRYPT_EMAIL || 'admin@statushq.org',
         staging: false,
         autoRenew: true,
       },
@@ -358,7 +358,7 @@ export const tsCloud: TsCloudConfig = {
     /**
      * DNS Configuration
      *
-     * uptime-status.org is registered with Porkbun — ts-cloud has native
+     * statushq.org is registered with Porkbun — ts-cloud has native
      * Porkbun DNS support (PORKBUN_API_KEY/PORKBUN_SECRET_KEY env vars,
      * see ~/Code/pantry/.config/cloud.ts for the same provider on the
      * same Hetzner-deploy pattern). Records aren't created automatically
@@ -366,7 +366,7 @@ export const tsCloud: TsCloudConfig = {
      * at the server's IP manually from the Porkbun dashboard.
      */
     dns: {
-      domain: env.APP_DOMAIN || 'uptime-status.org',
+      domain: env.APP_DOMAIN || 'statushq.org',
       provider: 'porkbun',
     },
 
@@ -577,7 +577,7 @@ export const tsCloud: TsCloudConfig = {
    * creates the A records automatically on deploy. `onDemandTls` in
    * infrastructure.compute.proxy stays `false` for this deploy — Let's
    * Encrypt's HTTP-01 challenge needs DNS to already resolve, so flip it to
-   * `true` and redeploy once `dig uptime-status.org` confirms the A record
+   * `true` and redeploy once `dig statushq.org` confirms the A record
    * has propagated to the box's IP.
    */
   // Role-aware site set (see DEPLOY_ROLE above). The primary runs the full
@@ -603,7 +603,7 @@ export const tsCloud: TsCloudConfig = {
           // and install on the server via preStart, matching the Forge-style deploy.
           root: '.',
           path: '/',
-          domain: env.APP_DOMAIN || 'uptime-status.org',
+          domain: env.APP_DOMAIN || 'statushq.org',
           start: 'bun storage/framework/core/buddy/src/cli.ts serve',
           port: 3000,
           // Zero-downtime cutover (ts-cloud default for ported sites):

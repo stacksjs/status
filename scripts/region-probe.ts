@@ -18,7 +18,7 @@
  * whose status logic is mirrored below.
  *
  * Config (env):
- *   PRIMARY_URL             e.g. https://uptime-status.org   (required)
+ *   PRIMARY_URL             e.g. https://statushq.org   (required)
  *   REGIONAL_INGEST_TOKEN   shared secret with the primary   (required)
  *   WORKER_REGION           this region's tag, e.g. us-east  (default: us-east)
  *   PROBE_TIMEOUT_MS        per-check timeout                (default: 15000)

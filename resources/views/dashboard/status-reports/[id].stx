@@ -106,7 +106,7 @@ function dateLabel(iso) {
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
-useHead({ title: (report ? report.title + ' · UptimeStatus' : 'Announcement · UptimeStatus'), meta: [{ name: 'robots', content: 'noindex' }] })
+useHead({ title: (report ? report.title + ' · StatusHQ' : 'Announcement · StatusHQ'), meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')

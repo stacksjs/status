@@ -169,7 +169,7 @@ function incidentLabel(status) {
 
 const upCount = siteMonitors.filter(m => m.status === 'up').length
 
-useHead({ title: (siteHostName || 'Site') + ' · UptimeStatus', meta: [{ name: 'robots', content: 'noindex' }] })
+useHead({ title: (siteHostName || 'Site') + ' · StatusHQ', meta: [{ name: 'robots', content: 'noindex' }] })
 </script>
 
 @include('../partials/app-head.stx')

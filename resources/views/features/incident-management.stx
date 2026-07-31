@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Automatic opening', text: 'a monitor going down opens an incident with the start time, the failing check\'s error as the cause, and the impacted checks recorded.' },
@@ -51,11 +51,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Incident management | {{ appName }}</title>
     <meta name="description" content="Failed checks open incidents automatically with the cause attached. Acknowledge in one request, post timeline updates, and schedule maintenance windows.">
-    <link rel="canonical" href="https://uptime-status.org/features/incident-management">
+    <link rel="canonical" href="https://statushq.org/features/incident-management">
     <meta property="og:title" content="Incident management | {{ appName }}">
     <meta property="og:description" content="Automatic incident opening and resolution, a four-status workflow, one-step acknowledgment, and maintenance windows.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/incident-management">
+    <meta property="og:url" content="https://statushq.org/features/incident-management">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -129,7 +129,7 @@ const related = [
           <div class="split-panel">
             <div class="code-panel"><pre><span class="cmt"># investigating -> identified, plus a timeline entry</span>
 curl -X POST \
-  https://uptime-status.org/api/incidents/42/acknowledge</pre></div>
+  https://statushq.org/api/incidents/42/acknowledge</pre></div>
           </div>
         </div>
       </section>

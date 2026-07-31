@@ -38,4 +38,4 @@ Renewing with your registrar clears the warnings on the next daily lookup.
 
 - [SSL](/monitors/ssl) · [DNS](/monitors/dns) · [Uptime](/monitors/uptime)
 - [Notifications](/operate/notifications)
-- Marketing: [Domain monitoring feature](https://uptime-status.org/features/domain-monitoring)
+- Marketing: [Domain monitoring feature](https://statushq.org/features/domain-monitoring)

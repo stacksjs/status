@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Component groups', text: 'organize monitors into named sections like API, Web, or Database. Grouping is opt-in per page, and ungrouped monitors still render.' },
@@ -47,11 +47,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Status pages on your own domain | {{ appName }}</title>
     <meta name="description" content="Branded status pages on your own domain with no watermark. Component groups, 90-day uptime bars, email subscribers, an RSS feed, and access control.">
-    <link rel="canonical" href="https://uptime-status.org/features/status-pages">
+    <link rel="canonical" href="https://statushq.org/features/status-pages">
     <meta property="og:title" content="Status pages on your own domain | {{ appName }}">
     <meta property="og:description" content="Branded status pages with no watermark: custom domain, component groups, 90-day uptime bars, subscribers, and access control.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/status-pages">
+    <meta property="og:url" content="https://statushq.org/features/status-pages">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -183,7 +183,7 @@ const related = [
             </p>
           </div>
           <div class="split-panel">
-            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/status-pages/import \
+            <div class="code-panel"><pre>curl -X POST https://statushq.org/api/status-pages/import \
   -H <span class="str">'Content-Type: application/json'</span> \
   -d <span class="str">'{
     "provider": "statuspage",

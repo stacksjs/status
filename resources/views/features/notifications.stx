@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Ten channels', text: 'email, SMS, Slack, Discord, Microsoft Teams, PagerDuty, Opsgenie, Pushover, ntfy, and webhooks.' },
@@ -47,11 +47,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Downtime alerts on 10 channels | {{ appName }}</title>
     <meta name="description" content="Route downtime alerts per monitor to email, SMS, Slack, Discord, Teams, PagerDuty, Opsgenie, Pushover, ntfy, or webhooks. No per-seat pricing on alerts.">
-    <link rel="canonical" href="https://uptime-status.org/features/notifications">
+    <link rel="canonical" href="https://statushq.org/features/notifications">
     <meta property="og:title" content="Downtime alerts on 10 channels | {{ appName }}">
     <meta property="og:description" content="Per-monitor alert routing across 10 channels, with per-channel retries and severity mapping. No per-seat pricing.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/notifications">
+    <meta property="og:url" content="https://statushq.org/features/notifications">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -185,7 +185,7 @@ const related = [
             </p>
           </div>
           <div class="split-panel">
-            <div class="code-panel"><pre>curl -X POST https://uptime-status.org/api/notification-channels \
+            <div class="code-panel"><pre>curl -X POST https://statushq.org/api/notification-channels \
   -H <span class="str">'Content-Type: application/json'</span> \
   -d <span class="str">'{
     "name": "On-call Slack",

@@ -42,4 +42,4 @@ The rationale is attached to the incident so you can confirm the call quickly.
 
 - [Health Checks](/monitors/health-checks) · [Uptime](/monitors/uptime) · [Broken Links](/monitors/broken-links)
 - [Notifications](/operate/notifications)
-- Marketing: [AI checks feature](https://uptime-status.org/features/ai-checks)
+- Marketing: [AI checks feature](https://statushq.org/features/ai-checks)

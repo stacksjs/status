@@ -39,4 +39,4 @@ An incident resolves automatically once replies return cleanly across regions.
 
 - [Uptime](/monitors/uptime) · [TCP Port](/monitors/tcp-port) · [Performance](/monitors/performance)
 - [Notifications](/operate/notifications)
-- Marketing: [Ping monitoring feature](https://uptime-status.org/features/ping-monitoring)
+- Marketing: [Ping monitoring feature](https://statushq.org/features/ping-monitoring)

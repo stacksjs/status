@@ -7,7 +7,7 @@ import Team from '../../storage/framework/defaults/app/Models/Team'
 
 /** Absolute base URL for links in emails, from APP_URL (scheme optional). */
 function appBaseUrl(): string {
-  const raw = String(process.env.APP_URL || 'uptime-status.org').replace(/\/$/, '')
+  const raw = String(process.env.APP_URL || 'statushq.org').replace(/\/$/, '')
   return /^https?:\/\//.test(raw) ? raw : `https://${raw}`
 }
 

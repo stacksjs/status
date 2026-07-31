@@ -1,11 +1,11 @@
 ---
 title: Self-hosting & deploy
-description: Deploy your own UptimeStatus instance — MIT-licensed, self-hostable, and running on a single box behind a reverse proxy.
+description: Deploy your own StatusHQ instance — MIT-licensed, self-hostable, and running on a single box behind a reverse proxy.
 ---
 
 # Self-hosting & deploy
 
-UptimeStatus is **MIT-licensed and fully self-hostable**. The entire application — web dashboard, JSON API, check workers, and scheduler — is open source at [github.com/stacksjs/status](https://github.com/stacksjs/status). You can run it on hardware you control, or let the UptimeStatus team run it for you (see below).
+StatusHQ is **MIT-licensed and fully self-hostable**. The entire application — web dashboard, JSON API, check workers, and scheduler — is open source at [github.com/stacksjs/status](https://github.com/stacksjs/status). You can run it on hardware you control, or let the StatusHQ team run it for you (see below).
 
 ## Requirements
 
@@ -49,4 +49,4 @@ This single-box layout comfortably handles a real monitoring workload. When you 
 
 ## Fully-managed alternative
 
-If you'd rather not operate the box yourself, the UptimeStatus team offers **fully-managed hosting** at [uptime-status.org](https://uptime-status.org) — the same open-source application, run and updated for you, with multi-region checks already provisioned. Self-hosting and managed hosting run identical code, so you can move between them without changing how you use the product.
+If you'd rather not operate the box yourself, the StatusHQ team offers **fully-managed hosting** at [statushq.org](https://statushq.org) — the same open-source application, run and updated for you, with multi-region checks already provisioned. Self-hosting and managed hosting run identical code, so you can move between them without changing how you use the product.

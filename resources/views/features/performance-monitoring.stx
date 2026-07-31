@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Automatic baseline', text: 'built from the preceding 7 days of your own check results and recomputed on every run. Nothing to configure.' },
@@ -51,11 +51,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Performance monitoring | {{ appName }}</title>
     <meta name="description" content="Automatic response-time regression detection: p95 of the last hour versus your 7-day baseline, checked every 10 minutes. No thresholds to tune.">
-    <link rel="canonical" href="https://uptime-status.org/features/performance-monitoring">
+    <link rel="canonical" href="https://statushq.org/features/performance-monitoring">
     <meta property="og:title" content="Performance monitoring | {{ appName }}">
     <meta property="og:description" content="p95 baseline comparison every 10 minutes, no manual thresholds. Open source and self-hostable.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/performance-monitoring">
+    <meta property="og:url" content="https://statushq.org/features/performance-monitoring">
     @include('../partials/marketing-head.stx')
   </head>
   <body>

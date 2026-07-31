@@ -5,7 +5,7 @@ description: Push CPU, memory, and disk telemetry from your servers with a light
 
 # Server Metrics
 
-Server metrics bring host-level telemetry — CPU, memory, disk, load — into the same place as your uptime and performance checks. Unlike every other monitor, it's **push-based**: a small agent on your box sends metrics to UptimeStatus, so it works for private servers with no inbound access.
+Server metrics bring host-level telemetry — CPU, memory, disk, load — into the same place as your uptime and performance checks. Unlike every other monitor, it's **push-based**: a small agent on your box sends metrics to StatusHQ, so it works for private servers with no inbound access.
 
 ## How it works
 
@@ -15,10 +15,10 @@ You install a lightweight agent on each server. On an interval, the agent sample
 - **Memory** utilisation (`ramPercent`) plus used / total in MB (`ramUsedMb` / `ramTotalMb`)
 - **Disk** utilisation (`diskPercent`, optional - send it if your agent collects it)
 
-Because it's push, there's nothing to expose publicly - the agent dials out to UptimeStatus. Every sample is recorded as a check result, so it charts per host and feeds the same history and uptime machinery as any other monitor. A push is a JSON POST to `/api/agent/<metrics-token>/metrics` (the token is shown when you enable metrics on the monitor):
+Because it's push, there's nothing to expose publicly - the agent dials out to StatusHQ. Every sample is recorded as a check result, so it charts per host and feeds the same history and uptime machinery as any other monitor. A push is a JSON POST to `/api/agent/<metrics-token>/metrics` (the token is shown when you enable metrics on the monitor):
 
 ```bash
-curl -fsS -X POST https://uptime-status.org/api/agent/<metrics-token>/metrics \
+curl -fsS -X POST https://statushq.org/api/agent/<metrics-token>/metrics \
   -H "Content-Type: application/json" \
   -d '{"cpuPercent":37.2,"ramPercent":38.4,"ramUsedMb":6112,"ramTotalMb":16384,"diskPercent":68}'
 ```
@@ -44,4 +44,4 @@ Thresholds and the missed-push window live in the monitor's config (`cpuThreshol
 
 - [Cron & Heartbeats](/monitors/cron-heartbeats) · [Performance](/monitors/performance) · [Port Scan](/monitors/port-scan)
 - [Notifications](/operate/notifications)
-- Marketing: [Server metrics feature](https://uptime-status.org/features/server-metrics)
+- Marketing: [Server metrics feature](https://statushq.org/features/server-metrics)

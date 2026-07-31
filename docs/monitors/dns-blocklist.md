@@ -34,4 +34,4 @@ The monitor clears automatically once every list reports your IP as delisted aga
 
 - [DNS](/monitors/dns) · [Domains](/monitors/domains) · [Port Scan](/monitors/port-scan)
 - [Notifications](/operate/notifications)
-- Marketing: [DNS blocklist monitoring feature](https://uptime-status.org/features/blocklist-monitoring)
+- Marketing: [DNS blocklist monitoring feature](https://statushq.org/features/blocklist-monitoring)

@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const audiences = [
   {
@@ -41,12 +41,12 @@ const audiences = [
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Use cases | {{ appName }}</title>
-    <meta name="description" content="Uptime monitoring for agencies, SaaS teams, e-commerce, DevOps, and Stacks developers. See how the open-source UptimeStatus fits the way your team works.">
-    <link rel="canonical" href="https://uptime-status.org/for">
+    <meta name="description" content="Uptime monitoring for agencies, SaaS teams, e-commerce, DevOps, and Stacks developers. See how the open-source StatusHQ fits the way your team works.">
+    <link rel="canonical" href="https://statushq.org/for">
     <meta property="og:title" content="Use cases | {{ appName }}">
     <meta property="og:description" content="Uptime monitoring for agencies, SaaS teams, e-commerce, DevOps, and Stacks developers.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/for">
+    <meta property="og:url" content="https://statushq.org/for">
     @include('../partials/marketing-head.stx')
   </head>
   <body>

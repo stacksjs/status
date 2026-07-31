@@ -12,7 +12,7 @@
 // chrome anyway. Title + favicon come from useHead; the theme pre-paint
 // and styles live inline in the fragment body (same as the dashboard's
 // app-head partial, which is also fragment-injected).
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const InviteDb = require('bun:sqlite').Database
 const inviteDbPath = require('path').resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')

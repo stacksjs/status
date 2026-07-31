@@ -47,4 +47,4 @@ Incidents resolve automatically once the port starts accepting connections again
 
 - [Uptime](/monitors/uptime) · [Ping](/monitors/ping) · [Health Checks](/monitors/health-checks) · [Port Scan](/monitors/port-scan)
 - [Notifications](/operate/notifications)
-- Marketing: [TCP port monitoring feature](https://uptime-status.org/features/tcp-port-monitoring)
+- Marketing: [TCP port monitoring feature](https://statushq.org/features/tcp-port-monitoring)

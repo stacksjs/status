@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Plain-English assertions', text: 'describe what correct looks like in up to 1,000 characters. No selectors, no XPath, no test framework.' },
@@ -47,11 +47,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AI-powered content checks | {{ appName }}</title>
     <meta name="description" content="Write a plain-English assertion like 'the pricing page shows a Buy now button and no error text'. We check the live page against it and alert on FAIL.">
-    <link rel="canonical" href="https://uptime-status.org/features/ai-checks">
+    <link rel="canonical" href="https://statushq.org/features/ai-checks">
     <meta property="og:title" content="AI-powered content checks | {{ appName }}">
     <meta property="og:description" content="Catch error pages that return HTTP 200. Plain-English assertions, verified against the live page, with incidents on failure.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/ai-checks">
+    <meta property="og:url" content="https://statushq.org/features/ai-checks">
     @include('../partials/marketing-head.stx')
   </head>
   <body>

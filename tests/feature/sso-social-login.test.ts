@@ -97,11 +97,11 @@ describe('requestOrigin behind the production reverse proxy', () => {
       // x-forwarded-host — without the fallback the redirect_uri went
       // out as http://localhost:3000/... (live regression 2026-07-06).
       process.env.APP_ENV = 'production'
-      process.env.APP_URL = 'https://uptime-status.org'
-      expect(requestOrigin(new Headers({ host: 'localhost:3000' }))).toBe('https://uptime-status.org')
+      process.env.APP_URL = 'https://statushq.org'
+      expect(requestOrigin(new Headers({ host: 'localhost:3000' }))).toBe('https://statushq.org')
       // A real public Host (or forwarded host) still wins.
-      expect(requestOrigin(new Headers({ 'host': 'localhost:3000', 'x-forwarded-host': 'uptime-status.org' }))).toBe('https://uptime-status.org')
-      expect(requestOrigin(new Headers({ host: 'staging.uptime-status.org' }))).toBe('https://staging.uptime-status.org')
+      expect(requestOrigin(new Headers({ 'host': 'localhost:3000', 'x-forwarded-host': 'statushq.org' }))).toBe('https://statushq.org')
+      expect(requestOrigin(new Headers({ host: 'staging.statushq.org' }))).toBe('https://staging.statushq.org')
     }
     finally {
       process.env.APP_ENV = prevEnv
@@ -273,7 +273,7 @@ describe('SSO callback leg — Apple (form_post)', () => {
 
     const idToken = `${b64url({ alg: 'RS256', kid: 'apple-kid' })}.${b64url({
       iss: 'https://appleid.apple.com',
-      aud: 'org.uptime-status.test',
+      aud: 'org.statushq.test',
       exp: Math.floor(Date.now() / 1000) + 600,
       iat: Math.floor(Date.now() / 1000),
       sub: 'apple-subject-778',
@@ -328,7 +328,7 @@ describe('SSO callback leg — Apple (form_post)', () => {
 
     const idToken = `${b64url({ alg: 'RS256' })}.${b64url({
       iss: 'https://appleid.apple.com',
-      aud: 'org.uptime-status.test',
+      aud: 'org.statushq.test',
       exp: Math.floor(Date.now() / 1000) + 600,
       iat: Math.floor(Date.now() / 1000),
       sub: 'apple-subject-999',

@@ -10,7 +10,7 @@ the four things every new account does, in order.
 
 ## 1. Create your account
 
-[Sign up free](https://uptime-status.org/register) — 5 monitors, no credit card.
+[Sign up free](https://statushq.org/register) — 5 monitors, no credit card.
 Prefer to run it yourself? Follow [Self-hosting → Deploy](/self-hosting/deploy)
 and you get the same product with no limits.
 
@@ -50,7 +50,7 @@ Give customers a page that reflects your monitors in real time:
 
 1. Create a [status page](/operate/status-pages) and add the monitors (or
    component groups) it should show.
-2. Point a `CNAME` like `status.yourcompany.com` at UptimeStatus and set it as
+2. Point a `CNAME` like `status.yourcompany.com` at StatusHQ and set it as
    the custom domain.
 3. Add your logo and accent color. There's no vendor watermark on any plan.
 

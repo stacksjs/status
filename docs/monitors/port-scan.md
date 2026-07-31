@@ -34,7 +34,7 @@ After you review a change, accept the new snapshot as the baseline.
 
 1. **Add monitor** and choose **Port Scan**.
 2. Enter the host and the **port range** to scan (e.g. `1–1024` plus any app ports).
-3. UptimeStatus captures the **baseline** of currently-open ports.
+3. StatusHQ captures the **baseline** of currently-open ports.
 4. Set the **scan interval**.
 5. Attach **notifications** — route these to your security/ops channel.
 
@@ -44,4 +44,4 @@ After you review a change, accept the new snapshot as the baseline.
 
 - [TCP Port](/monitors/tcp-port) · [DNS Blocklist](/monitors/dns-blocklist) · [Server Metrics](/monitors/server-metrics)
 - [Notifications](/operate/notifications)
-- Marketing: [Port-scan monitoring feature](https://uptime-status.org/features/port-scan-monitoring)
+- Marketing: [Port-scan monitoring feature](https://statushq.org/features/port-scan-monitoring)

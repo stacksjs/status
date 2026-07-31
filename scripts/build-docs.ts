@@ -5,7 +5,7 @@
  * is stitched in here (post-build) rather than via config. Runs as the
  * `docs:build` script — locally and in the deploy's preStart (config/cloud.ts).
  *
- * Links are absolute (uptime-status.org / github / bsky) so they resolve across
+ * Links are absolute (statushq.org / github / bsky) so they resolve across
  * the /docs ↔ marketing-site boundary and aren't rewritten by bunpress's base
  * prefixer or intercepted by its SPA router.
  */
@@ -15,7 +15,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 const OUT = 'dist/docs/.bunpress'
-const SITE = 'https://uptime-status.org'
+const SITE = 'https://statushq.org'
 const GH = 'https://github.com/stacksjs/status'
 
 const GITHUB_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.1.82-.26.82-.58v-2.02c-3.34.73-4.04-1.6-4.04-1.6-.55-1.4-1.34-1.76-1.34-1.76-1.1-.75.08-.74.08-.74 1.2.09 1.84 1.24 1.84 1.24 1.08 1.84 2.81 1.3 3.5 1 .1-.78.42-1.3.76-1.6-2.66-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.12-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.3-1.55 3.3-1.23 3.3-1.23.66 1.66.25 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.83.57A12 12 0 0 0 12 .3Z"/></svg>'
@@ -32,9 +32,9 @@ const FOOTER = `
   <div class="dx-footer-inner">
     <div class="dx-footer-grid">
       <div class="dx-footer-brand">
-        <a class="dx-brand" href="${SITE}/" aria-label="UptimeStatus home">
+        <a class="dx-brand" href="${SITE}/" aria-label="StatusHQ home">
           <span class="dx-brand-mark">${WORDMARK_SVG}</span>
-          <span class="dx-brand-name">UptimeStatus</span>
+          <span class="dx-brand-name">StatusHQ</span>
         </a>
         <p>Open-source uptime, SSL, DNS, and status-page monitoring. Self-hosted, or fully managed by us.</p>
       </div>
@@ -84,10 +84,10 @@ const FOOTER = `
       </div>
     </div>
     <div class="dx-footer-bottom">
-      <span>&copy; 2026 UptimeStatus. MIT licensed.</span>
+      <span>&copy; 2026 StatusHQ. MIT licensed.</span>
       <span class="dx-footer-social">
-        <a href="${GH}" target="_blank" rel="noopener" aria-label="UptimeStatus on GitHub">${GITHUB_SVG}</a>
-        <a href="https://bsky.app/profile/uptime-status.org" target="_blank" rel="noopener" aria-label="UptimeStatus on Bluesky">${BLUESKY_SVG}</a>
+        <a href="${GH}" target="_blank" rel="noopener" aria-label="StatusHQ on GitHub">${GITHUB_SVG}</a>
+        <a href="https://bsky.app/profile/statushq.org" target="_blank" rel="noopener" aria-label="StatusHQ on Bluesky">${BLUESKY_SVG}</a>
       </span>
     </div>
   </div>

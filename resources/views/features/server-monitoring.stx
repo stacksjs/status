@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Push, not pull', text: 'your server makes an outbound HTTPS request. No inbound port, no firewall rule, no daemon listening for us.' },
@@ -51,11 +51,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Server monitoring | {{ appName }}</title>
     <meta name="description" content="A tiny push-based agent sends CPU and memory metrics from inside your servers. No inbound ports, no heavy daemon, same dashboard as your uptime checks.">
-    <link rel="canonical" href="https://uptime-status.org/features/server-monitoring">
+    <link rel="canonical" href="https://statushq.org/features/server-monitoring">
     <meta property="og:title" content="Server monitoring | {{ appName }}">
     <meta property="og:description" content="Push-based CPU and memory metrics from inside your servers, next to your uptime checks. No inbound port required.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/server-monitoring">
+    <meta property="og:url" content="https://statushq.org/features/server-monitoring">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -129,7 +129,7 @@ const related = [
 
 <span class="cmt"># report-metrics.sh</span>
 curl -fsS -X POST \
-  <span class="str">"https://uptime-status.org/api/agent/$METRICS_TOKEN/metrics"</span> \
+  <span class="str">"https://statushq.org/api/agent/$METRICS_TOKEN/metrics"</span> \
   -d cpuPercent=42 -d ramPercent=71 \
   -d ramUsedMb=5816 -d ramTotalMb=8192</pre></div>
           </div>

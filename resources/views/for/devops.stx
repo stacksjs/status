@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const modules = [
   {
@@ -65,11 +65,11 @@ const faqs = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Monitoring for DevOps &amp; SRE | {{ appName }}</title>
     <meta name="description" content="API-first uptime monitoring for DevOps: create monitors from the deploy pipeline, heartbeats for cron jobs, push-based server metrics, and on-call alert routing.">
-    <link rel="canonical" href="https://uptime-status.org/for/devops">
+    <link rel="canonical" href="https://statushq.org/for/devops">
     <meta property="og:title" content="Monitoring for DevOps &amp; SRE | {{ appName }}">
     <meta property="og:description" content="Monitoring you can automate: a JSON API for everything, heartbeat dead-man's switches, push-based agent metrics, and alerts routed per monitor.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/for/devops">
+    <meta property="og:url" content="https://statushq.org/for/devops">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -118,12 +118,12 @@ const faqs = [
           </div>
           <div class="split-panel">
             <div class="code-panel"><pre><span class="cmt"># deploy.sh: register the service you just shipped</span>
-curl -X POST https://uptime-status.org/api/monitors \
+curl -X POST https://statushq.org/api/monitors \
   -H <span class="str">"Authorization: Bearer $API_TOKEN"</span> \
   -d <span class="str">'{ "name": "orders-api", "url": "https://api.example.com/health" }'</span>
 
 <span class="cmt"># then verify it answers, right now, out of band</span>
-curl -X POST https://uptime-status.org/api/monitors/42/check \
+curl -X POST https://statushq.org/api/monitors/42/check \
   -H <span class="str">"Authorization: Bearer $API_TOKEN"</span></pre></div>
           </div>
         </div>
@@ -146,7 +146,7 @@ curl -X POST https://uptime-status.org/api/monitors/42/check \
 pg_dump <span class="str">"$DATABASE_URL"</span> | gzip > /backups/db-$(date +%F).sql.gz
 
 <span class="cmt"># last line, success path only: report in</span>
-curl -fsS https://uptime-status.org/api/ping/your-token</pre></div>
+curl -fsS https://statushq.org/api/ping/your-token</pre></div>
           </div>
         </div>
       </section>

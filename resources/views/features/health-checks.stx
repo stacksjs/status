@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const included = [
   { title: 'Three states, not two', text: 'your route returns ok, degraded, or down. Degraded is visible in the dashboard and history without paging anyone.' },
@@ -51,11 +51,11 @@ const related = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Application health checks | {{ appName }}</title>
     <meta name="description" content="Your app exposes a health route that returns ok, degraded, or down. We call it on a schedule from outside, keep the history, and own the alerting.">
-    <link rel="canonical" href="https://uptime-status.org/features/health-checks">
+    <link rel="canonical" href="https://statushq.org/features/health-checks">
     <meta property="og:title" content="Application health checks | {{ appName }}">
     <meta property="og:description" content="A JSON health route your app defines, polled on a schedule from outside, with history, incidents, and alerting handled for you.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/features/health-checks">
+    <meta property="og:url" content="https://statushq.org/features/health-checks">
     @include('../partials/marketing-head.stx')
   </head>
   <body>

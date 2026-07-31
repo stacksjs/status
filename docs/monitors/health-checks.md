@@ -52,4 +52,4 @@ The incident resolves automatically once all assertions pass again.
 
 - [Uptime](/monitors/uptime) · [Cron & Heartbeats](/monitors/cron-heartbeats) · [Performance](/monitors/performance)
 - [Notifications](/operate/notifications)
-- Marketing: [Health checks feature](https://uptime-status.org/features/health-checks)
+- Marketing: [Health checks feature](https://statushq.org/features/health-checks)

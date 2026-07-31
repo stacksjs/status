@@ -5,7 +5,7 @@ description: Publish public or access-controlled status pages with custom domain
 
 # Status pages
 
-A status page is the public face of your monitoring. UptimeStatus lets each team publish one or more pages that reflect the live state of their monitors, complete with incident history, uptime bars, and your own branding — with **no vendor watermark on any plan**.
+A status page is the public face of your monitoring. StatusHQ lets each team publish one or more pages that reflect the live state of their monitors, complete with incident history, uptime bars, and your own branding — with **no vendor watermark on any plan**.
 
 ## Public or access-controlled
 
@@ -19,9 +19,9 @@ A page can be:
 By default a page is served at `/status/{slug}`. To serve it from your own hostname:
 
 1. Set the page's **custom domain** (e.g. `status.acme.com`).
-2. Add a **CNAME** record for that hostname pointing at your UptimeStatus deployment.
+2. Add a **CNAME** record for that hostname pointing at your StatusHQ deployment.
 
-TLS for the custom domain is terminated by your reverse proxy or load balancer for the additional hostname. On a request, UptimeStatus matches the incoming `host` against each page's custom domain and renders that team's page.
+TLS for the custom domain is terminated by your reverse proxy or load balancer for the additional hostname. On a request, StatusHQ matches the incoming `host` against each page's custom domain and renders that team's page.
 
 ## How monitors map to components
 
@@ -40,6 +40,6 @@ Visitors can **subscribe** to a page to be notified when incidents are posted or
 
 ## Branding
 
-Make the page yours: add a **logo** (by URL), set an **accent color** for the top bar, and (on a custom domain) drop the URL prefix entirely. Both live under the status page's **Branding** card in the dashboard. There is no UptimeStatus watermark on any plan.
+Make the page yours: add a **logo** (by URL), set an **accent color** for the top bar, and (on a custom domain) drop the URL prefix entirely. Both live under the status page's **Branding** card in the dashboard. There is no StatusHQ watermark on any plan.
 
 Status pages are powered by the same realtime layer as the dashboard, so a monitor going down updates the page in place — see the [live status](/features/live-status) source for how the broadcaster works.

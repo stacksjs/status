@@ -9,8 +9,8 @@ import { env } from '@stacksjs/env'
  * you have any questions, feel free to reach out via Discord or GitHub Discussions.
  */
 export default {
-  name: env.APP_NAME ?? 'UptimeStatus',
-  description: 'UptimeStatus is an open, self-hostable monitoring platform for uptime, SSL, DNS, cron, and status pages.',
+  name: env.APP_NAME ?? 'StatusHQ',
+  description: 'StatusHQ is an open, self-hostable monitoring platform for uptime, SSL, DNS, cron, and status pages.',
   env: env.APP_ENV ?? 'local',
   url: env.APP_URL ?? 'status.localhost',
   redirectUrls: [],

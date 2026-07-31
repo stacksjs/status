@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const modules = [
   {
@@ -65,11 +65,11 @@ const faqs = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Monitoring for SaaS teams | {{ appName }}</title>
     <meta name="description" content="Uptime monitoring for SaaS teams: 30 second checks, heartbeats on billing jobs, deep health checks, and a status page your customers can subscribe to.">
-    <link rel="canonical" href="https://uptime-status.org/for/saas">
+    <link rel="canonical" href="https://statushq.org/for/saas">
     <meta property="og:title" content="Monitoring for SaaS teams | {{ appName }}">
     <meta property="og:description" content="30 second checks, heartbeats on revenue-critical jobs, and a public status page with email subscribers and an RSS feed.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/for/saas">
+    <meta property="og:url" content="https://statushq.org/for/saas">
     @include('../partials/marketing-head.stx')
   </head>
   <body>
@@ -183,7 +183,7 @@ const faqs = [
           <div class="split-panel">
             <div class="code-panel"><pre><span class="cmt"># crontab on your app server</span>
 0 2 * * * bin/run-billing \
-  &amp;&amp; curl -fsS https://uptime-status.org/api/ping/your-token
+  &amp;&amp; curl -fsS https://statushq.org/api/ping/your-token
 
 <span class="cmt"># job ran and succeeded: ping arrives, all quiet</span>
 <span class="cmt"># job failed or never ran: no ping, incident opens</span></pre></div>

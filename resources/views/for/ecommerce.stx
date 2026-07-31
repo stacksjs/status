@@ -1,5 +1,5 @@
 <script server>
-const appName = process.env.APP_NAME || 'UptimeStatus'
+const appName = process.env.APP_NAME || 'StatusHQ'
 
 const modules = [
   {
@@ -65,11 +65,11 @@ const faqs = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Monitoring for e-commerce | {{ appName }}</title>
     <meta name="description" content="Uptime monitoring for online stores: checkout checks every 30 seconds, daily crawls for broken product links and mixed content, plus SSL and blocklist alerts.">
-    <link rel="canonical" href="https://uptime-status.org/for/ecommerce">
+    <link rel="canonical" href="https://statushq.org/for/ecommerce">
     <meta property="og:title" content="Monitoring for e-commerce | {{ appName }}">
     <meta property="og:description" content="Watch the whole storefront funnel: checkout uptime, broken product links, mixed content, certificates, and email deliverability.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://uptime-status.org/for/ecommerce">
+    <meta property="og:url" content="https://statushq.org/for/ecommerce">
     @include('../partials/marketing-head.stx')
   </head>
   <body>

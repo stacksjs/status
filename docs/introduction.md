@@ -1,11 +1,11 @@
 ---
-title: What is UptimeStatus
-description: An overview of UptimeStatus — open-source uptime, SSL, DNS, and status-page monitoring, self-hosted or fully managed.
+title: What is StatusHQ
+description: An overview of StatusHQ — open-source uptime, SSL, DNS, and status-page monitoring, self-hosted or fully managed.
 ---
 
-# What is UptimeStatus
+# What is StatusHQ
 
-UptimeStatus is an open-source monitoring platform. It watches your sites and
+StatusHQ is an open-source monitoring platform. It watches your sites and
 services around the clock — uptime, SSL certificates, domains, DNS, performance,
 and more — opens incidents automatically when something breaks, pages you across
 ten notification channels, and keeps your users informed with a status page on
@@ -13,7 +13,7 @@ your own domain.
 
 It's [MIT-licensed](https://github.com/stacksjs/status) and built on the
 [Stacks](https://stacksjs.org) framework. Run every feature yourself with no
-limits, or let the UptimeStatus team host it for you.
+limits, or let the StatusHQ team host it for you.
 
 ## The model: sites, monitors, and checks
 
@@ -49,7 +49,7 @@ Everything is the same code either way:
 
 - **Self-host** — clone the repo and run it on a single box (web, API, worker, and
   scheduler behind a reverse proxy). See [Deploy](/self-hosting/deploy).
-- **Managed** — sign up at [uptime-status.org](https://uptime-status.org/register)
+- **Managed** — sign up at [statushq.org](https://statushq.org/register)
   and we run it for you.
 
 Ready to set up your first monitor? Head to the [Quick start](/getting-started).

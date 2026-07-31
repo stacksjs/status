@@ -71,7 +71,7 @@ export function isUnlimited(value: number): boolean {
 export function limitReachedMessage(resource: string, limit: number, plan: string): string {
   if (plan === PAID_PLAN) {
     return `You've reached the Pro plan limit of ${limit} ${resource}. `
-      + `UptimeStatus is MIT licensed — self-host your own install for unlimited ${resource}, `
+      + `StatusHQ is MIT licensed — self-host your own install for unlimited ${resource}, `
       + `or contact us to raise your limit.`
   }
   return `You've reached the Free plan limit of ${limit} ${resource}. Upgrade to Pro to add more.`
