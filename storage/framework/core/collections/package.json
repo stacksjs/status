@@ -52,6 +52,6 @@
   },
   "devDependencies": {
     "better-dx": "^0.2.12",
-    "ts-collect": "^0.4.0"
+    "ts-collect": "^0.4.3"
   }
 }

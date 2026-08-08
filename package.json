@@ -70,9 +70,9 @@
   },
   "dependencies": {
     "@stacksjs/stx": "^0.2.82",
-    "bun-plugin-stx": "^0.2.82",
+    "bun-plugin-stx": "^0.2.166",
     "stacks": "workspace:*",
-    "stx-router": "^0.2.82",
+    "stx-router": "^0.2.166",
     "ts-charts": "github:stacksjs/ts-charts"
   },
   "devDependencies": {
