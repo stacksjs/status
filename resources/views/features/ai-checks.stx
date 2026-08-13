@@ -40,24 +40,18 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AI-powered content checks | {{ appName }}</title>
-    <meta name="description" content="Write a plain-English assertion like 'the pricing page shows a Buy now button and no error text'. We check the live page against it and alert on FAIL.">
-    <link rel="canonical" href="https://statushq.org/features/ai-checks">
-    <meta property="og:title" content="AI-powered content checks | {{ appName }}">
-    <meta property="og:description" content="Catch error pages that return HTTP 200. Plain-English assertions, verified against the live page, with incidents on failure.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/ai-checks">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "AI-powered content checks | " + appName)
+@section('description')
+Write a plain-English assertion like 'the pricing page shows a Buy now button and no error text'. We check the live page against it and alert on FAIL.
+@endsection
+@section('canonical', "https://statushq.org/features/ai-checks")
+@section('ogDescription', "Catch error pages that return HTTP 200. Plain-English assertions, verified against the live page, with incidents on failure.")
+@section('ogTitle', "AI-powered content checks | " + appName)
+@section('ogUrl', "https://statushq.org/features/ai-checks")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <h1 class="page-title">Catch what a status code <span class="accent-word">cannot see.</span></h1>
@@ -189,8 +183,4 @@ FAIL. The plans section renders
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

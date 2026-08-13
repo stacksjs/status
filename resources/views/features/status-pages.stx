@@ -40,24 +40,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Status pages on your own domain | {{ appName }}</title>
-    <meta name="description" content="Branded status pages on your own domain with no watermark. Component groups, 90-day uptime bars, email subscribers, an RSS feed, and access control.">
-    <link rel="canonical" href="https://statushq.org/features/status-pages">
-    <meta property="og:title" content="Status pages on your own domain | {{ appName }}">
-    <meta property="og:description" content="Branded status pages with no watermark: custom domain, component groups, 90-day uptime bars, subscribers, and access control.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/status-pages">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Status pages on your own domain | " + appName)
+@section('description', "Branded status pages on your own domain with no watermark. Component groups, 90-day uptime bars, email subscribers, an RSS feed, and access control.")
+@section('canonical', "https://statushq.org/features/status-pages")
+@section('ogDescription', "Branded status pages with no watermark: custom domain, component groups, 90-day uptime bars, subscribers, and access control.")
+@section('ogTitle', "Status pages on your own domain | " + appName)
+@section('ogUrl', "https://statushq.org/features/status-pages")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <h1 class="page-title">Answer &ldquo;is it down?&rdquo; <span class="accent-word">before support does.</span></h1>
@@ -237,8 +229,4 @@ const related = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

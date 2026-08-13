@@ -44,24 +44,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Performance monitoring | {{ appName }}</title>
-    <meta name="description" content="Automatic response-time regression detection: p95 of the last hour versus your 7-day baseline, checked every 10 minutes. No thresholds to tune.">
-    <link rel="canonical" href="https://statushq.org/features/performance-monitoring">
-    <meta property="og:title" content="Performance monitoring | {{ appName }}">
-    <meta property="og:description" content="p95 baseline comparison every 10 minutes, no manual thresholds. Open source and self-hostable.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/performance-monitoring">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Performance monitoring | " + appName)
+@section('description', "Automatic response-time regression detection: p95 of the last hour versus your 7-day baseline, checked every 10 minutes. No thresholds to tune.")
+@section('canonical', "https://statushq.org/features/performance-monitoring")
+@section('ogDescription', "p95 baseline comparison every 10 minutes, no manual thresholds. Open source and self-hostable.")
+@section('ogTitle', "Performance monitoring | " + appName)
+@section('ogUrl', "https://statushq.org/features/performance-monitoring")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> No thresholds to configure</span>
@@ -228,8 +220,4 @@ const related = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

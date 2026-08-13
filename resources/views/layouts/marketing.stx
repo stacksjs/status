@@ -1,14 +1,45 @@
+{{-- Document-owning layout for the uniform marketing pages (features/*,
+     for/*), on the proven layouts/status.stx pattern (stx-standards 03).
+     NOTE: directive-looking text is LIVE inside these comments (the
+     processor scans directives before comment semantics — writing the
+     extends directive with its own name here made the layout extend
+     ITSELF and OOM). Pages extend layouts/marketing and fill five
+     sections:
+       title / ogTitle   - document + og:title (same text; separate
+                      sections because a @yield consumes its section - the
+                      second use of one section renders empty)
+       description  - meta description
+       canonical / ogUrl - absolute page URL (same text, twice for
+                      the same single-consume reason)
+       ogDescription- og:description (often shorter than description)
+       content      - the page's <main> interior, verbatim
+     charset/viewport live here (a document-owning layout writes its own;
+     the config app.head pair is fragment-only). Favicons + fonts come
+     from config/ui.ts app.head via injectConfigHeadTags. The index,
+     compare, docs, login and register pages are NOT on this layout yet -
+     they differ structurally and convert individually (see
+     STX-MIGRATION-PLAN.md Phase 2). --}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="system">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="@yield('description')">
     <title>@yield('title')</title>
+    <meta name="description" content="@yield('description')">
+    <link rel="canonical" href="@yield('canonical')">
+    <meta property="og:title" content="@yield('ogTitle')">
+    <meta property="og:description" content="@yield('ogDescription')">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="@yield('ogUrl')">
+    @include('../partials/marketing-head.stx')
   </head>
   <body>
-    @yield('content')
-    @yield('footer')
-    @stack('scripts')
+    @include('../partials/marketing-nav.stx')
+
+    <main>
+@yield('content')
+    </main>
+
+    @include('../partials/marketing-footer.stx')
   </body>
 </html>

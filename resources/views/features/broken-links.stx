@@ -44,24 +44,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Broken link monitoring | {{ appName }}</title>
-    <meta name="description" content="Daily site crawls that catch broken links, mixed content, and dead sitemap URLs in one monitor. Open-source monitoring with automatic incidents.">
-    <link rel="canonical" href="https://statushq.org/features/broken-links">
-    <meta property="og:title" content="Broken link monitoring | {{ appName }}">
-    <meta property="og:description" content="Broken links, mixed content, and sitemap checks in one daily crawl. Open source and self-hostable.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/broken-links">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Broken link monitoring | " + appName)
+@section('description', "Daily site crawls that catch broken links, mixed content, and dead sitemap URLs in one monitor. Open-source monitoring with automatic incidents.")
+@section('canonical', "https://statushq.org/features/broken-links")
+@section('ogDescription', "Broken links, mixed content, and sitemap checks in one daily crawl. Open source and self-hostable.")
+@section('ogTitle', "Broken link monitoring | " + appName)
+@section('ogUrl', "https://statushq.org/features/broken-links")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> Three checks in one monitor</span>
@@ -248,8 +240,4 @@ const related = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

@@ -47,24 +47,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DNS blocklist monitoring | {{ appName }}</title>
-    <meta name="description" content="Open-source DNS blocklist monitoring. Know when your IP lands on Spamhaus, Barracuda, SORBS, or SpamCop before your customers stop receiving your email.">
-    <link rel="canonical" href="https://statushq.org/features/dns-blocklist-monitoring">
-    <meta property="og:title" content="DNS blocklist monitoring | {{ appName }}">
-    <meta property="og:description" content="Checks your IP against Spamhaus ZEN, Barracuda, SORBS, and SpamCop, and opens an incident the moment a new listing appears. Open source and self-hostable.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/dns-blocklist-monitoring">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "DNS blocklist monitoring | " + appName)
+@section('description', "Open-source DNS blocklist monitoring. Know when your IP lands on Spamhaus, Barracuda, SORBS, or SpamCop before your customers stop receiving your email.")
+@section('canonical', "https://statushq.org/features/dns-blocklist-monitoring")
+@section('ogDescription', "Checks your IP against Spamhaus ZEN, Barracuda, SORBS, and SpamCop, and opens an incident the moment a new listing appears. Open source and self-hostable.")
+@section('ogTitle', "DNS blocklist monitoring | " + appName)
+@section('ogUrl', "https://statushq.org/features/dns-blocklist-monitoring")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <h1 class="page-title">Off the blocklist <span class="accent-word">before your email bounces.</span></h1>
@@ -201,8 +193,4 @@ const related = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

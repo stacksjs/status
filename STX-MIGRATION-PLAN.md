@@ -132,7 +132,20 @@ full suite + app-code typecheck + `buddy lint` + pickier green.
   outage itself is org infra and still needs fixing** — fresh machine
   bootstraps and fresh box provisioning stay broken until then.
 
-## Phase 2 — One shell, one layout (the big one)
+## Phase 2 — One shell, one layout (the big one) — batch 1 shipped 2026-08-14
+
+Batch 1: real `layouts/marketing.stx` + all 25 uniform pages (19
+features/*, 6 for/*) converted to `@extends` + six two-arg sections +
+`@section('content')`. Every page verified against a pre-conversion
+baseline render: `<main>` interior byte-identical, head tag-set
+identical, exactly one DOCTYPE/title. Engine facts learned (all
+empirically): a `@yield` consumes its section (second use renders
+empty — hence separate ogTitle/ogUrl sections); directive-looking text
+inside `{{-- --}}` comments is LIVE (a literal extends-directive naming
+the layout inside the layout's own comment recursed until OOM); two-arg
+section args are parsed naively, so values containing apostrophes must
+use block-section form (raw text, yields trimmed). Remaining: the five
+structurally distinct pages — index, compare, docs, login, register.
 
 - Create a document-owning `layouts/marketing.stx` on the proven
   `layouts/status.stx` pattern (`@yield('lang')`/`@yield('theme')` on
@@ -143,6 +156,10 @@ full suite + app-code typecheck + `buddy lint` + pickier green.
 - Risk (from the standards): an unfilled `@section` yields a blank page,
   not an error. Verify per page: exactly one `<main>`, one `<title>`,
   byte-diff of `<main>` interior against pre-migration render is empty.
+- Render harness (proven on features/uptime-monitoring.stx): pages render
+  headlessly via `NODE_PATH=<repo>/pantry bun` + `processDirectives` from
+  `pantry/@stacksjs/stx/dist/process.js` with the pinned dirs from
+  config/ui.ts — no dev server needed for the per-page byte-diffs.
 - Delete the dead `resources/views/layouts/marketing.stx` document-style
   layout first; it was never resolvable.
 

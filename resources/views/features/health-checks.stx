@@ -44,24 +44,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Application health checks | {{ appName }}</title>
-    <meta name="description" content="Your app exposes a health route that returns ok, degraded, or down. We call it on a schedule from outside, keep the history, and own the alerting.">
-    <link rel="canonical" href="https://statushq.org/features/health-checks">
-    <meta property="og:title" content="Application health checks | {{ appName }}">
-    <meta property="og:description" content="A JSON health route your app defines, polled on a schedule from outside, with history, incidents, and alerting handled for you.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/health-checks">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Application health checks | " + appName)
+@section('description', "Your app exposes a health route that returns ok, degraded, or down. We call it on a schedule from outside, keep the history, and own the alerting.")
+@section('canonical', "https://statushq.org/features/health-checks")
+@section('ogDescription', "A JSON health route your app defines, polled on a schedule from outside, with history, incidents, and alerting handled for you.")
+@section('ogTitle', "Application health checks | " + appName)
+@section('ogUrl', "https://statushq.org/features/health-checks")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <h1 class="page-title">Your app defines healthy. <span class="accent-word">We hold it to that.</span></h1>
@@ -193,8 +185,4 @@ const related = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

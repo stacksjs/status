@@ -40,24 +40,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DNS record monitoring | {{ appName }}</title>
-    <meta name="description" content="Open-source DNS monitoring: snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident with a diff when anything changes.">
-    <link rel="canonical" href="https://statushq.org/features/dns-monitoring">
-    <meta property="og:title" content="DNS record monitoring | {{ appName }}">
-    <meta property="og:description" content="Snapshots six DNS record types, diffs every check, and escalates nameserver changes. Open source and self-hostable.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/dns-monitoring">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "DNS record monitoring | " + appName)
+@section('description', "Open-source DNS monitoring: snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident with a diff when anything changes.")
+@section('canonical', "https://statushq.org/features/dns-monitoring")
+@section('ogDescription', "Snapshots six DNS record types, diffs every check, and escalates nameserver changes. Open source and self-hostable.")
+@section('ogTitle', "DNS record monitoring | " + appName)
+@section('ogUrl', "https://statushq.org/features/dns-monitoring")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <h1 class="page-title">Know the moment your <span class="accent-word">DNS records change.</span></h1>
@@ -226,8 +218,4 @@ const related = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

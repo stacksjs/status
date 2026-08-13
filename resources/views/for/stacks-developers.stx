@@ -54,24 +54,16 @@ const faqs = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Monitoring for Stacks developers | {{ appName }}</title>
-    <meta name="description" content="Uptime, health, and cron monitoring that speaks TypeScript. Built with Stacks, for Stacks apps: heartbeat pings from jobs, health-route checks, and a JSON API for everything.">
-    <link rel="canonical" href="https://statushq.org/for/stacks-developers">
-    <meta property="og:title" content="Monitoring for Stacks developers | {{ appName }}">
-    <meta property="og:description" content="Uptime, health, and cron monitoring that speaks TypeScript, built with the Stacks framework.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/for/stacks-developers">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Monitoring for Stacks developers | " + appName)
+@section('description', "Uptime, health, and cron monitoring that speaks TypeScript. Built with Stacks, for Stacks apps: heartbeat pings from jobs, health-route checks, and a JSON API for everything.")
+@section('canonical', "https://statushq.org/for/stacks-developers")
+@section('ogDescription', "Uptime, health, and cron monitoring that speaks TypeScript, built with the Stacks framework.")
+@section('ogTitle', "Monitoring for Stacks developers | " + appName)
+@section('ogUrl', "https://statushq.org/for/stacks-developers")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> Built with Stacks</span>
@@ -179,8 +171,4 @@ route.get(<span class="str">'/health'</span>, () => ({
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

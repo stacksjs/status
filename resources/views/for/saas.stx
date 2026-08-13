@@ -58,24 +58,16 @@ const faqs = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Monitoring for SaaS teams | {{ appName }}</title>
-    <meta name="description" content="Uptime monitoring for SaaS teams: 30 second checks, heartbeats on billing jobs, deep health checks, and a status page your customers can subscribe to.">
-    <link rel="canonical" href="https://statushq.org/for/saas">
-    <meta property="og:title" content="Monitoring for SaaS teams | {{ appName }}">
-    <meta property="og:description" content="30 second checks, heartbeats on revenue-critical jobs, and a public status page with email subscribers and an RSS feed.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/for/saas">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Monitoring for SaaS teams | " + appName)
+@section('description', "Uptime monitoring for SaaS teams: 30 second checks, heartbeats on billing jobs, deep health checks, and a status page your customers can subscribe to.")
+@section('canonical', "https://statushq.org/for/saas")
+@section('ogDescription', "30 second checks, heartbeats on revenue-critical jobs, and a public status page with email subscribers and an RSS feed.")
+@section('ogTitle', "Monitoring for SaaS teams | " + appName)
+@section('ogUrl', "https://statushq.org/for/saas")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> Built for SaaS teams</span>
@@ -219,8 +211,4 @@ const faqs = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

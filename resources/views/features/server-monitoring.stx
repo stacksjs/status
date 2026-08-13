@@ -44,24 +44,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Server monitoring | {{ appName }}</title>
-    <meta name="description" content="A tiny push-based agent sends CPU and memory metrics from inside your servers. No inbound ports, no heavy daemon, same dashboard as your uptime checks.">
-    <link rel="canonical" href="https://statushq.org/features/server-monitoring">
-    <meta property="og:title" content="Server monitoring | {{ appName }}">
-    <meta property="og:description" content="Push-based CPU and memory metrics from inside your servers, next to your uptime checks. No inbound port required.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/server-monitoring">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Server monitoring | " + appName)
+@section('description', "A tiny push-based agent sends CPU and memory metrics from inside your servers. No inbound ports, no heavy daemon, same dashboard as your uptime checks.")
+@section('canonical', "https://statushq.org/features/server-monitoring")
+@section('ogDescription', "Push-based CPU and memory metrics from inside your servers, next to your uptime checks. No inbound port required.")
+@section('ogTitle', "Server monitoring | " + appName)
+@section('ogUrl', "https://statushq.org/features/server-monitoring")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> Push-based agent</span>
@@ -193,8 +185,4 @@ curl -fsS -X POST \
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

@@ -44,24 +44,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Incident management | {{ appName }}</title>
-    <meta name="description" content="Failed checks open incidents automatically with the cause attached. Acknowledge in one request, post timeline updates, and schedule maintenance windows.">
-    <link rel="canonical" href="https://statushq.org/features/incident-management">
-    <meta property="og:title" content="Incident management | {{ appName }}">
-    <meta property="og:description" content="Automatic incident opening and resolution, a four-status workflow, one-step acknowledgment, and maintenance windows.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/incident-management">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Incident management | " + appName)
+@section('description', "Failed checks open incidents automatically with the cause attached. Acknowledge in one request, post timeline updates, and schedule maintenance windows.")
+@section('canonical', "https://statushq.org/features/incident-management")
+@section('ogDescription', "Automatic incident opening and resolution, a four-status workflow, one-step acknowledgment, and maintenance windows.")
+@section('ogTitle', "Incident management | " + appName)
+@section('ogUrl', "https://statushq.org/features/incident-management")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <h1 class="page-title">Incidents that <span class="accent-word">open themselves.</span></h1>
@@ -227,8 +219,4 @@ curl -X POST \
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

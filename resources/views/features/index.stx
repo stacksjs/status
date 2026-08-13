@@ -119,24 +119,16 @@ const groups = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Features | {{ appName }}</title>
-    <meta name="description" content="Uptime, SSL, DNS, cron, Lighthouse, security scanning, and status pages: every monitoring feature in one open-source, MIT-licensed product. Hosted or self-hosted.">
-    <link rel="canonical" href="https://statushq.org/features">
-    <meta property="og:title" content="Features | {{ appName }}">
-    <meta property="og:description" content="Every monitoring feature in one open-source, MIT-licensed product. Hosted or self-hosted.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Features | " + appName)
+@section('description', "Uptime, SSL, DNS, cron, Lighthouse, security scanning, and status pages: every monitoring feature in one open-source, MIT-licensed product. Hosted or self-hosted.")
+@section('canonical', "https://statushq.org/features")
+@section('ogDescription', "Every monitoring feature in one open-source, MIT-licensed product. Hosted or self-hosted.")
+@section('ogTitle', "Features | " + appName)
+@section('ogUrl', "https://statushq.org/features")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <h1 class="page-title">Every check, <span class="accent-word">one dashboard.</span></h1>
@@ -180,8 +172,4 @@ const groups = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

@@ -44,24 +44,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Cron job monitoring | {{ appName }}</title>
-    <meta name="description" content="Heartbeat monitoring for cron jobs and scheduled tasks. Your job pings a unique URL on every run. Silence past the grace period opens an incident.">
-    <link rel="canonical" href="https://statushq.org/features/cron-monitoring">
-    <meta property="og:title" content="Cron job monitoring | {{ appName }}">
-    <meta property="og:description" content="Your scheduled job pings a unique URL on every run. Silence past the grace period opens an incident and alerts your team.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/cron-monitoring">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Cron job monitoring | " + appName)
+@section('description', "Heartbeat monitoring for cron jobs and scheduled tasks. Your job pings a unique URL on every run. Silence past the grace period opens an incident.")
+@section('canonical', "https://statushq.org/features/cron-monitoring")
+@section('ogDescription', "Your scheduled job pings a unique URL on every run. Silence past the grace period opens an incident and alerts your team.")
+@section('ogTitle', "Cron job monitoring | " + appName)
+@section('ogUrl', "https://statushq.org/features/cron-monitoring")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> Heartbeat monitoring</span>
@@ -194,8 +186,4 @@ curl -fsS https://statushq.org/api/ping/9f2ac81d54e04b7f</pre></div>
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

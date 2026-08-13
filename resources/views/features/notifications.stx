@@ -40,24 +40,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Downtime alerts on 10 channels | {{ appName }}</title>
-    <meta name="description" content="Route downtime alerts per monitor to email, SMS, Slack, Discord, Teams, PagerDuty, Opsgenie, Pushover, ntfy, or webhooks. No per-seat pricing on alerts.">
-    <link rel="canonical" href="https://statushq.org/features/notifications">
-    <meta property="og:title" content="Downtime alerts on 10 channels | {{ appName }}">
-    <meta property="og:description" content="Per-monitor alert routing across 10 channels, with per-channel retries and severity mapping. No per-seat pricing.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/notifications">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Downtime alerts on 10 channels | " + appName)
+@section('description', "Route downtime alerts per monitor to email, SMS, Slack, Discord, Teams, PagerDuty, Opsgenie, Pushover, ntfy, or webhooks. No per-seat pricing on alerts.")
+@section('canonical', "https://statushq.org/features/notifications")
+@section('ogDescription', "Per-monitor alert routing across 10 channels, with per-channel retries and severity mapping. No per-seat pricing.")
+@section('ogTitle', "Downtime alerts on 10 channels | " + appName)
+@section('ogUrl', "https://statushq.org/features/notifications")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <h1 class="page-title">The right alert, on the <span class="accent-word">right channel.</span></h1>
@@ -227,8 +219,4 @@ const related = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

@@ -58,24 +58,16 @@ const faqs = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Monitoring for e-commerce | {{ appName }}</title>
-    <meta name="description" content="Uptime monitoring for online stores: checkout checks every 30 seconds, daily crawls for broken product links and mixed content, plus SSL and blocklist alerts.">
-    <link rel="canonical" href="https://statushq.org/for/ecommerce">
-    <meta property="og:title" content="Monitoring for e-commerce | {{ appName }}">
-    <meta property="og:description" content="Watch the whole storefront funnel: checkout uptime, broken product links, mixed content, certificates, and email deliverability.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/for/ecommerce">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Monitoring for e-commerce | " + appName)
+@section('description', "Uptime monitoring for online stores: checkout checks every 30 seconds, daily crawls for broken product links and mixed content, plus SSL and blocklist alerts.")
+@section('canonical', "https://statushq.org/for/ecommerce")
+@section('ogDescription', "Watch the whole storefront funnel: checkout uptime, broken product links, mixed content, certificates, and email deliverability.")
+@section('ogTitle', "Monitoring for e-commerce | " + appName)
+@section('ogUrl', "https://statushq.org/for/ecommerce")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> For online stores</span>
@@ -261,8 +253,4 @@ const faqs = [
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection

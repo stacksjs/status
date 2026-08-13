@@ -40,24 +40,16 @@ const related = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Lighthouse monitoring | {{ appName }}</title>
-    <meta name="description" content="Track Lighthouse performance, accessibility, SEO, and best-practices scores over time. Automatic incidents on performance drops. Open source.">
-    <link rel="canonical" href="https://statushq.org/features/lighthouse-monitoring">
-    <meta property="og:title" content="Lighthouse monitoring | {{ appName }}">
-    <meta property="og:description" content="Real Lighthouse audits on a schedule, with score history and incidents on performance regressions.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/features/lighthouse-monitoring">
-    @include('../partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('../partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', "Lighthouse monitoring | " + appName)
+@section('description', "Track Lighthouse performance, accessibility, SEO, and best-practices scores over time. Automatic incidents on performance drops. Open source.")
+@section('canonical', "https://statushq.org/features/lighthouse-monitoring")
+@section('ogDescription', "Real Lighthouse audits on a schedule, with score history and incidents on performance regressions.")
+@section('ogTitle', "Lighthouse monitoring | " + appName)
+@section('ogUrl', "https://statushq.org/features/lighthouse-monitoring")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> Real Lighthouse, real Chrome</span>
@@ -227,8 +219,4 @@ curl https://statushq.org/api/lighthouse-reports/142</pre></div>
       </section>
 
       @include('../partials/marketing-cta.stx')
-    </main>
-
-    @include('../partials/marketing-footer.stx')
-  </body>
-</html>
+@endsection
