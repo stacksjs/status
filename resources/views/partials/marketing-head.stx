@@ -15,25 +15,11 @@
   script block at the very top of a partial is treated as the partial's
   component script and stripped from the output.
 -->
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script>
-  // Apply a stored theme override before first paint to avoid a flash of
-  // the wrong theme (same mechanism as index.stx).
-  (function () {
-    try {
-      var stored = localStorage.getItem('uptimestatus-theme')
-      if (stored === 'light' || stored === 'dark') {
-        document.documentElement.setAttribute('data-theme', stored)
-      }
-    }
-    catch (err) {}
-  })()
-</script>
+{{-- Favicons, font preconnects and the font stylesheet moved to
+     config/ui.ts app.head (stx-standards 04-head): injected into full
+     documents via injectConfigHeadTags (href-deduped) and into fragments
+     via the document shell, so pages including this partial must not
+     re-add them. --}}
 <style>
   :root {
     color-scheme: light;
@@ -51,6 +37,9 @@
     --success-soft: rgba(5, 150, 105, 0.12);
     --violet: #6d5efc;
     --amber: #d97706;
+    --amber-soft: rgba(217, 119, 6, 0.12);
+    --danger: #dc2626;
+    --danger-soft: rgba(220, 38, 38, 0.09);
     --shadow: 0 20px 50px -18px rgba(11, 15, 13, 0.22);
     --radius: 16px;
     --radius-sm: 10px;
@@ -76,6 +65,9 @@
       --success-soft: rgba(47, 230, 166, 0.14);
       --violet: #a196ff;
       --amber: #fbbf24;
+      --amber-soft: rgba(251, 191, 36, 0.13);
+      --danger: #f87171;
+      --danger-soft: rgba(248, 113, 113, 0.12);
       --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
     }
   }
@@ -96,6 +88,9 @@
     --success-soft: rgba(47, 230, 166, 0.14);
     --violet: #a196ff;
     --amber: #fbbf24;
+    --amber-soft: rgba(251, 191, 36, 0.13);
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.12);
     --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
   }
 
@@ -1047,3 +1042,20 @@
     .brand-name { font-size: 1rem; }
   }
 </style>
+{{-- Scripts sit AFTER the style block on purpose: a script as the
+     partial's FIRST element is treated as its component script and
+     stripped from the output (the deleted font links used to shield
+     them; the style block shields them now). --}}
+<script>
+  // Apply a stored theme override before first paint to avoid a flash of
+  // the wrong theme (same mechanism as index.stx).
+  (function () {
+    try {
+      var stored = localStorage.getItem('uptimestatus-theme')
+      if (stored === 'light' || stored === 'dark') {
+        document.documentElement.setAttribute('data-theme', stored)
+      }
+    }
+    catch (err) {}
+  })()
+</script>

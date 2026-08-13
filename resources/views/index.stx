@@ -335,9 +335,7 @@ const faqs = [
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    {{-- Favicons + fonts come from config/ui.ts app.head (stx-standards 04-head). --}}
     <meta name="description" content="{{ statusPageForHost ? statusPageForHost.title + ' status' : appName + ' is a self-hostable uptime, SSL, DNS, and status-page monitoring platform.' }}">
     <title>{{ statusPageForHost ? statusPageForHost.title : appName + ' \u00b7 Open-source uptime monitoring' }}</title>
     <meta property="og:site_name" content="{{ appName }}">
@@ -364,9 +362,6 @@ const faqs = [
         catch (err) {}
       })()
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
       :root {
         color-scheme: light;
@@ -383,7 +378,9 @@ const faqs = [
         --success: #059669;
         --success-soft: rgba(5, 150, 105, 0.12);
         --amber: #d97706;
+        --amber-soft: rgba(217, 119, 6, 0.12);
         --danger: #dc2626;
+        --danger-soft: rgba(220, 38, 38, 0.09);
         --violet: #6d5efc;
         --shadow: 0 20px 50px -18px rgba(11, 15, 13, 0.22);
         --radius: 16px;
@@ -409,7 +406,9 @@ const faqs = [
           --success: #2fe6a6;
           --success-soft: rgba(47, 230, 166, 0.14);
           --amber: #fbbf24;
+          --amber-soft: rgba(251, 191, 36, 0.13);
           --danger: #f87171;
+          --danger-soft: rgba(248, 113, 113, 0.12);
           --violet: #a196ff;
           --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
         }
@@ -430,7 +429,9 @@ const faqs = [
         --success: #2fe6a6;
         --success-soft: rgba(47, 230, 166, 0.14);
         --amber: #fbbf24;
+        --amber-soft: rgba(251, 191, 36, 0.13);
         --danger: #f87171;
+        --danger-soft: rgba(248, 113, 113, 0.12);
         --violet: #a196ff;
         --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
       }

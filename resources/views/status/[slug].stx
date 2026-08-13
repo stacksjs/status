@@ -425,6 +425,10 @@ const overallLabel = hasDown ? t('major_outage') : hasDegraded ? t('partial_outa
 const overallTone = hasDown ? 'down' : hasDegraded ? 'degraded' : 'up'
 
 const pageTitle = statusPage ? statusPage.title : t('not_found')
+// Document title: '<page> status' (the fa62575 intent) via the layout's
+// @yield('title') — single-sourced here; the old layered useHead copy
+// produced a second <title> that lost to this one anyway.
+const docTitle = statusPage ? statusPage.title + ' status' : t('not_found')
 
 function monitorDotClass(monitor) {
   if (monitor.inMaintenance) return 'bg-blue-500'
@@ -462,19 +466,15 @@ function bannerDotClass(tone) {
   return 'h-2.5 w-2.5 shrink-0 rounded-full bg-red-500'
 }
 
-// Real document title + brand favicon for this fragment view (the serve
-// wrapper otherwise stamps it 'stx App', which is what customers saw).
-useHead({
-  title: statusPage ? statusPage.title + ' status' : 'Status',
-  link: [
-    { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
-    { rel: 'icon', href: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
-    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
-  ],
-})
+// No useHead here: this page @extends layouts/status (a real document),
+// so the title flows through @section('title', docTitle) -> the layout's
+// @yield. The old layered useHead produced a SECOND <title> that lost to
+// the layout's anyway ('stx App' was an upstream shell-detection bug,
+// fixed in the vendored stx; see STX-MIGRATION-PLAN.md Phase 1).
+// Favicons come from config/ui.ts app.head.
 </script>
 
-@section('title', pageTitle)
+@section('title', docTitle)
 @section('description', t('meta_desc'))
 @section('lang', statusPage ? statusPage.locale : 'en')
 @section('theme', statusPage ? statusPage.force_theme : 'system')

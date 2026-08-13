@@ -16,26 +16,10 @@
   theme pre-paint script must not be the partial's first element (both
   stx parser constraints; see marketing-head.stx).
 -->
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="/assets/scripts/csrf-forms.js" defer></script>
-<script>
-  // Apply the stored theme before first paint (same key + mechanism as
-  // the marketing pages, so the choice follows the user across the site).
-  (function () {
-    try {
-      var stored = localStorage.getItem('uptimestatus-theme')
-      if (stored === 'light' || stored === 'dark') {
-        document.documentElement.setAttribute('data-theme', stored)
-      }
-    }
-    catch (err) {}
-  })()
-</script>
+{{-- Favicons, font preconnects and the font stylesheet moved to
+     config/ui.ts app.head (stx-standards 04-head); dashboard pages are
+     fragments, so the document shell merges them into the generated
+     head. --}}
 <style>
   :root {
     color-scheme: light;
@@ -621,6 +605,24 @@
     .card.scroll-x .trow { min-width: 780px; }
   }
 </style>
+{{-- Scripts sit AFTER the style block on purpose: a script as the
+     partial's FIRST element is treated as its component script and
+     stripped from the output (the deleted font links used to shield
+     them; the style block shields them now). --}}
+<script src="/assets/scripts/csrf-forms.js" defer></script>
+<script>
+  // Apply the stored theme before first paint (same key + mechanism as
+  // the marketing pages, so the choice follows the user across the site).
+  (function () {
+    try {
+      var stored = localStorage.getItem('uptimestatus-theme')
+      if (stored === 'light' || stored === 'dark') {
+        document.documentElement.setAttribute('data-theme', stored)
+      }
+    }
+    catch (err) {}
+  })()
+</script>
 
 <script>
   // Chart tooltips: every .chart-hit rect carries data-tip; a single

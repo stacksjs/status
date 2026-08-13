@@ -89,20 +89,48 @@ via the `/api/passkeys/*` URL strings.
 **Verify:** bridge-hygiene test red on the pre-fix tree, green after;
 full suite + app-code typecheck + `buddy lint` + pickier green.
 
-## Phase 1 — Centralize the head
+## Phase 1 — Centralize the head ✅ shipped 2026-08-14
 
-- `config/ui.ts` gains `app.head` (favicon trio, font preconnects +
-  stylesheet, charset/viewport), `defaultTitle`, `defaultDescription`,
-  `skipDefaultSeoTags` — all serve-forwarded; permanently kills the
-  `'stx App'` fallback-title bug class customers actually saw (per the
-  comment at `status/[slug].stx:465`).
-- Single-source the status-page titles: keep `@section('title')`, delete
-  the layered `useHead` hotfix (they disagree today — a real defect).
-- Fold `index.stx`'s full inline design-system copy into
-  `partials/marketing-head.stx` (its own header admits the sync debt),
-  and fix the token drift: `--danger`/`--danger-soft`/`--amber-soft` are
-  mapped by `config/crosswind.ts` but undefined on all 27 marketing
-  subpages.
+- `config/ui.ts` gains `app.head.link` (favicon trio, font preconnects +
+  stylesheet), `defaultTitle`, `defaultDescription`, `skipDefaultSeoTags`
+  — all serve-forwarded. NOT charset/viewport: the fragment shell
+  auto-emits its own pair, so config copies double them (verified against
+  document-shell.js). The per-page favicon/preconnect/font lines came out
+  of marketing-head.stx, app-head.stx, index.stx, login.stx and
+  register.stx — which also retires login/register's divergent fonts URL
+  (they were missing JetBrains Mono).
+- Status-page titles single-sourced: the layered `useHead` hotfix was
+  built on a false premise (the pages were never fragments — `'stx App'`
+  was an upstream shell-detection bug, since fixed in the vendored stx)
+  and shipped a live double-`<title>` where the layout's copy won. Now
+  one `@section('title', docTitle)` with the `'<page> status'` wording
+  the original fa62575 commit intended. `invite/[uuid].stx` keeps its
+  `useHead` — it is a genuine fragment.
+- Token drift fixed: `--danger`/`--danger-soft`/`--amber-soft` added to
+  all three token blocks in marketing-head.stx and index.stx (crosswind
+  maps them; `bg-danger-soft` resolved to nothing on marketing pages).
+- Deliberately deferred: folding index.stx's inline design-system copy
+  into the partial happens in Phase 2 (the page converts to the marketing
+  layout anyway); theme pre-paint scripts stay per-page until Phase 5
+  because the status layout's forced-theme resolver has different
+  semantics than the marketing/app copies — a config-level script would
+  override a server-stamped forced theme.
+- Landmine met and defused: deleting the partials' font links left the
+  theme pre-paint script as the partial's FIRST element, which stx strips
+  as the partial's "component script" (empirically reproduced — exactly
+  the constraint the partial header documents). Both head partials are
+  now style-first with scripts after, and a `{{-- --}}` note guards the
+  ordering.
+- Shipped alongside: CI had been red for three weeks — every
+  `source: pantry` system-binary download (bun.sh/sqlite.org/zlib/
+  readline/ncurses) fails with DownloadFailed because registry.pantry.dev
+  502s (confirmed directly; npm packages unaffected). GitHub Actions
+  needs none of those binaries (setup-bun provides bun, tests use
+  bun:sqlite, mysql/redis are workflow services), so config/deps.ts now
+  skips system-binary provisioning when GITHUB_ACTIONS is set. Dev
+  machines and the deploy box still resolve the full set. **The registry
+  outage itself is org infra and still needs fixing** — fresh machine
+  bootstraps and fresh box provisioning stay broken until then.
 
 ## Phase 2 — One shell, one layout (the big one)
 

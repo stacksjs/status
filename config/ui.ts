@@ -45,6 +45,38 @@ export default {
   // topology change. store-loader resolves path.resolve(root, storesDir).
   storesDir: 'resources/stores',
 
+  // Shared head assets for every page (stx-standards 04-head). Full
+  // documents get these via injectConfigHeadTags (href-deduped against
+  // whatever the page already wrote); fragments get them merged into the
+  // generated shell. charset/viewport are NOT listed: the fragment shell
+  // auto-emits its own pair, so config copies would double them
+  // (verified against pantry/@stacksjs/stx/dist/document-shell.js).
+  // Theme pre-paint scripts stay per-page: the public status pages run a
+  // forced-theme resolver with different semantics, and a config-level
+  // script would override a server-stamped forced theme.
+  app: {
+    head: {
+      link: [
+        { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+        { rel: 'icon', href: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap' },
+      ],
+    },
+  },
+
+  // Fallbacks for fragment views that forget useHead — replaces the
+  // framework's 'stx App' stamp customers used to see in the tab.
+  defaultTitle: 'StatusHQ',
+  defaultDescription: 'Uptime, SSL, DNS and server monitoring with public status pages.',
+
+  // Pages own their SEO tags (every marketing page hand-writes a full
+  // head today; Phase 3 ports them to useSeoMeta). Keep the framework's
+  // generic og/twitter injector out of the way.
+  skipDefaultSeoTags: true,
+
   // Warning mode first (stx-standards 12-enforcement): surface prohibited
   // DOM usage as a migration work queue without failing builds. Ratchet to
   // failOnViolation: true at the end of the migration (Phase 7).
