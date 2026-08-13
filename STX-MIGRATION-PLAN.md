@@ -144,8 +144,16 @@ empty — hence separate ogTitle/ogUrl sections); directive-looking text
 inside `{{-- --}}` comments is LIVE (a literal extends-directive naming
 the layout inside the layout's own comment recursed until OOM); two-arg
 section args are parsed naively, so values containing apostrophes must
-use block-section form (raw text, yields trimmed). Remaining: the five
-structurally distinct pages — index, compare, docs, login, register.
+use block-section form (raw text, yields trimmed). Batch 2 (same day): compare
+and docs — same uniform shape, but two engine facts of their own: section
+content resolves @include paths LAYOUT-relative (root-level pages'
+`./partials/` broke; `../partials/` resolves identically from both
+bases, which is why the features/for pages never noticed), and the
+section-arg evaluator handles only a single string concatenation (a
+three-part `"a" + x + "b"` renders empty — block-section form instead).
+Remaining: index, login, register — genuinely distinct shapes (auth pages
+have no nav/footer and carry noindex; index carries the inline design
+system that folds into marketing-head when it converts).
 
 - Create a document-owning `layouts/marketing.stx` on the proven
   `layouts/status.stx` pattern (`@yield('lang')`/`@yield('theme')` on

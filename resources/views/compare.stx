@@ -147,24 +147,18 @@ const faqs = [
 ]
 </script>
 
-<!DOCTYPE html>
-<html lang="en" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ appName }} vs. open-source and hosted monitoring</title>
-    <meta name="description" content="How {{ appName }} compares to Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, and the classic self-hosted suites: every check side by side, honestly.">
-    <link rel="canonical" href="https://statushq.org/compare">
-    <meta property="og:title" content="{{ appName }} vs. open-source and hosted monitoring">
-    <meta property="og:description" content="Every check side by side: StatusHQ against Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, Nagios, and Zabbix.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/compare">
-    @include('./partials/marketing-head.stx')
-  </head>
-  <body>
-    @include('./partials/marketing-nav.stx')
+@extends('layouts/marketing')
 
-    <main>
+@section('title', appName + " vs. open-source and hosted monitoring")
+@section('description')
+How {{ appName }} compares to Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, and the classic self-hosted suites: every check side by side, honestly.
+@endsection
+@section('canonical', "https://statushq.org/compare")
+@section('ogDescription', "Every check side by side: StatusHQ against Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, Nagios, and Zabbix.")
+@section('ogTitle', appName + " vs. open-source and hosted monitoring")
+@section('ogUrl', "https://statushq.org/compare")
+
+@section('content')
       <section class="site-shell">
         <div class="page-hero">
           <span class="badge"><span class="dot"></span> Open source &middot; MIT licensed</span>
@@ -333,9 +327,5 @@ const faqs = [
         </div>
       </section>
 
-      @include('./partials/marketing-cta.stx')
-    </main>
-
-    @include('./partials/marketing-footer.stx')
-  </body>
-</html>
+      @include('../partials/marketing-cta.stx')
+@endsection
