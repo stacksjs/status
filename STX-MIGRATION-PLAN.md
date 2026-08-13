@@ -37,6 +37,14 @@ Push cadence: one phase = one commit (or a small commit series) = one
 push. CI deploys `main` to prod, gated on lint + typecheck (app code) +
 tests — every phase must go out green.
 
+Pipeline status (2026-08-14): gates are green again (test job enters
+buddy directly; package.json's `"system"` block — the hidden source of
+pantry registry downloads — removed while registry.pantry.dev is down).
+deploy-prod now reaches the real ts-cloud Hetzner deploy and fails at
+SSH: the box (167.233.116.134) serves statushq.org and answers port 22
+from a dev machine, but GitHub runners can't reach it within the 8-min
+wait — an IP-allowlist/fail2ban question for ops, not a code defect.
+
 ---
 
 ## Phase 0 — Security hotfix + make the config true ✅ shipped 2026-08-14
