@@ -136,7 +136,15 @@ jobs:
       - name: Test Suite
         env:
           AWS_DYNAMODB_ENDPOINT: http://localhost:8000
-        run: bun run test
+        # `bun buddy test` (the package.json script) enters buddy's cli.ts
+        # directly with the runner's bun — the same entry the lint and
+        # typecheck jobs already use. `bun run test` resolved to the
+        # ./buddy SHELL WRAPPER, which bootstraps pantry + system binaries
+        # whenever the gitignored pantry/ dir is absent (always, in CI) and
+        # has been dying against the 502ing registry.pantry.dev since
+        # Jul 25. CI needs none of those binaries: setup-bun provides bun,
+        # tests drive sqlite via bun:sqlite, mysql/redis are services.
+        run: bun buddy test
 
   release-check:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
