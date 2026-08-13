@@ -1041,7 +1041,9 @@
       "peerDependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.79"
       },
-      "optionalPeers": ["@anthropic-ai/claude-agent-sdk"]
+      "optionalPeers": [
+        "@anthropic-ai/claude-agent-sdk"
+      ]
     },
     "@stacksjs/alias@^0.70.23": {
       "name": "@stacksjs/alias",
@@ -1623,11 +1625,6 @@
         "query-builder": "./dist/bin/cli.js"
       }
     },
-    "bun.sh@^1.3.0": {
-      "name": "bun.sh",
-      "version": "^1.3.0",
-      "source": "pantry"
-    },
     "bunfig@^0.15.11": {
       "name": "bunfig",
       "version": "^0.15.11",
@@ -1668,11 +1665,6 @@
         "unplugin": "^3.0.0"
       }
     },
-    "sqlite.org@^3.47.2": {
-      "name": "sqlite.org",
-      "version": "^3.47.2",
-      "source": "pantry"
-    },
     "stripe@^21.0.1": {
       "name": "stripe",
       "version": "^21.0.1",
@@ -1680,7 +1672,9 @@
       "peerDependencies": {
         "@types/node": ">=18"
       },
-      "optionalPeers": ["@types/node"]
+      "optionalPeers": [
+        "@types/node"
+      ]
     },
     "stx-router@^0.2.81": {
       "name": "stx-router",
