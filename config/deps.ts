@@ -19,15 +19,19 @@ import type { PantryConfig } from "ts-pantry";
 const usePostgres = (process.env.DB_CONNECTION || "sqlite") === "postgres";
 const useRedis = usePostgres || process.env.QUEUE_DRIVER === "redis";
 
-// GitHub Actions provides every binary these deps would install: bun via
-// oven-sh/setup-bun, mysql/redis as workflow services, and sqlite through
-// bun's built-in bun:sqlite driver (the sqlite3 CLI is never invoked by the
-// test suite). Downloading them anyway made CI red for three weeks when
-// registry.pantry.dev started 502ing (DownloadFailed on bun.sh/sqlite.org/
-// zlib/readline/ncurses — every `source: pantry` package, while all npm
-// packages installed fine). Skip system-binary provisioning in CI; dev
-// machines and the deploy box still resolve the full set.
-const inGithubActions = !!process.env.GITHUB_ACTIONS;
+// System-binary provisioning is OPT-IN (STACKS_SYSTEM_DEPS=1) while
+// registry.pantry.dev is down: every source:pantry download 502s
+// (bun.sh/sqlite.org/zlib/readline/ncurses DownloadFailed), which kept
+// CI red from Jul 25 and killed the first deploy attempt on the runner.
+// Nothing needs these binaries from here right now — GitHub Actions gets
+// bun from setup-bun (tests drive sqlite via bun:sqlite; mysql/redis are
+// workflow services), and the Hetzner box installs its runtime deps via
+// ts-cloud (cloud/deploy-script.ts), not this file. A plain
+// GITHUB_ACTIONS opt-out was not enough because the released pantry
+// binary does not propagate env into its deps.ts evaluation, so the
+// skip-branch never engaged on runners. Flip the default back once the
+// registry is healthy.
+const withSystemDeps = process.env.STACKS_SYSTEM_DEPS === "1";
 
 export const config: PantryConfig = {
   /**
@@ -36,15 +40,15 @@ export const config: PantryConfig = {
    */
   dependencies: {
     craft: "^0.0.1",
-    ...(inGithubActions
-      ? {}
-      : {
+    ...(withSystemDeps
+      ? {
           "bun.com": "^1.3.0",
           // SQLite for self-hosted; Postgres for the hosted/multi-region deploy.
           ...(usePostgres ? { "postgresql.org": "18.4" } : { "sqlite.org": "^3.47.2" }),
           // Redis (real, not valkey) for the shared cross-region queue.
           ...(useRedis ? { "redis.io": "8.8.0" } : {}),
-        }),
+        }
+      : {}),
   },
 
   /**
