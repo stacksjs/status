@@ -52,8 +52,13 @@ const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? ne
 // Two-factor state + optional setup step. The users.two_factor_* columns
 // are framework guarantee-ALTERs (auth-tables.ts), read via the auth
 // helpers rather than the User model on purpose.
+// `__`-prefixed bindings below hold sensitive rows: stx's server->client
+// bridge serializes any server binding whose name word-matches a plain
+// <script> into the page HTML (the passkey client script's `/api/passkeys/*`
+// URLs word-match a binding named `passkeys`), but extractBridgeData skips
+// `__`/`$` names. Enforced by tests/unit/bridge-hygiene.test.ts.
 let TWO_FA_ENABLED = false
-let SETUP = null
+let __SETUP = null
 if (AUTH_USER) {
   const state = await getTwoFactorState(AUTH_USER.id)
   TWO_FA_ENABLED = !!state.enabled
@@ -65,22 +70,24 @@ if (AUTH_USER) {
     // carries the secret. Re-visiting this step replaces the stash, so
     // the code must always come from the LAST secret shown.
     await stashPendingTwoFactorSecret(AUTH_USER.id, secret)
-    SETUP = { secret, uri }
+    __SETUP = { secret, uri }
   }
 }
 
 // Passkeys. Framework-managed table (auth-tables.ts, no model), so raw
 // db access like the auth core uses. Defensive try/catch: the table is
 // created by buddy migrate's auth pass; render an empty list before then.
-let passkeys = []
+// Projected to display fields — public_key/counter never leave the server.
+let __passkeys = []
 if (AUTH_USER) {
   try {
-    passkeys = await db.selectFrom('passkeys')
+    __passkeys = (await db.selectFrom('passkeys')
       .where('user_id', '=', AUTH_USER.id)
       .orderBy('created_at', 'desc')
-      .execute()
+      .execute())
+      .map(p => ({ id: p.id, device_type: p.device_type, created_at: p.created_at, last_used_at: p.last_used_at }))
   } catch (e) {
-    passkeys = []
+    __passkeys = []
   }
 }
 
@@ -132,7 +139,7 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
     <header class="page-head">
       <div>
         <h1>Security</h1>
-        <p class="meta">{{ AUTH_USER.email }} &middot; {{ TWO_FA_ENABLED ? 'Two-factor on' : 'Two-factor off' }} &middot; {{ passkeys.length }} passkey{{ passkeys.length === 1 ? '' : 's' }}</p>
+        <p class="meta">{{ AUTH_USER.email }} &middot; {{ TWO_FA_ENABLED ? 'Two-factor on' : 'Two-factor off' }} &middot; {{ __passkeys.length }} passkey{{ __passkeys.length === 1 ? '' : 's' }}</p>
       </div>
     </header>
 
@@ -187,17 +194,17 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
           </form>
         @endif
 
-        @if (!TWO_FA_ENABLED && !SETUP)
+        @if (!TWO_FA_ENABLED && !__SETUP)
           <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6;">Add a second factor so a stolen password alone cannot open your account. Works with any TOTP authenticator app (1Password, Google Authenticator, Authy).</p>
           <a class="button primary" href="/dashboard/settings/security?setup=1" data-no-router>Set up two-factor auth</a>
         @endif
 
-        @if (!TWO_FA_ENABLED && SETUP)
+        @if (!TWO_FA_ENABLED && __SETUP)
           <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6;">Add this secret to your authenticator app, then enter the 6-digit code it shows to confirm. The secret is held server-side for 10 minutes.</p>
           <div class="field">
             <label>Secret (enter manually)</label>
-            <p class="mono" style="margin: 0; padding: 0.7rem 0.85rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.95rem; letter-spacing: 0.08em; word-break: break-all; background: var(--surface-2);">{{ SETUP.secret }}</p>
-            <p class="help">On this device? <a href="{{ SETUP.uri }}">Open in your authenticator app</a> instead of typing the secret.</p>
+            <p class="mono" style="margin: 0; padding: 0.7rem 0.85rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.95rem; letter-spacing: 0.08em; word-break: break-all; background: var(--surface-2);">{{ __SETUP.secret }}</p>
+            <p class="help">On this device? <a href="{{ __SETUP.uri }}">Open in your authenticator app</a> instead of typing the secret.</p>
           </div>
           <form method="POST" action="/api/security-forms/two-factor/enable">
             <div class="form-row">
@@ -216,14 +223,14 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
     <section class="card scroll-x" aria-label="Passkeys">
       <div class="card-head">
         <h2>Passkeys</h2>
-        <span class="sub">{{ passkeys.length }} registered</span>
+        <span class="sub">{{ __passkeys.length }} registered</span>
       </div>
       <div class="card-body" style="border-bottom: 1px solid var(--border);">
         <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6;">Passkeys let you sign in with your device's screen lock or a hardware key instead of a password. They're phishing-resistant and never leave your device.</p>
         <button type="button" id="pk-add" class="button primary">Add a passkey</button>
         <div id="pk-msg" class="pk-msg" role="status"></div>
       </div>
-      @if (passkeys.length === 0)
+      @if (__passkeys.length === 0)
         <div class="card-body">
           <div class="empty" style="border: none; padding: 2.5rem 1rem;">
             <h3>No passkeys yet</h3>
@@ -231,7 +238,7 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
           </div>
         </div>
       @endif
-      @if (passkeys.length > 0)
+      @if (__passkeys.length > 0)
         <div class="rows">
           <div class="trow thead" style="grid-template-columns: minmax(0, 1.5fr) 130px 110px 110px 110px;">
             <span class="tcell">Credential</span>
@@ -240,7 +247,7 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
             <span class="tcell num">Last used</span>
             <span class="tcell num">Remove</span>
           </div>
-          @foreach (passkeys as passkey)
+          @foreach (__passkeys as passkey)
             <div class="trow" style="grid-template-columns: minmax(0, 1.5fr) 130px 110px 110px 110px;">
               <span class="tcell ellipsis mono">{{ credentialLabel(passkey.id) }}</span>
               <span class="tcell sub">{{ passkey.device_type || 'unknown' }}</span>
@@ -259,7 +266,7 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
     </section>
 
     <footer class="app-foot">
-      <span>{{ TWO_FA_ENABLED ? 'Two-factor on' : 'Two-factor off' }} &middot; {{ passkeys.length }} passkey{{ passkeys.length === 1 ? '' : 's' }}</span>
+      <span>{{ TWO_FA_ENABLED ? 'Two-factor on' : 'Two-factor off' }} &middot; {{ __passkeys.length }} passkey{{ __passkeys.length === 1 ? '' : 's' }}</span>
       <span>Updated {{ generatedAt }} UTC</span>
     </footer>
   @endif

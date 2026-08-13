@@ -89,7 +89,7 @@
   "git-hooks": {
     "pre-commit": {
       "staged-lint": {
-        "*.{js,ts,json,yaml,yml,md}": "bun x --bun pickier lint --fix"
+        "*.{js,ts,stx,json,yaml,yml,md}": "bun x --bun pickier lint --fix"
       }
     },
     "commit-msg": "bun x gitlint --edit .git/COMMIT_EDITMSG"

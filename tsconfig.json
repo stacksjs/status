@@ -28,9 +28,10 @@
     "*.ts",
     "*.d.ts",
     "types/**/*.d.ts",
-    "app/Models/**/*.ts",
-    "app/Services/**/*.ts",
-    "app/Support/**/*.ts"
+    ".stx/*.d.ts",
+    "config/ui.ts",
+    "config/crosswind.ts",
+    "app/Models/**/*.ts"
   ],
   "exclude": [
     "cloud/**",

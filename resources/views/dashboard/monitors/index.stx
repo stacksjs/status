@@ -2,7 +2,7 @@
   Monitor list — dashboard page (stacksjs/status#1 Phase 8).
 
   Server-rendered like resources/views/status/[slug].stx rather than the
-  client-reactive `<script client>` + state()/:for pattern used by some
+  client-reactive script-client + state()/:for pattern used by some
   framework-shipped dashboard pages: that pattern hit an unresolved
   `:for expected an array; got empty/error for expression "monitors()"`
   warning here that didn't reproduce in the framework's own shipped
@@ -16,9 +16,11 @@
   monitor's status dot in place when it transitions, so a monitor going
   down shows without a reload. Progressive enhancement — if realtime is
   disabled or the socket can't connect, the page keeps the on-load
-  snapshot. The WS client is a plain script (not `<script client>` +
-  state()/:for), matching login.stx, because the reactive pattern hit an
-  unresolved `:for expected an array` hydration warning on this page.
+  snapshot. The WS client is a plain script (not a script-client block
+  with state()/:for), matching login.stx, because the reactive pattern
+  hit an unresolved `:for expected an array` hydration warning on this
+  page. (No literal script tags in this comment — stx parser constraint,
+  see partials/app-head.stx.)
 
   Visual language: the marketing site's design system (emerald accent,
   Space Grotesk display, light + dark) via partials/app-head.stx +
@@ -84,10 +86,19 @@ function idxRangeUrl(r) {
 
 // One unfiltered fetch of the team's fleet; types, the filtered display
 // list, and the fleet tally are all derived from it in JS (dialect-agnostic).
-const allMonitors = await teamScope(db.selectFrom('monitors')).execute()
+// SECURITY: project to display fields immediately — the raw rows carry
+// metrics_token (the agent-ingest credential the Monitor model hides from
+// API responses), and stx's server->client bridge serializes any server
+// binding whose name word-matches a plain <script> below into the page
+// HTML. The projection keeps credentials out of every derived binding, and
+// the display list's `__` prefix keeps it out of bridge collection
+// entirely (extractBridgeData skips `__`/`$` names — the same discipline
+// loghq uses for `__token`). Enforced by tests/unit/bridge-hygiene.test.ts.
+const allMonitors = (await teamScope(db.selectFrom('monitors')).execute())
+  .map(m => ({ id: m.id, name: m.name, url: m.url, type: m.type, status: m.status, last_checked_at: m.last_checked_at }))
 const allTypes = [...new Set(allMonitors.map(m => m.type))].sort()
 
-const monitors = allMonitors
+const __monitorRows = allMonitors
   .filter(m => (!filterType || m.type === filterType) && (!filterStatus || m.status === filterStatus))
   .sort((a, b) => String(a.name).localeCompare(String(b.name)))
 
@@ -105,7 +116,7 @@ function fleetOf(status) {
 // Latest non-null response time per displayed monitor, precomputed (the
 // template can't await a per-row query). `>= 0` excludes NULLs portably.
 const lastResponseByMonitor = {}
-for (const m of monitors) {
+for (const m of __monitorRows) {
   const row = (await db.selectFrom('check_results').where('monitor_id', '=', m.id).where('response_time_ms', '>=', 0).orderByDesc('id').limit(1).execute())[0]
   lastResponseByMonitor[m.id] = row ? row.response_time_ms : null
 }
@@ -137,7 +148,7 @@ function typeLabel(t) {
 // mini tick strip; one bounded query per row, same pattern as the
 // last-response lookup above.
 const recentChecksByMonitor = {}
-for (const m of monitors) {
+for (const m of __monitorRows) {
   const rows = await db.selectFrom('check_results').where('monitor_id', '=', m.id).orderByDesc('id').limit(12).execute()
   recentChecksByMonitor[m.id] = rows.map(r => r.status).reverse()
 }
@@ -277,14 +288,14 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
       </div>
     </div>
 
-    @if (monitors.length === 0)
+    @if (__monitorRows.length === 0)
       <div class="empty">
         <h3>No monitors match these filters</h3>
         <p>Create a monitor via the API to start tracking uptime, or clear the filters above.</p>
       </div>
     @endif
 
-    @if (monitors.length > 0)
+    @if (__monitorRows.length > 0)
       <section class="card scroll-x" aria-label="Monitor list">
         <div class="rows">
           <div class="trow thead" style="grid-template-columns: 110px minmax(220px, 1.7fr) 100px 112px 80px 92px;">
@@ -295,7 +306,7 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
             <span class="tcell num">Resp</span>
             <span class="tcell num">Checked</span>
           </div>
-          @foreach (monitors as monitor)
+          @foreach (__monitorRows as monitor)
             <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" data-monitor-id="{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 100px 112px 80px 92px;">
               <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}" data-monitor-status><span class="dot"></span><span data-monitor-status-label>{{ stLabel(monitor.status) }}</span></data></span>
               <span class="tcell">
@@ -324,7 +335,7 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
     @endif
 
     <footer class="app-foot">
-      <span>Showing {{ monitors.length }} of {{ fleetCount }} monitors</span>
+      <span>Showing {{ __monitorRows.length }} of {{ fleetCount }} monitors</span>
       <span>Updated {{ generatedAt }} UTC</span>
     </footer>
   @endif
