@@ -19,18 +19,32 @@ import type { PantryConfig } from "ts-pantry";
 const usePostgres = (process.env.DB_CONNECTION || "sqlite") === "postgres";
 const useRedis = usePostgres || process.env.QUEUE_DRIVER === "redis";
 
+// GitHub Actions provides every binary these deps would install: bun via
+// oven-sh/setup-bun, mysql/redis as workflow services, and sqlite through
+// bun's built-in bun:sqlite driver (the sqlite3 CLI is never invoked by the
+// test suite). Downloading them anyway made CI red for three weeks when
+// registry.pantry.dev started 502ing (DownloadFailed on bun.sh/sqlite.org/
+// zlib/readline/ncurses — every `source: pantry` package, while all npm
+// packages installed fine). Skip system-binary provisioning in CI; dev
+// machines and the deploy box still resolve the full set.
+const inGithubActions = !!process.env.GITHUB_ACTIONS;
+
 export const config: PantryConfig = {
   /**
    * System dependencies with version constraints
    * These are binary tools and system packages required for development
    */
   dependencies: {
-    "bun.com": "^1.3.0",
     craft: "^0.0.1",
-    // SQLite for self-hosted; Postgres for the hosted/multi-region deploy.
-    ...(usePostgres ? { "postgresql.org": "18.4" } : { "sqlite.org": "^3.47.2" }),
-    // Redis (real, not valkey) for the shared cross-region queue.
-    ...(useRedis ? { "redis.io": "8.8.0" } : {}),
+    ...(inGithubActions
+      ? {}
+      : {
+          "bun.com": "^1.3.0",
+          // SQLite for self-hosted; Postgres for the hosted/multi-region deploy.
+          ...(usePostgres ? { "postgresql.org": "18.4" } : { "sqlite.org": "^3.47.2" }),
+          // Redis (real, not valkey) for the shared cross-region queue.
+          ...(useRedis ? { "redis.io": "8.8.0" } : {}),
+        }),
   },
 
   /**
