@@ -72,6 +72,7 @@ const NAV_ACTIVE = 'monitors'
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
 const filterType = query.get('type') || ''
 const filterStatus = query.get('status') || ''
+const flashDeleted = query.get('deleted') === '1'
 
 const idxRange = query.get('range') || '24h'
 const IDX_RANGE_MS = { '24h': 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000, '30d': 30 * 24 * 60 * 60 * 1000 }
@@ -240,7 +241,14 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
         <h1>Monitors</h1>
         <p class="meta">{{ fleetCount }} monitor{{ fleetCount === 1 ? '' : 's' }} &middot; {{ checksInRange }} checks in the last {{ idxRange }}<span id="rt-live" class="rt-live" hidden> &middot; <span class="rt-live-dot"></span>Live</span></p>
       </div>
+      <div class="actions">
+        <StxLink to="/dashboard/monitors/new" class="button primary">New monitor</StxLink>
+      </div>
     </header>
+
+    @if (flashDeleted)
+      <div class="flash">Monitor deleted.</div>
+    @endif
 
     <dl class="stat-grid">
       <div class="stat-card">
@@ -291,7 +299,8 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
     @if (__monitorRows.length === 0)
       <div class="empty">
         <h3>No monitors match these filters</h3>
-        <p>Create a monitor via the API to start tracking uptime, or clear the filters above.</p>
+        <p>Create your first monitor to start tracking uptime, or clear the filters above.</p>
+        <div class="actions"><StxLink to="/dashboard/monitors/new" class="button primary">New monitor</StxLink></div>
       </div>
     @endif
 

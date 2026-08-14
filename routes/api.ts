@@ -146,6 +146,14 @@ route.post('/notification-channel-forms/{id}/test-send', 'Actions/Notifications/
 route.post('/notification-channel-forms/monitors/{monitorId}/assign', 'Actions/Notifications/DashboardAssignChannelAction')
 route.post('/notification-channel-forms/monitors/{monitorId}/remove', 'Actions/Notifications/DashboardRemoveChannelAction')
 
+// Monitor create/edit/delete form posts — the no-JS counterparts to
+// POST /monitors, so the product can be set up without curl. Same
+// plain-POST, team-scoped convention as the form routes below; the create
+// path enforces the same plan limits as the JSON action.
+route.post('/monitor-forms/create', 'Actions/Monitors/DashboardCreateMonitorAction')
+route.post('/monitor-forms/{monitorId}/update', 'Actions/Monitors/DashboardUpdateMonitorAction')
+route.post('/monitor-forms/{monitorId}/delete', 'Actions/Monitors/DashboardDeleteMonitorAction')
+
 // Response-assertion form posts on the monitor detail page (dot-path health
 // assertions and header/status/response-time checks) — same plain-POST,
 // team-scoped convention as the notification-channel forms above.

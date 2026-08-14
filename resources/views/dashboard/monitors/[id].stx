@@ -271,6 +271,62 @@ if (chartChecks.length > 1) {
 // 24h so the chart isn't just 1 bar, daily buckets for the wider windows).
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
 const range = query.get('range') || '24h'
+
+// Settings-card state: flash markers from the create/edit form actions, the
+// monitor's parsed config for prefilling, and the heartbeat row a cron
+// monitor needs (its ping token is the URL the job actually calls).
+const flashCreated = query.get('created') === '1'
+const flashSaved = query.get('saved') === '1'
+const formError = query.get('error') || ''
+const planFloor = query.get('floor') || ''
+function formErrorLabel(code) {
+  if (code === 'name_required') return 'Give the monitor a name.'
+  if (code === 'name_too_long') return 'That name is longer than 150 characters.'
+  if (code === 'type_invalid') return 'Pick a monitor type from the list.'
+  if (code === 'url_required') return 'Enter what to monitor.'
+  if (code === 'url_too_long') return 'That URL is longer than 2048 characters.'
+  if (code === 'url_scheme') return 'This check type needs a full http:// or https:// URL.'
+  if (code === 'url_invalid') return 'That does not look like a hostname or URL.'
+  if (code === 'interval_invalid') return 'The check interval must be a whole number of seconds, at least 10.'
+  if (code === 'plan_interval') return `Your plan checks at most every ${planFloor || '300'} seconds. Upgrade to check more often.`
+  return ''
+}
+
+// Fail-soft exactly like every job reader: a malformed config prefills as
+// empty rather than breaking the page.
+let monitorCfg = {}
+try {
+  monitorCfg = monitor && monitor.config ? JSON.parse(monitor.config) : {}
+}
+catch (err) {
+  monitorCfg = {}
+}
+function cfgValue(key) {
+  const value = monitorCfg[key]
+  if (value === undefined || value === null) return ''
+  return Array.isArray(value) ? value.join(', ') : value
+}
+
+const heartbeatRow = (monitor && monitor.type === 'cron')
+  ? (await db.selectFrom('heartbeat_monitors').where('monitor_id', '=', monitor.id).limit(1).execute())[0] || null
+  : null
+
+const monitorTypes = [
+  { value: 'uptime', label: 'Uptime (HTTP)' },
+  { value: 'ping', label: 'Ping (ICMP)' },
+  { value: 'tcp_port', label: 'TCP port' },
+  { value: 'ssl', label: 'SSL certificate' },
+  { value: 'domain', label: 'Domain expiry' },
+  { value: 'dns', label: 'DNS records' },
+  { value: 'dns_blocklist', label: 'DNS blocklist' },
+  { value: 'health', label: 'Health check (JSON)' },
+  { value: 'cron', label: 'Heartbeat / cron job' },
+  { value: 'performance', label: 'Performance' },
+  { value: 'lighthouse', label: 'Lighthouse audit' },
+  { value: 'broken_links', label: 'Broken links crawl' },
+  { value: 'port_scan', label: 'Port scan' },
+  { value: 'ai_check', label: 'AI check' },
+]
 const RANGE_CONFIG = {
   '24h': { sinceMs: 24 * 60 * 60 * 1000, granularity: 'hour' },
   '7d': { sinceMs: 7 * 24 * 60 * 60 * 1000, granularity: 'day' },
@@ -628,6 +684,16 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
         <data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data>
       </div>
     </header>
+
+    @if (flashCreated)
+      <div class="flash">Monitor created. Checks start on the next dispatch, within a minute.</div>
+    @endif
+    @if (flashSaved)
+      <div class="flash">Changes saved.</div>
+    @endif
+    @if (formError && formErrorLabel(formError))
+      <div class="flash error">{{ formErrorLabel(formError) }}</div>
+    @endif
 
     <dl class="stat-grid">
       <div class="stat-card">
@@ -1115,6 +1181,164 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
           @endforeach
         </div>
       @endif
+    </section>
+
+    {{-- Edit + delete. Collapsed by default (native <details>, no client JS
+         by the app's convention) so the settings never crowd the telemetry
+         an operator opened this page for. --}}
+    <section class="card" aria-label="Monitor settings" style="margin-top: 1.25rem;">
+      <details>
+        <summary class="card-head" style="cursor: pointer;">
+          <h2 style="display: inline;">Settings</h2>
+          <span class="sub">Edit or delete this monitor</span>
+        </summary>
+        <div class="card-body">
+          <form method="POST" action="/api/monitor-forms/{{ monitor.id }}/update">
+            <div class="form-row">
+              <div class="field">
+                <label for="edit-name">Name</label>
+                <input id="edit-name" type="text" name="name" required maxlength="150" class="input" value="{{ monitor.name }}" />
+              </div>
+              <div class="field">
+                <label for="edit-type">Type</label>
+                <select id="edit-type" name="type" class="select">
+                  @foreach (monitorTypes as t)
+                    <option value="{{ t.value }}" {{ monitor.type === t.value ? 'selected' : '' }}>{{ t.label }}</option>
+                  @endforeach
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="edit-url">URL or host</label>
+              <input id="edit-url" type="text" name="url" required maxlength="2048" class="input" value="{{ monitor.url }}" />
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="edit-interval">Check every (seconds)</label>
+                <input id="edit-interval" type="number" name="check_interval_seconds" class="input" min="10" max="86400" step="1" value="{{ monitor.check_interval_seconds }}" />
+              </div>
+              <div class="field">
+                <label for="edit-enabled">Status</label>
+                <select id="edit-enabled" name="enabled" class="select">
+                  <option value="true" {{ monitor.enabled ? 'selected' : '' }}>Enabled</option>
+                  <option value="false" {{ monitor.enabled ? '' : 'selected' }}>Disabled — stop checking</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="edit-port">TCP port</label>
+                <input id="edit-port" type="number" name="port" class="input" min="1" max="65535" value="{{ cfgValue('port') }}" />
+              </div>
+              <div class="field">
+                <label for="edit-path">Health path</label>
+                <input id="edit-path" type="text" name="path" class="input" value="{{ cfgValue('path') }}" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="edit-latency">Degraded above (ms)</label>
+                <input id="edit-latency" type="number" name="latency_threshold_ms" class="input" min="0" max="600000" value="{{ cfgValue('latencyThresholdMs') }}" />
+              </div>
+              <div class="field">
+                <label for="edit-ping-count">Ping packets</label>
+                <input id="edit-ping-count" type="number" name="ping_count" class="input" min="1" max="10" value="{{ cfgValue('pingCount') }}" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="edit-loss">Degraded above packet loss (%)</label>
+                <input id="edit-loss" type="number" name="packet_loss_threshold_percent" class="input" min="0" max="100" value="{{ cfgValue('packetLossThresholdPercent') }}" />
+              </div>
+              <div class="field">
+                <label for="edit-origin-ip">Origin IP</label>
+                <input id="edit-origin-ip" type="text" name="origin_ip" class="input" value="{{ cfgValue('origin_ip') }}" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="edit-expected-ports">Expected open ports</label>
+                <input id="edit-expected-ports" type="text" name="expected_ports" class="input" value="{{ cfgValue('expectedPorts') }}" />
+              </div>
+              <div class="field">
+                <label for="edit-device">Lighthouse device</label>
+                <select id="edit-device" name="lighthouse_device" class="select">
+                  <option value="mobile" {{ cfgValue('device') === 'desktop' ? '' : 'selected' }}>Mobile</option>
+                  <option value="desktop" {{ cfgValue('device') === 'desktop' ? 'selected' : '' }}>Desktop</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="edit-full-scan">
+                <input id="edit-full-scan" type="checkbox" name="full_scan" value="on" {{ cfgValue('fullScan') ? 'checked' : '' }} /> Scan all 65535 ports
+              </label>
+            </div>
+
+            <div class="field">
+              <label for="edit-fingerprint">
+                <input id="edit-fingerprint" type="checkbox" name="alert_on_fingerprint_change" value="on" {{ cfgValue('alertOnFingerprintChange') ? 'checked' : '' }} /> Alert when the TLS fingerprint changes
+              </label>
+            </div>
+
+            @if (monitor.type === 'cron')
+              <div class="form-row">
+                <div class="field">
+                  <label for="edit-expected-interval">Expected every (seconds)</label>
+                  <input id="edit-expected-interval" type="number" name="expected_interval_seconds" class="input" min="60" value="{{ heartbeatRow ? heartbeatRow.expected_interval_seconds : 3600 }}" />
+                </div>
+                <div class="field">
+                  <label for="edit-grace">Grace period (seconds)</label>
+                  <input id="edit-grace" type="number" name="grace_seconds" class="input" min="0" max="86400" value="{{ heartbeatRow ? heartbeatRow.grace_seconds : 300 }}" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="edit-cron">Cron expression</label>
+                <input id="edit-cron" type="text" name="cron_expression" class="input" value="{{ heartbeatRow && heartbeatRow.cron_expression ? heartbeatRow.cron_expression : '' }}" />
+              </div>
+            @endif
+
+            <div class="field">
+              <label for="edit-metrics">
+                <input id="edit-metrics" type="checkbox" name="reports_metrics" value="on" {{ monitor.reports_metrics ? 'checked' : '' }} /> This host pushes CPU, memory and disk samples
+              </label>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="edit-cpu">CPU alert above (%)</label>
+                <input id="edit-cpu" type="number" name="cpu_threshold" class="input" min="0" max="100" value="{{ cfgValue('cpuThreshold') }}" />
+              </div>
+              <div class="field">
+                <label for="edit-ram">Memory alert above (%)</label>
+                <input id="edit-ram" type="number" name="ram_threshold" class="input" min="0" max="100" value="{{ cfgValue('ramThreshold') }}" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="edit-disk">Disk alert above (%)</label>
+              <input id="edit-disk" type="number" name="disk_threshold" class="input" min="0" max="100" value="{{ cfgValue('diskThreshold') }}" />
+            </div>
+
+            <div class="actions">
+              <button type="submit" class="button primary">Save changes</button>
+            </div>
+          </form>
+
+          <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid var(--border);" />
+
+          <form method="POST" action="/api/monitor-forms/{{ monitor.id }}/delete" onsubmit="return confirm('Delete this monitor? Its check history, incidents and alert routing are deleted with it. This cannot be undone.')">
+            <p class="help">Deleting removes this monitor's check history, incidents, certificates and alert routing. There is no undo.</p>
+            <button type="submit" class="button danger">Delete monitor</button>
+          </form>
+        </div>
+      </details>
     </section>
 
     <footer class="app-foot">

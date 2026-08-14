@@ -1,0 +1,301 @@
+<!--
+  New monitor — dashboard page.
+
+  The product could not be set up without curl before this existed: the
+  monitors list's empty state told operators to "create a monitor via the
+  API". This is the plain-HTML counterpart to POST /api/monitors, posting to
+  /api/monitor-forms/create (DashboardCreateMonitorAction), which enforces
+  the same plan limits and additionally validates every field — the JSON
+  action runs no validation, because Monitor.create does not execute the
+  model's schema rules.
+
+  No client JS by the app's convention, so the type-specific options can't
+  show/hide as the type changes: they live in one always-visible "Advanced
+  options" block, each labelled with the types it applies to. The action
+  only reads the keys that matter for the submitted type, so leaving the
+  rest blank is correct rather than merely harmless.
+
+  Visual language: the marketing site's design system (emerald accent,
+  Space Grotesk display, light + dark) via partials/app-head.stx +
+  app-nav.stx, so the app reads as the same product as the site.
+-->
+<script server>
+const { resolveTeamContext } = require('@stacksjs/auth')
+const { db } = require('@stacksjs/database')
+
+// Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
+// which honors the workspace-switcher cookie (see dashboard/index.stx for
+// the full note). allowAnyTeam lets a super-admin act for any team.
+const TEAM_CTX = await resolveTeamContext(
+  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  { allowAnyTeam: u => !!(u && u.is_super_admin) },
+)
+const AUTH_USER = TEAM_CTX.user
+const TEAM_ID = TEAM_CTX.teamId ?? -1
+const NAV_ACTIVE = 'monitors'
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const errorCode = query.get('error') || ''
+const planLimit = query.get('limit') || ''
+const planFloor = query.get('floor') || ''
+
+// One banner, keyed by the code the action redirects with. Wording lives
+// here with the rest of the page copy; the action only names the problem.
+function errorLabel(code) {
+  if (code === 'name_required') return 'Give the monitor a name.'
+  if (code === 'name_too_long') return 'That name is longer than 150 characters.'
+  if (code === 'type_invalid') return 'Pick a monitor type from the list.'
+  if (code === 'url_required') return 'Enter what to monitor.'
+  if (code === 'url_too_long') return 'That URL is longer than 2048 characters.'
+  if (code === 'url_scheme') return 'This check type needs a full http:// or https:// URL.'
+  if (code === 'url_invalid') return 'That does not look like a hostname or URL.'
+  if (code === 'interval_invalid') return 'The check interval must be a whole number of seconds, at least 10.'
+  if (code === 'plan_monitors') return `Your plan allows ${planLimit || 'a limited number of'} monitors. Delete one or upgrade to add more.`
+  if (code === 'plan_interval') return `Your plan checks at most every ${planFloor || '300'} seconds. Upgrade to check more often.`
+  return ''
+}
+
+// Type options, ordered the way an operator thinks about them (the common
+// availability checks first). Kept in the view rather than imported from
+// app/lib because an stx server script is a separate module graph.
+const monitorTypes = [
+  { value: 'uptime', label: 'Uptime (HTTP)', hint: 'GET the URL and alert when it stops answering 2xx/3xx.' },
+  { value: 'ping', label: 'Ping (ICMP)', hint: 'Round-trip time and packet loss to a host.' },
+  { value: 'tcp_port', label: 'TCP port', hint: 'Open a socket to a port and alert when it refuses.' },
+  { value: 'ssl', label: 'SSL certificate', hint: 'Expiry warnings at 30/14/7/1 days, plus fingerprint changes.' },
+  { value: 'domain', label: 'Domain expiry', hint: 'WHOIS registration and expiry warnings.' },
+  { value: 'dns', label: 'DNS records', hint: 'Snapshot A/AAAA/MX/TXT/NS/CAA and alert on changes.' },
+  { value: 'dns_blocklist', label: 'DNS blocklist', hint: 'Check the origin IP against Spamhaus, Barracuda, SORBS, SpamCop.' },
+  { value: 'health', label: 'Health check (JSON)', hint: 'Fetch a JSON endpoint and assert on its fields.' },
+  { value: 'cron', label: 'Heartbeat / cron job', hint: 'A job pings a URL when it runs; alert when the ping is late.' },
+  { value: 'performance', label: 'Performance', hint: 'Alert when response time regresses against its own baseline.' },
+  { value: 'lighthouse', label: 'Lighthouse audit', hint: 'Performance/accessibility/SEO scores, with regression alerts.' },
+  { value: 'broken_links', label: 'Broken links crawl', hint: 'Crawl the site and report 4xx/5xx links and mixed content.' },
+  { value: 'port_scan', label: 'Port scan', hint: 'Alert when an unexpected port opens or an expected one closes.' },
+  { value: 'ai_check', label: 'AI check', hint: 'Verify a plain-English assertion about the page.' },
+]
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+// Real document title + noindex for the app surface (the serve wrapper
+// otherwise stamps every fragment 'stx App'). useHead is the sanctioned
+// per-page head hook for fragment views.
+useHead({ title: 'New monitor · StatusHQ', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<main class="app-shell">
+  @if (!AUTH_USER)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to create a monitor.</p>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER)
+    <header class="page-head">
+      <div>
+        <h1>New monitor</h1>
+        <p class="meta">Checks start running as soon as you save.</p>
+      </div>
+      <div class="actions">
+        <StxLink to="/dashboard/monitors" class="button">Back to monitors</StxLink>
+      </div>
+    </header>
+
+    @if (errorCode && errorLabel(errorCode))
+      <div class="flash error">{{ errorLabel(errorCode) }}</div>
+    @endif
+
+    <form method="POST" action="/api/monitor-forms/create">
+      <section class="card" aria-label="Monitor basics">
+        <div class="card-head">
+          <h2>What to monitor</h2>
+          <span class="sub">Name it for the alert you want to read at 3am</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="field">
+              <label for="name">Name</label>
+              <input id="name" type="text" name="name" required maxlength="150" class="input" placeholder="Checkout API" />
+            </div>
+            <div class="field">
+              <label for="type">Type</label>
+              <select id="type" name="type" class="select">
+                @foreach (monitorTypes as t)
+                  <option value="{{ t.value }}">{{ t.label }}</option>
+                @endforeach
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="url">URL or host</label>
+            <input id="url" type="text" name="url" required maxlength="2048" class="input" placeholder="https://api.example.com/health" />
+            <p class="help">HTTP, health, SSL, Lighthouse, crawl and AI checks need a full http(s) URL. Ping, TCP, DNS, domain, blocklist and port-scan checks accept a bare hostname. For a heartbeat, use where the job runs — it is shown on the monitor page for reference.</p>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="check_interval_seconds">Check every (seconds)</label>
+              <input id="check_interval_seconds" type="number" name="check_interval_seconds" class="input" value="60" min="10" max="86400" step="1" />
+              <p class="help">Your plan sets the floor. Failing monitors back off automatically.</p>
+            </div>
+            <div class="field">
+              <label for="enabled">Status</label>
+              <select id="enabled" name="enabled" class="select">
+                <option value="true">Enabled — start checking now</option>
+                <option value="false">Disabled — create it, check later</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Type-specific options" style="margin-top: 1.25rem;">
+        <div class="card-head">
+          <h2>Options for this type</h2>
+          <span class="sub">Only the ones matching your type are used</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="field">
+              <label for="port">TCP port</label>
+              <input id="port" type="number" name="port" class="input" min="1" max="65535" placeholder="443" />
+              <p class="help">TCP port checks. Defaults to 443.</p>
+            </div>
+            <div class="field">
+              <label for="path">Health path</label>
+              <input id="path" type="text" name="path" class="input" placeholder="/health" />
+              <p class="help">Health checks. Resolved against the URL above.</p>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="latency_threshold_ms">Degraded above (ms)</label>
+              <input id="latency_threshold_ms" type="number" name="latency_threshold_ms" class="input" min="0" max="600000" placeholder="0" />
+              <p class="help">Uptime, TCP, health and ping checks. 0 disables.</p>
+            </div>
+            <div class="field">
+              <label for="ping_count">Ping packets</label>
+              <input id="ping_count" type="number" name="ping_count" class="input" min="1" max="10" placeholder="3" />
+              <p class="help">Ping checks. 1–10 per run.</p>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="packet_loss_threshold_percent">Degraded above packet loss (%)</label>
+              <input id="packet_loss_threshold_percent" type="number" name="packet_loss_threshold_percent" class="input" min="0" max="100" placeholder="0" />
+              <p class="help">Ping checks. 0 disables.</p>
+            </div>
+            <div class="field">
+              <label for="origin_ip">Origin IP</label>
+              <input id="origin_ip" type="text" name="origin_ip" class="input" placeholder="203.0.113.10" />
+              <p class="help">Blocklist checks. Set this when the host sits behind a CDN.</p>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="expected_ports">Expected open ports</label>
+              <input id="expected_ports" type="text" name="expected_ports" class="input" placeholder="22, 80, 443" />
+              <p class="help">Port scans. Alerts when one of these closes, or anything else opens.</p>
+            </div>
+            <div class="field">
+              <label for="lighthouse_device">Lighthouse device</label>
+              <select id="lighthouse_device" name="lighthouse_device" class="select">
+                <option value="mobile">Mobile</option>
+                <option value="desktop">Desktop</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="full_scan">
+              <input id="full_scan" type="checkbox" name="full_scan" value="on" /> Scan all 65535 ports
+            </label>
+            <p class="help">Port scans. Off scans the well-known 1–1024 range, which is much faster.</p>
+          </div>
+
+          <div class="field">
+            <label for="alert_on_fingerprint_change">
+              <input id="alert_on_fingerprint_change" type="checkbox" name="alert_on_fingerprint_change" value="on" /> Alert when the TLS fingerprint changes
+            </label>
+            <p class="help">SSL checks. Off by default — a renewal changes the fingerprint routinely.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Heartbeat options" style="margin-top: 1.25rem;">
+        <div class="card-head">
+          <h2>Heartbeat</h2>
+          <span class="sub">Heartbeat / cron type only</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="field">
+              <label for="expected_interval_seconds">Expected every (seconds)</label>
+              <input id="expected_interval_seconds" type="number" name="expected_interval_seconds" class="input" min="60" placeholder="3600" />
+              <p class="help">How often the job should ping. Ignored when a cron expression is set.</p>
+            </div>
+            <div class="field">
+              <label for="grace_seconds">Grace period (seconds)</label>
+              <input id="grace_seconds" type="number" name="grace_seconds" class="input" min="0" max="86400" placeholder="300" />
+              <p class="help">How late a ping may be before it counts as missed.</p>
+            </div>
+          </div>
+          <div class="field">
+            <label for="cron_expression">Cron expression</label>
+            <input id="cron_expression" type="text" name="cron_expression" class="input" placeholder="0 3 * * *" />
+            <p class="help">Optional. A 5-field expression or a nickname like @daily. Its ping URL is shown after you save.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Server metrics" style="margin-top: 1.25rem;">
+        <div class="card-head">
+          <h2>Server metrics</h2>
+          <span class="sub">Optional, works with any type</span>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label for="reports_metrics">
+              <input id="reports_metrics" type="checkbox" name="reports_metrics" value="on" /> This host pushes CPU, memory and disk samples
+            </label>
+            <p class="help">Turning this on issues an agent token. The install snippet appears on the monitor page after you save.</p>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label for="cpu_threshold">CPU alert above (%)</label>
+              <input id="cpu_threshold" type="number" name="cpu_threshold" class="input" min="0" max="100" placeholder="90" />
+            </div>
+            <div class="field">
+              <label for="ram_threshold">Memory alert above (%)</label>
+              <input id="ram_threshold" type="number" name="ram_threshold" class="input" min="0" max="100" placeholder="90" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="disk_threshold">Disk alert above (%)</label>
+            <input id="disk_threshold" type="number" name="disk_threshold" class="input" min="0" max="100" placeholder="85" />
+            <p class="help">0 disables a threshold. Defaults are 90/90/85.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions" style="margin-top: 1.25rem;">
+        <button type="submit" class="button primary">Create monitor</button>
+        <StxLink to="/dashboard/monitors" class="button">Cancel</StxLink>
+      </div>
+    </form>
+
+    <footer class="app-foot">
+      <span>Team {{ TEAM_ID }}</span>
+      <span>Updated {{ generatedAt }} UTC</span>
+    </footer>
+  @endif
+</main>
