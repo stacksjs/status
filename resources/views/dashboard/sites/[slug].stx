@@ -101,8 +101,11 @@ if (metricMon) {
     try { meta = JSON.parse(r.metadata || '{}') } catch {}
     const cpu = typeof meta.cpuPercent === 'number' ? meta.cpuPercent : null
     const ram = typeof meta.ramPercent === 'number' ? meta.ramPercent : null
-    if (cpu !== null || ram !== null)
-      samples.push({ t: Date.parse(r.checked_at), iso: r.checked_at, cpu, ram })
+    // Disk is ingested and threshold-alerted; plot it like the other two
+    // (see monitors/[id].stx for the same series).
+    const disk = typeof meta.diskPercent === 'number' ? meta.diskPercent : null
+    if (cpu !== null || ram !== null || disk !== null)
+      samples.push({ t: Date.parse(r.checked_at), iso: r.checked_at, cpu, ram, disk })
   }
   if (samples.length > 1) {
     const t0 = samples[0].t
@@ -110,20 +113,26 @@ if (metricMon) {
     const x = scaleLinear().domain([t0, t1 === t0 ? t0 + 1 : t1]).range([CHART.left, CHART.w - CHART.right])
     const y = scaleLinear().domain([0, 100]).range([CHART.h - CHART.bottom, CHART.top])
     const gen = key => chartLine().defined(d => typeof d[key] === 'number').x(d => x(d.t)).y(d => y(d[key])).curve(curveMonotoneX)(samples)
-    const latest = [...samples].reverse().find(s => s.cpu !== null || s.ram !== null)
+    const latest = [...samples].reverse().find(s => s.cpu !== null || s.ram !== null || s.disk !== null)
     const nowParts = []
     if (latest && latest.cpu !== null) nowParts.push(Math.round(latest.cpu) + '% CPU')
     if (latest && latest.ram !== null) nowParts.push(Math.round(latest.ram) + '% RAM')
+    if (latest && latest.disk !== null) nowParts.push(Math.round(latest.disk) + '% disk')
     const stepH = Math.max(1, Math.ceil(samples.length / 60))
     const hostHitW = (PLOT.right - PLOT.left) / Math.ceil(samples.length / stepH)
     const clock = iso => String(iso).slice(11, 16)
-    const sampleTip = s => clock(s.iso) + ' · '
-      + (s.cpu !== null ? Math.round(s.cpu) + '% CPU' : 'no CPU')
-      + (s.cpu !== null && s.ram !== null ? ' / ' : ' · ')
-      + (s.ram !== null ? Math.round(s.ram) + '% RAM' : 'no RAM')
+    const sampleTip = (s) => {
+      const parts = []
+      if (s.cpu !== null) parts.push(Math.round(s.cpu) + '% CPU')
+      if (s.ram !== null) parts.push(Math.round(s.ram) + '% RAM')
+      if (s.disk !== null) parts.push(Math.round(s.disk) + '% disk')
+      return clock(s.iso) + ' · ' + (parts.length ? parts.join(' / ') : 'no sample')
+    }
     hostChart = {
       cpuPath: gen('cpu') || '',
       ramPath: gen('ram') || '',
+      diskPath: gen('disk') || '',
+      hasDisk: samples.some(s => s.disk !== null),
       ticks: [0, 50, 100].map(t => ({ y: y(t).toFixed(1), label: t + '%' })),
       nowLabel: nowParts.length ? nowParts.join(' / ') : '--',
       hits: samples.filter((_s, i) => i % stepH === 0).map(s => ({ x: (x(s.t) - hostHitW / 2).toFixed(1), w: hostHitW.toFixed(1), tip: sampleTip(s) })),
@@ -251,6 +260,9 @@ useHead({ title: (siteHostName || 'Site') + ' · StatusHQ', meta: [{ name: 'robo
             @endforeach
             <path d="{{ hostChart.cpuPath }}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"></path>
             <path d="{{ hostChart.ramPath }}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round"></path>
+            @if (hostChart.hasDisk)
+              <path d="{{ hostChart.diskPath }}" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linejoin="round"></path>
+            @endif
             @foreach (hostChart.hits as hit)
               <rect class="chart-hit" x="{{ hit.x }}" y="{{ PLOT.top }}" width="{{ hit.w }}" height="{{ PLOT.bottom - PLOT.top }}" fill="transparent" data-tip="{{ hit.tip }}"></rect>
             @endforeach
@@ -258,6 +270,9 @@ useHead({ title: (siteHostName || 'Site') + ' · StatusHQ', meta: [{ name: 'robo
           <div class="mon-legend">
             <span style="color: var(--accent);">&#9632; CPU</span>
             <span style="color: var(--muted);">&#9632; RAM</span>
+            @if (hostChart.hasDisk)
+              <span style="color: var(--amber);">&#9632; Disk</span>
+            @endif
             <span style="margin-left: auto; font-weight: 400;"><StxLink to="/dashboard/monitors/{{ hostMonitor.id }}" style="color: var(--accent);">Full telemetry &rarr;</StxLink></span>
           </div>
         </div>

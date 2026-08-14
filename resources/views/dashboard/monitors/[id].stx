@@ -433,8 +433,12 @@ if (monitor && monitor.reports_metrics) {
     try { meta = JSON.parse(r.metadata || '{}') } catch {}
     const cpu = typeof meta.cpuPercent === 'number' ? meta.cpuPercent : null
     const ram = typeof meta.ramPercent === 'number' ? meta.ramPercent : null
-    if (cpu !== null || ram !== null)
-      samples.push({ t: Date.parse(r.checked_at), iso: r.checked_at, cpu, ram })
+    // diskPercent has been ingested and threshold-alerted since server
+    // metrics shipped, but was never plotted - an operator could be paged
+    // for a disk breach and find no chart of it anywhere.
+    const disk = typeof meta.diskPercent === 'number' ? meta.diskPercent : null
+    if (cpu !== null || ram !== null || disk !== null)
+      samples.push({ t: Date.parse(r.checked_at), iso: r.checked_at, cpu, ram, disk })
   }
 
   if (samples.length > 1) {
@@ -447,22 +451,28 @@ if (monitor && monitor.reports_metrics) {
       .x(d => x(d.t))
       .y(d => y(d[key]))
       .curve(curveMonotoneX)(samples)
-    const latest = [...samples].reverse().find(s => s.cpu !== null || s.ram !== null)
+    const latest = [...samples].reverse().find(s => s.cpu !== null || s.ram !== null || s.disk !== null)
     const nowParts = []
     if (latest && latest.cpu !== null) nowParts.push(Math.round(latest.cpu) + '% CPU')
     if (latest && latest.ram !== null) nowParts.push(Math.round(latest.ram) + '% RAM')
+    if (latest && latest.disk !== null) nowParts.push(Math.round(latest.disk) + '% disk')
     // Cap hover targets so a full day of per-minute samples (~1440) doesn't
     // emit 1440 <rect> hit columns; thin to at most ~60 evenly-spaced hits.
     const stepH = Math.max(1, Math.ceil(samples.length / 60))
     const hostHitW = (PLOT.right - PLOT.left) / Math.ceil(samples.length / stepH)
     const clock = iso => String(iso).slice(11, 16)
-    const sampleTip = s => clock(s.iso) + ' \u00b7 '
-      + (s.cpu !== null ? Math.round(s.cpu) + '% CPU' : 'no CPU')
-      + (s.cpu !== null && s.ram !== null ? ' / ' : ' \u00b7 ')
-      + (s.ram !== null ? Math.round(s.ram) + '% RAM' : 'no RAM')
+    const sampleTip = (s) => {
+      const parts = []
+      if (s.cpu !== null) parts.push(Math.round(s.cpu) + '% CPU')
+      if (s.ram !== null) parts.push(Math.round(s.ram) + '% RAM')
+      if (s.disk !== null) parts.push(Math.round(s.disk) + '% disk')
+      return clock(s.iso) + ' \u00b7 ' + (parts.length ? parts.join(' / ') : 'no sample')
+    }
     hostChart = {
       cpuPath: gen('cpu') || '',
       ramPath: gen('ram') || '',
+      diskPath: gen('disk') || '',
+      hasDisk: samples.some(s => s.disk !== null),
       ticks: [0, 50, 100].map(t => ({ y: y(t).toFixed(1), label: t + '%' })),
       nowLabel: nowParts.length ? nowParts.join(' / ') : '--',
       hits: samples.filter((_s, i) => i % stepH === 0).map(s => ({
@@ -788,6 +798,9 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
             @endforeach
             <path d="{{ hostChart.cpuPath }}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"></path>
             <path d="{{ hostChart.ramPath }}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round"></path>
+            @if (hostChart.hasDisk)
+              <path d="{{ hostChart.diskPath }}" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linejoin="round"></path>
+            @endif
             @foreach (hostChart.hits as hit)
               <rect class="chart-hit" x="{{ hit.x }}" y="{{ PLOT.top }}" width="{{ hit.w }}" height="{{ PLOT.bottom - PLOT.top }}" fill="transparent" data-tip="{{ hit.tip }}"></rect>
             @endforeach
@@ -795,6 +808,9 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
           <div class="mon-legend">
             <span style="color: var(--accent);">&#9632; CPU</span>
             <span style="color: var(--muted);">&#9632; RAM</span>
+            @if (hostChart.hasDisk)
+              <span style="color: var(--amber);">&#9632; Disk</span>
+            @endif
           </div>
         </div>
       </section>
@@ -807,7 +823,7 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
           <span class="sub">Cron push</span>
         </div>
         <div class="card-body">
-          <p class="subhead">Push CPU/RAM samples from this server on a cron schedule:</p>
+          <p class="subhead">Push CPU, memory and disk samples from this server on a cron schedule:</p>
           <pre class="code-block"># CPU averaged over 1s from /proc/stat. A single `top -bn1` sample reports
 # an instantaneous slice (and catches the cron's own spike), so it swings
 # wildly between 0 and 100 — this deltas the busy vs idle jiffies instead.
@@ -816,9 +832,11 @@ sleep 1
 read _ u n s i w q sq st _ &lt; /proc/stat; c=$((u+n+s+i+w+q+sq+st)); d=$((i+w))
 CPU=$(( (c-a) > 0 ? 100 * ((c-a)-(d-b)) / (c-a) : 0 ))
 read TOTAL USED &lt; &lt;(free -m | awk '/Mem:/{print $2, $3}')
+# Root filesystem use. Change the mount to watch a different volume.
+DISK=$(df -P / | awk 'NR==2{print $5}' | tr -d '%')
 curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
   -H 'Content-Type: application/json' \
-  -d "{\"cpuPercent\":$CPU,\"ramPercent\":$(( USED * 100 / TOTAL )),\"ramUsedMb\":$USED,\"ramTotalMb\":$TOTAL}"</pre>
+  -d "{\"cpuPercent\":$CPU,\"ramPercent\":$(( USED * 100 / TOTAL )),\"ramUsedMb\":$USED,\"ramTotalMb\":$TOTAL,\"diskPercent\":$DISK}"</pre>
         </div>
       </section>
     @endif
