@@ -136,7 +136,7 @@ useHead({ title: 'Incidents \u00b7 StatusHQ', meta: [{ name: 'robots', content: 
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to view your incidents.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -151,8 +151,8 @@ useHead({ title: 'Incidents \u00b7 StatusHQ', meta: [{ name: 'robots', content: 
     <div class="filter-bar">
       <div class="filter-group">
         <span class="lbl">View</span>
-        <a href="/dashboard/incidents" class="chip active">Incidents</a>
-        <a href="/dashboard/status-reports" class="chip">Announcements</a>
+        <StxLink to="/dashboard/incidents" class="chip active">Incidents</StxLink>
+        <StxLink to="/dashboard/status-reports" class="chip">Announcements</StxLink>
       </div>
     </div>
 
@@ -182,11 +182,11 @@ useHead({ title: 'Incidents \u00b7 StatusHQ', meta: [{ name: 'robots', content: 
     <div class="filter-bar">
       <div class="filter-group">
         <span class="lbl">Status</span>
-        <a href="{{ statusUrl('') }}" class="chip {{ filterStatus === '' ? 'active' : '' }}">All</a>
-        <a href="{{ statusUrl('investigating') }}" class="chip {{ filterStatus === 'investigating' ? 'active' : '' }}">Investigating</a>
-        <a href="{{ statusUrl('identified') }}" class="chip {{ filterStatus === 'identified' ? 'active' : '' }}">Identified</a>
-        <a href="{{ statusUrl('monitoring') }}" class="chip {{ filterStatus === 'monitoring' ? 'active' : '' }}">Monitoring</a>
-        <a href="{{ statusUrl('resolved') }}" class="chip {{ filterStatus === 'resolved' ? 'active' : '' }}">Resolved</a>
+        <StxLink to="{{ statusUrl('') }}" class="chip {{ filterStatus === '' ? 'active' : '' }}">All</StxLink>
+        <StxLink to="{{ statusUrl('investigating') }}" class="chip {{ filterStatus === 'investigating' ? 'active' : '' }}">Investigating</StxLink>
+        <StxLink to="{{ statusUrl('identified') }}" class="chip {{ filterStatus === 'identified' ? 'active' : '' }}">Identified</StxLink>
+        <StxLink to="{{ statusUrl('monitoring') }}" class="chip {{ filterStatus === 'monitoring' ? 'active' : '' }}">Monitoring</StxLink>
+        <StxLink to="{{ statusUrl('resolved') }}" class="chip {{ filterStatus === 'resolved' ? 'active' : '' }}">Resolved</StxLink>
       </div>
     </div>
 
@@ -194,7 +194,7 @@ useHead({ title: 'Incidents \u00b7 StatusHQ', meta: [{ name: 'robots', content: 
       <div class="empty">
         @if (filterStatus)
           <h3>No incidents match this filter</h3>
-          <p>Nothing on record with this status. <a href="{{ statusUrl('') }}">Clear the filter</a> to see everything.</p>
+          <p>Nothing on record with this status. <StxLink to="{{ statusUrl('') }}">Clear the filter</StxLink> to see everything.</p>
         @endif
         @if (!filterStatus)
           <h3>No incidents on record</h3>
@@ -214,13 +214,13 @@ useHead({ title: 'Incidents \u00b7 StatusHQ', meta: [{ name: 'robots', content: 
             <span class="tcell num">Duration</span>
           </div>
           @foreach (incidents as incident)
-            <a class="trow" href="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
+            <StxLink class="trow" to="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.5fr) minmax(0, 1fr) 130px 110px;">
               <span class="tcell"><data class="{{ incidentPill(incident.status) }}" value="{{ incident.status }}"><span class="dot"></span>{{ incidentLabel(incident.status) }}</data></span>
               <span class="tcell ellipsis name">{{ incident.cause }}</span>
               <span class="tcell sub ellipsis">{{ incident.monitor_name }}</span>
               <span class="tcell num"><time>{{ formatDate(incident.started_at) }}</time></span>
               <span class="tcell num">{{ durationLabel(incident.started_at, incident.resolved_at) }}{{ incident.resolved_at ? '' : '+' }}</span>
-            </a>
+            </StxLink>
           @endforeach
         </div>
       </section>

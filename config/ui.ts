@@ -85,12 +85,15 @@ export default {
     failOnViolation: false,
   },
 
-  // The app is a server-rendered MPA today: most pages are self-shelled
-  // documents where fragment swaps would break, which is why 118
-  // data-no-router escape hatches existed. Opting OUT of global link
-  // interception makes full-page loads the explicit default (and lets
-  // Phase 4 adopt StxLink per link group, the loghq/bughq end-state,
-  // instead of maintaining the opt-out carpet).
+  // Opt-IN navigation (the loghq/bughq end-state, adopted in migration
+  // Phase 4): only <StxLink> anchors SPA-navigate; every plain <a> is a
+  // full page load. StxLink is used for same-shell destinations
+  // (marketing<->marketing, dashboard<->dashboard); links that cross a
+  // shell family (marketing -> /login|/register|/dashboard, anything ->
+  // /status/*) stay plain anchors ON PURPOSE - a fragment swap across
+  // shells would inject one document family's content into another's.
+  // /api/* links (SSO/OAuth server redirects) also stay plain and keep
+  // an explicit data-no-router as documentation.
   router: {
     interceptAllLinks: false,
   },

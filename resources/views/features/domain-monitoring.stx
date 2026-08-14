@@ -72,8 +72,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Domains expire because a card lapsed or a registrar email went to a dead inbox. {{ appName }} reads the WHOIS record and warns you weeks ahead.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/features/ssl-monitoring">See SSL monitoring</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/features/ssl-monitoring">See SSL monitoring</StxLink>
           </div>
         </div>
       </section>

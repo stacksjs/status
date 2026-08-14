@@ -91,8 +91,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Every minute the checkout is down is an order that went somewhere else. {{ appName }} watches the whole funnel and the quiet failures around it.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/compare">See how it compares</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/compare">See how it compares</StxLink>
           </div>
         </div>
       </section>
@@ -117,10 +117,10 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
           <div class="split-copy">
             <h2 id="funnel-heading">Monitor the funnel, not just the homepage.</h2>
             <p>
-              A green homepage tells you nothing about the cart API. Give each step of the purchase path its own <a href="/features/uptime-monitoring">HTTP monitor</a>, so "the site is up but nobody can pay" stops being a thing you learn from support tickets.
+              A green homepage tells you nothing about the cart API. Give each step of the purchase path its own <StxLink to="/features/uptime-monitoring">HTTP monitor</StxLink>, so "the site is up but nobody can pay" stops being a thing you learn from support tickets.
             </p>
             <p>
-              For the pages where a 200 status is not proof of anything, <a href="/features/ai-checks">AI checks</a> load the page and verify a customer would actually see products, prices, and a working buy button.
+              For the pages where a 200 status is not proof of anything, <StxLink to="/features/ai-checks">AI checks</StxLink> load the page and verify a customer would actually see products, prices, and a working buy button.
             </p>
           </div>
           <div class="split-panel">
@@ -194,7 +194,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
               Once a day, a crawler walks your store link by link, up to 200 pages, respecting robots.txt. It records every 404, flags each http:// image or script that breaks the padlock on an https page, and cross-checks your sitemap for pages that fail even though nothing links to them anymore.
             </p>
             <p>
-              When it finds something, an incident opens and your channels are notified, the same as any outage. See <a href="/features/broken-links">broken-link monitoring</a>.
+              When it finds something, an incident opens and your channels are notified, the same as any outage. See <StxLink to="/features/broken-links">broken-link monitoring</StxLink>.
             </p>
           </div>
           <div class="split-panel">

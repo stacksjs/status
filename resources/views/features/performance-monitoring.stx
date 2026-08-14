@@ -77,8 +77,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             No thresholds to guess. {{ appName }} compares last hour's p95 against your 7-day baseline every 10 minutes and flags anything twice as slow.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/features/uptime-monitoring">See uptime monitoring</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/features/uptime-monitoring">See uptime monitoring</StxLink>
           </div>
         </div>
       </section>
@@ -185,7 +185,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
               Every degradation incident stores the recent p95, the baseline p95, and the cause as structured data alongside the human-readable summary. Route it to Slack for people or to a webhook for machines; either way, the evidence travels with the alert.
             </p>
             <p>
-              The response times behind it come from your regular checks, kept with <a href="/features/uptime-monitoring">90 days of uptime history</a>.
+              The response times behind it come from your regular checks, kept with <StxLink to="/features/uptime-monitoring">90 days of uptime history</StxLink>.
             </p>
           </div>
           <div class="split-panel">

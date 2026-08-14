@@ -95,8 +95,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Stop juggling one free-tier account per client. Monitor every site you ship from a single place, and give each client a status page on their own domain.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/features/status-pages">See client status pages</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/features/status-pages">See client status pages</StxLink>
           </div>
         </div>
       </section>
@@ -124,7 +124,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
               Put it on their custom domain with their logo and colors, and it reads as part of their site, not yours. There is no watermark, so the work stays under your name and theirs.
             </p>
             <p>
-              Public sites get a public page. Staging and internal tools get the same page behind a password or an email-domain check, so the client team can see it and nobody else can. See <a href="/features/status-pages">status pages</a>.
+              Public sites get a public page. Staging and internal tools get the same page behind a password or an email-domain check, so the client team can see it and nobody else can. See <StxLink to="/features/status-pages">status pages</StxLink>.
             </p>
           </div>
           <div class="split-panel">

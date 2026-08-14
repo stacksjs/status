@@ -101,7 +101,7 @@ useHead({ title: 'Announcements · StatusHQ', meta: [{ name: 'robots', content: 
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to manage announcements.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -116,8 +116,8 @@ useHead({ title: 'Announcements · StatusHQ', meta: [{ name: 'robots', content: 
     <div class="filter-bar">
       <div class="filter-group">
         <span class="lbl">Status</span>
-        <a href="/dashboard/incidents" class="chip">Incidents</a>
-        <a href="/dashboard/status-reports" class="chip active">Announcements</a>
+        <StxLink to="/dashboard/incidents" class="chip">Incidents</StxLink>
+        <StxLink to="/dashboard/status-reports" class="chip active">Announcements</StxLink>
       </div>
     </div>
 
@@ -142,12 +142,12 @@ useHead({ title: 'Announcements · StatusHQ', meta: [{ name: 'robots', content: 
             <span class="tcell num">Started</span>
           </div>
           @foreach (reports as report)
-            <a class="trow" href="/dashboard/status-reports/{{ report.id }}" style="grid-template-columns: minmax(0, 1.5fr) 140px 100px 160px;">
+            <StxLink class="trow" to="/dashboard/status-reports/{{ report.id }}" style="grid-template-columns: minmax(0, 1.5fr) 140px 100px 160px;">
               <span class="tcell ellipsis name">{{ report.title }}</span>
               <span class="tcell"><data class="{{ statusClass(report.status) }}" value="{{ report.status }}"><span class="dot"></span>{{ statusLabel(report.status) }}</data></span>
               <span class="tcell num">{{ monitorCount[report.id] || 0 }}</span>
               <span class="tcell num"><time>{{ dateLabel(report.started_at) }}</time></span>
-            </a>
+            </StxLink>
           @endforeach
         </div>
       </section>

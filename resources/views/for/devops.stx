@@ -91,7 +91,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Monitors you click together drift out of date by the next sprint. Here, every monitor is a JSON endpoint, so your pipeline keeps monitoring honest.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Read the source</a>
           </div>
         </div>
@@ -120,7 +120,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
               Ship a new service and its monitor in the same pipeline run: one POST creates the monitor, a second one triggers an immediate out-of-band check, so the deploy job itself confirms the service answers from the outside before it reports green.
             </p>
             <p>
-              Incidents and <a href="/features/status-pages">status pages</a> are the same story: plain JSON, no separate "automation tier". If the dashboard can do it, curl can do it.
+              Incidents and <StxLink to="/features/status-pages">status pages</StxLink> are the same story: plain JSON, no separate "automation tier". If the dashboard can do it, curl can do it.
             </p>
           </div>
           <div class="split-panel">
@@ -144,7 +144,7 @@ curl -X POST https://statushq.org/api/monitors/42/check \
               The one that silently stops running is. A heartbeat monitor inverts the logic: your script curls a ping URL as its last line, on the success path only, and {{ appName }} alerts when the ping stops arriving within the grace period.
             </p>
             <p>
-              The same pattern covers queue workers, certificate renewal jobs, and anything else that only fails by going quiet. See <a href="/features/cron-monitoring">cron &amp; heartbeat monitoring</a>.
+              The same pattern covers queue workers, certificate renewal jobs, and anything else that only fails by going quiet. See <StxLink to="/features/cron-monitoring">cron &amp; heartbeat monitoring</StxLink>.
             </p>
           </div>
           <div class="split-panel">

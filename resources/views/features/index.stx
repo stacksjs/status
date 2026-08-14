@@ -144,7 +144,7 @@ useHead({
             From a 30-second HTTP check to a full Lighthouse audit, every monitor type lives here. Open source, self-hostable, one place to look.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">View on GitHub</a>
           </div>
         </div>

@@ -79,7 +79,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Blocklistings fail silently: your app works, your mail just stops arriving. {{ appName }} checks the lists so your customers do not have to.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
           </div>
         </div>

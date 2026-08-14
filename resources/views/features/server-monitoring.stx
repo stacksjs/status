@@ -77,8 +77,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             External checks tell you the site still answers. A small push agent adds CPU and memory from inside the server, so you see trouble building.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/features/uptime-monitoring">See uptime monitoring</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/features/uptime-monitoring">See uptime monitoring</StxLink>
           </div>
         </div>
       </section>
@@ -162,7 +162,7 @@ curl -fsS -X POST \
           <div>
             <h2 id="edge-heading">Most uptime tools stop at the network edge.</h2>
             <p>
-              Oh Dear, for one, offers no server metrics at all: the inside of the machine is your problem. {{ appName }} treats the host as part of the same story as the endpoint, in one dashboard, on one incident timeline. <a href="/compare" style="color: var(--fg); font-weight: 600; border-bottom: 1px solid var(--border-strong);">See the full comparison</a> for the feature-by-feature view.
+              Oh Dear, for one, offers no server metrics at all: the inside of the machine is your problem. {{ appName }} treats the host as part of the same story as the endpoint, in one dashboard, on one incident timeline. <StxLink to="/compare" style="color: var(--fg); font-weight: 600; border-bottom: 1px solid var(--border-strong);">See the full comparison</StxLink> for the feature-by-feature view.
             </p>
           </div>
           <div class="oss-code">POST /api/agent/&lt;token&gt;/metrics</div>

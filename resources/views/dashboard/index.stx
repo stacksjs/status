@@ -216,7 +216,7 @@ useHead({ title: 'Overview · StatusHQ', meta: [{ name: 'robots', content: 'noin
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to view your overview.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -227,7 +227,7 @@ useHead({ title: 'Overview · StatusHQ', meta: [{ name: 'robots', content: 'noin
         <p class="meta">{{ siteCount }} site{{ siteCount === 1 ? '' : 's' }} &middot; {{ monitorCount }} monitor{{ monitorCount === 1 ? '' : 's' }} &middot; {{ statusPageCount }} status page{{ statusPageCount === 1 ? '' : 's' }}</p>
       </div>
       <div class="actions">
-        <a class="button" href="/dashboard/monitors" data-no-router>View all monitors</a>
+        <StxLink class="button" to="/dashboard/monitors">View all monitors</StxLink>
       </div>
     </header>
 
@@ -262,13 +262,13 @@ useHead({ title: 'Overview · StatusHQ', meta: [{ name: 'robots', content: 'noin
       @if (siteCount === 0)
         <div class="empty">
           <h3>No sites yet</h3>
-          <p>Add a monitor and its domain shows up here as a site. <a href="/dashboard/monitors">Go to monitors</a>.</p>
+          <p>Add a monitor and its domain shows up here as a site. <StxLink to="/dashboard/monitors">Go to monitors</StxLink>.</p>
         </div>
       @endif
       @if (siteCount > 0)
         <div class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
           @foreach (sites as site)
-            <a class="group relative flex flex-col gap-3 overflow-hidden rounded-card border border-subtle bg-surface p-4 pl-5 text-inherit no-underline transition duration-150 hover:-translate-y-0.5 hover:border-strong hover:shadow-[0_16px_34px_-20px_rgba(11,15,13,0.32)]" href="/dashboard/sites/{{ site.slug }}">
+            <StxLink class="group relative flex flex-col gap-3 overflow-hidden rounded-card border border-subtle bg-surface p-4 pl-5 text-inherit no-underline transition duration-150 hover:-translate-y-0.5 hover:border-strong hover:shadow-[0_16px_34px_-20px_rgba(11,15,13,0.32)]" to="/dashboard/sites/{{ site.slug }}">
               <span class="absolute inset-y-0 left-0 w-[3px] {{ site.railClass }}" aria-hidden="true"></span>
               <div class="flex items-center justify-between">
                 <data class="{{ site.pillClass }}" value="{{ site.status }}"><span class="dot"></span>{{ site.statusLabel }}</data>
@@ -280,10 +280,10 @@ useHead({ title: 'Overview · StatusHQ', meta: [{ name: 'robots', content: 'noin
                 <span aria-hidden="true">&middot;</span>
                 <span><time>{{ site.checkedLabel }}</time></span>
               </div>
-            </a>
+            </StxLink>
           @endforeach
         </div>
-        <a href="/dashboard/monitors" data-no-router class="mt-4 inline-block text-[0.85rem] font-semibold text-accent">View all {{ monitorCount }} monitors &rarr;</a>
+        <StxLink to="/dashboard/monitors" class="mt-4 inline-block text-[0.85rem] font-semibold text-accent">View all {{ monitorCount }} monitors &rarr;</StxLink>
       @endif
     </section>
 
@@ -309,12 +309,12 @@ useHead({ title: 'Overview · StatusHQ', meta: [{ name: 'robots', content: 'noin
             <span class="tcell num">Opened</span>
           </div>
           @foreach (openIncidents as incident)
-            <a class="trow" href="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.6fr) minmax(0, 1fr) 110px;">
+            <StxLink class="trow" to="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.6fr) minmax(0, 1fr) 110px;">
               <span class="tcell"><data class="{{ incidentPill(incident.status) }}" value="{{ incident.status }}"><span class="dot"></span>{{ incidentLabel(incident.status) }}</data></span>
               <span class="tcell ellipsis name">{{ incident.cause }}</span>
               <span class="tcell sub ellipsis">{{ incident.monitor_name }}</span>
               <span class="tcell num"><time>{{ agoLabel(incident.started_at) }}</time></span>
-            </a>
+            </StxLink>
           @endforeach
         </div>
       @endif
@@ -329,7 +329,7 @@ useHead({ title: 'Overview · StatusHQ', meta: [{ name: 'robots', content: 'noin
         <div class="card-body">
           <div class="empty" style="border: 0; padding: 1.5rem 0;">
             <h3>No status pages yet</h3>
-            <p>A status page gives your users a public view of your monitors. <a href="/dashboard/status-pages">Create your first one</a>.</p>
+            <p>A status page gives your users a public view of your monitors. <StxLink to="/dashboard/status-pages">Create your first one</StxLink>.</p>
           </div>
         </div>
       @endif
@@ -341,11 +341,11 @@ useHead({ title: 'Overview · StatusHQ', meta: [{ name: 'robots', content: 'noin
             <span class="tcell num">Visibility</span>
           </div>
           @foreach (statusPages as page)
-            <a class="trow" href="/dashboard/status-pages/{{ page.id }}" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 110px;">
+            <StxLink class="trow" to="/dashboard/status-pages/{{ page.id }}" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 110px;">
               <span class="tcell ellipsis name">{{ page.title }}</span>
               <span class="tcell sub ellipsis">/status/{{ page.slug }}</span>
               <span class="tcell num"><data class="{{ page.is_public ? 'pill pill-up' : 'pill pill-unknown' }}" value="{{ page.is_public }}"><span class="dot"></span>{{ page.is_public ? 'Public' : 'Hidden' }}</data></span>
-            </a>
+            </StxLink>
           @endforeach
         </div>
       @endif

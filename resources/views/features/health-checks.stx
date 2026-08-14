@@ -76,8 +76,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Expose a health route that returns ok, degraded, or down. {{ appName }} calls it on a schedule, keeps the history, and owns the alerting.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/features/uptime-monitoring">See uptime monitoring</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/features/uptime-monitoring">See uptime monitoring</StxLink>
           </div>
         </div>
       </section>

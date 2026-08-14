@@ -77,7 +77,7 @@ useHead({
             Everything {{ appName }} monitors, and how to wire it up. New here? Start with the four steps below — most teams have their first alert routed in a few minutes.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start free</a>
+            <a class="button primary" href="/register">Start free</a>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host &amp; source</a>
           </div>
         </div>
@@ -125,11 +125,11 @@ useHead({
             <p>Run the whole stack yourself — it is open source and built on the Stacks framework. Setup and deploy instructions live in the repo README.</p>
             <span class="card-more">Open the repo</span>
           </a>
-          <a class="feature-card" href="/compare">
+          <StxLink class="feature-card" to="/compare">
             <h3>Compare</h3>
             <p>How {{ appName }} stacks up against Oh Dear and rolling your own with open-source pieces.</p>
             <span class="card-more">See the comparison</span>
-          </a>
+          </StxLink>
           <a class="feature-card" href="https://github.com/stacksjs/status/issues" target="_blank" rel="noopener">
             <h3>Ask a question</h3>
             <p>Something missing from these docs? Open an issue and we will fill the gap.</p>

@@ -73,8 +73,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Run real Lighthouse audits on a schedule, keep every score in history, and get an incident when performance drops 15 points.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/features/performance-monitoring">See performance monitoring</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/features/performance-monitoring">See performance monitoring</StxLink>
           </div>
         </div>
       </section>

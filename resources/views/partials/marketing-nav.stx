@@ -5,75 +5,75 @@
 -->
 <nav class="site-nav">
   <div class="site-shell nav-inner">
-    <a class="brand" href="/" aria-label="{{ appName }} home">
+    <StxLink class="brand" to="/" aria-label="{{ appName }} home">
       <span class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg>
       </span>
       <span class="brand-name">{{ appName }}</span>
-    </a>
+    </StxLink>
     <div class="nav-links" aria-label="Primary navigation">
       <div class="nav-item">
-        <a href="/features">Features<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg></a>
+        <StxLink to="/features">Features<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg></StxLink>
         <div class="nav-mega features">
           <div class="nav-mega-inner">
             <div class="mega-group">
               <h5>Availability</h5>
-              <a href="/features/uptime-monitoring">Uptime</a>
-              <a href="/features/ping-monitoring">Ping</a>
-              <a href="/features/tcp-port-monitoring">TCP port</a>
-              <a href="/features/cron-monitoring">Cron &amp; heartbeats</a>
-              <a href="/features/health-checks">Health checks</a>
+              <StxLink to="/features/uptime-monitoring">Uptime</StxLink>
+              <StxLink to="/features/ping-monitoring">Ping</StxLink>
+              <StxLink to="/features/tcp-port-monitoring">TCP port</StxLink>
+              <StxLink to="/features/cron-monitoring">Cron &amp; heartbeats</StxLink>
+              <StxLink to="/features/health-checks">Health checks</StxLink>
             </div>
             <div class="mega-group">
               <h5>Certificates &amp; DNS</h5>
-              <a href="/features/ssl-monitoring">SSL certificates</a>
-              <a href="/features/domain-monitoring">Domains</a>
-              <a href="/features/dns-monitoring">DNS records</a>
-              <a href="/features/dns-blocklist-monitoring">DNS blocklists</a>
+              <StxLink to="/features/ssl-monitoring">SSL certificates</StxLink>
+              <StxLink to="/features/domain-monitoring">Domains</StxLink>
+              <StxLink to="/features/dns-monitoring">DNS records</StxLink>
+              <StxLink to="/features/dns-blocklist-monitoring">DNS blocklists</StxLink>
             </div>
             <div class="mega-group">
               <h5>Performance &amp; ops</h5>
-              <a href="/features/performance-monitoring">Performance</a>
-              <a href="/features/lighthouse-monitoring">Lighthouse</a>
-              <a href="/features/broken-links">Broken links</a>
-              <a href="/features/server-monitoring">Server metrics</a>
-              <a href="/features/ai-checks">AI checks</a>
+              <StxLink to="/features/performance-monitoring">Performance</StxLink>
+              <StxLink to="/features/lighthouse-monitoring">Lighthouse</StxLink>
+              <StxLink to="/features/broken-links">Broken links</StxLink>
+              <StxLink to="/features/server-monitoring">Server metrics</StxLink>
+              <StxLink to="/features/ai-checks">AI checks</StxLink>
             </div>
             <div class="mega-foot">
               <div class="mega-foot-links">
-                <a href="/features/status-pages">Status pages</a>
-                <a href="/features/incident-management">Incidents</a>
-                <a href="/features/notifications">Notifications</a>
+                <StxLink to="/features/status-pages">Status pages</StxLink>
+                <StxLink to="/features/incident-management">Incidents</StxLink>
+                <StxLink to="/features/notifications">Notifications</StxLink>
               </div>
-              <a class="mega-all" href="/features">All features<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+              <StxLink class="mega-all" to="/features">All features<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg></StxLink>
             </div>
           </div>
         </div>
       </div>
       <div class="nav-item">
-        <a href="/for">Use cases<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg></a>
+        <StxLink to="/for">Use cases<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg></StxLink>
         <div class="nav-mega usecases">
           <div class="nav-mega-inner">
-            <a class="mega-link" href="/for/agencies"><strong>Agencies</strong><span>Monitor every client site from one dashboard.</span></a>
-            <a class="mega-link" href="/for/saas"><strong>SaaS teams</strong><span>Uptime, status pages, and on-call for your product.</span></a>
-            <a class="mega-link" href="/for/ecommerce"><strong>E-commerce</strong><span>Catch checkout and payment outages fast.</span></a>
-            <a class="mega-link" href="/for/devops"><strong>DevOps &amp; SRE</strong><span>Heartbeats, health checks, and server metrics.</span></a>
-            <a class="mega-link" href="/for/stacks-developers"><strong>Stacks developers</strong><span>Drop-in monitoring for Stacks apps.</span></a>
-            <a class="mega-link" href="/compare"><strong>Compare</strong><span>See how we stack up against the alternatives.</span></a>
+            <StxLink class="mega-link" to="/for/agencies"><strong>Agencies</strong><span>Monitor every client site from one dashboard.</span></StxLink>
+            <StxLink class="mega-link" to="/for/saas"><strong>SaaS teams</strong><span>Uptime, status pages, and on-call for your product.</span></StxLink>
+            <StxLink class="mega-link" to="/for/ecommerce"><strong>E-commerce</strong><span>Catch checkout and payment outages fast.</span></StxLink>
+            <StxLink class="mega-link" to="/for/devops"><strong>DevOps &amp; SRE</strong><span>Heartbeats, health checks, and server metrics.</span></StxLink>
+            <StxLink class="mega-link" to="/for/stacks-developers"><strong>Stacks developers</strong><span>Drop-in monitoring for Stacks apps.</span></StxLink>
+            <StxLink class="mega-link" to="/compare"><strong>Compare</strong><span>See how we stack up against the alternatives.</span></StxLink>
           </div>
         </div>
       </div>
-      <a href="/compare">Compare</a>
+      <StxLink to="/compare">Compare</StxLink>
       <a href="/#pricing">Pricing</a>
-      <a href="/docs" data-no-router>Docs</a>
+      <StxLink to="/docs">Docs</StxLink>
     </div>
     <div class="nav-right">
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36-1.41-1.41M6.05 6.05 4.64 4.64m14.72 0-1.41 1.41M6.05 17.95l-1.41 1.41"/><circle cx="12" cy="12" r="4.5"/></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
       </button>
-      <a class="button" href="/login" data-no-router>Sign in</a>
-      <a class="button primary" href="/register" data-no-router>Get started</a>
+      <a class="button" href="/login">Sign in</a>
+      <a class="button primary" href="/register">Get started</a>
     </div>
   </div>
 </nav>

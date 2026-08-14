@@ -117,14 +117,14 @@ useHead({ title: (report ? report.title + ' · StatusHQ' : 'Announcement · Stat
     <div class="empty" style="margin: 3rem 0;">
       <h3>Announcement not found</h3>
       <p>This announcement does not exist for your team, or your session has expired.</p>
-      <div class="actions"><a class="button" href="/dashboard/status-reports">Back to announcements</a></div>
+      <div class="actions"><StxLink class="button" to="/dashboard/status-reports">Back to announcements</StxLink></div>
     </div>
   @endif
 
   @if (report)
     <header class="page-head">
       <div>
-        <div class="crumb"><a href="/dashboard/status-reports">Announcements</a></div>
+        <div class="crumb"><StxLink to="/dashboard/status-reports">Announcements</StxLink></div>
         <h1>{{ report.title }}</h1>
         <p class="meta">
           <data class="{{ statusClass(report.status) }}" value="{{ report.status }}"><span class="dot"></span>{{ statusLabel(report.status) }}</data>

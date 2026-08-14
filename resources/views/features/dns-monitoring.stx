@@ -72,7 +72,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             DNS changes are silent until customers cannot reach you. {{ appName }} snapshots six record types on every check and tells you exactly what changed.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
           </div>
         </div>

@@ -186,7 +186,7 @@ useHead({ title: (siteHostName || 'Site') + ' · StatusHQ', meta: [{ name: 'robo
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to view this site.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -194,12 +194,12 @@ useHead({ title: (siteHostName || 'Site') + ' · StatusHQ', meta: [{ name: 'robo
     <div class="empty" style="margin: 3rem 0;">
       <h3>Site not found</h3>
       <p>No tracked site matches this address, or it belongs to another team.</p>
-      <div class="actions"><a class="button primary" href="/dashboard" data-no-router>Back to overview</a></div>
+      <div class="actions"><StxLink class="button primary" to="/dashboard">Back to overview</StxLink></div>
     </div>
   @endif
 
   @if (AUTH_USER && siteExists)
-    <p class="crumb" style="margin: 0 0 0.6rem;"><a href="/dashboard" data-no-router style="color: var(--muted); font-size: 0.85rem;">&larr; Overview</a></p>
+    <p class="crumb" style="margin: 0 0 0.6rem;"><StxLink to="/dashboard" style="color: var(--muted); font-size: 0.85rem;">&larr; Overview</StxLink></p>
 
     <header class="page-head">
       <div>
@@ -227,12 +227,12 @@ useHead({ title: (siteHostName || 'Site') + ' · StatusHQ', meta: [{ name: 'robo
           <span class="tcell num">Checked</span>
         </div>
         @foreach (siteMonitors as monitor)
-          <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 120px 92px;">
+          <StxLink class="trow" to="/dashboard/monitors/{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 120px 92px;">
             <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}"><span class="dot"></span>{{ stLabel(monitor.status) }}</data></span>
             <span class="tcell"><span class="name ellipsis" style="display: block;">{{ monitor.name }}</span></span>
             <span class="tcell"><span class="tag">{{ typeLabel(monitor.type) }}</span></span>
             <span class="tcell num"><time>{{ agoLabel(monitor.last_checked_at) }}</time></span>
-          </a>
+          </StxLink>
         @endforeach
       </div>
     </section>
@@ -258,7 +258,7 @@ useHead({ title: (siteHostName || 'Site') + ' · StatusHQ', meta: [{ name: 'robo
           <div class="mon-legend">
             <span style="color: var(--accent);">&#9632; CPU</span>
             <span style="color: var(--muted);">&#9632; RAM</span>
-            <span style="margin-left: auto; font-weight: 400;"><a href="/dashboard/monitors/{{ hostMonitor.id }}" style="color: var(--accent);">Full telemetry &rarr;</a></span>
+            <span style="margin-left: auto; font-weight: 400;"><StxLink to="/dashboard/monitors/{{ hostMonitor.id }}" style="color: var(--accent);">Full telemetry &rarr;</StxLink></span>
           </div>
         </div>
       </section>
@@ -286,12 +286,12 @@ useHead({ title: (siteHostName || 'Site') + ' · StatusHQ', meta: [{ name: 'robo
             <span class="tcell num">Opened</span>
           </div>
           @foreach (openIncidents as incident)
-            <a class="trow" href="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.6fr) minmax(0, 1fr) 110px;">
+            <StxLink class="trow" to="/dashboard/monitors/{{ incident.monitor_id }}" style="grid-template-columns: 150px minmax(0, 1.6fr) minmax(0, 1fr) 110px;">
               <span class="tcell"><data class="{{ incidentPill(incident.status) }}" value="{{ incident.status }}"><span class="dot"></span>{{ incidentLabel(incident.status) }}</data></span>
               <span class="tcell ellipsis name">{{ incident.cause }}</span>
               <span class="tcell sub ellipsis">{{ incident.monitor_name }}</span>
               <span class="tcell num"><time>{{ agoLabel(incident.started_at) }}</time></span>
-            </a>
+            </StxLink>
           @endforeach
         </div>
       @endif

@@ -156,17 +156,17 @@ useHead({ title: (statusPage ? statusPage.title + ' \u00b7 StatusHQ' : 'Status p
     <div class="empty" style="margin: 3rem 0;">
       <h3>Status page not found</h3>
       <p>This status page does not exist for your team, or your session has expired.</p>
-      <div class="actions"><a class="button" href="/dashboard/status-pages">Back to status pages</a></div>
+      <div class="actions"><StxLink class="button" to="/dashboard/status-pages">Back to status pages</StxLink></div>
     </div>
   @endif
 
   @if (statusPage)
     <header class="page-head">
       <div>
-        <div class="crumb"><a href="/dashboard/status-pages">Status pages</a></div>
+        <div class="crumb"><StxLink to="/dashboard/status-pages">Status pages</StxLink></div>
         <h1>{{ statusPage.title }}</h1>
         <p class="meta">
-          Public route <a class="mono" style="color: var(--accent); font-weight: 600;" href="/status/{{ statusPage.slug }}" target="_blank" data-no-router>/status/{{ statusPage.slug }}</a>
+          Public route <a class="mono" style="color: var(--accent); font-weight: 600;" href="/status/{{ statusPage.slug }}" target="_blank">/status/{{ statusPage.slug }}</a>
           @if (statusPage.custom_domain)
             &middot; custom domain <span class="mono">{{ statusPage.custom_domain }}</span>
           @endif

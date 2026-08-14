@@ -219,22 +219,31 @@ injection indent).
 - Still open: an og:image asset (1200×630) needs design; wire per-page
   `ogImage` keys once it exists.
 
-## Phase 4 — Links, then the flip
+## Phase 4 — Links, then the flip ✅ shipped 2026-08-14
 
-Strictly after Phase 2 (the standards' own ordering — converting links
-first ships unstyled fragment swaps across shell boundaries):
-
-- Adopt `StxLink` group-by-group with `interceptAllLinks: false` already
-  set (opt-IN model, the loghq end-state): nav partials first (covers
-  every page's chrome), then dashboard filter chips (today they
-  mixed-swap/reload — a real bug), then in-body links.
-- Delete the ~118 now-redundant `data-no-router` attributes, keeping the
-  documented `/api/` SSO redirect exceptions.
-- When the dashboard opts in, add router-navigation teardown for the WS
-  client + intervals in `monitors/index.stx` (today they die with the
-  full-page unload; fragment swaps would leak them).
-- Emit `aria-current` via StxLink's active state (a dead CSS rule for it
-  already exists).
+- 172 internal anchors adopted `StxLink` under the opt-in model
+  (`interceptAllLinks: false`): both nav partials + footer, the
+  dashboard chrome and filter chips, and every same-shell in-body link.
+  Cross-shell destinations (marketing → /login|/register|/dashboard,
+  anything → /status/*) stay plain full-load anchors ON PURPOSE, and
+  /api/* SSO links keep an explicit data-no-router as documentation —
+  the other 81 carpet attributes are gone.
+- Engine contract (fixture-verified before adoption): StxLink SSR
+  renders plain crawlable `<a href … data-stx-link>` anchors; the
+  client's default is opt-in interception, and `data-stx-link` clicks
+  bypass `shouldIntercept`, so even same-path filter chips SPA-navigate
+  (the bughq chip bug cannot occur). Active classes are applied
+  client-side via `data-stx-active-class`; the client dispatches
+  `stx:navigate` / `stx:load`.
+- `monitors/index.stx` tears down its WebSocket and label-refresh
+  interval on `stx:navigate` — a fragment swap away from the page no
+  longer leaks them.
+- Verified: all 30 marketing/auth pages render byte-identical to
+  pre-conversion baselines modulo the expected attribute deltas
+  (data-stx-* additions, data-no-router removals, StxLink dropping
+  empty class="" attributes, attribute reordering); all 15 dashboard
+  views pre/post-diffed with the same normalization — only the expected
+  deltas appear.
 
 ## Phase 5 — State and data
 

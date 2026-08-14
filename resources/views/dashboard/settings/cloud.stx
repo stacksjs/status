@@ -98,7 +98,7 @@ useHead({ title: 'Cloud credentials · StatusHQ', meta: [{ name: 'robots', conte
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to manage cloud credentials.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -113,11 +113,11 @@ useHead({ title: 'Cloud credentials · StatusHQ', meta: [{ name: 'robots', conte
     <div class="filter-bar">
       <div class="filter-group">
         <span class="lbl">Settings</span>
-        <a href="/dashboard/settings/team" class="chip">Team</a>
-        <a href="/dashboard/settings/notifications" class="chip">Notifications</a>
-        <a href="/dashboard/settings/security" class="chip">Security</a>
-        <a href="/dashboard/settings/cloud" class="chip active">Cloud</a>
-        <a href="/dashboard/settings/billing" class="chip">Billing</a>
+        <StxLink to="/dashboard/settings/team" class="chip">Team</StxLink>
+        <StxLink to="/dashboard/settings/notifications" class="chip">Notifications</StxLink>
+        <StxLink to="/dashboard/settings/security" class="chip">Security</StxLink>
+        <StxLink to="/dashboard/settings/cloud" class="chip active">Cloud</StxLink>
+        <StxLink to="/dashboard/settings/billing" class="chip">Billing</StxLink>
       </div>
     </div>
 

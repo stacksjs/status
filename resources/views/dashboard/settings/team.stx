@@ -86,7 +86,7 @@ useHead({ title: 'Team settings \u00b7 StatusHQ', meta: [{ name: 'robots', conte
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to view your team.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -101,11 +101,11 @@ useHead({ title: 'Team settings \u00b7 StatusHQ', meta: [{ name: 'robots', conte
     <div class="filter-bar">
       <div class="filter-group">
         <span class="lbl">Settings</span>
-        <a href="/dashboard/settings/team" class="chip active">Team</a>
-        <a href="/dashboard/settings/notifications" class="chip">Notifications</a>
-        <a href="/dashboard/settings/security" class="chip">Security</a>
-        <a href="/dashboard/settings/cloud" class="chip">Cloud</a>
-        <a href="/dashboard/settings/billing" class="chip">Billing</a>
+        <StxLink to="/dashboard/settings/team" class="chip active">Team</StxLink>
+        <StxLink to="/dashboard/settings/notifications" class="chip">Notifications</StxLink>
+        <StxLink to="/dashboard/settings/security" class="chip">Security</StxLink>
+        <StxLink to="/dashboard/settings/cloud" class="chip">Cloud</StxLink>
+        <StxLink to="/dashboard/settings/billing" class="chip">Billing</StxLink>
       </div>
     </div>
 

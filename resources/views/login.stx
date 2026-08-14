@@ -35,7 +35,7 @@ useHead({
 
 @section('content')
     <div class="auth-card">
-      <a class="brand" href="/" data-no-router>
+      <a class="brand" href="/">
         <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg></span>
         <span class="brand-name">{{ appName }}</span>
       </a>
@@ -84,7 +84,7 @@ useHead({
         <button id="twofa-btn" class="button" type="submit">Verify &amp; sign in</button>
       </form>
 
-      <p class="alt">Don't have an account? <a href="/register" data-no-router>Create one</a></p>
+      <p class="alt">Don't have an account? <a href="/register">Create one</a></p>
     </div>
 
     <script src="/assets/scripts/webauthn-client.js"></script>

@@ -180,7 +180,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Monitoring makes you pick: pay a SaaS to escape maintenance, or self-host and give up the deeper checks. {{ appName }} refuses the trade.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
             <a class="button" href="#table">See the table</a>
           </div>
         </div>
@@ -210,7 +210,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
               Hosted monitors charge you to escape maintenance, then keep the source closed so you can never leave. Self-hosted monitors give you freedom, then stop at "is it up?" and leave the certificate expiries, broken links, and slow pages to whatever you bolt on.
             </p>
             <p>
-              {{ appName }} ships the whole website layer: <a href="/features/broken-links">crawling</a>, <a href="/features/lighthouse-monitoring">Lighthouse</a>, <a href="/features/dns-monitoring">DNS change detection</a>, <a href="/features/performance-monitoring">automatic slowdown detection</a>, and <a href="/features/ai-checks">AI checks</a>. All of it MIT licensed. Run it yourself for free, or let us run it for a flat $9 a month.
+              {{ appName }} ships the whole website layer: <StxLink to="/features/broken-links">crawling</StxLink>, <StxLink to="/features/lighthouse-monitoring">Lighthouse</StxLink>, <StxLink to="/features/dns-monitoring">DNS change detection</StxLink>, <StxLink to="/features/performance-monitoring">automatic slowdown detection</StxLink>, and <StxLink to="/features/ai-checks">AI checks</StxLink>. All of it MIT licensed. Run it yourself for free, or let us run it for a flat $9 a month.
             </p>
           </div>
           <div class="split-panel">

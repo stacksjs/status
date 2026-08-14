@@ -87,7 +87,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             {{ appName }} is itself a Stacks app. Wire health routes, heartbeat pings, and deploy hooks into monitoring that feels like part of your stack.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Read the source</a>
           </div>
         </div>
@@ -116,7 +116,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
               A cron that quietly stops is worse than one that crashes loudly. Add a ping to the end of any scheduled job's handle() and {{ appName }} treats missing silence as the incident it is.
             </p>
             <p>
-              We run this pattern on ourselves: our own worker fleet reports to a heartbeat monitor, and only on the healthy path, so a stuck queue can never pretend everything is fine. See <a href="/features/cron-monitoring">cron &amp; heartbeat monitoring</a>.
+              We run this pattern on ourselves: our own worker fleet reports to a heartbeat monitor, and only on the healthy path, so a stuck queue can never pretend everything is fine. See <StxLink to="/features/cron-monitoring">cron &amp; heartbeat monitoring</StxLink>.
             </p>
           </div>
           <div class="split-panel">

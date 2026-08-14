@@ -80,7 +80,7 @@ useHead({ title: 'Get set up \u00b7 StatusHQ', meta: [{ name: 'robots', content:
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to view your setup checklist.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -113,7 +113,7 @@ useHead({ title: 'Get set up \u00b7 StatusHQ', meta: [{ name: 'robots', content:
         </div>
         <div class="card-body" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
           <p style="margin: 0; color: var(--muted); font-size: 0.9rem; max-width: 34rem;">{{ step.description }}</p>
-          <a href="{{ step.href }}" class="button {{ step.done ? '' : 'primary' }}">{{ step.done ? 'Review' : 'Start' }}</a>
+          <StxLink to="{{ step.href }}" class="button {{ step.done ? '' : 'primary' }}">{{ step.done ? 'Review' : 'Start' }}</StxLink>
         </div>
       </section>
     @endforeach

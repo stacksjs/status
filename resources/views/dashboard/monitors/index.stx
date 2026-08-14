@@ -230,7 +230,7 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to view your monitors.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -268,23 +268,23 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
     <div class="filter-bar">
       <div class="filter-group">
         <span class="lbl">Type</span>
-        <a href="{{ typeUrl('') }}" class="chip {{ filterType === '' ? 'active' : '' }}">All</a>
+        <StxLink to="{{ typeUrl('') }}" class="chip {{ filterType === '' ? 'active' : '' }}">All</StxLink>
         @foreach (allTypes as t)
-          <a href="{{ typeUrl(t) }}" class="chip {{ filterType === t ? 'active' : '' }}">{{ t.replace('_', ' ') }}</a>
+          <StxLink to="{{ typeUrl(t) }}" class="chip {{ filterType === t ? 'active' : '' }}">{{ t.replace('_', ' ') }}</StxLink>
         @endforeach
       </div>
       <div class="filter-group">
         <span class="lbl">Status</span>
-        <a href="{{ statusUrl('') }}" class="chip {{ filterStatus === '' ? 'active' : '' }}">All</a>
-        <a href="{{ statusUrl('up') }}" class="chip {{ filterStatus === 'up' ? 'active' : '' }}">Up</a>
-        <a href="{{ statusUrl('degraded') }}" class="chip {{ filterStatus === 'degraded' ? 'active' : '' }}">Degraded</a>
-        <a href="{{ statusUrl('down') }}" class="chip {{ filterStatus === 'down' ? 'active' : '' }}">Down</a>
+        <StxLink to="{{ statusUrl('') }}" class="chip {{ filterStatus === '' ? 'active' : '' }}">All</StxLink>
+        <StxLink to="{{ statusUrl('up') }}" class="chip {{ filterStatus === 'up' ? 'active' : '' }}">Up</StxLink>
+        <StxLink to="{{ statusUrl('degraded') }}" class="chip {{ filterStatus === 'degraded' ? 'active' : '' }}">Degraded</StxLink>
+        <StxLink to="{{ statusUrl('down') }}" class="chip {{ filterStatus === 'down' ? 'active' : '' }}">Down</StxLink>
       </div>
       <div class="filter-group">
         <span class="lbl">Range</span>
-        <a href="{{ idxRangeUrl('24h') }}" class="chip {{ idxRange === '24h' ? 'active' : '' }}">24h</a>
-        <a href="{{ idxRangeUrl('7d') }}" class="chip {{ idxRange === '7d' ? 'active' : '' }}">7d</a>
-        <a href="{{ idxRangeUrl('30d') }}" class="chip {{ idxRange === '30d' ? 'active' : '' }}">30d</a>
+        <StxLink to="{{ idxRangeUrl('24h') }}" class="chip {{ idxRange === '24h' ? 'active' : '' }}">24h</StxLink>
+        <StxLink to="{{ idxRangeUrl('7d') }}" class="chip {{ idxRange === '7d' ? 'active' : '' }}">7d</StxLink>
+        <StxLink to="{{ idxRangeUrl('30d') }}" class="chip {{ idxRange === '30d' ? 'active' : '' }}">30d</StxLink>
       </div>
     </div>
 
@@ -307,7 +307,7 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
             <span class="tcell num">Checked</span>
           </div>
           @foreach (__monitorRows as monitor)
-            <a class="trow" href="/dashboard/monitors/{{ monitor.id }}" data-monitor-id="{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 100px 112px 80px 92px;">
+            <StxLink class="trow" to="/dashboard/monitors/{{ monitor.id }}" data-monitor-id="{{ monitor.id }}" style="grid-template-columns: 110px minmax(220px, 1.7fr) 100px 112px 80px 92px;">
               <span class="tcell"><data class="{{ stClass(monitor.status) }}" value="{{ monitor.status }}" data-monitor-status><span class="dot"></span><span data-monitor-status-label>{{ stLabel(monitor.status) }}</span></data></span>
               <span class="tcell">
                 <span class="name ellipsis" style="display: block;">{{ monitor.name }}</span>
@@ -328,7 +328,7 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
               </span>
               <span class="tcell num" data-monitor-response>{{ fmtDuration(lastResponseMs(monitor.id)) }}</span>
               <span class="tcell num"><time data-monitor-checked datetime="{{ monitor.last_checked_at }}">{{ agoLabel(monitor.last_checked_at) }}</time></span>
-            </a>
+            </StxLink>
           @endforeach
         </div>
       </section>
@@ -410,7 +410,7 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
 
     // Keep the relative "last checked" labels fresh between checks (they'd
     // otherwise freeze at whatever a new event last set them to).
-    setInterval(function () {
+    var agoTimer = setInterval(function () {
       var nodes = document.querySelectorAll('[data-monitor-checked]')
       for (var i = 0; i < nodes.length; i++) {
         var iso = nodes[i].getAttribute('datetime')
@@ -457,6 +457,15 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
     }
 
     window.addEventListener('beforeunload', function () { closedByUs = true; if (ws) try { ws.close() } catch (e) {} })
+    // With StxLink opt-in navigation (Phase 4), leaving this page can be a
+    // fragment swap instead of an unload — tear the socket and the label
+    // refresher down on the router's navigation event or they leak.
+    window.addEventListener('stx:navigate', function () {
+      closedByUs = true
+      clearInterval(agoTimer)
+      setLive(false)
+      if (ws) try { ws.close() } catch (e) {}
+    })
     connect()
   })()
 </script>

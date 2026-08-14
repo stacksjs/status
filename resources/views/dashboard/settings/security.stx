@@ -131,7 +131,7 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to manage account security.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -146,11 +146,11 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
     <div class="filter-bar">
       <div class="filter-group">
         <span class="lbl">Settings</span>
-        <a href="/dashboard/settings/team" class="chip">Team</a>
-        <a href="/dashboard/settings/notifications" class="chip">Notifications</a>
-        <a href="/dashboard/settings/security" class="chip active">Security</a>
-        <a href="/dashboard/settings/cloud" class="chip">Cloud</a>
-        <a href="/dashboard/settings/billing" class="chip">Billing</a>
+        <StxLink to="/dashboard/settings/team" class="chip">Team</StxLink>
+        <StxLink to="/dashboard/settings/notifications" class="chip">Notifications</StxLink>
+        <StxLink to="/dashboard/settings/security" class="chip active">Security</StxLink>
+        <StxLink to="/dashboard/settings/cloud" class="chip">Cloud</StxLink>
+        <StxLink to="/dashboard/settings/billing" class="chip">Billing</StxLink>
       </div>
     </div>
 
@@ -196,7 +196,7 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
 
         @if (!TWO_FA_ENABLED && !__SETUP)
           <p style="margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6;">Add a second factor so a stolen password alone cannot open your account. Works with any TOTP authenticator app (1Password, Google Authenticator, Authy).</p>
-          <a class="button primary" href="/dashboard/settings/security?setup=1" data-no-router>Set up two-factor auth</a>
+          <StxLink class="button primary" to="/dashboard/settings/security?setup=1">Set up two-factor auth</StxLink>
         @endif
 
         @if (!TWO_FA_ENABLED && __SETUP)
@@ -204,7 +204,7 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
           <div class="field">
             <label>Secret (enter manually)</label>
             <p class="mono" style="margin: 0; padding: 0.7rem 0.85rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 0.95rem; letter-spacing: 0.08em; word-break: break-all; background: var(--surface-2);">{{ __SETUP.secret }}</p>
-            <p class="help">On this device? <a href="{{ __SETUP.uri }}">Open in your authenticator app</a> instead of typing the secret.</p>
+            <p class="help">On this device? <StxLink to="{{ __SETUP.uri }}">Open in your authenticator app</StxLink> instead of typing the secret.</p>
           </div>
           <form method="POST" action="/api/security-forms/two-factor/enable">
             <div class="form-row">
@@ -214,7 +214,7 @@ useHead({ title: 'Security · StatusHQ', meta: [{ name: 'robots', content: 'noin
               </div>
             </div>
             <button type="submit" class="button primary">Confirm and enable</button>
-            <a class="button" href="/dashboard/settings/security" data-no-router style="margin-left: 0.5rem;">Cancel</a>
+            <StxLink class="button" to="/dashboard/settings/security" style="margin-left: 0.5rem;">Cancel</StxLink>
           </form>
         @endif
       </div>

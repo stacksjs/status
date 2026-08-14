@@ -69,7 +69,7 @@ useHead({ title: 'Status pages \u00b7 StatusHQ', meta: [{ name: 'robots', conten
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to view your status pages.</p>
-      <div class="actions"><a class="button primary" href="/login" data-no-router>Sign in</a></div>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
     </div>
   @endif
 
@@ -124,13 +124,13 @@ useHead({ title: 'Status pages \u00b7 StatusHQ', meta: [{ name: 'robots', conten
             <span class="tcell num">Visibility</span>
           </div>
           @foreach (statusPages as page)
-            <a class="trow" href="/dashboard/status-pages/{{ page.id }}" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 140px 110px;">
+            <StxLink class="trow" to="/dashboard/status-pages/{{ page.id }}" style="grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 140px 110px;">
               <span class="tcell ellipsis name">{{ page.title }}</span>
               <span class="tcell sub ellipsis">/status/{{ page.slug }}</span>
               <span class="tcell sub ellipsis">{{ page.custom_domain || '--' }}</span>
               <span class="tcell sub">{{ accessLabel(page.access_type) }}</span>
               <span class="tcell num"><data class="{{ page.is_public ? 'pill pill-up' : 'pill pill-unknown' }}" value="{{ page.is_public }}"><span class="dot"></span>{{ page.is_public ? 'Live' : 'Hidden' }}</data></span>
-            </a>
+            </StxLink>
           @endforeach
         </div>
       </section>

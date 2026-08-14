@@ -76,8 +76,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             A failed check opens the incident and attaches the cause. You acknowledge, post updates, and resolve. The status page follows along the whole way.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/features/status-pages">See status pages</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/features/status-pages">See status pages</StxLink>
           </div>
         </div>
       </section>
@@ -90,7 +90,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
               When a monitor transitions to down, an incident opens on its own: start time, the failing check's error message as the cause, and a record of which checks were impacted. There is no "someone should file this" step between the outage and the timeline.
             </p>
             <p>
-              And when the check passes again, the incident resolves itself and posts an entry saying so. Nobody has to remember to close it at 4 a.m., and nothing stays red on the <a href="/features/status-pages">status page</a> after the fix ships.
+              And when the check passes again, the incident resolves itself and posts an entry saying so. Nobody has to remember to close it at 4 a.m., and nothing stays red on the <StxLink to="/features/status-pages">status page</StxLink> after the fix ships.
             </p>
           </div>
           <div class="split-panel">

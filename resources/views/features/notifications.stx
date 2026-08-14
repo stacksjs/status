@@ -72,8 +72,8 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             A payments outage should page someone. A marketing site blip can wait in Slack. Route each monitor to the channels it deserves.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register" data-no-router>Start monitoring free</a>
-            <a class="button" href="/features/incident-management">See incident management</a>
+            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button" to="/features/incident-management">See incident management</StxLink>
           </div>
         </div>
       </section>
@@ -185,7 +185,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
           <div class="split-copy">
             <h2 id="api-heading">Channels are API records too.</h2>
             <p>
-              Like <a href="/features/uptime-monitoring">monitors</a>, notification channels are rows in an API, not settings buried in a UI. Create them from a provisioning script, attach them to monitors, and disable one temporarily without deleting its config.
+              Like <StxLink to="/features/uptime-monitoring">monitors</StxLink>, notification channels are rows in an API, not settings buried in a UI. Create them from a provisioning script, attach them to monitors, and disable one temporarily without deleting its config.
             </p>
             <p>
               Each channel stores its own credentials: a webhook URL for Slack, Discord, or Teams, a routing key for PagerDuty, an API key for Opsgenie.
