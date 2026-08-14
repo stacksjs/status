@@ -1,0 +1,12 @@
+-- check_results is the highest-volume table in the app (one row per monitor
+-- per check, retained 90 days) and shipped with no secondary index at all,
+-- so every hot read scanned it end to end:
+--
+--   EvaluateMonitorConsensus, every minute, per enabled monitor:
+--     WHERE monitor_id = ? AND checked_at >= ?
+--   public status page, per monitor, 90-day window:
+--     WHERE monitor_id = ? AND checked_at >= ? ORDER BY checked_at ASC
+--
+-- This composite serves the filter AND the sort for both. Syntax is valid on
+-- both dialects (SQLite self-hosted, Postgres hosted).
+CREATE INDEX IF NOT EXISTS "check_results_monitor_id_checked_at_index" ON "check_results" ("monitor_id", "checked_at");

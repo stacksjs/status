@@ -6,24 +6,15 @@ import { Job } from '@stacksjs/queue'
 import { configBool, parseMonitorConfig } from '../lib/monitorConfig'
 import { openIncident } from '../lib/maintenance'
 import { channelFiresFor } from '../lib/notificationSeverity'
+import { daysUntilExpiry as daysUntil, isSslIncident, tlsPortFor, WARNING_THRESHOLDS_DAYS, warnAtThreshold } from '../lib/sslExpiry'
 import CheckResult from '../Models/CheckResult'
+import Incident from '../Models/Incident'
+import IncidentUpdate from '../Models/IncidentUpdate'
 import Monitor from '../Models/Monitor'
 import MonitorNotificationChannel from '../Models/MonitorNotificationChannel'
 import SslCertificate from '../Models/SslCertificate'
 import SendNotification from './SendNotification'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
-
-/** Alert thresholds, in days before expiry. */
-const WARNING_THRESHOLDS_DAYS = [30, 14, 7, 1]
-
-/**
- * The tightest warning threshold a certificate has crossed, or null when
- * it isn't near expiry. 12 days out -> 14; 40 days out -> null.
- */
-function crossedThreshold(daysUntilExpiry: number): number | null {
-  const crossed = WARNING_THRESHOLDS_DAYS.filter(days => daysUntilExpiry <= days)
-  return crossed.length > 0 ? Math.min(...crossed) : null
-}
 
 function fetchPeerCertificate(hostname: string, port = 443): Promise<import('node:tls').PeerCertificate> {
   return new Promise((resolve, reject) => {
@@ -52,6 +43,13 @@ function fetchPeerCertificate(hostname: string, port = 443): Promise<import('nod
  * (warning severity, once per threshold, deduped against the previous
  * check) — deliberately NOT an incident, so a "renew within 14 days"
  * heads-up never shows up as an outage on a public status page.
+ *
+ * Incidents this job opens are deduped against an already-open one and
+ * auto-resolve when the certificate is healthy again, the same lifecycle
+ * RunBlocklistCheck and RunAiCheck implement. Without it a lapsed
+ * certificate re-opened an incident on EVERY check — re-paging every
+ * channel and every status-page subscriber each cycle, forever, and never
+ * resolving on renewal because ssl is not a CONSENSUS_TYPE.
  */
 export default new Job({
   name: 'RunSslCheck',
@@ -69,12 +67,24 @@ export default new Job({
     }
 
     const startedAt = performance.now()
-    const hostname = new URL(monitor.url).hostname
+    const url = new URL(monitor.url)
+    const hostname = url.hostname
+    const port = tlsPortFor(url)
     const checkedAt = new Date().toISOString()
+
+    /**
+     * This monitor's currently-open SSL incident, if any. Scoped by
+     * impacted_checks type so an unrelated open incident (say an uptime
+     * outage on the same monitor) neither suppresses an SSL incident nor
+     * gets resolved when the certificate recovers.
+     */
+    const findOpenSslIncident = async () =>
+      (await Incident.where('monitor_id', monitor.id).where('status', '!=', 'resolved').get())
+        .find(incident => isSslIncident(incident.impacted_checks))
 
     let cert: import('node:tls').PeerCertificate
     try {
-      cert = await fetchPeerCertificate(hostname)
+      cert = await fetchPeerCertificate(hostname, port)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -95,19 +105,22 @@ export default new Job({
       // dashboard updates sub-second. Fire-and-forget; a no-op unless
       // Redis fan-out is enabled (the poller is the fallback).
       void broadcastMonitorUpdate(monitor.id)
-      await openIncident({
-        monitor_id: monitor.id,
-        started_at: checkedAt,
-        cause: `SSL check failed: ${message}`,
-        status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'ssl', message }]),
-      })
+      // Dedup: a handshake that keeps failing must not re-page every cycle.
+      if (!(await findOpenSslIncident())) {
+        await openIncident({
+          monitor_id: monitor.id,
+          started_at: checkedAt,
+          cause: `SSL check failed: ${message}`,
+          status: 'investigating',
+          impacted_checks: JSON.stringify([{ type: 'ssl', message }]),
+        })
+      }
       log.warn(`[job] RunSslCheck: ${monitor.name} — ${message}`)
       return
     }
 
     const expiresAt = new Date(cert.valid_to)
-    const daysUntilExpiry = Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    const daysUntilExpiry = daysUntil(expiresAt.getTime(), Date.now())
     const fingerprint = cert.fingerprint256 ?? cert.fingerprint ?? ''
 
     const previous = await SslCertificate.where('monitor_id', monitor.id).orderByDesc('created_at').first()
@@ -126,30 +139,28 @@ export default new Job({
     const expiringSoon = WARNING_THRESHOLDS_DAYS.some(days => daysUntilExpiry <= days)
 
     if (daysUntilExpiry < 0) {
-      await openIncident({
-        monitor_id: monitor.id,
-        started_at: checkedAt,
-        cause: `SSL certificate for ${hostname} expired ${Math.abs(daysUntilExpiry)} day(s) ago`,
-        status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'ssl', daysUntilExpiry }]),
-      })
+      // Dedup: an expired certificate stays expired until someone renews it.
+      if (!(await findOpenSslIncident())) {
+        await openIncident({
+          monitor_id: monitor.id,
+          started_at: checkedAt,
+          cause: `SSL certificate for ${hostname} expired ${Math.abs(daysUntilExpiry)} day(s) ago`,
+          status: 'investigating',
+          impacted_checks: JSON.stringify([{ type: 'ssl', daysUntilExpiry }]),
+        })
+      }
       log.warn(`[job] RunSslCheck: ${monitor.name} certificate EXPIRED`)
     }
     else if (expiringSoon) {
-      // Warn once per threshold: compare the threshold crossed now against
-      // the one already crossed at the previous check (computed from that
-      // check's own timestamps). A renewed cert (fingerprint change) resets
-      // the comparison, which is correct — a *new* cert that is already
-      // near expiry deserves its own warning.
-      const threshold = crossedThreshold(daysUntilExpiry)
+      // Warn once per threshold (see app/lib/sslExpiry.ts): the previous
+      // check's position on the ladder is recomputed from that check's own
+      // stored timestamps, and a renewal resets it.
       const previousDaysUntilExpiry = previous
-        ? Math.floor((new Date(previous.expires_at).getTime() - new Date(previous.last_checked_at || previous.created_at).getTime()) / (1000 * 60 * 60 * 24))
+        ? daysUntil(new Date(previous.expires_at).getTime(), new Date(previous.last_checked_at || previous.created_at).getTime())
         : null
-      const previousThreshold = previousDaysUntilExpiry === null || fingerprintChanged
-        ? null
-        : crossedThreshold(previousDaysUntilExpiry)
+      const threshold = warnAtThreshold({ daysUntilExpiry, previousDaysUntilExpiry, fingerprintChanged: !!fingerprintChanged })
 
-      if (threshold !== null && threshold !== previousThreshold) {
+      if (threshold !== null) {
         // SSL warnings are soft "issue" events, so only channels that fire on
         // issues (or both) hear them - a down-only pager stays quiet.
         const attachments = (await MonitorNotificationChannel.where('monitor_id', monitor.id).get())
@@ -189,6 +200,25 @@ export default new Job({
       }
       else {
         log.info(`[job] RunSslCheck: ${monitor.name} certificate fingerprint changed (renewed)`)
+      }
+    }
+
+    // Recovery: the handshake succeeded and the certificate is in date, so
+    // whatever this job opened an incident for (failed handshake, expired
+    // cert) is fixed. ssl is deliberately not a CONSENSUS_TYPE, so nothing
+    // else would ever resolve it - a renewed certificate used to leave its
+    // incident open forever, keeping the monitor red on the status page.
+    if (daysUntilExpiry >= 0) {
+      const open = await findOpenSslIncident()
+      if (open) {
+        await open.update({ status: 'resolved', resolved_at: checkedAt })
+        await IncidentUpdate.create({
+          incident_id: open.id,
+          message: `Certificate for ${hostname} is valid again, expires in ${daysUntilExpiry} day(s).`,
+          status: 'resolved',
+          posted_at: checkedAt,
+        })
+        log.info(`[job] RunSslCheck: ${monitor.name} certificate healthy - incident resolved`)
       }
     }
 
