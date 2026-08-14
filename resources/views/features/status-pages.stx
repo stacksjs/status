@@ -38,16 +38,31 @@ const related = [
   { title: 'Incident management', text: 'Failed checks open incidents automatically, and the timeline you build lands on this page.', href: '/features/incident-management' },
   { title: 'Notifications', text: 'Email, Slack, PagerDuty, and seven more channels tell your team before the status page tells your users.', href: '/features/notifications' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Status pages on your own domain | " + appName,
+  description: "Branded status pages on your own domain with no watermark. Component groups, 90-day uptime bars, email subscribers, an RSS feed, and access control.",
+  ogDescription: "Branded status pages with no watermark: custom domain, component groups, 90-day uptime bars, subscribers, and access control.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/status-pages" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/status-pages" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Status pages on your own domain | " + appName)
-@section('description', "Branded status pages on your own domain with no watermark. Component groups, 90-day uptime bars, email subscribers, an RSS feed, and access control.")
-@section('canonical', "https://statushq.org/features/status-pages")
-@section('ogDescription', "Branded status pages with no watermark: custom domain, component groups, 90-day uptime bars, subscribers, and access control.")
-@section('ogTitle', "Status pages on your own domain | " + appName)
-@section('ogUrl', "https://statushq.org/features/status-pages")
 
 @section('content')
       <section class="site-shell">

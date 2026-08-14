@@ -38,16 +38,31 @@ const related = [
   { title: 'DNS monitoring', text: 'Snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident when they change.', href: '/features/dns-monitoring' },
   { title: 'Notifications', text: 'Email, SMS, Slack, Discord, PagerDuty, and five more channels, routed the way your team works.', href: '/features/notifications' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "SSL certificate monitoring | " + appName,
+  description: "Open-source SSL certificate monitoring: expiry warnings at 30, 14, 7, and 1 day, fingerprint change detection, and incidents when the handshake fails.",
+  ogDescription: "Expiry warnings at 30, 14, 7, and 1 day, fingerprint change detection, incidents on failure. Open source and self-hostable.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/ssl-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/ssl-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "SSL certificate monitoring | " + appName)
-@section('description', "Open-source SSL certificate monitoring: expiry warnings at 30, 14, 7, and 1 day, fingerprint change detection, and incidents when the handshake fails.")
-@section('canonical', "https://statushq.org/features/ssl-monitoring")
-@section('ogDescription', "Expiry warnings at 30, 14, 7, and 1 day, fingerprint change detection, incidents on failure. Open source and self-hostable.")
-@section('ogTitle', "SSL certificate monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/ssl-monitoring")
 
 @section('content')
       <section class="site-shell">

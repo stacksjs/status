@@ -56,18 +56,31 @@ const faqs = [
     a: 'No, and we would rather be honest about that than list them as "coming soon". The automation story is the JSON API: a curl in your deploy pipeline creates or verifies monitors, and because the API covers everything, wrapping it in whatever tooling you already run is straightforward.',
   },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Monitoring for DevOps & SRE | " + appName,
+  description: "API-first uptime monitoring for DevOps: create monitors from the deploy pipeline, heartbeats for cron jobs, push-based server metrics, and on-call alert routing.",
+  ogDescription: "Monitoring you can automate: a JSON API for everything, heartbeat dead-man's switches, push-based agent metrics, and alerts routed per monitor.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/for/devops" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/for/devops" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Monitoring for DevOps &amp; SRE | " + appName)
-@section('description', "API-first uptime monitoring for DevOps: create monitors from the deploy pipeline, heartbeats for cron jobs, push-based server metrics, and on-call alert routing.")
-@section('canonical', "https://statushq.org/for/devops")
-@section('ogDescription')
-Monitoring you can automate: a JSON API for everything, heartbeat dead-man's switches, push-based agent metrics, and alerts routed per monitor.
-@endsection
-@section('ogTitle', "Monitoring for DevOps &amp; SRE | " + appName)
-@section('ogUrl', "https://statushq.org/for/devops")
 
 @section('content')
       <section class="site-shell">

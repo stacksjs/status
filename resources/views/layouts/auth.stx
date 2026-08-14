@@ -2,8 +2,9 @@
      noindex, no nav/footer, centered card. The stylesheet is the union
      of the two pages' formerly-duplicated blocks (.hint is register's;
      the passkey icon / .row-between / .hide are login's — harmless on
-     both). Pages extend this and fill: title, description, content
-     (the card plus the page's scripts, verbatim). Theme pre-paint
+     both). Pages extend this and fill ONE section, content (the card
+     plus the page's scripts, verbatim); title/description/robots are
+     declared via useSeoMeta in each page's server script. Theme pre-paint
      script placement mirrors layouts/status.stx (layouts do not strip
      a leading script the way partials do). --}}
 <!DOCTYPE html>
@@ -12,9 +13,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     {{-- Favicons + fonts come from config/ui.ts app.head. --}}
-    <title>@yield('title')</title>
-    <meta name="robots" content="noindex">
-    <meta name="description" content="@yield('description')">
+    {{-- Title/description/robots come from each page's useSeoMeta call
+         (stx-standards 04); the framework splices them in server-side. --}}
     <script>
       (function () {
         try {

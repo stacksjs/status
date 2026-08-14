@@ -38,16 +38,31 @@ const related = [
   { title: 'Domain monitoring', text: 'WHOIS-based expiry warnings at 30, 14, 7, and 1 day, so a registration never lapses by accident.', href: '/features/domain-monitoring' },
   { title: 'SSL monitoring', text: 'Certificate expiry countdowns, fingerprint change detection, and incidents when a handshake fails.', href: '/features/ssl-monitoring' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "DNS record monitoring | " + appName,
+  description: "Open-source DNS monitoring: snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident with a diff when anything changes.",
+  ogDescription: "Snapshots six DNS record types, diffs every check, and escalates nameserver changes. Open source and self-hostable.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/dns-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/dns-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "DNS record monitoring | " + appName)
-@section('description', "Open-source DNS monitoring: snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident with a diff when anything changes.")
-@section('canonical', "https://statushq.org/features/dns-monitoring")
-@section('ogDescription', "Snapshots six DNS record types, diffs every check, and escalates nameserver changes. Open source and self-hostable.")
-@section('ogTitle', "DNS record monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/dns-monitoring")
 
 @section('content')
       <section class="site-shell">

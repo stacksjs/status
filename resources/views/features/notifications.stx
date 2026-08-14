@@ -38,16 +38,31 @@ const related = [
   { title: 'Uptime monitoring', text: '30-second Pro checks from six regions decide when these channels fire. Full diagnostics ride along.', href: '/features/uptime-monitoring' },
   { title: 'Status pages', text: 'While channels page your team, a branded page on your own domain answers your users.', href: '/features/status-pages' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Downtime alerts on 10 channels | " + appName,
+  description: "Route downtime alerts per monitor to email, SMS, Slack, Discord, Teams, PagerDuty, Opsgenie, Pushover, ntfy, or webhooks. No per-seat pricing on alerts.",
+  ogDescription: "Per-monitor alert routing across 10 channels, with per-channel retries and severity mapping. No per-seat pricing.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/notifications" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/notifications" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Downtime alerts on 10 channels | " + appName)
-@section('description', "Route downtime alerts per monitor to email, SMS, Slack, Discord, Teams, PagerDuty, Opsgenie, Pushover, ntfy, or webhooks. No per-seat pricing on alerts.")
-@section('canonical', "https://statushq.org/features/notifications")
-@section('ogDescription', "Per-monitor alert routing across 10 channels, with per-channel retries and severity mapping. No per-seat pricing.")
-@section('ogTitle', "Downtime alerts on 10 channels | " + appName)
-@section('ogUrl', "https://statushq.org/features/notifications")
 
 @section('content')
       <section class="site-shell">

@@ -50,16 +50,24 @@ const groups = [
     ],
   },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Documentation | " + appName,
+  description: "StatusHQ documentation: get started in four steps, then a reference page for every monitor type, notifications, incidents, status pages, and self-hosting.",
+  ogDescription: "Get started in four steps, then a reference for every monitor type, notifications, incidents, and status pages.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/docs" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/docs" }],
+})
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Documentation | " + appName)
-@section('description', "StatusHQ documentation: get started in four steps, then a reference page for every monitor type, notifications, incidents, status pages, and self-hosting.")
-@section('canonical', "https://statushq.org/docs")
-@section('ogDescription', "Get started in four steps, then a reference for every monitor type, notifications, incidents, and status pages.")
-@section('ogTitle', "Documentation | " + appName)
-@section('ogUrl', "https://statushq.org/docs")
 
 @section('content')
       <section class="site-shell">

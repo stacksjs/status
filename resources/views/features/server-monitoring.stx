@@ -42,16 +42,31 @@ const related = [
   { title: 'Ping monitoring', text: 'ICMP reachability for hosts and network gear, the outside-in view of the same machines.', href: '/features/ping-monitoring' },
   { title: 'TCP port monitoring', text: 'Watch the ports your services actually listen on: databases, mail, SSH, anything with a socket.', href: '/features/tcp-port-monitoring' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Server monitoring | " + appName,
+  description: "A tiny push-based agent sends CPU and memory metrics from inside your servers. No inbound ports, no heavy daemon, same dashboard as your uptime checks.",
+  ogDescription: "Push-based CPU and memory metrics from inside your servers, next to your uptime checks. No inbound port required.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/server-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/server-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Server monitoring | " + appName)
-@section('description', "A tiny push-based agent sends CPU and memory metrics from inside your servers. No inbound ports, no heavy daemon, same dashboard as your uptime checks.")
-@section('canonical', "https://statushq.org/features/server-monitoring")
-@section('ogDescription', "Push-based CPU and memory metrics from inside your servers, next to your uptime checks. No inbound port required.")
-@section('ogTitle', "Server monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/server-monitoring")
 
 @section('content')
       <section class="site-shell">

@@ -38,16 +38,31 @@ const related = [
   { title: 'Status pages', text: 'A branded status page on your own domain answers “is it down?” before support tickets do.', href: '/features/status-pages' },
   { title: 'Notifications', text: 'Email, Slack, PagerDuty, Opsgenie, SMS, and six more channels, routed the way your team works.', href: '/features/notifications' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Website uptime monitoring | " + appName,
+  description: "Open-source uptime monitoring with 30-second checks from six regions, full diagnostic history, automatic incidents, and a status page your users can check.",
+  ogDescription: "30-second checks from six regions, full diagnostics, automatic incidents. Open source and self-hostable.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/uptime-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/uptime-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Website uptime monitoring | " + appName)
-@section('description', "Open-source uptime monitoring with 30-second checks from six regions, full diagnostic history, automatic incidents, and a status page your users can check.")
-@section('canonical', "https://statushq.org/features/uptime-monitoring")
-@section('ogDescription', "30-second checks from six regions, full diagnostics, automatic incidents. Open source and self-hostable.")
-@section('ogTitle', "Website uptime monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/uptime-monitoring")
 
 @section('content')
       <section class="site-shell">

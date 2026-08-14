@@ -38,16 +38,31 @@ const related = [
   { title: 'SSL monitoring', text: 'Open ports are one class of quiet security regression. Expiring and misconfigured certificates are another.', href: '/features/ssl-monitoring' },
   { title: 'Incident management', text: 'Scan findings open incidents with a timeline, so an exposed port gets an owner instead of a shrug.', href: '/features/incident-management' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Port scan monitoring | " + appName,
+  description: "Open-source port scan monitoring. Scheduled scans find ports that should not be open, like a deploy exposing a database, and open incidents automatically.",
+  ogDescription: "Declare which ports should be open. Get an incident when anything else appears, or when an expected port disappears. Open source and self-hostable.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/port-scan-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/port-scan-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Port scan monitoring | " + appName)
-@section('description', "Open-source port scan monitoring. Scheduled scans find ports that should not be open, like a deploy exposing a database, and open incidents automatically.")
-@section('canonical', "https://statushq.org/features/port-scan-monitoring")
-@section('ogDescription', "Declare which ports should be open. Get an incident when anything else appears, or when an expected port disappears. Open source and self-hostable.")
-@section('ogTitle', "Port scan monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/port-scan-monitoring")
 
 @section('content')
       <section class="site-shell">

@@ -38,16 +38,31 @@ const related = [
   { title: 'DNS monitoring', text: 'Snapshots A, AAAA, MX, TXT, NS, and CAA records on every check and opens an incident when they change.', href: '/features/dns-monitoring' },
   { title: 'Uptime monitoring', text: 'Checks as often as every 30 seconds from six regions, with full diagnostics on every failure.', href: '/features/uptime-monitoring' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Domain expiry monitoring | " + appName,
+  description: "Open-source domain expiry monitoring via WHOIS: registrar and expiry tracking with warnings at 30, 14, 7, and 1 day before your registration lapses.",
+  ogDescription: "WHOIS-based expiry tracking with warnings at 30, 14, 7, and 1 day. Open source and self-hostable.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/domain-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/domain-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Domain expiry monitoring | " + appName)
-@section('description', "Open-source domain expiry monitoring via WHOIS: registrar and expiry tracking with warnings at 30, 14, 7, and 1 day before your registration lapses.")
-@section('canonical', "https://statushq.org/features/domain-monitoring")
-@section('ogDescription', "WHOIS-based expiry tracking with warnings at 30, 14, 7, and 1 day. Open source and self-hostable.")
-@section('ogTitle', "Domain expiry monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/domain-monitoring")
 
 @section('content')
       <section class="site-shell">

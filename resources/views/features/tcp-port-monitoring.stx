@@ -38,16 +38,31 @@ const related = [
   { title: 'Port scan monitoring', text: 'A port check watches one port you know about. A port scan finds the ones you did not know were open.', href: '/features/port-scan-monitoring' },
   { title: 'Notifications', text: 'Route database alerts to the on-call channel and staging noise somewhere quieter, across 10 channels.', href: '/features/notifications' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "TCP port monitoring | " + appName,
+  description: "Open-source TCP port monitoring for MySQL, Redis, SMTP, and anything else with a port. Connect checks with timing, automatic incidents, alerts on 10 channels.",
+  ogDescription: "Watch the ports your app depends on: databases, queues, mail. Connect checks with timing and automatic incidents. Open source and self-hostable.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/tcp-port-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/tcp-port-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "TCP port monitoring | " + appName)
-@section('description', "Open-source TCP port monitoring for MySQL, Redis, SMTP, and anything else with a port. Connect checks with timing, automatic incidents, alerts on 10 channels.")
-@section('canonical', "https://statushq.org/features/tcp-port-monitoring")
-@section('ogDescription', "Watch the ports your app depends on: databases, queues, mail. Connect checks with timing and automatic incidents. Open source and self-hostable.")
-@section('ogTitle', "TCP port monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/tcp-port-monitoring")
 
 @section('content')
       <section class="site-shell">

@@ -56,16 +56,31 @@ const faqs = [
     a: 'Yes. The whole product is MIT licensed: clone it, run bun install and ./buddy serve, and your uptime history never leaves your network. One caveat: keep an external check somewhere, because a monitor inside a failing network cannot report the failure.',
   },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Monitoring for SaaS teams | " + appName,
+  description: "Uptime monitoring for SaaS teams: 30 second checks, heartbeats on billing jobs, deep health checks, and a status page your customers can subscribe to.",
+  ogDescription: "30 second checks, heartbeats on revenue-critical jobs, and a public status page with email subscribers and an RSS feed.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/for/saas" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/for/saas" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Monitoring for SaaS teams | " + appName)
-@section('description', "Uptime monitoring for SaaS teams: 30 second checks, heartbeats on billing jobs, deep health checks, and a status page your customers can subscribe to.")
-@section('canonical', "https://statushq.org/for/saas")
-@section('ogDescription', "30 second checks, heartbeats on revenue-critical jobs, and a public status page with email subscribers and an RSS feed.")
-@section('ogTitle', "Monitoring for SaaS teams | " + appName)
-@section('ogUrl', "https://statushq.org/for/saas")
 
 @section('content')
       <section class="site-shell">

@@ -56,16 +56,31 @@ const faqs = [
     a: 'The Free plan covers 5 monitors, 1 status page, and 5-minute check intervals, which is enough for a storefront, checkout, and a couple of APIs. Pro is $9/month for 100 monitors, 10 status pages, and 30-second intervals.',
   },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Monitoring for e-commerce | " + appName,
+  description: "Uptime monitoring for online stores: checkout checks every 30 seconds, daily crawls for broken product links and mixed content, plus SSL and blocklist alerts.",
+  ogDescription: "Watch the whole storefront funnel: checkout uptime, broken product links, mixed content, certificates, and email deliverability.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/for/ecommerce" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/for/ecommerce" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Monitoring for e-commerce | " + appName)
-@section('description', "Uptime monitoring for online stores: checkout checks every 30 seconds, daily crawls for broken product links and mixed content, plus SSL and blocklist alerts.")
-@section('canonical', "https://statushq.org/for/ecommerce")
-@section('ogDescription', "Watch the whole storefront funnel: checkout uptime, broken product links, mixed content, certificates, and email deliverability.")
-@section('ogTitle', "Monitoring for e-commerce | " + appName)
-@section('ogUrl', "https://statushq.org/for/ecommerce")
 
 @section('content')
       <section class="site-shell">

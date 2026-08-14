@@ -38,16 +38,31 @@ const related = [
   { title: 'TCP port monitoring', text: 'The host answers pings, but is the database actually accepting connections on 3306? A port check answers that.', href: '/features/tcp-port-monitoring' },
   { title: 'Server monitoring', text: 'Ping sees a host from the outside. The metrics agent adds CPU, memory, and disk from the inside.', href: '/features/server-monitoring' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Ping monitoring | " + appName,
+  description: "Open-source ping monitoring. Know whether a host is reachable at the network level, with round-trip latency recorded per region and automatic incidents.",
+  ogDescription: "ICMP reachability checks with per-region latency, automatic incidents, and 90 days of history. Open source and self-hostable.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/ping-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/ping-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Ping monitoring | " + appName)
-@section('description', "Open-source ping monitoring. Know whether a host is reachable at the network level, with round-trip latency recorded per region and automatic incidents.")
-@section('canonical', "https://statushq.org/features/ping-monitoring")
-@section('ogDescription', "ICMP reachability checks with per-region latency, automatic incidents, and 90 days of history. Open source and self-hostable.")
-@section('ogTitle', "Ping monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/ping-monitoring")
 
 @section('content')
       <section class="site-shell">

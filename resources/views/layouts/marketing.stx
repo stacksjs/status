@@ -3,16 +3,11 @@
      NOTE: directive-looking text is LIVE inside these comments (the
      processor scans directives before comment semantics — writing the
      extends directive with its own name here made the layout extend
-     ITSELF and OOM). Pages extend layouts/marketing and fill five
-     sections:
-       title / ogTitle   - document + og:title (same text; separate
-                      sections because a @yield consumes its section - the
-                      second use of one section renders empty)
-       description  - meta description
-       canonical / ogUrl - absolute page URL (same text, twice for
-                      the same single-consume reason)
-       ogDescription- og:description (often shorter than description)
-       content      - the page's <main> interior, verbatim
+     ITSELF and OOM). Pages extend layouts/marketing and fill ONE
+     section — content (the page's <main> interior, verbatim). SEO
+     (title/description/canonical/og/twitter/JSON-LD) is declared in each
+     page's server script via useSeoMeta + useHead; the framework
+     renders it into this head server-side
      charset/viewport live here (a document-owning layout writes its own;
      the config app.head pair is fragment-only). Favicons + fonts come
      from config/ui.ts app.head via injectConfigHeadTags. The index,
@@ -24,13 +19,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title')</title>
-    <meta name="description" content="@yield('description')">
-    <link rel="canonical" href="@yield('canonical')">
-    <meta property="og:title" content="@yield('ogTitle')">
-    <meta property="og:description" content="@yield('ogDescription')">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="@yield('ogUrl')">
+    {{-- Title/description/canonical/og/twitter come from each page's
+         useSeoMeta + useHead calls (stx-standards 04) — the framework
+         splices them into this head server-side. --}}
     @include('../partials/marketing-head.stx')
   </head>
   <body>

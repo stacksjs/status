@@ -42,16 +42,31 @@ const related = [
   { title: 'Uptime monitoring', text: 'Outside-in checks for everything that does have a URL, as often as every 30 seconds from six regions.', href: '/features/uptime-monitoring' },
   { title: 'Notifications', text: 'Missed check-ins route through email, Slack, PagerDuty, SMS, and six more channels.', href: '/features/notifications' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Cron job monitoring | " + appName,
+  description: "Heartbeat monitoring for cron jobs and scheduled tasks. Your job pings a unique URL on every run. Silence past the grace period opens an incident.",
+  ogDescription: "Your scheduled job pings a unique URL on every run. Silence past the grace period opens an incident and alerts your team.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/cron-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/cron-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Cron job monitoring | " + appName)
-@section('description', "Heartbeat monitoring for cron jobs and scheduled tasks. Your job pings a unique URL on every run. Silence past the grace period opens an incident.")
-@section('canonical', "https://statushq.org/features/cron-monitoring")
-@section('ogDescription', "Your scheduled job pings a unique URL on every run. Silence past the grace period opens an incident and alerts your team.")
-@section('ogTitle', "Cron job monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/cron-monitoring")
 
 @section('content')
       <section class="site-shell">

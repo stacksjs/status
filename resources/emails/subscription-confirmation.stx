@@ -1,8 +1,8 @@
 <script server>
 const email = props.email || ''
 const unsubscribeUrl = props.unsubscribeUrl || '#'
-const appName = props.appName || 'Stacks'
-const appUrl = props.appUrl || 'https://stacksjs.com'
+const appName = props.appName || 'StatusHQ'
+const appUrl = props.appUrl || 'https://statushq.org'
 const primaryColor = props.primaryColor || '#3451b2'
 const year = props.year || new Date().getFullYear()
 </script>
@@ -64,9 +64,9 @@ const year = props.year || new Date().getFullYear()
               <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%;">
                 <tr>
                   <td style="color: #666; font-size: 13px;">
-                    <a href="https://stacksjs.com/docs" style="color: #888; text-decoration: none;">Docs</a>
+                    <a href="https://statushq.org/docs" style="color: #888; text-decoration: none;">Docs</a>
                     &nbsp;&middot;&nbsp;
-                    <a href="https://github.com/stacksjs/stacks" style="color: #888; text-decoration: none;">GitHub</a>
+                    <a href="https://github.com/stacksjs/status" style="color: #888; text-decoration: none;">GitHub</a>
                     &nbsp;&middot;&nbsp;
                     <a href="https://discord.gg/stacksjs" style="color: #888; text-decoration: none;">Discord</a>
                   </td>

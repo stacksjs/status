@@ -42,16 +42,31 @@ const related = [
   { title: 'Lighthouse monitoring', text: 'Baseline comparison watches your servers. Lighthouse watches what the browser does with your pages.', href: '/features/lighthouse-monitoring' },
   { title: 'Notifications', text: 'Degradation incidents route through the same 10 channels as everything else, from Slack to PagerDuty.', href: '/features/notifications' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Performance monitoring | " + appName,
+  description: "Automatic response-time regression detection: p95 of the last hour versus your 7-day baseline, checked every 10 minutes. No thresholds to tune.",
+  ogDescription: "p95 baseline comparison every 10 minutes, no manual thresholds. Open source and self-hostable.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/performance-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/performance-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Performance monitoring | " + appName)
-@section('description', "Automatic response-time regression detection: p95 of the last hour versus your 7-day baseline, checked every 10 minutes. No thresholds to tune.")
-@section('canonical', "https://statushq.org/features/performance-monitoring")
-@section('ogDescription', "p95 baseline comparison every 10 minutes, no manual thresholds. Open source and self-hostable.")
-@section('ogTitle', "Performance monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/performance-monitoring")
 
 @section('content')
       <section class="site-shell">

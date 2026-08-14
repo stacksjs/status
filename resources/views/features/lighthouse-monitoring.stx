@@ -38,16 +38,31 @@ const related = [
   { title: 'Broken links', text: 'A daily crawl for 404s, mixed content, and dead sitemap URLs. The other kind of quiet decay.', href: '/features/broken-links' },
   { title: 'Uptime monitoring', text: '30-second checks from six regions, with full diagnostics on every result.', href: '/features/uptime-monitoring' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Lighthouse monitoring | " + appName,
+  description: "Track Lighthouse performance, accessibility, SEO, and best-practices scores over time. Automatic incidents on performance drops. Open source.",
+  ogDescription: "Real Lighthouse audits on a schedule, with score history and incidents on performance regressions.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/lighthouse-monitoring" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/lighthouse-monitoring" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Lighthouse monitoring | " + appName)
-@section('description', "Track Lighthouse performance, accessibility, SEO, and best-practices scores over time. Automatic incidents on performance drops. Open source.")
-@section('canonical', "https://statushq.org/features/lighthouse-monitoring")
-@section('ogDescription', "Real Lighthouse audits on a schedule, with score history and incidents on performance regressions.")
-@section('ogTitle', "Lighthouse monitoring | " + appName)
-@section('ogUrl', "https://statushq.org/features/lighthouse-monitoring")
 
 @section('content')
       <section class="site-shell">

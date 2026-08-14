@@ -195,16 +195,29 @@ injection indent).
 - Delete the dead `resources/views/layouts/marketing.stx` document-style
   layout first; it was never resolvable.
 
-## Phase 3 — SEO from one source
+## Phase 3 — SEO from one source ✅ shipped 2026-08-14
 
-- Port the 28 complete hand-written marketing heads to `useSeoMeta`
-  (transcription, not authoring — title/description/canonical/og already
-  exist as tags).
-- Add an og:image asset + per-page `ogImage`; emit FAQPage JSON-LD from
-  the 25 existing server-script `faqs` arrays (one array, two consumers —
-  unusually pre-positioned); add `/docs` to the sitemap.
-- Rewrite `resources/emails/subscription-confirmation.stx` (unbranded
-  Stacks boilerplate, live via SubscriptionConfirmation.ts).
+- All 30 pages now declare SEO via `useSeoMeta`/`useHead` in their
+  server scripts (rule 5): the marketing/auth layouts dropped their
+  title/description/canonical/og yields, og:title/og:description and the
+  twitter pair derive from title/description, and every page was
+  verified against pre-port baselines (main byte-identical; the only
+  head deltas are the derived twitter tags, framework entity-escaping of
+  attribute values, and og:title now robust where section-eval could
+  render it empty). Engine facts: the server-side `useSeoMeta` ignores
+  its `canonical` key (canonical + og:url go through `useHead`), and
+  auth pages use plain `useHead` so noindex surfaces don't grow og tags.
+- FAQPage JSON-LD emitted from the existing `faqs` arrays on all 24
+  faq-bearing pages plus the homepage, via `useHead` script entries with
+  `<` escaped so markup in answers can't close the script.
+- Sitemap still pointed at uptime-status.org — 27 URLs the rename never
+  touched — now statushq.org, plus `/docs`.
+- The subscriber confirmation email really did ship 'Welcome to Stacks'
+  with stacksjs.com links: the caller never passed `appName`, so the
+  template's scaffold defaults won. Caller now passes brand props and
+  the template defaults are StatusHQ.
+- Still open: an og:image asset (1200×630) needs design; wire per-page
+  `ogImage` keys once it exists.
 
 ## Phase 4 — Links, then the flip
 

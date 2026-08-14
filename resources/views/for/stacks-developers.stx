@@ -52,16 +52,31 @@ const faqs = [
     a: 'Yes. StatusHQ is itself a Stacks app: clone it, run bun install and ./buddy serve, and you have the whole product on your own infrastructure, MIT licensed. One caveat: an external region watching your stack is worth keeping, because a monitor inside a failing network cannot report the failure.',
   },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Monitoring for Stacks developers | " + appName,
+  description: "Uptime, health, and cron monitoring that speaks TypeScript. Built with Stacks, for Stacks apps: heartbeat pings from jobs, health-route checks, and a JSON API for everything.",
+  ogDescription: "Uptime, health, and cron monitoring that speaks TypeScript, built with the Stacks framework.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/for/stacks-developers" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/for/stacks-developers" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Monitoring for Stacks developers | " + appName)
-@section('description', "Uptime, health, and cron monitoring that speaks TypeScript. Built with Stacks, for Stacks apps: heartbeat pings from jobs, health-route checks, and a JSON API for everything.")
-@section('canonical', "https://statushq.org/for/stacks-developers")
-@section('ogDescription', "Uptime, health, and cron monitoring that speaks TypeScript, built with the Stacks framework.")
-@section('ogTitle', "Monitoring for Stacks developers | " + appName)
-@section('ogUrl', "https://statushq.org/for/stacks-developers")
 
 @section('content')
       <section class="site-shell">

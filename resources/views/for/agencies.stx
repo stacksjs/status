@@ -60,20 +60,31 @@ const faqs = [
     a: 'Yes. Turn on uptime reports in team settings and pick weekly or monthly. The email covers uptime percentage per monitor, incident count and total duration, response-time trend against the previous period, and what the crawler found. Recipients are configurable per team, so it can go straight to the client\'s inbox.',
   },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Monitoring for agencies | " + appName,
+  description: "Monitor every client site from one dashboard: uptime, SSL, domain expiry, and broken links, plus a branded status page on each client's own domain.",
+  ogDescription: "Every client site in one dashboard, with per-client alert routing and status pages on your clients' own domains.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/for/agencies" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/for/agencies" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Monitoring for agencies | " + appName)
-@section('description')
-Monitor every client site from one dashboard: uptime, SSL, domain expiry, and broken links, plus a branded status page on each client's own domain.
-@endsection
-@section('canonical', "https://statushq.org/for/agencies")
-@section('ogDescription')
-Every client site in one dashboard, with per-client alert routing and status pages on your clients' own domains.
-@endsection
-@section('ogTitle', "Monitoring for agencies | " + appName)
-@section('ogUrl', "https://statushq.org/for/agencies")
 
 @section('content')
       <section class="site-shell">

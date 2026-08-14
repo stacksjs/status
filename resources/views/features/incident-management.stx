@@ -42,16 +42,31 @@ const related = [
   { title: 'Status pages', text: 'Every incident and maintenance window lands on a branded page your users can check themselves.', href: '/features/status-pages' },
   { title: 'Notifications', text: 'Ten channels page the right people when an incident opens, and again when it resolves.', href: '/features/notifications' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "Incident management | " + appName,
+  description: "Failed checks open incidents automatically with the cause attached. Acknowledge in one request, post timeline updates, and schedule maintenance windows.",
+  ogDescription: "Automatic incident opening and resolution, a four-status workflow, one-step acknowledgment, and maintenance windows.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/incident-management" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/incident-management" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "Incident management | " + appName)
-@section('description', "Failed checks open incidents automatically with the cause attached. Acknowledge in one request, post timeline updates, and schedule maintenance windows.")
-@section('canonical', "https://statushq.org/features/incident-management")
-@section('ogDescription', "Automatic incident opening and resolution, a four-status workflow, one-step acknowledgment, and maintenance windows.")
-@section('ogTitle', "Incident management | " + appName)
-@section('ogUrl', "https://statushq.org/features/incident-management")
 
 @section('content')
       <section class="site-shell">

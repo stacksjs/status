@@ -22,6 +22,10 @@ export async function sendSubscriptionConfirmation(options: SubscriptionConfirma
     variables: {
       email: to,
       unsubscribeUrl,
+      // The template falls back to its own defaults without these - which
+      // is how subscribers received 'Welcome to Stacks' mail for a while.
+      appName,
+      appUrl: config.app.url || 'https://statushq.org',
     },
     subject: `Welcome to ${appName}!`,
   })

@@ -19,12 +19,19 @@ if (process.env.SSO_ENTRA_TENANT_ID && process.env.SSO_ENTRA_CLIENT_ID && proces
 if (process.env.SSO_OIDC_ISSUER && process.env.SSO_OIDC_CLIENT_ID && process.env.SSO_OIDC_CLIENT_SECRET)
   ssoProviders.push({ key: 'oidc', label: process.env.SSO_OIDC_LABEL || 'SSO' })
 const hasSso = ssoProviders.length > 0
+
+// Head via useHead, not useSeoMeta (stx-standards 04): auth surfaces
+// are noindex, so deriving og/twitter tags for them would be noise.
+useHead({
+  title: "Sign in \u00b7 " + appName,
+  meta: [
+    { name: 'description', content: "Sign in to your StatusHQ dashboard." },
+    { name: 'robots', content: 'noindex' },
+  ],
+})
 </script>
 
 @extends('layouts/auth')
-
-@section('title', "Sign in &middot; " + appName)
-@section('description', "Sign in to your StatusHQ dashboard.")
 
 @section('content')
     <div class="auth-card">

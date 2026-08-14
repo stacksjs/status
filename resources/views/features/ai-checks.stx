@@ -38,18 +38,31 @@ const related = [
   { title: 'Broken link monitoring', text: 'Crawls your pages for links that lead nowhere, another failure a homepage status code never shows.', href: '/features/broken-links' },
   { title: 'Lighthouse monitoring', text: 'Scheduled Lighthouse audits for the visual and performance side of "the page is technically up".', href: '/features/lighthouse-monitoring' },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: "AI-powered content checks | " + appName,
+  description: "Write a plain-English assertion like 'the pricing page shows a Buy now button and no error text'. We check the live page against it and alert on FAIL.",
+  ogDescription: "Catch error pages that return HTTP 200. Plain-English assertions, verified against the live page, with incidents on failure.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/features/ai-checks" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/features/ai-checks" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', "AI-powered content checks | " + appName)
-@section('description')
-Write a plain-English assertion like 'the pricing page shows a Buy now button and no error text'. We check the live page against it and alert on FAIL.
-@endsection
-@section('canonical', "https://statushq.org/features/ai-checks")
-@section('ogDescription', "Catch error pages that return HTTP 200. Plain-English assertions, verified against the live page, with incidents on failure.")
-@section('ogTitle', "AI-powered content checks | " + appName)
-@section('ogUrl', "https://statushq.org/features/ai-checks")
 
 @section('content')
       <section class="site-shell">

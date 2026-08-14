@@ -328,6 +328,33 @@ const faqs = [
   { q: 'What happens when I hit the 100-monitor limit on Pro?', a: 'Self-host. StatusHQ is MIT licensed, and your own install has no plan limits, so a large client roster costs you a server instead of a tier. If you would rather stay on hosted, talk to us and we will raise your limit.' },
   { q: 'What can I monitor?', a: 'HTTP(S) endpoints, TCP ports, SSL certificates, domain expiration, DNS records, and broken links — all from one dashboard.' },
 ]
+
+// SEO via the framework head (stx-standards 04). The custom-domain
+// branch titles the page after the hosted status page; the marketing
+// branch keeps the homepage copy. og:title/og:description and the
+// twitter pair derive from title/description. Canonical only for the
+// marketing site - a customer's domain must not claim statushq.org.
+useSeoMeta({
+  title: statusPageForHost ? statusPageForHost.title : appName + ' \u00b7 Open-source uptime monitoring',
+  description: statusPageForHost ? statusPageForHost.title + ' status' : appName + ' is a self-hostable uptime, SSL, DNS, and status-page monitoring platform.',
+  ogDescription: statusPageForHost ? 'Live service status for ' + statusPageForHost.title + '.' : 'Uptime, SSL, DNS, cron, and status-page monitoring. MIT licensed, self-hostable, or fully hosted for $9 a month.',
+  ogType: 'website',
+})
+useHead({
+  meta: [
+    { property: 'og:site_name', content: appName },
+    { property: 'og:url', content: 'https://statushq.org/' },
+    { name: 'twitter:card', content: 'summary' },
+  ],
+})
+if (!statusPageForHost)
+  useHead({ link: [{ rel: 'canonical', href: 'https://statushq.org/' }] })
+if (!statusPageForHost && faqs && faqs.length)
+  useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  }).replace(/</g, '\u003c') }] })
 </script>
 
 <!DOCTYPE html>
@@ -336,17 +363,8 @@ const faqs = [
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     {{-- Favicons + fonts come from config/ui.ts app.head (stx-standards 04-head). --}}
-    <meta name="description" content="{{ statusPageForHost ? statusPageForHost.title + ' status' : appName + ' is a self-hostable uptime, SSL, DNS, and status-page monitoring platform.' }}">
-    <title>{{ statusPageForHost ? statusPageForHost.title : appName + ' \u00b7 Open-source uptime monitoring' }}</title>
-    <meta property="og:site_name" content="{{ appName }}">
-    <meta property="og:title" content="{{ statusPageForHost ? statusPageForHost.title + ' status' : appName + ' \u00b7 Open-source uptime monitoring' }}">
-    <meta property="og:description" content="{{ statusPageForHost ? 'Live service status for ' + statusPageForHost.title + '.' : 'Uptime, SSL, DNS, cron, and status-page monitoring. MIT licensed, self-hostable, or fully hosted for $9 a month.' }}">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://statushq.org/">
-    <meta name="twitter:card" content="summary">
-    @if (!statusPageForHost)
-      <link rel="canonical" href="https://statushq.org/">
-    @endif
+    {{-- Title/description/og/twitter/canonical come from the server
+         script's useSeoMeta + useHead calls (stx-standards 04). --}}
     @include('./partials/marketing-head.stx')
     {{-- Homepage-ONLY CSS. The design system (tokens, resets, nav,
          buttons, badges, feature cards, FAQ, CTA band, footer) comes

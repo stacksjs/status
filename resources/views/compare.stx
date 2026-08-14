@@ -145,18 +145,31 @@ const faqs = [
     a: 'Yes. The status page importer recreates your components and groups from any of the three in one step, so switching does not mean rebuilding your public status page by hand.',
   },
 ]
+
+// SEO tags via the framework head (stx-standards 04): og:title,
+// og:description and the twitter pair derive from title/description;
+// canonical + og:url go through useHead (the server-side useSeoMeta
+// ignores its canonical key in this build).
+useSeoMeta({
+  title: appName + " vs. open-source and hosted monitoring",
+  description: "How " + appName + " compares to Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, and the classic self-hosted suites: every check side by side, honestly.",
+  ogDescription: "Every check side by side: StatusHQ against Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, Nagios, and Zabbix.",
+  ogType: 'website',
+})
+useHead({
+  link: [{ rel: 'canonical', href: "https://statushq.org/compare" }],
+  meta: [{ property: 'og:url', content: "https://statushq.org/compare" }],
+})
+// FAQPage JSON-LD from the same faqs array the visible FAQ section
+// renders ('<' escaped so markup in answers can't close the script).
+useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+}).replace(/</g, '\u003c') }] })
 </script>
 
 @extends('layouts/marketing')
-
-@section('title', appName + " vs. open-source and hosted monitoring")
-@section('description')
-How {{ appName }} compares to Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, and the classic self-hosted suites: every check side by side, honestly.
-@endsection
-@section('canonical', "https://statushq.org/compare")
-@section('ogDescription', "Every check side by side: StatusHQ against Uptime Kuma, Oh Dear, Better Stack, UptimeRobot, Nagios, and Zabbix.")
-@section('ogTitle', appName + " vs. open-source and hosted monitoring")
-@section('ogUrl', "https://statushq.org/compare")
 
 @section('content')
       <section class="site-shell">
