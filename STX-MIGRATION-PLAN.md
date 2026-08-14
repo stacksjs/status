@@ -140,7 +140,7 @@ full suite + app-code typecheck + `buddy lint` + pickier green.
   outage itself is org infra and still needs fixing** — fresh machine
   bootstraps and fresh box provisioning stay broken until then.
 
-## Phase 2 — One shell, one layout (the big one) — batch 1 shipped 2026-08-14
+## Phase 2 — One shell, one layout ✅ complete 2026-08-14 (3 batches)
 
 Batch 1: real `layouts/marketing.stx` + all 25 uniform pages (19
 features/*, 6 for/*) converted to `@extends` + six two-arg sections +
@@ -159,9 +159,25 @@ content resolves @include paths LAYOUT-relative (root-level pages'
 bases, which is why the features/for pages never noticed), and the
 section-arg evaluator handles only a single string concatenation (a
 three-part `"a" + x + "b"` renders empty — block-section form instead).
-Remaining: index, login, register — genuinely distinct shapes (auth pages
-have no nav/footer and carry noindex; index carries the inline design
-system that folds into marketing-head when it converts).
+Batch 3: login and register
+moved onto a new document-owning `layouts/auth.stx` (noindex, no
+nav/footer, the union of their formerly-duplicated card styles — they
+were byte-identical apart from four small hunks). index.stx deliberately
+stays a self-owned document — its host-multiplexed custom-domain status
+branch, coming-soon overlay, dynamic `<html>`/`<body>` attributes and
+og:site_name/twitter slots genuinely do not fit the marketing layout —
+but its sync debt is gone: the 104 rules duplicated from
+marketing-head.stx plus tokens/resets/theme-script were deleted
+(2,054 → 1,437 lines) in favor of including the partial, with the five
+deliberate homepage-scale overrides kept after the include so the
+cascade preserves them, and its hand-rolled nav swapped for
+partials/marketing-nav.stx (byte-equivalent render, 32 anchors). The
+hand-rolled footer stays for now — it has 4 link blocks vs the partial's
+5, a content difference to settle separately (a .footer-grid 3-column
+override keeps its layout correct). All three verified against
+pre-conversion baselines: main interior byte-identical, head tag-set
+identical (the only normalized delta is the framework runtime block's
+injection indent).
 
 - Create a document-owning `layouts/marketing.stx` on the proven
   `layouts/status.stx` pattern (`@yield('lang')`/`@yield('theme')` on

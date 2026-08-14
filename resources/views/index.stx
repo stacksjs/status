@@ -347,130 +347,15 @@ const faqs = [
     @if (!statusPageForHost)
       <link rel="canonical" href="https://statushq.org/">
     @endif
-    <script>
-      // Apply a stored theme override before first paint to avoid a flash of
-      // the wrong theme. Absence of a stored value leaves data-theme="system"
-      // (or the status page's own force_theme) alone — the stylesheet below
-      // falls back to prefers-color-scheme in that case.
-      (function () {
-        try {
-          var stored = localStorage.getItem('uptimestatus-theme')
-          if (stored === 'light' || stored === 'dark') {
-            document.documentElement.setAttribute('data-theme', stored)
-          }
-        }
-        catch (err) {}
-      })()
-    </script>
+    @include('./partials/marketing-head.stx')
+    {{-- Homepage-ONLY CSS. The design system (tokens, resets, nav,
+         buttons, badges, feature cards, FAQ, CTA band, footer) comes
+         from partials/marketing-head.stx above — the 104 rules that
+         used to be duplicated here are deleted, ending the "must stay
+         in sync" debt both file headers warned about. Rules below that
+         share selectors with the partial are deliberate homepage-scale
+         overrides and must stay AFTER the include (cascade order). --}}
     <style>
-      :root {
-        color-scheme: light;
-        --bg: #fbfbfa;
-        --surface: #ffffff;
-        --surface-2: #f2f3f1;
-        --fg: #0b0f0d;
-        --muted: #5c6864;
-        --border: rgba(11, 15, 13, 0.1);
-        --border-strong: rgba(11, 15, 13, 0.18);
-        --accent: #2563eb;
-        --accent-fg: #ffffff;
-        --accent-soft: rgba(37, 99, 235, 0.09);
-        --success: #059669;
-        --success-soft: rgba(5, 150, 105, 0.12);
-        --amber: #d97706;
-        --amber-soft: rgba(217, 119, 6, 0.12);
-        --danger: #dc2626;
-        --danger-soft: rgba(220, 38, 38, 0.09);
-        --violet: #6d5efc;
-        --shadow: 0 20px 50px -18px rgba(11, 15, 13, 0.22);
-        --radius: 16px;
-        --radius-sm: 10px;
-        --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-        --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
-        --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        html:not([data-theme="light"]) {
-          color-scheme: dark;
-          --bg: #080b0a;
-          --surface: #101413;
-          --surface-2: #161b19;
-          --fg: #f2f5f3;
-          --muted: #97a39d;
-          --border: rgba(255, 255, 255, 0.08);
-          --border-strong: rgba(255, 255, 255, 0.15);
-          --accent: #60a5fa;
-          --accent-fg: #071630;
-          --accent-soft: rgba(96, 165, 250, 0.14);
-          --success: #2fe6a6;
-          --success-soft: rgba(47, 230, 166, 0.14);
-          --amber: #fbbf24;
-          --amber-soft: rgba(251, 191, 36, 0.13);
-          --danger: #f87171;
-          --danger-soft: rgba(248, 113, 113, 0.12);
-          --violet: #a196ff;
-          --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
-        }
-      }
-
-      html[data-theme="dark"] {
-        color-scheme: dark;
-        --bg: #080b0a;
-        --surface: #101413;
-        --surface-2: #161b19;
-        --fg: #f2f5f3;
-        --muted: #97a39d;
-        --border: rgba(255, 255, 255, 0.08);
-        --border-strong: rgba(255, 255, 255, 0.15);
-        --accent: #60a5fa;
-        --accent-fg: #071630;
-        --accent-soft: rgba(96, 165, 250, 0.14);
-        --success: #2fe6a6;
-        --success-soft: rgba(47, 230, 166, 0.14);
-        --amber: #fbbf24;
-        --amber-soft: rgba(251, 191, 36, 0.13);
-        --danger: #f87171;
-        --danger-soft: rgba(248, 113, 113, 0.12);
-        --violet: #a196ff;
-        --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55);
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html {
-        background: var(--bg);
-        overflow-x: hidden;
-        scroll-behavior: smooth;
-      }
-
-      body {
-        min-width: 320px;
-        min-height: 100vh;
-        margin: 0;
-        overflow-x: hidden;
-        color: var(--fg);
-        background: var(--bg);
-        font-family: var(--font-body);
-        transition: background-color 0.2s ease, color 0.2s ease;
-      }
-
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
-
-      img {
-        max-width: 100%;
-        display: block;
-      }
-
-      ::selection {
-        background: var(--accent-soft);
-      }
-
       body[data-site-mode="coming-soon"] .site-content {
         display: none;
       }
@@ -584,213 +469,12 @@ const faqs = [
       }
       .mode-textlink:hover { color: var(--accent); border-color: var(--accent); }
 
-      /* ---------------------------------------------------------------- */
-      /* Marketing site                                                    */
-      /* ---------------------------------------------------------------- */
-
-      .site-shell {
-        width: min(1180px, calc(100% - 40px));
-        margin: 0 auto;
-      }
-
-      .site-nav {
-        position: sticky;
-        top: 0;
-        z-index: 40;
-        border-bottom: 1px solid var(--border);
-        background: color-mix(in srgb, var(--bg) 78%, transparent);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-      }
-
-      .nav-inner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-height: 66px;
-        gap: 1rem;
-      }
-
-      .brand {
-        display: inline-flex;
-        gap: 0.6rem;
-        align-items: center;
-        min-width: 0;
-      }
-
-      .brand-mark {
-        position: relative;
-        display: grid;
-        flex: 0 0 auto;
-        place-items: center;
-        width: 30px;
-        height: 30px;
-        border-radius: 8px;
-        color: var(--accent-fg);
-        background: var(--accent);
-      }
-      /* Live "pulse": a radar ring emanates from the mark while the
-         waveform gives a double heartbeat, so the logo reads as an active
-         signal rather than a static tile. Disabled under reduced-motion. */
-      .brand-mark::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        pointer-events: none;
-        animation: brand-ping 2.6s cubic-bezier(0, 0, 0.2, 1) infinite;
-      }
-      .brand-mark svg { width: 16px; height: 16px; transform-origin: center; animation: brand-beat 2.6s ease-in-out infinite; }
-      @keyframes brand-ping {
-        0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
-        70%, 100% { box-shadow: 0 0 0 9px transparent; }
-      }
-      @keyframes brand-beat {
-        0%, 45%, 100% { transform: scale(1); }
-        10% { transform: scale(1.16); }
-        20% { transform: scale(1); }
-        30% { transform: scale(1.1); }
-        40% { transform: scale(1); }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .brand-mark::after, .brand-mark svg { animation: none; }
-      }
-
-      .brand-name {
-        font-family: var(--font-display);
-        font-size: 1.12rem;
-        font-weight: 600;
-        letter-spacing: -0.01em;
-        line-height: 1;
-      }
-
-      .nav-links {
-        display: flex;
-        gap: 1.75rem;
-        align-items: center;
-        color: var(--muted);
-        font-size: 0.9rem;
-        font-weight: 500;
-      }
-
-      .nav-links a:hover {
-        color: var(--fg);
-      }
-
-      /* Mega menu (Features / Use cases hover panels) */
-      .nav-item { position: relative; display: inline-flex; align-items: center; }
-      .nav-item > a { display: inline-flex; align-items: center; gap: 0.28rem; }
-      .nav-item > a .caret { width: 13px; height: 13px; opacity: 0.7; transition: transform 0.18s ease; }
-      .nav-item:hover > a .caret, .nav-item:focus-within > a .caret { transform: rotate(180deg); }
-      .nav-mega {
-        position: absolute; top: 100%; left: 0; padding-top: 12px;
-        opacity: 0; visibility: hidden; pointer-events: none; z-index: 60;
-      }
-      .nav-item:hover > .nav-mega, .nav-item:focus-within > .nav-mega { opacity: 1; visibility: visible; pointer-events: auto; }
-      .nav-mega-inner {
-        border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
-        box-shadow: var(--shadow); padding: 1.1rem; transform: translateY(6px); transition: transform 0.18s ease;
-      }
-      .nav-item:hover > .nav-mega .nav-mega-inner, .nav-item:focus-within > .nav-mega .nav-mega-inner { transform: translateY(0); }
-      .nav-mega.features .nav-mega-inner { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 0.4rem 1.75rem; width: min(90vw, 620px); }
-      .nav-mega.usecases .nav-mega-inner { display: grid; grid-template-columns: repeat(2, minmax(210px, 1fr)); gap: 0.2rem 0.5rem; width: min(90vw, 500px); }
-      .mega-group h5 { margin: 0.15rem 0 0.35rem; color: var(--muted); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-      .mega-group a { display: block; padding: 0.32rem 0; color: var(--fg); font-size: 0.875rem; font-weight: 500; line-height: 1.2; }
-      .mega-group a:hover { color: var(--accent); }
-      .mega-link { display: grid; gap: 0.1rem; padding: 0.5rem 0.6rem; border-radius: var(--radius-sm); }
-      .mega-link:hover { background: var(--surface-2); }
-      .mega-link strong { color: var(--fg); font-size: 0.88rem; font-weight: 600; }
-      .mega-link span { color: var(--muted); font-size: 0.78rem; line-height: 1.35; }
-      .mega-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-top: 0.6rem; padding-top: 0.7rem; border-top: 1px solid var(--border); }
-      .mega-foot .mega-foot-links { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; }
-      .mega-foot .mega-foot-links a { color: var(--muted); font-size: 0.82rem; font-weight: 500; }
-      .mega-foot .mega-foot-links a:hover { color: var(--fg); }
-      .mega-foot .mega-all { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--accent); font-size: 0.82rem; font-weight: 600; }
-      .mega-foot .mega-all svg { width: 14px; height: 14px; }
-
-      .nav-right {
-        display: flex;
-        align-items: center;
-        gap: 0.65rem;
-      }
-
-      .theme-toggle {
-        display: inline-grid;
-        place-items: center;
-        width: 38px;
-        height: 38px;
-        flex: 0 0 auto;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        color: var(--fg);
-        background: var(--surface);
-        cursor: pointer;
-      }
-      .theme-toggle:hover { border-color: var(--border-strong); }
-      .theme-toggle svg { width: 17px; height: 17px; }
-      .theme-toggle .icon-sun { display: none; }
-      html[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
-      html[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
-      @media (prefers-color-scheme: dark) {
-        html:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
-        html:not([data-theme="light"]) .theme-toggle .icon-sun { display: block; }
-      }
-
-      .button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        min-height: 44px;
-        padding: 0 1.2rem;
-        border: 1px solid var(--border-strong);
-        border-radius: var(--radius-sm);
-        color: var(--fg);
-        font: inherit;
-        font-size: 0.92rem;
-        font-weight: 600;
-        background: var(--surface);
-        cursor: pointer;
-        white-space: nowrap;
-      }
-      .button:hover { border-color: var(--fg); }
-      .button svg { width: 17px; height: 17px; }
-
-      .button.primary {
-        border-color: var(--accent);
-        color: var(--accent-fg);
-        background: var(--accent);
-      }
-      .button.primary:hover { filter: brightness(1.05); border-color: var(--accent); }
-
-      .button.wide { width: 100%; }
-
       .hero {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(380px, 0.95fr);
         gap: clamp(2rem, 4vw, 4rem);
         align-items: center;
         padding: clamp(3rem, 8vw, 6.5rem) 0 clamp(2rem, 4vw, 3rem);
-      }
-
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.55rem;
-        margin-bottom: 1.5rem;
-        padding: 0.4rem 0.85rem;
-        border: 1px solid var(--border-strong);
-        border-radius: 999px;
-        color: var(--muted);
-        font-size: 0.8rem;
-        font-weight: 600;
-      }
-      .badge .dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 999px;
-        background: var(--accent);
-        box-shadow: 0 0 0 3px var(--accent-soft);
       }
 
       .hero-title {
@@ -939,6 +623,7 @@ const faqs = [
         opacity: 0.55;
       }
 
+      /* Homepage-scale overrides of the shared .section* rules */
       .section {
         padding: clamp(3.5rem, 7vw, 6rem) 0;
       }
@@ -952,17 +637,6 @@ const faqs = [
         margin: 0 0 3rem;
         text-align: left;
       }
-
-      .eyebrow {
-        display: block;
-        margin-bottom: 0.75rem;
-        color: var(--accent);
-        font-size: 0.82rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-      }
-
       .section-title {
         margin: 0 0 0.85rem;
         font-family: var(--font-display);
@@ -977,45 +651,6 @@ const faqs = [
         color: var(--muted);
         font-size: 1.08rem;
         line-height: 1.65;
-      }
-
-      .feature-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 1.25rem;
-      }
-
-      .feature-card {
-        padding: 1.85rem;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        background: var(--surface);
-      }
-
-      .feature-icon {
-        display: grid;
-        place-items: center;
-        width: 44px;
-        height: 44px;
-        margin-bottom: 1.35rem;
-        border-radius: 11px;
-        color: var(--accent);
-        background: var(--accent-soft);
-      }
-      .feature-icon svg { width: 22px; height: 22px; }
-
-      .feature-card h3 {
-        margin: 0 0 0.5rem;
-        font-family: var(--font-display);
-        font-size: 1.1rem;
-        font-weight: 600;
-      }
-
-      .feature-card p {
-        margin: 0;
-        color: var(--muted);
-        font-size: 0.95rem;
-        line-height: 1.6;
       }
 
       .steps {
@@ -1046,7 +681,6 @@ const faqs = [
         color: var(--muted);
         line-height: 1.6;
       }
-
       .showcase {
         border: 1px solid var(--border);
         border-radius: var(--radius);
@@ -1152,7 +786,6 @@ const faqs = [
         border-radius: 2px;
         opacity: 0.9;
       }
-
       .oss-band {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -1184,7 +817,6 @@ const faqs = [
         white-space: nowrap;
         background: #0d1210;
       }
-
       .pricing-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1269,86 +901,7 @@ const faqs = [
 
       .price-card .button { margin-top: auto; }
 
-      .faq-list {
-        max-width: 44rem;
-        margin: 0 auto;
-        display: grid;
-        gap: 0.75rem;
-      }
-
-      .faq-item {
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        background: var(--surface);
-        overflow: hidden;
-      }
-      .faq-item summary {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        padding: 1.1rem 1.35rem;
-        list-style: none;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      .faq-item summary::-webkit-details-marker { display: none; }
-      .faq-item summary::after {
-        content: "+";
-        flex: 0 0 auto;
-        color: var(--muted);
-        font-family: var(--font-display);
-        font-size: 1.3rem;
-      }
-      .faq-item[open] summary::after { content: "\2013"; }
-      .faq-item p {
-        margin: 0;
-        padding: 0 1.35rem 1.25rem;
-        color: var(--muted);
-        line-height: 1.6;
-      }
-
-      .cta-band {
-        padding: clamp(3rem, 7vw, 5rem) clamp(1.5rem, 4vw, 3rem);
-        border-radius: var(--radius);
-        color: #ffffff;
-        text-align: center;
-        background: linear-gradient(135deg, var(--accent), var(--violet));
-      }
-      .cta-band h2 {
-        margin: 0 0 0.85rem;
-        font-family: var(--font-display);
-        font-size: clamp(1.7rem, 3.2vw, 2.5rem);
-        font-weight: 600;
-      }
-      .cta-band p {
-        margin: 0 0 1.75rem;
-        font-size: 1.05rem;
-        opacity: 0.92;
-      }
-      .cta-band .button.primary {
-        border-color: #ffffff;
-        color: #0b0f0d;
-        background: #ffffff;
-      }
-      .cta-band .actions {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 0.85rem;
-      }
-      .cta-band .button:not(.primary) {
-        border-color: rgba(255, 255, 255, 0.5);
-        color: #ffffff;
-        background: transparent;
-      }
-
-      .site-footer {
-        margin-top: 1rem;
-        padding: 3rem 0 2.5rem;
-        border-top: 1px solid var(--border);
-      }
-
+      /* Homepage footer has 4 blocks; the shared rule assumes 5 */
       .footer-grid {
         display: grid;
         grid-template-columns: 1.4fr repeat(3, 1fr);
@@ -1356,66 +909,7 @@ const faqs = [
         margin-bottom: 2.5rem;
       }
 
-      .footer-brand p {
-        max-width: 20rem;
-        margin-top: 0.85rem;
-        color: var(--muted);
-        font-size: 0.9rem;
-        line-height: 1.6;
-      }
-
-      .footer-col h4 {
-        margin: 0 0 1rem;
-        color: var(--muted);
-        font-size: 0.82rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      .footer-col ul {
-        display: grid;
-        gap: 0.65rem;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-      .footer-col a {
-        font-size: 0.92rem;
-        color: var(--fg);
-      }
-      .footer-col a:hover { color: var(--accent); }
-
-      .footer-bottom {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        padding-top: 1.75rem;
-        border-top: 1px solid var(--border);
-        color: var(--muted);
-        font-size: 0.85rem;
-      }
-
-      .footer-social {
-        display: flex;
-        gap: 0.75rem;
-      }
-      .footer-social a {
-        display: grid;
-        place-items: center;
-        width: 36px;
-        height: 36px;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        color: var(--muted);
-      }
-      .footer-social a:hover { color: var(--fg); border-color: var(--border-strong); }
-      .footer-social svg { width: 17px; height: 17px; }
-
       @media (max-width: 900px) {
-        .site-shell {
-          width: min(100% - 32px, 720px);
-        }
-
         .hero {
           grid-template-columns: minmax(0, 1fr);
           padding: 2.5rem 0 2rem;
@@ -1439,14 +933,6 @@ const faqs = [
           white-space: normal;
           word-break: break-all;
         }
-
-        .footer-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .nav-links {
-          display: none;
-        }
       }
 
       @media (max-width: 560px) {
@@ -1454,36 +940,6 @@ const faqs = [
         .cta-band .actions {
           flex-direction: column;
           align-items: stretch;
-        }
-
-        .footer-grid {
-          grid-template-columns: minmax(0, 1fr);
-        }
-
-        .footer-bottom {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 0.75rem;
-        }
-
-        .nav-right {
-          gap: 0.4rem;
-        }
-
-        /* "Sign in" is reachable from the footer; dropping it here is what
-           keeps the brand name, theme toggle, and primary CTA from wrapping
-           or overlapping on narrow phones. */
-        .nav-right a.button:not(.primary) {
-          display: none;
-        }
-
-        .nav-right .button.primary {
-          padding: 0 0.85rem;
-          font-size: 0.85rem;
-        }
-
-        .brand-name {
-          font-size: 1rem;
         }
       }
     </style>
@@ -1640,80 +1096,7 @@ const faqs = [
     </section>
 
     <div class="site-content">
-      <nav class="site-nav">
-        <div class="site-shell nav-inner">
-          <a class="brand" href="/" aria-label="{{ appName }} home">
-            <span class="brand-mark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg>
-            </span>
-            <span class="brand-name">{{ appName }}</span>
-          </a>
-          <div class="nav-links" aria-label="Primary navigation">
-            <div class="nav-item">
-              <a href="/features" data-no-router>Features<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg></a>
-              <div class="nav-mega features">
-                <div class="nav-mega-inner">
-                  <div class="mega-group">
-                    <h5>Availability</h5>
-                    <a href="/features/uptime-monitoring" data-no-router>Uptime</a>
-                    <a href="/features/ping-monitoring" data-no-router>Ping</a>
-                    <a href="/features/tcp-port-monitoring" data-no-router>TCP port</a>
-                    <a href="/features/cron-monitoring" data-no-router>Cron &amp; heartbeats</a>
-                    <a href="/features/health-checks" data-no-router>Health checks</a>
-                  </div>
-                  <div class="mega-group">
-                    <h5>Certificates &amp; DNS</h5>
-                    <a href="/features/ssl-monitoring" data-no-router>SSL certificates</a>
-                    <a href="/features/domain-monitoring" data-no-router>Domains</a>
-                    <a href="/features/dns-monitoring" data-no-router>DNS records</a>
-                    <a href="/features/dns-blocklist-monitoring" data-no-router>DNS blocklists</a>
-                  </div>
-                  <div class="mega-group">
-                    <h5>Performance &amp; ops</h5>
-                    <a href="/features/performance-monitoring" data-no-router>Performance</a>
-                    <a href="/features/lighthouse-monitoring" data-no-router>Lighthouse</a>
-                    <a href="/features/broken-links" data-no-router>Broken links</a>
-                    <a href="/features/server-monitoring" data-no-router>Server metrics</a>
-                    <a href="/features/ai-checks" data-no-router>AI checks</a>
-                  </div>
-                  <div class="mega-foot">
-                    <div class="mega-foot-links">
-                      <a href="/features/status-pages" data-no-router>Status pages</a>
-                      <a href="/features/incident-management" data-no-router>Incidents</a>
-                      <a href="/features/notifications" data-no-router>Notifications</a>
-                    </div>
-                    <a class="mega-all" href="/features" data-no-router>All features<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="nav-item">
-              <a href="/for" data-no-router>Use cases<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg></a>
-              <div class="nav-mega usecases">
-                <div class="nav-mega-inner">
-                  <a class="mega-link" href="/for/agencies" data-no-router><strong>Agencies</strong><span>Monitor every client site from one dashboard.</span></a>
-                  <a class="mega-link" href="/for/saas" data-no-router><strong>SaaS teams</strong><span>Uptime, status pages, and on-call for your product.</span></a>
-                  <a class="mega-link" href="/for/ecommerce" data-no-router><strong>E-commerce</strong><span>Catch checkout and payment outages fast.</span></a>
-                  <a class="mega-link" href="/for/devops" data-no-router><strong>DevOps &amp; SRE</strong><span>Heartbeats, health checks, and server metrics.</span></a>
-                  <a class="mega-link" href="/for/stacks-developers" data-no-router><strong>Stacks developers</strong><span>Drop-in monitoring for Stacks apps.</span></a>
-                  <a class="mega-link" href="/compare" data-no-router><strong>Compare</strong><span>See how we stack up against the alternatives.</span></a>
-                </div>
-              </div>
-            </div>
-            <a href="/compare" data-no-router>Compare</a>
-            <a href="#pricing">Pricing</a>
-            <a href="/docs" data-no-router>Docs</a>
-          </div>
-          <div class="nav-right">
-            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme">
-              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36-1.41-1.41M6.05 6.05 4.64 4.64m14.72 0-1.41 1.41M6.05 17.95l-1.41 1.41"/><circle cx="12" cy="12" r="4.5"/></svg>
-              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
-            </button>
-            <a class="button" href="/login" data-no-router>Sign in</a>
-            <a class="button primary" href="/register" data-no-router>Get started</a>
-          </div>
-        </div>
-      </nav>
+      @include('./partials/marketing-nav.stx')
 
       <main>
         <section class="site-shell hero">
