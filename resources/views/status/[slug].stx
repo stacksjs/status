@@ -2,6 +2,8 @@
 
 <script server>
 import { formatDateTime } from '../../../app/lib/display'
+import { inAnyInterval, maintenanceIntervalsByMonitor } from '../../../app/lib/maintenance'
+import { isIpAllowed } from '../../../app/Actions/StatusPages/AccessControl'
 // Display helpers live in app/lib/display (migration Phase 5). NB: `import
 // { x as y }` binds undefined in a server block in this stx build, so the
 // page's own names are bound here instead.
@@ -17,111 +19,11 @@ const statusPage = pageSlug
   : null
 
 // Access control (stacksjs/status#1 Phase 12). 'public' (the default) is
-// unchanged behavior below. IPv4 + IPv6 CIDR match duplicated inline here
-// rather than imported — same self-contained-per-view convention as
-// monitorDotClass/formatDate below (this file's require()s resolve real
-// published packages fine, but not TS source under app/Actions). KEEP IN
-// SYNC with app/Actions/StatusPages/AccessControl.ts, which is the
-// canonical, unit-tested version this mirrors verbatim.
-function ipv4ToInt(ip) {
-  const parts = String(ip).trim().split('.')
-  if (parts.length !== 4) return null
-  let result = 0
-  for (const part of parts) {
-    if (!/^\d{1,3}$/.test(part)) return null
-    const n = Number(part)
-    if (n < 0 || n > 255) return null
-    result = (result << 8) | n
-  }
-  return result >>> 0
-}
-
-function ipv6ToBigInt(ip) {
-  let s = String(ip).trim()
-  const pct = s.indexOf('%')
-  if (pct !== -1) s = s.slice(0, pct)
-  if (s.length === 0 || s.includes(':::')) return null
-  const doubleColon = s.indexOf('::')
-  if (doubleColon !== -1 && s.indexOf('::', doubleColon + 1) !== -1) return null
-  const expandTail = (groups) => {
-    if (groups.length === 0) return groups
-    const last = groups[groups.length - 1]
-    if (!last.includes('.')) return groups
-    const v4 = ipv4ToInt(last)
-    if (v4 === null) return null
-    return [...groups.slice(0, -1), ((v4 >>> 16) & 0xFFFF).toString(16), (v4 & 0xFFFF).toString(16)]
-  }
-  let groups
-  if (doubleColon === -1) {
-    const expanded = expandTail(s.split(':'))
-    if (expanded === null || expanded.length !== 8) return null
-    groups = expanded
-  }
-  else {
-    const leftRaw = s.slice(0, doubleColon) ? s.slice(0, doubleColon).split(':') : []
-    const rightRaw = s.slice(doubleColon + 2) ? s.slice(doubleColon + 2).split(':') : []
-    const right = expandTail(rightRaw)
-    if (right === null) return null
-    const fill = 8 - leftRaw.length - right.length
-    if (fill < 1) return null
-    groups = [...leftRaw, ...Array.from({ length: fill }, () => '0'), ...right]
-  }
-  let result = 0n
-  for (const g of groups) {
-    if (!/^[0-9a-f]{1,4}$/i.test(g)) return null
-    result = (result << 16n) | BigInt(Number.parseInt(g, 16))
-  }
-  return result
-}
-
-function matchCidr4(ipInt, range) {
-  if (!range.includes('/')) return ipv4ToInt(range) === ipInt
-  const [base, bitsStr] = range.split('/')
-  const baseInt = ipv4ToInt(base)
-  const bits = Number(bitsStr)
-  if (baseInt === null || !Number.isInteger(bits) || bits < 0 || bits > 32) return false
-  const mask = bits === 0 ? 0 : (0xFFFFFFFF << (32 - bits)) >>> 0
-  return (ipInt & mask) === (baseInt & mask)
-}
-
-function matchCidr6(ipBig, range) {
-  if (!range.includes('/')) {
-    const only = ipv6ToBigInt(range)
-    return only !== null && only === ipBig
-  }
-  const [base, bitsStr] = range.split('/')
-  const baseBig = ipv6ToBigInt(base)
-  const bits = Number(bitsStr)
-  if (baseBig === null || !Number.isInteger(bits) || bits < 0 || bits > 128) return false
-  const full = (1n << 128n) - 1n
-  const mask = bits === 0 ? 0n : (full << BigInt(128 - bits)) & full
-  return (ipBig & mask) === (baseBig & mask)
-}
-
-function isIpAllowed(ip, ranges) {
-  if (!ip || ranges.length === 0) return false
-  // Bun's server.requestIP() reports IPv4 connections in IPv4-mapped IPv6
-  // form ("::ffff:127.0.0.1") and IPv6 loopback as "::1". Compute both
-  // representations where they exist so a client matches entries of either
-  // family it belongs to. Matching is family-aware: a range's family is
-  // decided by whether it contains a colon.
-  let v4 = null
-  let v6 = null
-  const s = String(ip).trim()
-  if (s.startsWith('::ffff:') && s.includes('.')) { v4 = ipv4ToInt(s.slice(7)); v6 = ipv6ToBigInt(s) }
-  else if (s === '::1') { v6 = ipv6ToBigInt(s); v4 = ipv4ToInt('127.0.0.1') }
-  else if (s.includes(':')) { v6 = ipv6ToBigInt(s) }
-  else { v4 = ipv4ToInt(s) }
-  if (v4 === null && v6 === null) return false
-  return ranges.some((range) => {
-    const trimmed = range.trim()
-    if (!trimmed) return false
-    return trimmed.includes(':')
-      ? (v6 !== null && matchCidr6(v6, trimmed))
-      : (v4 !== null && matchCidr4(v4, trimmed))
-  })
-}
-
+// unchanged behavior below. The IPv4 + IPv6 CIDR matcher used to be mirrored
+// inline here, ~105 lines kept in sync by hand against the canonical,
+// unit-tested app/Actions/StatusPages/AccessControl.ts, on the belief that a
+// server block could not import TS under app/. It can (migration Phase 5), so
+// this now calls the tested one.
 let accessGranted = true
 if (statusPage && statusPage.access_type && statusPage.access_type !== 'public') {
   if (statusPage.access_type === 'ip_allowlist') {
@@ -223,63 +125,16 @@ const monitorIds = monitors.map((m) => m.id)
 
 // Maintenance windows are excluded from the uptime percentage and the history
 // bars (docs/operate/maintenance.md): a planned outage must not read as
-// downtime. KEEP IN SYNC with app/lib/maintenance.ts, the canonical,
-// unit-tested version this mirrors (stx server scripts can't import app/ TS).
-function inAnyInterval(atMs, intervals) {
-  for (const iv of intervals) {
-    if (atMs >= iv.startMs && atMs <= iv.endMs) return true
-  }
-  return false
-}
-// Recurring windows (recurrence_cron) expand into several intervals across the
-// history this page shows. This mirrors app/lib/maintenance.ts
-// expandWindowIntervals - KEEP IN SYNC. The stx server script can't import
-// app/ TS but can require npm packages, so it uses the same @stacksjs/cron
-// parser. Range = the 90-day uptime window below, which also covers "now" for
-// the maintenance banner.
-const { parseCron } = require('@stacksjs/cron')
+// downtime. The interval maths used to be mirrored here from
+// app/lib/maintenance.ts; it is imported now (migration Phase 5), so the page
+// and the jobs cannot disagree about what counts as maintenance.
 const MAINT_FROM_MS = Date.now() - 90 * 86400000
 const MAINT_TO_MS = Date.now()
-function expandWindowIntervals(w, fromMs, toMs) {
-  const startMs = Date.parse(w.starts_at)
-  const endMs = Date.parse(w.ends_at)
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return []
-  const cron = (w.recurrence_cron || '').trim()
-  const oneOff = () => (endMs >= fromMs && startMs <= toMs ? [{ startMs, endMs }] : [])
-  if (!cron) return oneOff()
-  const duration = endMs - startMs
-  const intervals = []
-  try {
-    let cursor = fromMs - duration - 1
-    for (let i = 0; i < 10000; i++) {
-      const next = parseCron(cron, cursor)
-      if (!next) break
-      const occStart = next.getTime()
-      if (occStart > toMs) break
-      const occEnd = occStart + duration
-      if (occEnd >= fromMs) intervals.push({ startMs: occStart, endMs: occEnd })
-      cursor = occStart
-    }
-  } catch { return oneOff() }
-  return intervals
-}
-const maintenanceIntervalsByMonitorId = {}
-if (monitorIds.length > 0) {
-  const mLinks = await db.selectFrom('maintenance_window_monitors').whereIn('monitor_id', monitorIds).execute()
-  const mWinIds = [...new Set(mLinks.map((l) => l.maintenance_window_id))]
-  const mWins = mWinIds.length
-    ? (await db.selectFrom('maintenance_windows').whereIn('id', mWinIds).execute()).filter((w) => w.status !== 'cancelled')
-    : []
-  const ivByWin = new Map()
-  for (const w of mWins)
-    ivByWin.set(w.id, expandWindowIntervals(w, MAINT_FROM_MS, MAINT_TO_MS))
-  for (const link of mLinks) {
-    const ivs = ivByWin.get(link.maintenance_window_id)
-    if (!ivs || !ivs.length) continue
-    const arr = maintenanceIntervalsByMonitorId[link.monitor_id] || (maintenanceIntervalsByMonitorId[link.monitor_id] = [])
-    for (const iv of ivs) arr.push(iv)
-  }
-}
+// Keyed by monitor id. Object rather than the Map the helper returns, because
+// the readers below index it directly.
+const maintenanceIntervalsByMonitorId = Object.fromEntries(
+  await maintenanceIntervalsByMonitor(monitorIds, { fromMs: MAINT_FROM_MS, toMs: MAINT_TO_MS }),
+)
 
 // Flag monitors inside an active window right now so the overall banner and
 // their row read as "under maintenance" rather than an outage - a planned
