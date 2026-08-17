@@ -94,6 +94,27 @@ describe('buildMonitorConfig', () => {
     expect(buildMonitorConfig('health', { path: '   ' }, false)).toEqual({})
   })
 
+  test('health endpoints carry their secret and freshness window', () => {
+    // The secret is what makes a spatie/laravel-health endpoint reachable at
+    // all; without a form field it could only be set by writing config JSON.
+    expect(buildMonitorConfig('health', { path: '/oh-dear-health-check-results', health_secret: 'sh4red', health_max_age_seconds: '300' }, false))
+      .toEqual({ path: '/oh-dear-health-check-results', healthSecret: 'sh4red', healthMaxAgeSeconds: 300 })
+  })
+
+  test('health secret and freshness are omitted when blank, so defaults apply', () => {
+    expect(buildMonitorConfig('health', { path: '/health', health_secret: '  ', health_max_age_seconds: '' }, false))
+      .toEqual({ path: '/health' })
+  })
+
+  test('an out-of-range freshness window is dropped rather than stored', () => {
+    expect(buildMonitorConfig('health', { health_max_age_seconds: '5' }, false)).toEqual({})
+    expect(buildMonitorConfig('health', { health_max_age_seconds: '999999' }, false)).toEqual({})
+  })
+
+  test('health keys are not written for other types', () => {
+    expect(buildMonitorConfig('uptime', { health_secret: 'x', health_max_age_seconds: '300' }, false)).toEqual({})
+  })
+
   test('per-type keys use the names the jobs actually read', () => {
     expect(buildMonitorConfig('ping', { ping_count: '4', packet_loss_threshold_percent: '20' }, false))
       .toEqual({ pingCount: 4, packetLossThresholdPercent: 20 })

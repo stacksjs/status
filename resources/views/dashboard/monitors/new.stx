@@ -172,6 +172,16 @@ useHead({ title: 'New monitor · StatusHQ', meta: [{ name: 'robots', content: 'n
               <input id="path" type="text" name="path" class="input" placeholder="/health" />
               <p class="help">Health checks. Resolved against the URL above.</p>
             </div>
+            <div class="field">
+              <label for="health_secret">Health endpoint secret</label>
+              <input id="health_secret" type="text" name="health_secret" class="input" placeholder="leave empty if the endpoint is open" />
+              <p class="help">Health checks. Sent as the <code>oh-dear-health-check-secret</code> header &mdash; the one <code>spatie/laravel-health</code> validates.</p>
+            </div>
+            <div class="field">
+              <label for="health_max_age_seconds">Report freshness (seconds)</label>
+              <input id="health_max_age_seconds" type="number" name="health_max_age_seconds" class="input" min="30" max="86400" placeholder="600" />
+              <p class="help">Health checks. A report older than this is down whatever its checks say, so a cached response can't look healthy.</p>
+            </div>
           </div>
 
           <div class="form-row">

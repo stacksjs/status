@@ -1379,6 +1379,14 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
                 <label for="edit-path">Health path</label>
                 <input id="edit-path" type="text" name="path" class="input" value="{{ cfgValue('path') }}" />
               </div>
+              <div class="field">
+                <label for="edit-health-secret">Health endpoint secret</label>
+                <input id="edit-health-secret" type="text" name="health_secret" class="input" value="{{ cfgValue('healthSecret') }}" />
+              </div>
+              <div class="field">
+                <label for="edit-health-max-age">Report freshness (seconds)</label>
+                <input id="edit-health-max-age" type="number" name="health_max_age_seconds" class="input" min="30" max="86400" value="{{ cfgValue('healthMaxAgeSeconds') }}" />
+              </div>
             </div>
 
             <div class="form-row">

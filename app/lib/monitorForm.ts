@@ -125,6 +125,9 @@ export interface MonitorFormInput {
   cpu_threshold?: unknown
   ram_threshold?: unknown
   disk_threshold?: unknown
+  // health (type: health)
+  health_secret?: unknown
+  health_max_age_seconds?: unknown
   // heartbeat (type: cron)
   expected_interval_seconds?: unknown
   grace_seconds?: unknown
@@ -186,6 +189,17 @@ export function buildMonitorConfig(type: MonitorType, input: MonitorFormInput, r
     const path = String(input.path ?? '').trim()
     if (path)
       config.path = path
+    // Shared secret for endpoints that gate on it — sent as the
+    // `oh-dear-health-check-secret` header, which is what
+    // spatie/laravel-health validates, so a Laravel app set up for Oh Dear
+    // needs no changes. See app/lib/appHealth.ts.
+    const healthSecret = String(input.health_secret ?? '').trim()
+    if (healthSecret)
+      config.healthSecret = healthSecret
+    // How stale a report may be before it stops counting as evidence.
+    const maxAge = intInRange(input.health_max_age_seconds, 30, 86_400)
+    if (maxAge !== null)
+      config.healthMaxAgeSeconds = maxAge
   }
 
   if (type === 'ping') {
