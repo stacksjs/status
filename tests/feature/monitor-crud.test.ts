@@ -1,7 +1,8 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { Auth } from '@stacksjs/auth'
 import { db } from '@stacksjs/database'
 import CreateMonitorAction from '../../app/Actions/Monitors/CreateMonitorAction'
+import HeartbeatMonitor from '../../app/Models/HeartbeatMonitor'
 import Monitor from '../../app/Models/Monitor'
 
 // A distinct, high seed value — not shared with other feature test files.
@@ -124,5 +125,109 @@ describe('Monitor CRUD (stacksjs/status#1 Phase 1)', () => {
 
     const found = await Monitor.find(monitor.id)
     expect(found).toBeFalsy()
+  })
+
+  /**
+   * A 'cron' monitor is watched by CheckOverdueHeartbeats, which iterates
+   * HeartbeatMonitor rows — not by DispatchDueChecks, which has no cron
+   * entry. So a cron monitor created without its heartbeat row is inert: it
+   * has no ping URL, nothing ever polls it, and it can never alert. The
+   * dashboard form paired the row; this endpoint did not.
+   */
+  describe('cron monitors get their heartbeat row', () => {
+    // The free tier caps a team at 5 monitors (config/plans.ts), and the
+    // tests above leave several behind, so each case here drops its own
+    // monitor rather than 402-ing the next one.
+    afterEach(async () => {
+      for (const id of createdIds.splice(0)) {
+        for (const hb of await HeartbeatMonitor.where('monitor_id', id).get())
+          await hb.delete()
+        const monitor = await Monitor.find(id)
+        if (monitor)
+          await monitor.delete()
+      }
+    })
+
+    async function createCron(fields: Record<string, string | undefined> = {}) {
+      const response: any = await CreateMonitorAction.handle(fakeRequest({
+        name: `Cron via API ${Object.keys(fields).join('-') || 'defaults'}`,
+        url: 'jobs.example.com',
+        type: 'cron',
+        check_interval_seconds: '300',
+        ...fields,
+      }, ownerToken))
+      expect(response.status).toBe(201)
+      const monitor = await response.json()
+      createdIds.push(monitor.id)
+      const heartbeat = await HeartbeatMonitor.where('monitor_id', monitor.id).first()
+      return { monitor, heartbeat }
+    }
+
+    test('pairs a heartbeat row with a usable ping token', async () => {
+      const { monitor, heartbeat } = await createCron()
+      expect(monitor.type).toBe('cron')
+      expect(heartbeat).toBeTruthy()
+      // The token IS the endpoint's only credential; without it the monitor
+      // has no ping URL at all.
+      expect(String(heartbeat!.ping_token).length).toBeGreaterThan(16)
+      expect(heartbeat!.ping_token).not.toContain('-')
+    })
+
+    test('applies the documented defaults', async () => {
+      const { heartbeat } = await createCron()
+      expect(heartbeat!.expected_interval_seconds).toBe(3600)
+      expect(heartbeat!.grace_seconds).toBe(300)
+      expect(heartbeat!.cron_expression).toBeFalsy()
+    })
+
+    test('honors explicit cadence, grace and cron expression', async () => {
+      const { heartbeat } = await createCron({
+        expected_interval_seconds: '86400',
+        grace_seconds: '600',
+        cron_expression: '0 3 * * *',
+      })
+      expect(heartbeat!.expected_interval_seconds).toBe(86_400)
+      expect(heartbeat!.grace_seconds).toBe(600)
+      expect(heartbeat!.cron_expression).toBe('0 3 * * *')
+    })
+
+    test('non-cron monitors get no heartbeat row', async () => {
+      const response: any = await CreateMonitorAction.handle(fakeRequest({
+        name: 'Plain uptime via API',
+        url: 'https://example.com',
+        type: 'uptime',
+        check_interval_seconds: '300',
+      }, ownerToken))
+      const monitor = await response.json()
+      createdIds.push(monitor.id)
+      expect(await HeartbeatMonitor.where('monitor_id', monitor.id).first()).toBeFalsy()
+    })
+  })
+
+  /**
+   * metrics_token is hidden:true, so the auto-CRUD layer strips it from write
+   * bodies. Nothing else mints one, so a metrics monitor created here used to
+   * have no credential and could never accept an agent push.
+   */
+  test('a metrics-reporting monitor is created with an ingest token', async () => {
+    // Same free-tier headroom problem as the cron cases above.
+    for (const id of createdIds.splice(0)) {
+      const stale = await Monitor.find(id)
+      if (stale) await stale.delete()
+    }
+    const response: any = await CreateMonitorAction.handle(fakeRequest({
+      name: 'Metrics via API',
+      url: 'https://example.com',
+      type: 'uptime',
+      check_interval_seconds: '300',
+      reports_metrics: 'true',
+    }, ownerToken))
+    expect(response.status).toBe(201)
+    const created = await response.json()
+    createdIds.push(created.id)
+
+    const monitor = await Monitor.find(created.id)
+    expect(monitor!.reports_metrics).toBeTruthy()
+    expect(String(monitor!.metrics_token).length).toBeGreaterThan(16)
   })
 })

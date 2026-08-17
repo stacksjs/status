@@ -1,7 +1,10 @@
+import { randomUUIDv7 } from 'bun'
 import { Action } from '@stacksjs/actions'
 import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import { limitReachedMessage, planForTeam } from '../../../config/plans'
+import { coerceCheckbox, heartbeatAttributesFor, isMonitorType } from '../../lib/monitorForm'
+import HeartbeatMonitor from '../../Models/HeartbeatMonitor'
 import Monitor from '../../Models/Monitor'
 
 export default new Action({
@@ -41,16 +44,43 @@ export default new Action({
       )
     }
 
+    const type = request.get('type')
+    const reportsMetrics = coerceCheckbox(request.get('reports_metrics'))
+
     const monitor = await Monitor.create({
       team_id: teamId,
       name: request.get('name'),
       url: request.get('url'),
-      type: request.get('type'),
+      type,
       enabled: request.get('enabled') ?? true,
       check_interval_seconds: checkIntervalSeconds,
       config: request.get('config'),
+      reports_metrics: reportsMetrics,
+      // metrics_token is hidden:true, so the auto-CRUD layer strips it from
+      // write bodies — nothing else would ever mint one, and a metrics
+      // monitor created here could never receive an agent push.
+      metrics_token: reportsMetrics ? randomUUIDv7().replace(/-/g, '') : undefined,
       status: 'unknown',
     })
+
+    // A 'cron' monitor is inert without its heartbeat row: DispatchDueChecks
+    // has no cron entry and CheckOverdueHeartbeats iterates HeartbeatMonitor,
+    // so one created without it silently never alerts. Same pairing the
+    // dashboard form does, via the same shared defaults.
+    const heartbeat = isMonitorType(type) ? heartbeatAttributesFor(type, {
+      expected_interval_seconds: request.get('expected_interval_seconds'),
+      grace_seconds: request.get('grace_seconds'),
+      cron_expression: request.get('cron_expression'),
+    }) : null
+    if (heartbeat) {
+      await HeartbeatMonitor.create({
+        monitor_id: monitor.id,
+        ping_token: randomUUIDv7().replace(/-/g, ''),
+        expected_interval_seconds: heartbeat.expected_interval_seconds,
+        grace_seconds: heartbeat.grace_seconds,
+        cron_expression: heartbeat.cron_expression,
+      })
+    }
 
     return response.json(monitor, { status: 201 })
   },

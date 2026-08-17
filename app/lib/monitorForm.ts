@@ -149,6 +149,25 @@ export interface MonitorFormResult {
 }
 
 /**
+ * Heartbeat row attributes for a monitor, or null when the type doesn't take
+ * one. Shared by the dashboard form and the API's CreateMonitorAction so both
+ * entry points apply the same cadence/grace defaults — a 'cron' monitor
+ * without this row is inert (DispatchDueChecks has no cron entry, and
+ * CheckOverdueHeartbeats iterates HeartbeatMonitor), so it can never alert.
+ *
+ * Defaults match docs/monitors/cron-heartbeats.md: hourly cadence, 5-minute
+ * grace, no cron expression.
+ */
+export function heartbeatAttributesFor(type: MonitorType, input: MonitorFormInput): MonitorFormResult['heartbeat'] {
+  if (type !== 'cron')
+    return null
+  const expected = intInRange(input.expected_interval_seconds, 60, 31_536_000) ?? 3600
+  const grace = intInRange(input.grace_seconds, 0, 86_400) ?? 300
+  const cron = String(input.cron_expression ?? '').trim()
+  return { expected_interval_seconds: expected, grace_seconds: grace, cron_expression: cron || null }
+}
+
+/**
  * Build the per-type `config` JSON. Only keys meaningful for `type` are
  * written, so switching a monitor's type doesn't leave stale keys behind,
  * and a key the operator left blank is omitted entirely (every job reader
@@ -278,13 +297,7 @@ export function parseMonitorForm(input: MonitorFormInput): MonitorFormResult {
   const reportsMetrics = coerceCheckbox(input.reports_metrics)
   const config = buildMonitorConfig(type, input, reportsMetrics)
 
-  let heartbeat: MonitorFormResult['heartbeat'] = null
-  if (type === 'cron') {
-    const expected = intInRange(input.expected_interval_seconds, 60, 31_536_000) ?? 3600
-    const grace = intInRange(input.grace_seconds, 0, 86_400) ?? 300
-    const cron = String(input.cron_expression ?? '').trim()
-    heartbeat = { expected_interval_seconds: expected, grace_seconds: grace, cron_expression: cron || null }
-  }
+  const heartbeat = heartbeatAttributesFor(type, input)
 
   return {
     values: {
