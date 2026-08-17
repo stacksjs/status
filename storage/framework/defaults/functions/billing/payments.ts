@@ -1,8 +1,14 @@
 import { confirmCardSetup, confirmPayment, loadCardElement, loadPaymentElement } from '@stacksjs/browser'
 
-const paymentStore = usePaymentStore()
-
 export function useBillable() {
+  // Resolved per call rather than at module scope. `usePaymentStore` is a
+  // browser auto-import (see storage/framework/types/browser-auto-imports.d.ts);
+  // the server-side auto-imports index re-exports this module, so calling it
+  // while the module is being imported threw "usePaymentStore is not defined"
+  // and took down `buddy serve` before it could listen. defineStore returns the
+  // same instance per id, so per-call resolution is equivalent for callers.
+  const paymentStore = usePaymentStore()
+
   function convertUnixTimestampToDate(timestamp: number): string {
     // Create a Date object from the Unix timestamp
     const date = new Date(timestamp * 1000) // Multiply by 1000 to convert to milliseconds
