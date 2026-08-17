@@ -1046,16 +1046,4 @@
      partial's FIRST element is treated as its component script and
      stripped from the output (the deleted font links used to shield
      them; the style block shields them now). --}}
-<script>
-  // Apply a stored theme override before first paint to avoid a flash of
-  // the wrong theme (same mechanism as index.stx).
-  (function () {
-    try {
-      var stored = localStorage.getItem('uptimestatus-theme')
-      if (stored === 'light' || stored === 'dark') {
-        document.documentElement.setAttribute('data-theme', stored)
-      }
-    }
-    catch (err) {}
-  })()
-</script>
+@include('./theme-init.stx')

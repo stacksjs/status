@@ -1,0 +1,29 @@
+{{--
+  Applies a stored theme override before first paint, so a user who picked
+  light or dark never sees a flash of the other one.
+
+  Inline on purpose: an external script would be a network round-trip ahead of
+  first paint, which is the exact flash this exists to prevent. Included
+  (rather than copied) by partials/app-head.stx, partials/marketing-head.stx
+  and layouts/auth.stx -- it was three hand-kept copies before migration
+  Phase 5.
+
+  layouts/status.stx deliberately does NOT use this: a status page owner can
+  force light or dark for visitors, which the server stamps onto data-theme,
+  so that page needs a resolver that leaves a forced value alone. See the
+  script in that file.
+
+  Nothing is written here; the toggle in partials/theme-toggle.stx is what
+  stores the choice, under the same key.
+--}}
+<script>
+  (function () {
+    try {
+      var stored = localStorage.getItem('uptimestatus-theme')
+      if (stored === 'light' || stored === 'dark') {
+        document.documentElement.setAttribute('data-theme', stored)
+      }
+    }
+    catch (err) {}
+  })()
+</script>

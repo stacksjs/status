@@ -1434,21 +1434,7 @@ if (!statusPageForHost && faqs && faqs.length)
       </footer>
     </div>
     <script src="/assets/scripts/site-mode.js" defer></script>
-    <script>
-      (function () {
-        var toggle = document.getElementById('theme-toggle')
-        if (!toggle) return
-        toggle.addEventListener('click', function () {
-          var html = document.documentElement
-          var current = html.getAttribute('data-theme')
-          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-          var isDark = current === 'dark' || (current !== 'light' && prefersDark)
-          var next = isDark ? 'light' : 'dark'
-          html.setAttribute('data-theme', next)
-          try { localStorage.setItem('uptimestatus-theme', next) } catch (err) {}
-        })
-      })()
-    </script>
+    @include('./partials/theme-toggle.stx')
     @endif
   </body>
 </html>

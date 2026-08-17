@@ -15,14 +15,7 @@
     {{-- Favicons + fonts come from config/ui.ts app.head. --}}
     {{-- Title/description/robots come from each page's useSeoMeta call
          (stx-standards 04); the framework splices them in server-side. --}}
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('uptimestatus-theme')
-          if (stored === 'light' || stored === 'dark') document.documentElement.setAttribute('data-theme', stored)
-        } catch (err) {}
-      })()
-    </script>
+    @include('../partials/theme-init.stx')
     <style>
       :root {
         color-scheme: light;

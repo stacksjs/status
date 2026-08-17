@@ -610,19 +610,7 @@
      stripped from the output (the deleted font links used to shield
      them; the style block shields them now). --}}
 <script src="/assets/scripts/csrf-forms.js" defer></script>
-<script>
-  // Apply the stored theme before first paint (same key + mechanism as
-  // the marketing pages, so the choice follows the user across the site).
-  (function () {
-    try {
-      var stored = localStorage.getItem('uptimestatus-theme')
-      if (stored === 'light' || stored === 'dark') {
-        document.documentElement.setAttribute('data-theme', stored)
-      }
-    }
-    catch (err) {}
-  })()
-</script>
+@include('./theme-init.stx')
 
 <script>
   // Chart tooltips: every .chart-hit rect carries data-tip; a single
