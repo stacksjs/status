@@ -48,6 +48,52 @@ The incident resolves automatically once all assertions pass again.
 4. Set the **check interval** and **regions**.
 5. Attach **notifications**.
 
+## Already using spatie/laravel-health or Oh Dear?
+
+StatusHQ reads that schema natively, so a Laravel app set up for Oh Dear works
+here by changing a URL — no application changes:
+
+```json
+{
+  "finishedAt": "1638879833",
+  "checkResults": [
+    { "name": "UsedDiskSpace", "label": "Used Disk Space", "status": "failed",
+      "notificationMessage": "The disk is almost full (91% used)",
+      "shortSummary": "91%", "meta": { "disk_space_used_percentage": 91 } }
+  ]
+}
+```
+
+Per-check statuses reduce to one monitor verdict: `failed` and `crashed` are
+**down**, `warning` is **degraded**, `ok` is **up**, and `skipped` is ignored.
+A status outside those five is treated as down rather than assumed healthy.
+
+Two monitor config keys support it:
+
+- `healthSecret` — sent as the `oh-dear-health-check-secret` header, the same
+  header that package validates.
+- `healthMaxAgeSeconds` — how stale a report may be, default **600**. A report
+  whose `finishedAt` is older than this is down whatever the checks say, so a
+  cached or frozen response can't report a dead application as healthy.
+
+If the monitor has field assertions, those still win — your own contract
+outranks the generic one.
+
+### Node and Bun apps
+
+There's no `spatie/laravel-health` equivalent in that ecosystem, so we ship
+one: [`@statushq/agent`](https://github.com/stacksjs/status/tree/main/packages/agent)
+exposes the same schema and also covers CPU, memory and disk — which the
+Laravel package has no checks for.
+
+```ts
+import { createHealthHandler, defaultChecks } from '@statushq/agent'
+const health = createHealthHandler({ checks: defaultChecks(), secret: process.env.STATUSHQ_HEALTH_SECRET })
+```
+
+It can also **push** host metrics instead, for boxes with no inbound HTTP —
+see [Server Metrics](/monitors/server-metrics).
+
 ## Related
 
 - [Uptime](/monitors/uptime) · [Cron & Heartbeats](/monitors/cron-heartbeats) · [Performance](/monitors/performance)

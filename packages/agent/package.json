@@ -1,0 +1,13 @@
+{
+  "name": "@statushq/agent",
+  "version": "0.1.0",
+  "description": "Report host metrics and application health to StatusHQ from any Bun or Node app — push, pull, or both.",
+  "type": "module",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "files": ["src", "README.md"],
+  "keywords": ["monitoring", "health-check", "metrics", "statushq", "uptime"],
+  "license": "MIT",
+  "engines": { "bun": ">=1.0.0", "node": ">=18.15.0" }
+}

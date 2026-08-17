@@ -2,14 +2,27 @@ import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import { evaluateAssertions } from '../Actions/Assertions/EvaluateAssertionsAction'
+import { DEFAULT_MAX_AGE_SECONDS, evaluateAppHealth, isAppHealthReport } from '../lib/appHealth'
 import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
 /**
- * Application health monitoring contract: the target app exposes a JSON
- * health endpoint (default the monitor's own URL — set monitor.config.path
- * to point at e.g. "/health" instead) returning:
+ * Application health monitoring. The target app exposes a JSON endpoint
+ * (default the monitor's own URL — set monitor.config.path to point at e.g.
+ * "/health" instead) and this job polls it. Three contracts are understood,
+ * in this precedence order:
+ *
+ * 1. Field assertions, when the monitor defines any — the monitor's own
+ *    contract always wins. See the Assertion model.
+ * 2. `{ "finishedAt": ..., "checkResults": [...] }` — the schema
+ *    spatie/laravel-health exposes and Oh Dear polls, so an app already set
+ *    up for Oh Dear works here by changing a URL. Per-check statuses
+ *    (ok/warning/failed/crashed/skipped) reduce to one verdict and a report
+ *    older than config.healthMaxAgeSeconds is down regardless of content.
+ *    Set config.healthSecret to send the `oh-dear-health-check-secret`
+ *    header that package validates. See app/lib/appHealth.ts.
+ * 3. The original contract:
  *
  *   { "status": "ok" | "degraded" | "down", "checks"?: { [name]: boolean } }
  *
@@ -39,7 +52,7 @@ export default new Job({
       return
     }
 
-    let config: { path?: string } = {}
+    let config: { path?: string, healthSecret?: string, healthMaxAgeSeconds?: number } = {}
     try {
       config = monitor.config ? JSON.parse(monitor.config) : {}
     }
@@ -63,12 +76,19 @@ export default new Job({
       if (scheme !== 'http:' && scheme !== 'https:')
         throw new Error('Invalid monitor URL: only http/https targets are supported')
 
-      const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+      // The shared secret goes in the header spatie/laravel-health already
+      // validates, so an app set up for Oh Dear needs no change to answer us.
+      const headersOut: Record<string, string> = {}
+      if (config.healthSecret)
+        headersOut['oh-dear-health-check-secret'] = config.healthSecret
+
+      const response = await fetch(url, { signal: AbortSignal.timeout(15_000), headers: headersOut })
       const rawBody = await response.text().catch(() => '')
-      const body = ((): { status?: string, checks?: Record<string, boolean> } | null => {
+      const parsed = ((): unknown => {
         try { return JSON.parse(rawBody) }
         catch { return null }
       })()
+      const body = parsed as { status?: string, checks?: Record<string, boolean> } | null
       metadata = body?.checks ? { checks: body.checks } : {}
 
       const headers: Record<string, string> = {}
@@ -94,6 +114,28 @@ export default new Job({
         else {
           status = 'down'
           message = evaluation.failures.join('; ')
+        }
+      }
+      else if (isAppHealthReport(parsed)) {
+        // spatie/laravel-health + Oh Dear schema: a list of named checks.
+        // Kept below assertions so a monitor that defines its own contract
+        // still wins, and above the legacy branch so `checkResults` is not
+        // mistaken for a missing `status` field.
+        if (!response.ok) {
+          status = 'down'
+          message = `Health endpoint returned ${response.status}`
+        }
+        else {
+          const verdict = evaluateAppHealth(parsed, Date.now(), config.healthMaxAgeSeconds ?? DEFAULT_MAX_AGE_SECONDS)
+          status = verdict.status
+          message = verdict.message
+          metadata = {
+            appHealth: {
+              checks: verdict.checks,
+              stale: verdict.stale,
+              finishedAt: verdict.finishedAtMs ? new Date(verdict.finishedAtMs).toISOString() : null,
+            },
+          }
         }
       }
       else if (!response.ok || !body?.status) {
