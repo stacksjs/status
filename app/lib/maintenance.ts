@@ -143,5 +143,7 @@ export async function openIncident(attrs: { monitor_id: number, started_at?: str
     log.debug(`[maintenance] suppressed incident for monitor ${attrs.monitor_id} (inside a maintenance window)`)
     return null
   }
-  return Incident.create(attrs as any)
+  // The generated models type their statics as `unknown`, so the call needs a
+  // cast to typecheck. Narrow and local rather than loosening the model type.
+  return (Incident as any).create(attrs as any)
 }

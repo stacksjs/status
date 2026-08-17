@@ -339,11 +339,30 @@ purpose.
 
 ## Phase 7 — Types, styling volume, and the ratchet
 
-- Annotate the 125 untyped server-block functions as files are touched
+**The gate was vacuous until 2026-08-17.** CI ran `bunx --bun tsc`, which
+segfaults here (Bun 1.3.1, "panic: Segmentation fault"). A crash emits no
+`error TS` lines, the grep found nothing, and the job reported "App code
+typechecks clean" regardless of what was broken. Fixed by running
+Node-hosted `bunx tsc` and failing when tsc produces no diagnostics at
+all. Re-measure before trusting any earlier count in this file.
+
+Real counts under an expanded include, measured with working tsc:
+
+| area | errors |
+| --- | --- |
+| `tests/feature` | 386 |
+| `app/Actions` | 142 |
+| `app/Jobs` | 128 |
+| `tests/unit` | 12 |
+| `config/**` | 11 (upstream scaffold types) |
+| `app/lib` | 5 → **0, now gated** |
+
+- Annotate the 106 untyped server-block functions as files are touched
   (rule 10: they compile as TypeScript today with every param silently
   `any`); build real ambient types in `types/`.
-- Expand tsconfig include to `config/**` (11 errors to fix) and `app/**`
-  (272), then let CI gate them.
+- Ratchet the tsconfig include one area at a time. `app/lib/**` is in as
+  of 2026-08-17; `app/Actions`, `app/Jobs` and the test dirs are the
+  remaining steps, largest last.
 - Migrate the ~3,172 inline CSS lines toward Crosswind utilities via the
   documented semantic-token bridge (`dashboard/index.stx:259` is the
   in-repo example).

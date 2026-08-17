@@ -74,9 +74,20 @@ jobs:
       # upstream's to fix (they leak in via the tsconfig `paths` mapping
       # even though the directory is excluded), and gating on them meant
       # this job was permanently red and deploys never ran.
+      # NOT `bunx --bun tsc`: running tsc on Bun's runtime segfaults here
+      # ("panic: Segmentation fault", Bun 1.3.1). A crash prints no
+      # "error TS" lines at all, so the grep below found nothing and this
+      # job reported "typechecks clean" no matter what was broken — the
+      # gate passed vacuously. Node-hosted tsc is stable, so use it, and
+      # verify tsc actually ran before trusting a clean result.
       - name: Typecheck (app code)
         run: |
-          bunx --bun tsc --noEmit 2>&1 | tee /tmp/tsc.log || true
+          bunx tsc --noEmit 2>&1 | tee /tmp/tsc.log || true
+          if ! grep -q "error TS" /tmp/tsc.log; then
+            echo "tsc produced no diagnostics at all — it did not run. Failing rather than reporting a vacuous pass:"
+            tail -20 /tmp/tsc.log
+            exit 1
+          fi
           if grep "error TS" /tmp/tsc.log | grep -v "^storage/framework/" | grep -q .; then
             echo "App-code type errors:"
             grep "error TS" /tmp/tsc.log | grep -v "^storage/framework/"

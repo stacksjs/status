@@ -117,7 +117,13 @@ export function isoDate(iso: string | null | undefined, empty = '--'): string {
  */
 export function siteHost(url: string | null | undefined): string {
   let h = String(url ?? '').replace(/^https?:\/\//i, '')
-  h = h.split('/')[0].split('?')[0].split('#')[0].split(':')[0]
+  // Cut at the first of each delimiter in turn. Chained `.split(x)[0]` reads
+  // more nicely but is `string | undefined` under noUncheckedIndexedAccess.
+  for (const delimiter of ['/', '?', '#', ':']) {
+    const at = h.indexOf(delimiter)
+    if (at !== -1)
+      h = h.slice(0, at)
+  }
   return h.replace(/^www\./i, '').toLowerCase() || 'unknown'
 }
 
