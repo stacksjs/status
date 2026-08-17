@@ -4,13 +4,16 @@
 import { formatDateTime } from '../../../app/lib/display'
 import { inAnyInterval, maintenanceIntervalsByMonitor } from '../../../app/lib/maintenance'
 import { isIpAllowed } from '../../../app/Actions/StatusPages/AccessControl'
+import { decrypt } from '@stacksjs/security'
+import { db } from '@stacksjs/database'
+import { cache } from '@stacksjs/cache'
+
 // Display helpers live in app/lib/display (migration Phase 5). NB: `import
 // { x as y }` binds undefined in a server block in this stx build, so the
 // page's own names are bound here instead.
 const formatDate = iso => formatDateTime(iso, { locale: DATE_LOCALE, empty: '' })
-const { decrypt } = require('@stacksjs/security')
+
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
-const { db } = require('@stacksjs/database')
 
 const pageSlug = (typeof slug !== 'undefined' && slug) ? String(slug) : ''
 
@@ -154,7 +157,7 @@ const UPTIME_DAYS = 90
 // pass — and getOrSet's singleflight de-dupes a burst of concurrent hits into
 // one recompute. Memory-cached on the rendering (primary) box; the checks-only
 // second region never renders, so no shared cache is needed.
-const { cache } = require('@stacksjs/cache')
+
 const UPTIME_TTL_SECONDS = 60
 const uptimeByMonitor = {}
 for (const m of monitors) {

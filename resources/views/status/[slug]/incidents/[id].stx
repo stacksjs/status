@@ -2,18 +2,20 @@
 
 <script server>
 import { formatDateTime } from '../../../../../app/lib/display'
+import { decrypt } from '@stacksjs/security'
+import { db } from '@stacksjs/database'
+
 // Display helpers live in app/lib/display (migration Phase 5). NB: `import
 // { x as y }` binds undefined in a server block in this stx build, so the
 // page's own names are bound here instead.
 const formatDate = iso => formatDateTime(iso, { year: true, empty: '' })
-const { decrypt } = require('@stacksjs/security')
+
 // Dialect-agnostic DB access via the framework query builder (works on
 // sqlite for self-hosted single-box installs and on the networked
 // Postgres the hosted multi-region fleet uses) — replaces the direct
 // bun:sqlite file handle these views used to open. Joins are split into
 // separate lookups rather than a single JOIN because the fluent builder's
 // aliased-join projection is unreliable.
-const { db } = require('@stacksjs/database')
 
 const pageSlug = (typeof slug !== 'undefined' && slug) ? String(slug) : ''
 const incidentId = Number((typeof id !== 'undefined' && id) || 0)

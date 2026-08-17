@@ -13,6 +13,9 @@
 -->
 <script server>
 import { relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../app/lib/display'
+import { db } from '@stacksjs/database'
+import { resolveTeamContext } from '@stacksjs/auth'
+
 // Display helpers live in app/lib/display (migration Phase 5). NB: `import
 // { x as y }` binds undefined in a server block in this stx build, so the
 // page's own names are bound here instead.
@@ -20,8 +23,6 @@ const stClass = statusPillClass
 const stLabel = statusLabel
 const agoLabel = relativeTime
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
-const { db } = require('@stacksjs/database')
-const { resolveTeamContext } = require('@stacksjs/auth')
 
 // One core call resolves the signed-in user, the ACTIVE team (honoring the
 // workspace-switcher cookie), and the teams the account can switch between —

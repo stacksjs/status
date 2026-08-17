@@ -20,8 +20,8 @@
   app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
-const { resolveTeamContext } = require('@stacksjs/auth')
-const { db } = require('@stacksjs/database')
+import { resolveTeamContext } from '@stacksjs/auth'
+import { db } from '@stacksjs/database'
 
 // Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
 // which honors the workspace-switcher cookie (see dashboard/index.stx for

@@ -28,17 +28,18 @@
 -->
 <script server>
 import { relativeTime, statusLabel, statusPillClass } from '../../../../app/lib/display'
+import { config } from '@stacksjs/config'
+import { resolveTeamContext } from '@stacksjs/auth'
+import { db } from '@stacksjs/database'
+
 // Display helpers live in app/lib/display (migration Phase 5). NB: `import
 // { x as y }` binds undefined in a server block in this stx build, so the
 // page's own names are bound here instead.
 const stClass = statusPillClass
 const stLabel = statusLabel
 const agoLabel = relativeTime
-const { config } = require('@stacksjs/config')
-const { resolveTeamContext } = require('@stacksjs/auth')
-// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
-const { db } = require('@stacksjs/database')
 
+// Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 
 // Auth + team resolution (stacksjs/status#1 Phase 9 follow-up). Driver-
 // aware — reads config/auth.ts's configured guard driver rather than

@@ -1,4 +1,7 @@
 <script server>
+import { Database } from 'bun:sqlite'
+import { resolve } from 'node:path'
+
 // Browser-facing team-invite acceptance page. The invite email links here
 // (/invite/{uuid}); the form posts to /api/invite-forms/{uuid}/accept
 // (AcceptInviteFormAction), which links or creates the user, activates the
@@ -14,9 +17,8 @@
 // app-head partial, which is also fragment-injected).
 const appName = process.env.APP_NAME || 'StatusHQ'
 
-const InviteDb = require('bun:sqlite').Database
-const inviteDbPath = require('path').resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const inviteDb = new InviteDb(inviteDbPath, { readonly: true })
+const inviteDbPath = resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
+const inviteDb = new Database(inviteDbPath, { readonly: true })
 
 const inviteUuid = (typeof uuid !== 'undefined' && uuid) ? String(uuid) : ''
 const member = inviteUuid

@@ -16,6 +16,14 @@
   app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
+import { resolveTeamContext } from '@stacksjs/auth'
+import { db } from '@stacksjs/database'
+import { scaleLinear, scaleBand, line, area, curveMonotoneX } from 'ts-charts'
+// require() destructured these under other names; `import { x as y }`
+// binds undefined in a server block, so the rename happens here.
+const chartLine = line
+const chartArea = area
+
 // The heartbeat card is derived from the same module CheckOverdueHeartbeats
 // decides with, so the card can never read "healthy" while the watcher is
 // paging someone. Static import rather than require(): app/ TS resolves fine
@@ -25,10 +33,7 @@
 import { formatDateTime, relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../../app/lib/display'
 import { describeCadence, formatDurationSeconds, pingUrls, summarizeHeartbeat } from '../../../../app/lib/heartbeat'
 
-const { resolveTeamContext } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
-const { db } = require('@stacksjs/database')
-
 
 // Auth + team resolution (stacksjs/status#1 Phase 9 follow-up) -- see
 // monitors/index.stx's copy of this block for the full rationale.
@@ -182,7 +187,6 @@ const chartChecks = monitor
 // Charts are generated server-side with ts-charts (the in-house D3
 // rewrite): scales produce honest zero-baseline axes with nice ticks,
 // shape generators emit the SVG path strings directly. No client JS.
-const { scaleLinear, scaleBand, line: chartLine, area: chartArea, curveMonotoneX } = require('ts-charts')
 
 // One geometry for every chart card: aspect-preserving (text stays
 // undistorted), left gutter for tick labels, bottom row for time labels.

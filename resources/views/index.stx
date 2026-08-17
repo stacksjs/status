@@ -1,4 +1,11 @@
 <script server>
+import { db } from '@stacksjs/database'
+import { cache } from '@stacksjs/cache'
+// require() destructured these under other names; `import { x as y }`
+// binds undefined in a server block, so the rename happens here.
+const statusDb = db
+const hostCache = cache
+
 // Custom status page domains (stacksjs/status#1 Phase 7): a customer
 // points a CNAME at this app and sets StatusPage.customDomain to their
 // hostname. `host` is the ambient Host-header variable stx exposes to
@@ -17,7 +24,6 @@
 // (this one for a custom domain hit on '/', that one for the app's own
 // /status/{slug} URLs).
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
-const { db: statusDb } = require('@stacksjs/database')
 
 const requestHost = (typeof host !== 'undefined' && host) ? String(host).split(':')[0] : ''
 
@@ -49,7 +55,6 @@ const STR = {
   pt: { major_outage: "Interrupção grave", partial_outage: "Interrupção parcial", all_operational: "Todos os sistemas operacionais", maintenance: "Manutenção programada", announcements: "Comunicados", posted: "Publicado", active_incidents: "Incidentes ativos", monitors: "Monitores", days_ago_90: "90 dias atrás", today: "Hoje", operational: "Operacional", degraded: "Degradado", down: "Fora do ar", unknown: "Desconhecido", no_data: "Sem dados ainda", uptime: "de disponibilidade", host_restricted: "Esta página de status tem acesso restrito.", gate_visit_pre: "Acesse", gate_visit_post: "para entrar." },
 }
 function t(key) { const d = STR[LOCALE] || STR.en; return (d && d[key] != null) ? d[key] : (STR.en[key] != null ? STR.en[key] : key) }
-
 
 // Assigned monitors joined back to their pivots in JS (portable); a real
 // monitor-name map is kept for the incident list below.
@@ -97,7 +102,7 @@ const HOST_UPTIME_DAYS = 90
 // is this page's most expensive query and changes slowly (see that file for
 // the full rationale). Shared cache key prefix with it so a monitor shown on
 // both its slug page and a custom domain recomputes once.
-const { cache: hostCache } = require('@stacksjs/cache')
+
 const HOST_UPTIME_TTL_SECONDS = 60
 const hostUptimeByMonitor = {}
 for (const m of hostMonitors) {

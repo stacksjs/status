@@ -11,9 +11,8 @@
   pages.
 -->
 <script server>
-const { resolveTeamContext } = require('@stacksjs/auth')
-const { db } = require('@stacksjs/database')
-
+import { resolveTeamContext } from '@stacksjs/auth'
+import { db } from '@stacksjs/database'
 
 // Auth + team resolution — see resources/views/dashboard/monitors/index.stx
 // for the full rationale.

@@ -21,11 +21,12 @@
   neutral (a not-yet-done setup step is not a fault).
 -->
 <script server>
-const { resolveTeamContext } = require('@stacksjs/auth')
+import { resolveTeamContext } from '@stacksjs/auth'
+import { db } from '@stacksjs/database'
+
 // Dialect-agnostic DB access via the framework query builder (sqlite for
 // self-hosted single-box installs, networked Postgres for the hosted
 // multi-region fleet) — replaces the direct bun:sqlite file handle.
-const { db } = require('@stacksjs/database')
 
 // Owner beats admin beats member when a user is on one team in multiple
 // roles — mirrors the old `ORDER BY CASE role` the SQL used.
