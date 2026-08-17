@@ -11,40 +11,27 @@
   renders the secret + otpauth URI for the authenticator app.
 -->
 <script server>
-const { config } = require('@stacksjs/config')
-const { Auth, sessionUser, getTwoFactorState, generateTwoFactorSetup, stashPendingTwoFactorSecret } = require('@stacksjs/auth')
+import { generateTwoFactorSetup, getTwoFactorState, resolveTeamContext, stashPendingTwoFactorSecret } from '@stacksjs/auth'
+import { config } from '@stacksjs/config'
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
-const { db } = require('@stacksjs/database')
+import { db } from '@stacksjs/database'
 
-const ROLE_PRIORITY = { owner: 0, admin: 1 }
-
-// Auth + team resolution — see resources/views/dashboard/monitors/
-// index.stx's copy of this block for the full rationale.
-async function resolveAuthTeam() {
-  const guardName = config.auth?.default || 'api'
-  const guard = config.auth?.guards?.[guardName] || {}
-  const driver = guard.driver || 'token'
-  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
-
-  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
-    ? globalThis.requestContext.cookie(cookieName)
-    : null
-  if (!cookieValue) return null
-
-  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
-  if (!user || !user.id) return null
-
-  const memberships = await db.selectFrom('team_members')
-    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
-  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
-  const membership = memberships[0]
-
-  return { user, teamId: membership ? membership.team_id : null }
-}
-
-const AUTH = await resolveAuthTeam()
-const AUTH_USER = AUTH ? AUTH.user : null
-const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
+// which honors the workspace-switcher cookie (see dashboard/index.stx for the
+// full note). Everything this page manages -- TOTP, passkeys -- is per-user,
+// not per-team, but the shared nav still needs the switcher context, and
+// hand-rolling the team here meant this page silently dropped the switcher
+// (partials/app-nav.stx guards on SWITCHABLE_TEAMS being defined).
+const TEAM_CTX = await resolveTeamContext(
+  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  { allowAnyTeam: u => !!(u && u.is_super_admin) },
+)
+const AUTH_USER = TEAM_CTX.user
+const TEAM_ID = TEAM_CTX.teamId ?? -1
+const IS_SUPER = !!(AUTH_USER && AUTH_USER.is_super_admin)
+const SWITCHABLE_TEAMS = TEAM_CTX.teams
+const SEE_ALL = IS_SUPER && !TEAM_CTX.activeTeamId
+const ACTIVE_TEAM_NAME = (TEAM_CTX.teams.find(t => t.id === TEAM_ID) || {}).name || ''
 const NAV_ACTIVE = 'settings'
 
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()

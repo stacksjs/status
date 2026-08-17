@@ -7,44 +7,35 @@
   convention as status-pages/index.stx.
 -->
 <script server>
-const { config } = require('@stacksjs/config')
-const { Auth, sessionUser } = require('@stacksjs/auth')
+import { resolveTeamContext } from '@stacksjs/auth'
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
-const { db } = require('@stacksjs/database')
+import { db } from '@stacksjs/database'
 
-const ROLE_PRIORITY = { owner: 0, admin: 1 }
-
-// Auth + team resolution — see resources/views/dashboard/monitors/
-// index.stx's copy of this block for the full rationale.
-async function resolveAuthTeam() {
-  const guardName = config.auth?.default || 'api'
-  const guard = config.auth?.guards?.[guardName] || {}
-  const driver = guard.driver || 'token'
-  const cookieName = driver === 'session' ? 'session_id' : (config.auth?.defaultTokenName || 'auth-token')
-
-  const cookieValue = (typeof globalThis !== 'undefined' && globalThis.requestContext)
-    ? globalThis.requestContext.cookie(cookieName)
-    : null
-  if (!cookieValue) return null
-
-  const user = driver === 'session' ? await sessionUser(cookieValue) : await Auth.getUserFromToken(cookieValue)
-  if (!user || !user.id) return null
-
-  const memberships = await db.selectFrom('team_members')
-    .where('user_id', '=', user.id).where('status', '=', 'active').execute()
-  memberships.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 2) - (ROLE_PRIORITY[b.role] ?? 2))
-  const membership = memberships[0]
-
-  return { user, teamId: membership ? membership.team_id : null }
-}
-
-const AUTH = await resolveAuthTeam()
-const AUTH_USER = AUTH ? AUTH.user : null
-const TEAM_ID = AUTH && AUTH.teamId ? AUTH.teamId : -1
+// Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
+// which honors the workspace-switcher cookie (see dashboard/index.stx for the
+// full note). allowAnyTeam lets a super-admin switch to / see any team;
+// unpinned, a super-admin still sees every team merged.
+//
+// This page used to resolve the team itself, by sorting the user's active
+// memberships by role and taking the first. That ignored the switcher
+// entirely: switching workspace and opening Announcements still listed the
+// other team's reports, and the switcher never even rendered here, because
+// partials/app-nav.stx guards on SWITCHABLE_TEAMS being defined.
+const TEAM_CTX = await resolveTeamContext(
+  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  { allowAnyTeam: u => !!(u && u.is_super_admin) },
+)
+const AUTH_USER = TEAM_CTX.user
+const TEAM_ID = TEAM_CTX.teamId ?? -1
+const IS_SUPER = !!(AUTH_USER && AUTH_USER.is_super_admin)
+const SWITCHABLE_TEAMS = TEAM_CTX.teams
+const SEE_ALL = IS_SUPER && !TEAM_CTX.activeTeamId
+const ACTIVE_TEAM_NAME = (TEAM_CTX.teams.find(t => t.id === TEAM_ID) || {}).name || ''
+const teamScope = qb => SEE_ALL ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'incidents'
 
 const reports = AUTH_USER
-  ? await db.selectFrom('status_reports').where('team_id', '=', TEAM_ID).orderBy('started_at', 'desc').execute()
+  ? await teamScope(db.selectFrom('status_reports')).orderBy('started_at', 'desc').execute()
   : []
 
 // Monitor counts per report, in one pivot query.
