@@ -30,6 +30,7 @@ const chartArea = area
 // from a server block (see STX-MIGRATION-PLAN.md Phase 5).
 // NB: `import { x as y }` does NOT work in a server block in this stx build --
 // the alias binds undefined. Import the real names, then bind locally below.
+import { checkPillClass } from '../../../../app/lib/appHealth'
 import { formatDateTime, relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../../app/lib/display'
 import { describeCadence, formatDurationSeconds, pingUrls, summarizeHeartbeat } from '../../../../app/lib/heartbeat'
 
@@ -623,6 +624,33 @@ if (monitor && monitor.type === 'dns_blocklist') {
   }
 }
 
+// Latest application-health report, for endpoints that speak the
+// spatie/laravel-health schema. RunHealthCheck stores the per-check detail on
+// the check result; without this card the monitor would only ever show the
+// rolled-up message string, and the point of that schema is the breakdown.
+let __appHealth = null
+if (monitor && monitor.type === 'health') {
+  const row = (await db.selectFrom('check_results').where('monitor_id', '=', monitor.id).orderByDesc('id').limit(1).execute())[0]
+  if (row) {
+    let meta = {}
+    try { meta = JSON.parse(row.metadata || '{}') } catch {}
+    const report = meta.appHealth
+    if (report && Array.isArray(report.checks) && report.checks.length > 0) {
+      __appHealth = {
+        stale: !!report.stale,
+        reportedAt: report.finishedAt ? formatDate(report.finishedAt) : null,
+        readAgo: agoLabel(row.checked_at),
+        checks: report.checks.map(c => ({
+          label: c.label || c.name || 'unnamed',
+          status: c.status,
+          pillClass: checkPillClass(c.status),
+          detail: c.message || c.summary || '',
+        })),
+      }
+    }
+  }
+}
+
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
 // Real document title + noindex for the app surface (the serve wrapper
@@ -866,6 +894,31 @@ DISK=$(df -P / | awk 'NR==2{print $5}' | tr -d '%')
 curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
   -H 'Content-Type: application/json' \
   -d "{\"cpuPercent\":$CPU,\"ramPercent\":$(( USED * 100 / TOTAL )),\"ramUsedMb\":$USED,\"ramTotalMb\":$TOTAL,\"diskPercent\":$DISK}"</pre>
+        </div>
+      </section>
+    @endif
+
+    @if (__appHealth)
+      <section class="card" aria-label="Application health">
+        <div class="card-head">
+          <h3>Application health</h3>
+          <span class="sub">read {{ __appHealth.readAgo }}</span>
+        </div>
+        <div class="card-body">
+          @if (__appHealth.stale)
+            <p class="subhead">The endpoint answered, but the report it returned was older than this monitor's freshness window &mdash; so these results are not evidence about the application right now, and the monitor is down on that basis alone.</p>
+          @endif
+          <dl class="kv">
+            @foreach (__appHealth.checks as check)
+              <div>
+                <dt>{{ check.label }}</dt>
+                <dd><span class="{{ check.pillClass }}"><span class="dot"></span>{{ check.status }}</span> {{ check.detail }}</dd>
+              </div>
+            @endforeach
+          </dl>
+          @if (__appHealth.reportedAt)
+            <p class="subhead">The application generated this report at {{ __appHealth.reportedAt }}.</p>
+          @endif
         </div>
       </section>
     @endif

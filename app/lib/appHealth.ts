@@ -110,6 +110,22 @@ function normalizeCheck(raw: AppHealthCheckResult): NormalizedCheck {
 }
 
 /**
+ * Pill class for one check's status, so the monitor page and any future
+ * surface agree on what a `warning` looks like. Mirrors the monitor-status
+ * pills in app/lib/display.ts: skipped reads muted rather than green, because
+ * a skipped check is not a passing one.
+ */
+export function checkPillClass(status: NormalizedCheck['status']): string {
+  if (status === 'ok')
+    return 'pill pill-up'
+  if (status === 'warning')
+    return 'pill pill-degraded'
+  if (status === 'failed' || status === 'crashed')
+    return 'pill pill-down'
+  return 'pill pill-unknown'
+}
+
+/**
  * Reduce a report to one monitor verdict.
  *
  *   failed / crashed  -> down      (crashed means the check itself threw)

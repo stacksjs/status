@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { evaluateAppHealth, isAppHealthReport, parseFinishedAt } from '../../app/lib/appHealth'
+import { checkPillClass, evaluateAppHealth, isAppHealthReport, parseFinishedAt } from '../../app/lib/appHealth'
 
 /** The example straight out of Oh Dear's docs, so the shape stays honest. */
 const NOW = Date.parse('2021-12-07T12:23:53.000Z')
@@ -139,6 +139,22 @@ describe('evaluateAppHealth staleness', () => {
     expect(v.status).toBe('up')
     expect(v.stale).toBe(false)
     expect(v.finishedAtMs).toBeNull()
+  })
+})
+
+describe('checkPillClass', () => {
+  test('maps each status to the pill the dashboard already uses', () => {
+    expect(checkPillClass('ok')).toBe('pill pill-up')
+    expect(checkPillClass('warning')).toBe('pill pill-degraded')
+    expect(checkPillClass('failed')).toBe('pill pill-down')
+    expect(checkPillClass('crashed')).toBe('pill pill-down')
+  })
+
+  test('skipped and unknown read muted, never green', () => {
+    // A skipped check is not a passing one, and an unrecognized status must
+    // not borrow the colour of a healthy one.
+    expect(checkPillClass('skipped')).toBe('pill pill-unknown')
+    expect(checkPillClass('unknown')).toBe('pill pill-unknown')
   })
 })
 

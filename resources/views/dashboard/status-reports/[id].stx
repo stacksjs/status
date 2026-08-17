@@ -14,8 +14,9 @@ import { formatDateTime, statusLabel, statusPillClass } from '../../../../app/li
 
 // Display helpers live in app/lib/display (migration Phase 5). NB: `import
 // { x as y }` binds undefined in a server block in this stx build, so the
-// page's own names are bound here instead -- and every import has to sit at
-// the top of the block, before any statement, or none of them bind.
+// page's own names are bound here instead. This file also had its own
+// statusLabel() for report status, which collided with the imported one and
+// killed the whole block until it was renamed -- see reportStatusLabel below.
 const stClass = statusPillClass
 const stLabel = statusLabel
 

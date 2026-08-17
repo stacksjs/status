@@ -300,9 +300,12 @@ Every item landed; ~470 lines of duplication deleted.
 
 1. `import { x as y }` in a server block **binds undefined**. Import the
    real name and rename with a following `const`.
-2. Every import must sit **above the first statement** of the block. One
-   import below a statement silently breaks *all* of them — the block
-   half-evaluates and the page renders with variables missing.
+2. ~~Every import must sit above the first statement of the block.~~
+   **Retracted 2026-08-18** — this was a false inference. `monitors/[id].stx`
+   has imports on both sides of two `const` statements and binds all 122 of
+   its variables. The breakage that produced this rule was constraint 3
+   alone: moving the import up did not fix `status-reports/[id].stx`,
+   removing the name collision did.
 3. Imports collide with same-named local functions
    (`status-reports/[id].stx` had its own `statusLabel` for report
    status). A collision fails the whole block, not just that name.
