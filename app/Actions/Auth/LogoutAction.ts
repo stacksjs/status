@@ -1,3 +1,4 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { Auth } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'

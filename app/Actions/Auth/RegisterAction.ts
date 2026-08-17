@@ -1,5 +1,7 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
-import { Auth } from '@stacksjs/auth'
+import { dispatch } from '@stacksjs/events'
+import { Auth, register } from '@stacksjs/auth'
 import { Team } from '@stacksjs/orm'
 import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
@@ -108,7 +110,7 @@ export default new Action({
             name: user?.name,
           },
         },
-        { status: 200, headers: { 'Set-Cookie': buildAuthCookie(result.token, result.expiresIn) } },
+        { status: 200, headers: { 'Set-Cookie': buildAuthCookie(result.token) } },
       )
     }
 

@@ -1,3 +1,4 @@
+import type { RequestInstance } from '@stacksjs/types'
 import process from 'node:process'
 import { Action } from '@stacksjs/actions'
 import { buildActiveTeamCookie, clearActiveTeamCookie, resolveTeamContext } from '@stacksjs/auth'

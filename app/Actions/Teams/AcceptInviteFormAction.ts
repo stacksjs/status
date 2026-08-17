@@ -1,5 +1,7 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
-import { Auth } from '@stacksjs/auth'
+import { dispatch } from '@stacksjs/events'
+import { Auth, register } from '@stacksjs/auth'
 import { Team, User } from '@stacksjs/orm'
 import TeamMember from '../../Models/TeamMember'
 import { buildAuthCookie } from '../Auth/authCookie'

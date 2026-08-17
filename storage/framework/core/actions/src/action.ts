@@ -16,7 +16,16 @@ import type { ExtractParams, InferValidations, JobOptions, RequestInstance } fro
  */
 export interface ActionValidations {
   [key: string]: {
-    rule: { validate: (value: unknown) => { valid: boolean, errors?: Array<{ message: string }> } }
+    // Structurally this has to accept what ts-validation actually returns:
+    // `validate(value: T) => { valid: boolean, errors: ValidationErrors }`,
+    // where ValidationErrors is `ValidationError[] | ValidationErrorMap`.
+    // The hand-restated shape here had drifted from that — parameter typed
+    // `unknown` (validators narrow it, which strictFunctionTypes rejects) and
+    // errors typed as an optional `{ message: string }[]` — so `schema.string()`,
+    // the documented way to write a rule, did not typecheck against the very
+    // interface meant to accept it. Optional + `any` accepts both the real
+    // validators and hand-written rules.
+    rule: { validate: (value: any) => { valid: boolean, errors?: any } }
     message?: string | Record<string, string>
   }
 }
@@ -63,6 +72,12 @@ interface ActionOptions<
   TModel = string,
   TValidations extends ActionValidations | undefined = undefined,
   TPath extends string = '',
+  // What `handle` receives. Defaults to the HTTP request, which is what a
+  // routed action gets. Actions registered in app/Events.ts are invoked by
+  // the event dispatcher with a plain payload instead, and TS infers TInput
+  // from the handler's own annotation in that case — before this, every such
+  // action was a type error against a request type it never receives.
+  TInput = InferRequest<TModel, TValidations, TPath>,
 > {
   name?: string
   description?: string
@@ -138,7 +153,7 @@ interface ActionOptions<
     request: InferRequest<TModel, TValidations, TPath>,
   ) => void | Response | Promise<void | Response>
   handle: (
-    request: InferRequest<TModel, TValidations, TPath>,
+    request: TInput,
   ) => ActionResult | Promise<ActionResult>
   /**
    * Lightweight dependency factory (stacksjs/stacks#1870 R-6).
@@ -203,6 +218,9 @@ export class Action<
   TModel = string,
   TValidations extends ActionValidations | undefined = undefined,
   TPath extends string = '',
+  // Mirrors ActionOptions' TInput so an event-dispatched action's payload
+  // type survives from the constructor argument onto `.handle`.
+  TInput = InferRequest<TModel, TValidations, TPath>,
 > {
   name?: string
   description?: string
@@ -223,7 +241,7 @@ export class Action<
   authorize?: ActionOptions<TModel, TValidations, TPath>['authorize']
   /** @see {@link ActionOptions.before} */
   before?: ActionOptions<TModel, TValidations, TPath>['before']
-  handle: ActionOptions<TModel, TValidations, TPath>['handle']
+  handle: ActionOptions<TModel, TValidations, TPath, TInput>['handle']
   model?: string
 
   /**
@@ -260,7 +278,7 @@ export class Action<
     authorize,
     before,
     dependencies,
-  }: ActionOptions<TModel, TValidations, TPath>) {
+  }: ActionOptions<TModel, TValidations, TPath, TInput>) {
     this.name = name
     this.description = description
     this.apiResponse = apiResponse

@@ -1,3 +1,4 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { randomUUIDv7 } from 'bun'

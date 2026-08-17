@@ -1,5 +1,4 @@
 import type { AssertionSubject } from '../../lib/assertionEval'
-import { Action } from '@stacksjs/actions'
 import { describeAssertion, evaluateAssertion } from '../../lib/assertionEval'
 import Assertion from '../../Models/Assertion'
 
@@ -22,21 +21,26 @@ export interface AssertionEvaluation {
  * per-assertion evaluation lives in app/lib/assertionEval.ts (pure, unit-
  * tested); this action only loads the rules and aggregates the result.
  */
-export default new Action({
-  name: 'EvaluateAssertionsAction',
-  description: 'Evaluate a monitor\'s assertions against a check response',
+/**
+ * A plain function rather than an `Action`. Nothing routes to it — only
+ * RunUptimeCheck and RunHealthCheck call it, with a payload object. `Action`'s
+ * handle is typed `(request: RequestInstance) => ActionResult`, so wrapping
+ * this in one made the payload and the `{ passed, failures, count }` return
+ * both untypeable: callers saw a union that has no `.passed`, and the
+ * mismatch accounted for 11 of app/'s type errors.
+ */
+export async function evaluateAssertions(payload: { monitorId: number, subject: AssertionSubject }): Promise<AssertionEvaluation> {
+  const assertions = await Assertion.where('monitor_id', payload.monitorId).orderBy('sort_order', 'asc').get()
+  if (assertions.length === 0)
+    return { passed: true, failures: [], count: 0 }
 
-  async handle(payload: { monitorId: number, subject: AssertionSubject }): Promise<AssertionEvaluation> {
-    const assertions = await Assertion.where('monitor_id', payload.monitorId).orderBy('sort_order', 'asc').get()
-    if (assertions.length === 0)
-      return { passed: true, failures: [], count: 0 }
+  const failures: string[] = []
+  for (const assertion of assertions) {
+    if (!evaluateAssertion(assertion, payload.subject))
+      failures.push(`Assertion failed: ${describeAssertion(assertion)}`)
+  }
 
-    const failures: string[] = []
-    for (const assertion of assertions) {
-      if (!evaluateAssertion(assertion, payload.subject))
-        failures.push(`Assertion failed: ${describeAssertion(assertion)}`)
-    }
+  return { passed: failures.length === 0, failures, count: assertions.length }
+}
 
-    return { passed: failures.length === 0, failures, count: assertions.length }
-  },
-})
+export default evaluateAssertions

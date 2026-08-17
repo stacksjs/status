@@ -351,11 +351,40 @@ Real counts under an expanded include, measured with working tsc:
 | area | errors |
 | --- | --- |
 | `tests/feature` | 386 |
-| `app/Actions` | 142 |
-| `app/Jobs` | 128 |
+| ~~`app/Actions` + `app/Jobs`~~ | 228 → **0, now gated** |
 | `tests/unit` | 12 |
 | `config/**` | 11 (upstream scaffold types) |
-| `app/lib` | 5 → **0, now gated** |
+| ~~`app/lib`~~ | 5 → **0, now gated** |
+
+**How app/Actions went to zero (2026-08-17).** 167 of the 228 were one
+root cause: bun-query-builder declares `createModel(): void` although it
+returns the model, so `defineModel` cast through `Record<string, unknown>`
+and every model static — `Monitor.where`, `Monitor.find`,
+`CheckResult.create` — resolved to `unknown`. A `StacksModelStatics`
+interface on that cast fixed all of them at once. The rest were four
+more upstream gaps, each fixed at the source rather than cast away at
+~40 call sites:
+
+- `RequestInstance` was referenced as a global that app files can't see;
+  it is exported from `@stacksjs/types` and is now imported explicitly
+  (8 files).
+- `RequestInstance` didn't declare `cookie()` or `text()`, both of which
+  bun-router implements — so working code read as "property does not
+  exist".
+- `ActionValidations.rule` restated ts-validation's contract by hand and
+  had drifted from it, so `schema.string()` — the documented way to
+  write a rule — failed against the interface meant to accept it.
+- `Action.handle` was typed HTTP-only, so the four actions registered in
+  `app/Events.ts` (which the dispatcher calls with a payload) could not
+  typecheck. `ActionOptions` now carries a `TInput` generic that defaults
+  to the request shape.
+
+Two things the gate caught the moment it started running: `register()`
+returns `{ token }`, so `RegisterAction`'s `result.expiresIn` was always
+undefined (harmless — `buildAuthCookie` falls back to the configured
+expiry — but the intent never worked), and `EvaluateAssertionsAction` was
+a plain function wearing an `Action` wrapper it never needed, since
+nothing routes to it.
 
 - Annotate the 106 untyped server-block functions as files are touched
   (rule 10: they compile as TypeScript today with every param silently

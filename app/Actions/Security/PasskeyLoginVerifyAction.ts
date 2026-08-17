@@ -1,3 +1,4 @@
+import type { ResponseStatus } from '@stacksjs/bun-router'
 import { Action } from '@stacksjs/actions'
 import { Auth } from '@stacksjs/auth'
 import { db } from '@stacksjs/database'
@@ -26,7 +27,7 @@ export default new Action({
   async handle(request) {
     const challenge = request.cookie('pk_login_challenge')
     const clearChallengeCookie = 'pk_login_challenge=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
-    const fail = (message: string, status = 401) =>
+    const fail = (message: string, status: ResponseStatus = 401) =>
       response.json({ verified: false, error: message }, { status, headers: { 'Set-Cookie': clearChallengeCookie } })
 
     if (!challenge)

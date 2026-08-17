@@ -1,3 +1,4 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { Auth, createTwoFactorChallenge, getTwoFactorState } from '@stacksjs/auth'
 import { User } from '@stacksjs/orm'

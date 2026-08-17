@@ -1,3 +1,4 @@
+import { PAYMENT_REQUIRED } from '../../lib/http'
 import { randomUUIDv7 } from 'bun'
 import { Action } from '@stacksjs/actions'
 import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
@@ -32,7 +33,7 @@ export default new Action({
     if (existingCount >= limits.monitors) {
       return response.json(
         { error: limitReachedMessage('monitors', limits.monitors, plan) },
-        { status: 402 },
+        { status: PAYMENT_REQUIRED },
       )
     }
 
@@ -40,7 +41,7 @@ export default new Action({
     if (checkIntervalSeconds < limits.checkIntervalFloorSeconds) {
       return response.json(
         { error: `Check interval must be at least ${limits.checkIntervalFloorSeconds}s on the ${plan} plan. Upgrade to check more frequently.` },
-        { status: 402 },
+        { status: PAYMENT_REQUIRED },
       )
     }
 

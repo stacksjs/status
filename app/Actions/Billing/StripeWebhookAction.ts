@@ -1,3 +1,4 @@
+import type { RequestInstance } from '@stacksjs/types'
 import type Stripe from 'stripe'
 import { Action } from '@stacksjs/actions'
 import { config } from '@stacksjs/config'

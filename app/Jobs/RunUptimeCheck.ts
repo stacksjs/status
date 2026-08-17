@@ -1,7 +1,7 @@
 import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
-import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
+import { evaluateAssertions } from '../Actions/Assertions/EvaluateAssertionsAction'
 import { applyLatencyThreshold, configNumber, parseMonitorConfig } from '../lib/monitorConfig'
 import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
@@ -86,7 +86,7 @@ export default new Job({
         response.headers.forEach((value, key) => { headers[key.toLowerCase()] = value })
         const body = await response.text().catch(() => '')
 
-        const evaluation = await EvaluateAssertionsAction.handle({
+        const evaluation = await evaluateAssertions({
           monitorId: monitor.id,
           subject: { statusCode: response.status, headers, body, responseTimeMs: Math.round(performance.now() - startedAt) },
         })

@@ -68,6 +68,51 @@ export function withoutEvents<T>(fn: () => T | Promise<T>): Promise<T> {
  * should store the user's TZ as a separate column and convert at
  * the render layer.
  */
+/**
+ * The statics `createModel` actually returns at runtime.
+ *
+ * bun-query-builder declares `createModel(): void` (dist/orm.d.ts) even though
+ * it returns the model object, so defineModel has to cast. That cast used to
+ * land on `Record<string, unknown>`, which made every static — `Monitor.where`,
+ * `Monitor.find`, `CheckResult.create` — resolve to `unknown`, and calling an
+ * `unknown` is an error: 167 of the type errors under app/ were this one gap.
+ *
+ * Deliberately loose (`any` rows) rather than wrong: the aim is that app code
+ * can be typechecked at all, not to re-derive the row types the query builder
+ * already models. Delete this once upstream declares a real return type.
+ */
+export interface StacksModelQuery {
+  where: (...args: any[]) => StacksModelQuery
+  orWhere: (...args: any[]) => StacksModelQuery
+  whereIn: (...args: any[]) => StacksModelQuery
+  whereNotIn: (...args: any[]) => StacksModelQuery
+  whereNull: (...args: any[]) => StacksModelQuery
+  whereNotNull: (...args: any[]) => StacksModelQuery
+  orderBy: (...args: any[]) => StacksModelQuery
+  orderByDesc: (...args: any[]) => StacksModelQuery
+  limit: (count: number) => StacksModelQuery
+  offset: (count: number) => StacksModelQuery
+  with: (...args: any[]) => StacksModelQuery
+  get: () => Promise<any[]>
+  /** undefined, not null, when nothing matches. */
+  first: () => Promise<any>
+  count: () => Promise<number>
+  execute: () => Promise<any[]>
+  delete: () => Promise<unknown>
+  update: (attributes: Record<string, unknown>) => Promise<unknown>
+}
+
+export interface StacksModelStatics {
+  where: (...args: any[]) => StacksModelQuery
+  whereIn: (...args: any[]) => StacksModelQuery
+  /** undefined, not null, when the id does not exist. */
+  find: (id: number | string) => Promise<any>
+  create: (attributes: Record<string, unknown>) => Promise<any>
+  all: () => Promise<any[]>
+  first: () => Promise<any>
+  count: () => Promise<number>
+}
+
 export type CastType = 'string' | 'number' | 'boolean' | 'json' | 'datetime' | 'date' | 'array' | 'integer' | 'float'
 
 /**
@@ -1694,7 +1739,7 @@ export function defineModel<const TDef extends ModelDefinition>(definition: TDef
 
   // Create the base model from bun-query-builder (provides all typed query methods)
   // Note: createModel's return type is declared as void in .d.ts but actually returns an object at runtime
-  const baseModel = createModel(defWithHooks as TDef & BQBModelDefinition) as unknown as Record<string, unknown>
+  const baseModel = createModel(defWithHooks as TDef & BQBModelDefinition) as unknown as StacksModelStatics & Record<string, any>
 
   // Make ModelInstance attribute access ergonomic: `user.password`,
   // `car.slug`, `{ ...booking }` all do the right thing instead of

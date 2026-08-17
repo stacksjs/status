@@ -1,3 +1,4 @@
+import { PAYMENT_REQUIRED } from '../../lib/http'
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import { limitReachedMessage, planForTeam } from '../../../config/plans'
@@ -49,7 +50,7 @@ export default new Action({
     if (existingCount >= limits.statusPages) {
       return response.json(
         { error: limitReachedMessage('status pages', limits.statusPages, plan) },
-        { status: 402 },
+        { status: PAYMENT_REQUIRED },
       )
     }
 

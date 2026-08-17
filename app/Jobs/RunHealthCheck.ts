@@ -1,7 +1,7 @@
 import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
-import EvaluateAssertionsAction from '../Actions/Assertions/EvaluateAssertionsAction'
+import { evaluateAssertions } from '../Actions/Assertions/EvaluateAssertionsAction'
 import CheckResult from '../Models/CheckResult'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
@@ -73,7 +73,7 @@ export default new Job({
 
       const headers: Record<string, string> = {}
       response.headers.forEach((value, key) => { headers[key.toLowerCase()] = value })
-      const evaluation = await EvaluateAssertionsAction.handle({
+      const evaluation = await evaluateAssertions({
         monitorId: monitor.id,
         subject: { statusCode: response.status, headers, body: rawBody, responseTimeMs: Math.round(performance.now() - startedAt) },
       })

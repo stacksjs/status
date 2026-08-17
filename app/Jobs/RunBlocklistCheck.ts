@@ -24,7 +24,9 @@ function reverseIp(ip: string): string {
  */
 function isSharedCdnIp(ip: string): string | null {
   const octets = ip.split('.').map(Number)
-  const [a, b] = octets
+  // -1 defaults so a malformed address (fewer than two octets, or an IPv6
+  // one) simply matches no range, rather than comparing against undefined.
+  const [a = -1, b = -1] = octets
   // Cloudflare: 104.16.0.0/13, 172.64.0.0/13, 188.114.96.0/20, 162.158.0.0/15, 173.245.48.0/20, 103.21.244.0/22
   if ((a === 104 && b >= 16 && b <= 23) || (a === 172 && b >= 64 && b <= 71) || (a === 188 && b === 114) || (a === 162 && (b === 158 || b === 159)) || (a === 173 && b === 245))
     return 'Cloudflare'

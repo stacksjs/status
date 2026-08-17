@@ -255,6 +255,20 @@ export interface RequestInstance<
    */
   cookies?: RequestCookies
 
+  /**
+   * Single cookie value by name, or `defaultValue` when absent.
+   *
+   * bun-router's Request implements this (`cookie(name, defaultValue)` in
+   * dist/index.js) but never declared it, so callers typechecked as
+   * "property does not exist" while working perfectly at runtime — see
+   * PasskeyLoginVerifyAction and IncidentFeedAction, which both read their
+   * challenge/unlock cookie this way.
+   */
+  cookie: (name: string, defaultValue?: string) => string | undefined
+
+  /** Raw request body as text; used where a signature is computed over the exact bytes. */
+  text: () => Promise<string>
+
   // ==========================================================================
   // Model-aware Input Methods
   //

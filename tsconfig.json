@@ -32,10 +32,11 @@
     "config/ui.ts",
     "config/crosswind.ts",
     "app/Models/**/*.ts",
-    // Phase 7 ratchet: app/lib is gated now. app/Actions (142 errors),
-    // app/Jobs (128) and tests (398) are the remaining steps — see
-    // STX-MIGRATION-PLAN.md.
-    "app/lib/**/*.ts"
+    // Phase 7 ratchet. app/lib and app/Actions are gated (the latter also
+    // pulls in app/Jobs transitively, so those are covered too). The test
+    // dirs are the remaining step — see STX-MIGRATION-PLAN.md.
+    "app/lib/**/*.ts",
+    "app/Actions/**/*.ts"
   ],
   "exclude": [
     "cloud/**",
