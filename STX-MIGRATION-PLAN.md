@@ -41,9 +41,27 @@ Pipeline status (2026-08-14): gates are green again (test job enters
 buddy directly; package.json's `"system"` block — the hidden source of
 pantry registry downloads — removed while registry.pantry.dev is down).
 deploy-prod now reaches the real ts-cloud Hetzner deploy and fails at
-SSH: the box (167.233.116.134) serves statushq.org and answers port 22
-from a dev machine, but GitHub runners can't reach it within the 8-min
-wait — an IP-allowlist/fail2ban question for ops, not a code defect.
+SSH.
+
+Re-diagnosed 2026-08-17, and the earlier "runners are firewalled out"
+reading was wrong: the box (167.233.116.134) completes a full SSH
+handshake from an ordinary, non-allowlisted IP and answers `Permission
+denied (publickey,password)`, so nothing is filtering by source address.
+The readiness probe is `ssh root@ip true` with `BatchMode=yes`, and
+`pollUntil` treats *any* failure the same, so a key rejected in 0.2s is
+reported as "SSH did not become reachable … the box may still be
+booting". ~96 instant retries over 8 minutes is the signature of
+rejection, not of a slow boot. Last successful deploy was 2026-07-16;
+the next run, 2026-07-25, failed, and between them sits exactly one
+commit — a docs link change — so the cause is environmental (the
+`DEPLOY_SSH_PRIVATE_KEY` secret or `root`'s `authorized_keys`), not in
+this repo. Ops check: compare `ssh-keygen -y -f` on the secret against
+`/root/.ssh/authorized_keys`, then `fail2ban-client status sshd`, since
+three weeks of failed auth may have banned the runners on top.
+
+Consequence worth stating plainly: production has served pre-rename July
+code since then, so none of Phases 0–5 is live — including the Phase 0
+credential-leak fix.
 
 ---
 
@@ -245,22 +263,71 @@ injection indent).
   views pre/post-diffed with the same normalization — only the expected
   deltas appear.
 
-## Phase 5 — State and data
+## Phase 5 — State and data ✅ shipped 2026-08-17 (5 commits)
 
-- Replace the 47 `require()` sites and every KEEP-IN-SYNC block with
-  static imports from `app/` (verified working): the ~140 mirrored
-  CIDR/maintenance lines in `status/[slug].stx` import from
-  `app/Actions/StatusPages/AccessControl.ts` and `app/lib/maintenance.ts`
-  instead; the ~22 display-helper copies (stClass/stLabel/agoLabel/
-  fmtDuration/…) consolidate into `app/lib` modules.
-- Migrate the 3 straggler pages (`settings/security.stx`,
-  `status-reports/index.stx`, `status-reports/[id].stx`) from hand-rolled
-  first-membership auth to the switcher-aware `resolveTeamContext` the
-  other 12 dashboard pages use — the drift is user-visible today.
-- Consolidate the 9 live theme-script copies into one shared static asset
-  (a real store stays gated on the hydration bug, Phase 6).
+Every item landed; ~470 lines of duplication deleted.
+
+- **Straggler auth pages** (`settings/security.stx`,
+  `status-reports/index.stx`, `status-reports/[id].stx`) now use
+  `resolveTeamContext`. This was user-visible: they resolved the team by
+  taking the user's highest-priority active membership, so switching
+  workspace and opening Announcements listed the *other* team's reports,
+  and the switcher control never rendered on those pages at all
+  (`partials/app-nav.stx` guards on `SWITCHABLE_TEAMS` being defined).
+- **Display helpers** → `app/lib/display.ts` (32 copies in 12 blocks).
+  They had drifted into contradicting each other: `stLabel` in three
+  versions meant one paused monitor read "Paused" on its detail page,
+  "Pending" on the list, "Unknown" on a status page. `formatDate` in
+  four (12h/24h, year, empty label, two with no Invalid-Date guard) →
+  one function with options. A fifth date formatter hid under the name
+  `dateLabel`. Canonical labels now cover all five values the
+  `monitors.status` CHECK allows.
+- **KEEP-IN-SYNC mirrors deleted** from `status/[slug].stx`: ~105 lines
+  of IPv4/IPv6 CIDR matching (an *access-control* decision, untested in
+  its copied form) and ~60 lines of maintenance-interval maths now
+  import the canonical, unit-tested versions.
+- **`require()` → static imports**, all 50 sites in 17 views.
+- **Theme scripts** → `partials/theme-init.stx` +
+  `partials/theme-toggle.stx` (6 copies). Included, not moved to a
+  static asset: the applier must run before first paint, and an external
+  script would add the round-trip that causes the flash it prevents.
+  `layouts/status.stx` keeps its own — an owner-forced theme needs a
+  resolver that leaves a server-stamped value alone. Dead
+  `partials/theme.stx` deleted (nothing included it; it read a different
+  localStorage key).
+
+**stx constraints found here — they shape Phases 6 and 7:**
+
+1. `import { x as y }` in a server block **binds undefined**. Import the
+   real name and rename with a following `const`.
+2. Every import must sit **above the first statement** of the block. One
+   import below a statement silently breaks *all* of them — the block
+   half-evaluates and the page renders with variables missing.
+3. Imports collide with same-named local functions
+   (`status-reports/[id].stx` had its own `statusLabel` for report
+   status). A collision fails the whole block, not just that name.
+
+Both 1 and 2 fail *silently*: no throw, no log, just an unbound name and
+a page missing content. `tests/unit/display.test.ts` and the block-probe
+approach (evaluate a view's server block and assert the variables it
+must define) are what caught them; a renderer diff alone would not have.
+
+**Not consolidated, deliberately:** the browser copies of
+`stClass`/`stLabel` in `monitors/index.stx`. A client script cannot
+import app/ TS, and it rewrites the same cells over the WebSocket, so it
+is pinned to the module by a test that evaluates the copy out of the
+view and diffs it against `statusLabel` for every status value.
 
 ## Phase 6 — Components (framework-upgrade-gated)
+
+**Version split found 2026-08-17 — do this before the deploy unblocks.**
+Three different stx versions are in play: `package.json` asks for
+`^0.2.82`, `node_modules` resolves 0.2.82, the vendored
+`pantry/@stacksjs/stx` is **0.2.76**, and the Hetzner deploy's own pantry
+install resolved **0.2.179** (all inside that caret range). So the next
+successful deploy would jump the render engine ~100 versions past
+anything tested here, unreviewed. Pin deliberately, then upgrade on
+purpose.
 
 - Upgrade `@stacksjs/stx` + `stx-router` off the 0.2.82 pin to ≥0.2.176
   (the pin predates the fixes for 36 broken library components).
