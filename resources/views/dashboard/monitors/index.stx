@@ -27,6 +27,13 @@
   app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
+import { relativeTime, statusLabel, statusPillClass } from '../../../../app/lib/display'
+// Display helpers live in app/lib/display (migration Phase 5). NB: `import
+// { x as y }` binds undefined in a server block in this stx build, so the
+// page's own names are bound here instead.
+const stClass = statusPillClass
+const stLabel = statusLabel
+const agoLabel = relativeTime
 const { config } = require('@stacksjs/config')
 const { resolveTeamContext } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
@@ -161,29 +168,6 @@ function tickClass(status) {
 }
 function recentChecks(id) {
   return recentChecksByMonitor[id] || []
-}
-
-function stClass(status) {
-  if (status === 'up') return 'pill pill-up'
-  if (status === 'degraded') return 'pill pill-degraded'
-  if (status === 'down') return 'pill pill-down'
-  return 'pill pill-unknown'
-}
-
-function stLabel(status) {
-  if (status === 'up') return 'Up'
-  if (status === 'degraded') return 'Degraded'
-  if (status === 'down') return 'Down'
-  return 'Pending'
-}
-
-function agoLabel(iso) {
-  if (!iso) return 'never'
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (s < 60) return s + 's ago'
-  if (s < 3600) return Math.floor(s / 60) + 'm ago'
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
-  return Math.floor(s / 86400) + 'd ago'
 }
 
 function typeUrl(t) {
@@ -372,11 +356,16 @@ useHead({ title: 'Monitors \u00b7 StatusHQ', meta: [{ name: 'robots', content: '
       if (status === 'down') return 'pill pill-down'
       return 'pill pill-unknown'
     }
+    // Must match app/lib/display.ts statusLabel(): this rewrites the same
+    // cell the server rendered, so any disagreement shows up as a label that
+    // flips on the first live update. A browser script can't import app/ TS,
+    // which is why this copy exists at all.
     function stLabel(status) {
       if (status === 'up') return 'Up'
       if (status === 'degraded') return 'Degraded'
       if (status === 'down') return 'Down'
-      return 'Pending'
+      if (status === 'paused') return 'Paused'
+      return 'Unknown'
     }
 
     // Mirror the server-side fmtDuration / agoLabel so live updates format

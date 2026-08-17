@@ -15,6 +15,7 @@ import { generateTwoFactorSetup, getTwoFactorState, resolveTeamContext, stashPen
 import { config } from '@stacksjs/config'
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 import { db } from '@stacksjs/database'
+import { isoDate } from '../../../../app/lib/display'
 
 // Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
 // which honors the workspace-switcher cookie (see dashboard/index.stx for the
@@ -92,10 +93,9 @@ function errorLabel(code) {
   return ''
 }
 
-function dateLabel(iso) {
-  if (!iso) return '--'
-  return String(iso).slice(0, 10)
-}
+// Shared display helper (migration Phase 5); an unambiguous, sortable date
+// is what an audit column wants.
+const dateLabel = isoDate
 
 function credentialLabel(id) {
   const s = String(id || '')

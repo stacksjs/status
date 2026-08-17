@@ -1,6 +1,11 @@
 @extends('layouts/status')
 
 <script server>
+import { formatDateTime } from '../../../app/lib/display'
+// Display helpers live in app/lib/display (migration Phase 5). NB: `import
+// { x as y }` binds undefined in a server block in this stx build, so the
+// page's own names are bound here instead.
+const formatDate = iso => formatDateTime(iso, { locale: DATE_LOCALE, empty: '' })
 const { decrypt } = require('@stacksjs/security')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
@@ -446,12 +451,6 @@ function monitorLabel(monitor) {
   if (status === 'degraded') return t('degraded')
   if (status === 'down') return t('down')
   return t('unknown')
-}
-
-function formatDate(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleString(DATE_LOCALE, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function bannerClass(tone) {

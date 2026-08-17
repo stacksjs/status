@@ -10,6 +10,13 @@
   fields, two visual cards.
 -->
 <script server>
+import { formatDateTime, statusLabel, statusPillClass } from '../../../../app/lib/display'
+// Display helpers live in app/lib/display (migration Phase 5). NB: `import
+// { x as y }` binds undefined in a server block in this stx build, so the
+// page's own names are bound here instead.
+const stClass = statusPillClass
+const stLabel = statusLabel
+const formatDate = formatDateTime
 const { resolveTeamContext } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
@@ -98,28 +105,7 @@ if (statusPage && assignedIds.length > 0) {
   }
 }
 
-function formatDate(iso) {
-  if (!iso) return '--'
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '--'
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
-
 // Display-only helpers below: none of these touch queries or auth.
-function stClass(status) {
-  if (status === 'up') return 'pill pill-up'
-  if (status === 'degraded') return 'pill pill-degraded'
-  if (status === 'down') return 'pill pill-down'
-  return 'pill pill-unknown'
-}
-
-function stLabel(status) {
-  if (status === 'up') return 'Up'
-  if (status === 'degraded') return 'Degraded'
-  if (status === 'down') return 'Down'
-  return 'Unknown'
-}
-
 function mwClass(status) {
   if (status === 'active') return 'pill pill-degraded'
   if (status === 'scheduled') return 'pill pill-unknown'

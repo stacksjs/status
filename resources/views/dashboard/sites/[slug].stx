@@ -10,6 +10,13 @@
   cards and this page agree on grouping and link targets.
 -->
 <script server>
+import { relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../../app/lib/display'
+// Display helpers live in app/lib/display (migration Phase 5). NB: `import
+// { x as y }` binds undefined in a server block in this stx build, so the
+// page's own names are bound here instead.
+const stClass = statusPillClass
+const stLabel = statusLabel
+const agoLabel = relativeTime
 const { resolveTeamContext } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
@@ -36,17 +43,6 @@ const ACTIVE_TEAM_NAME = (TEAM_CTX.teams.find(t => t.id === TEAM_ID) || {}).name
 const teamScope = qb => SEE_ALL ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'monitors'
 
-function siteHost(url) {
-  // Split-based host extraction — see the identical helper in
-  // dashboard/index.stx for why a `/[/:?#]/` char class and `new URL()` are
-  // both avoided here.
-  let h = String(url).replace(/^https?:\/\//i, '')
-  h = h.split('/')[0].split('?')[0].split('#')[0].split(':')[0]
-  return h.replace(/^www\./i, '').toLowerCase() || 'unknown'
-}
-function siteSlug(host) {
-  return String(host).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
-}
 const SITE_STATUS_RANK = { down: 3, degraded: 2, up: 1, paused: 0, pending: 0 }
 const siteRank = m => SITE_STATUS_RANK[m.status] ?? 0
 
@@ -141,27 +137,6 @@ if (metricMon) {
 }
 
 // ---- Display-only helpers (shared shape with the overview / monitor list) ----
-function stClass(status) {
-  if (status === 'up') return 'pill pill-up'
-  if (status === 'degraded') return 'pill pill-degraded'
-  if (status === 'down') return 'pill pill-down'
-  return 'pill pill-unknown'
-}
-function stLabel(status) {
-  if (status === 'up') return 'Up'
-  if (status === 'degraded') return 'Degraded'
-  if (status === 'down') return 'Down'
-  if (status === 'paused') return 'Paused'
-  return 'Pending'
-}
-function agoLabel(iso) {
-  if (!iso) return 'never'
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (s < 60) return s + 's ago'
-  if (s < 3600) return Math.floor(s / 60) + 'm ago'
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
-  return Math.floor(s / 86400) + 'd ago'
-}
 function typeLabel(t) {
   const labels = { uptime: 'Uptime', ping: 'Ping', tcp_port: 'TCP port', ssl: 'SSL', dns: 'DNS', domain: 'Domain', broken_links: 'Crawl', lighthouse: 'Lighthouse', dns_blocklist: 'Blocklist', port_scan: 'Port scan', health: 'Health', cron: 'Heartbeat', performance: 'Performance', ai_check: 'AI check' }
   return labels[t] || String(t).replace('_', ' ')

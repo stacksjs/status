@@ -10,6 +10,7 @@
 import { resolveTeamContext } from '@stacksjs/auth'
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 import { db } from '@stacksjs/database'
+import { formatDateTime } from '../../../../app/lib/display'
 
 // Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
 // which honors the workspace-switcher cookie (see dashboard/index.stx for the
@@ -63,12 +64,8 @@ function statusLabel(status) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function dateLabel(iso) {
-  if (!iso) return '--'
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '--'
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+// Shared display helper (migration Phase 5).
+const dateLabel = formatDateTime
 
 function errorLabel(code) {
   if (code === 'title') return 'A title is required.'

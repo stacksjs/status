@@ -20,6 +20,9 @@
 // decides with, so the card can never read "healthy" while the watcher is
 // paging someone. Static import rather than require(): app/ TS resolves fine
 // from a server block (see STX-MIGRATION-PLAN.md Phase 5).
+// NB: `import { x as y }` does NOT work in a server block in this stx build --
+// the alias binds undefined. Import the real names, then bind locally below.
+import { formatDateTime, relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../../app/lib/display'
 import { describeCadence, formatDurationSeconds, pingUrls, summarizeHeartbeat } from '../../../../app/lib/heartbeat'
 
 const { resolveTeamContext } = require('@stacksjs/auth')
@@ -66,52 +69,16 @@ const monitor = monitorId
 
 // A monitor is one check on a site (its domain); the breadcrumb links back up
 // to that site so the Overview -> Site -> Check hierarchy holds everywhere.
-// siteHost/siteSlug are the same helpers as dashboard/index.stx and
-// sites/[slug].stx — kept identical so the grouping and links stay in step.
-function siteHost(url) {
-  let h = String(url).replace(/^https?:\/\//i, '')
-  h = h.split('/')[0].split('?')[0].split('#')[0].split(':')[0]
-  return h.replace(/^www\./i, '').toLowerCase() || 'unknown'
-}
-function siteSlug(host) {
-  return String(host).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
-}
 const monitorSiteHost = monitor ? siteHost(monitor.url) : ''
 const monitorSiteSlug = siteSlug(monitorSiteHost)
 
-// Display helpers -- same contract as monitors/index.stx: stClass/stLabel
-// drive the <data class="pill ..."> readouts, agoLabel renders relative
-// timestamps in lowercase.
-function stClass(status) {
-  if (status === 'up') return 'pill pill-up'
-  if (status === 'degraded') return 'pill pill-degraded'
-  if (status === 'down') return 'pill pill-down'
-  return 'pill pill-unknown'
-}
-
-function stLabel(status) {
-  if (status === 'up') return 'Up'
-  if (status === 'degraded') return 'Degraded'
-  if (status === 'down') return 'Down'
-  if (status === 'paused') return 'Paused'
-  return 'Pending'
-}
-
-function agoLabel(iso) {
-  if (!iso) return '--'
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (s < 60) return s + 's ago'
-  if (s < 3600) return Math.floor(s / 60) + 'm ago'
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
-  return Math.floor(s / 86400) + 'd ago'
-}
-
-function formatDate(iso) {
-  if (!iso) return '--'
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '--'
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+// Display helpers now live in app/lib/display (migration Phase 5); these are
+// this page's names for them. It shows '--' rather than 'never' for a missing
+// timestamp, which is the only local difference.
+const stClass = statusPillClass
+const stLabel = statusLabel
+const formatDate = formatDateTime
+const agoLabel = iso => relativeTime(iso, '--')
 
 // Incident status -> pill class: resolved reads muted, monitoring reads
 // amber, investigating/identified read danger.

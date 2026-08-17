@@ -12,6 +12,13 @@
   data when signed out, exactly like the other dashboard pages.
 -->
 <script server>
+import { relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../app/lib/display'
+// Display helpers live in app/lib/display (migration Phase 5). NB: `import
+// { x as y }` binds undefined in a server block in this stx build, so the
+// page's own names are bound here instead.
+const stClass = statusPillClass
+const stLabel = statusLabel
+const agoLabel = relativeTime
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
 const { resolveTeamContext } = require('@stacksjs/auth')
@@ -84,19 +91,6 @@ const statusPageCount = statusPages.length
 // all its checks/incidents/telemetry. `siteHost`/`siteSlug` are shared
 // verbatim with resources/views/dashboard/sites/[slug].stx so the grouping and
 // the link targets stay in lockstep.
-function siteHost(url) {
-  // Strip scheme, then cut at the first path/query/fragment/port delimiter.
-  // Split-based rather than a `/[/:?#]/` char class: an unescaped slash inside
-  // a regex character class confuses stx's <script> boundary scanner and makes
-  // the whole server script fail to eval. `new URL()` is likewise avoided — it
-  // throws on the bare-hostname monitors this also has to handle.
-  let h = String(url).replace(/^https?:\/\//i, '')
-  h = h.split('/')[0].split('?')[0].split('#')[0].split(':')[0]
-  return h.replace(/^www\./i, '').toLowerCase() || 'unknown'
-}
-function siteSlug(host) {
-  return String(host).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
-}
 // Worst-status wins for a site's rolled-up health: a single down check makes
 // the whole site read down. Rank so down > degraded > up > paused/pending.
 const SITE_STATUS_RANK = { down: 3, degraded: 2, up: 1, paused: 0, pending: 0 }
@@ -148,35 +142,12 @@ const siteCount = sites.length
 // ---- Display-only helpers (no queries, no auth) ----
 
 // Monitor status pills + labels, copied from monitors/index.stx.
-function stClass(status) {
-  if (status === 'up') return 'pill pill-up'
-  if (status === 'degraded') return 'pill pill-degraded'
-  if (status === 'down') return 'pill pill-down'
-  return 'pill pill-unknown'
-}
-
 // Utility bg class for a site card's left accent rail, by rolled-up status.
 function railClass(status) {
   if (status === 'up') return 'bg-success'
   if (status === 'degraded') return 'bg-amber'
   if (status === 'down') return 'bg-danger'
   return 'bg-strong'
-}
-
-function stLabel(status) {
-  if (status === 'up') return 'Up'
-  if (status === 'degraded') return 'Degraded'
-  if (status === 'down') return 'Down'
-  return 'Pending'
-}
-
-function agoLabel(iso) {
-  if (!iso) return 'never'
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (s < 60) return s + 's ago'
-  if (s < 3600) return Math.floor(s / 60) + 'm ago'
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
-  return Math.floor(s / 86400) + 'd ago'
 }
 
 function targetLabel(url) {

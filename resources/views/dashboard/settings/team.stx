@@ -9,6 +9,7 @@
   app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
+import { isoDate } from '../../../../app/lib/display'
 const { resolveTeamContext } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
@@ -59,10 +60,9 @@ try {
 const activeCount = members.filter((m) => m.status !== 'pending').length
 const pendingCount = members.filter((m) => m.status === 'pending').length
 
-function dateLabel(iso) {
-  if (!iso) return '--'
-  return String(iso).slice(0, 10)
-}
+// Shared display helper (migration Phase 5); an unambiguous, sortable date
+// is what an audit column wants.
+const dateLabel = isoDate
 
 function reportFrequencyLabel(freq) {
   if (freq === 'monthly') return 'Monthly'

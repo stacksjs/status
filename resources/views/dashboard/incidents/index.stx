@@ -11,6 +11,11 @@
   an incident is never "operational".
 -->
 <script server>
+import { formatDateTime } from '../../../../app/lib/display'
+// Display helpers live in app/lib/display (migration Phase 5). NB: `import
+// { x as y }` binds undefined in a server block in this stx build, so the
+// page's own names are bound here instead.
+const formatDate = iso => formatDateTime(iso, { hour12: false })
 const { resolveTeamContext } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
@@ -91,13 +96,6 @@ function incidentPill(status) {
 function incidentLabel(status) {
   if (!status) return '--'
   return status.charAt(0).toUpperCase() + status.slice(1)
-}
-
-function formatDate(iso) {
-  if (!iso) return '--'
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '--'
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: false })
 }
 
 function durationLabel(startIso, endIso) {

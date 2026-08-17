@@ -10,6 +10,14 @@
 import { resolveTeamContext } from '@stacksjs/auth'
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 import { db } from '@stacksjs/database'
+import { formatDateTime, statusLabel, statusPillClass } from '../../../../app/lib/display'
+
+// Display helpers live in app/lib/display (migration Phase 5). NB: `import
+// { x as y }` binds undefined in a server block in this stx build, so the
+// page's own names are bound here instead -- and every import has to sit at
+// the top of the block, before any statement, or none of them bind.
+const stClass = statusPillClass
+const stLabel = statusLabel
 
 // Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
 // which honors the workspace-switcher cookie (see dashboard/index.stx for the
@@ -79,28 +87,15 @@ function statusClass(status) {
   if (status === 'monitoring') return 'pill pill-degraded'
   return 'pill pill-unknown'
 }
-function statusLabel(status) {
+// A *report's* status (investigating / monitoring / resolved), which is a
+// different vocabulary from a monitor's -- hence the name. It used to be
+// called statusLabel, which collided with the shared monitor-status helper
+// this page also needs.
+function reportStatusLabel(status) {
   const s = String(status || 'unknown')
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
-function stClass(status) {
-  if (status === 'up') return 'pill pill-up'
-  if (status === 'degraded') return 'pill pill-degraded'
-  if (status === 'down') return 'pill pill-down'
-  return 'pill pill-unknown'
-}
-function stLabel(status) {
-  if (status === 'up') return 'Up'
-  if (status === 'degraded') return 'Degraded'
-  if (status === 'down') return 'Down'
-  return 'Unknown'
-}
-function dateLabel(iso) {
-  if (!iso) return '--'
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '--'
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+const dateLabel = formatDateTime
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
@@ -125,7 +120,7 @@ useHead({ title: (report ? report.title + ' · StatusHQ' : 'Announcement · Stat
         <div class="crumb"><StxLink to="/dashboard/status-reports">Announcements</StxLink></div>
         <h1>{{ report.title }}</h1>
         <p class="meta">
-          <data class="{{ statusClass(report.status) }}" value="{{ report.status }}"><span class="dot"></span>{{ statusLabel(report.status) }}</data>
+          <data class="{{ statusClass(report.status) }}" value="{{ report.status }}"><span class="dot"></span>{{ reportStatusLabel(report.status) }}</data>
           &middot; started {{ dateLabel(report.started_at) }}
           @if (report.status === 'resolved' && report.resolved_at)
             &middot; resolved {{ dateLabel(report.resolved_at) }}
@@ -203,7 +198,7 @@ useHead({ title: (report ? report.title + ' · StatusHQ' : 'Announcement · Stat
             @foreach (updates as update)
               <li style="padding: 0.9rem 0; border-bottom: 1px solid var(--border);">
                 <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.35rem;">
-                  <data class="{{ statusClass(update.status) }}" value="{{ update.status }}"><span class="dot"></span>{{ statusLabel(update.status) }}</data>
+                  <data class="{{ statusClass(update.status) }}" value="{{ update.status }}"><span class="dot"></span>{{ reportStatusLabel(update.status) }}</data>
                   <time class="sub" style="font-size: 0.8rem;">{{ dateLabel(update.posted_at) }}</time>
                 </div>
                 <p style="margin: 0; font-size: 0.92rem; line-height: 1.55;">{{ update.message }}</p>
