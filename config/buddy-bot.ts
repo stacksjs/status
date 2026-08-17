@@ -3,7 +3,11 @@ import type { BuddyBotConfig } from 'buddy-bot'
 export default {
   repository: {
     owner: 'stacksjs',
-    name: 'stacks',
+    // This repo, not the framework's. Pointed at 'stacks' (a Stacks template
+    // default) the dashboard job PATCHes an issue in stacksjs/stacks on every
+    // scheduled run and 403s, because this repo's GITHUB_TOKEN has no write
+    // access there.
+    name: 'status',
     provider: 'github',
     // token: process.env.BUDDY_BOT_TOKEN,
   },
