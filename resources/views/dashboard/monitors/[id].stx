@@ -16,6 +16,12 @@
   app-nav.stx, so the app reads as the same product as the site.
 -->
 <script server>
+// The heartbeat card is derived from the same module CheckOverdueHeartbeats
+// decides with, so the card can never read "healthy" while the watcher is
+// paging someone. Static import rather than require(): app/ TS resolves fine
+// from a server block (see STX-MIGRATION-PLAN.md Phase 5).
+import { describeCadence, formatDurationSeconds, pingUrls, summarizeHeartbeat } from '../../../../app/lib/heartbeat'
+
 const { resolveTeamContext } = require('@stacksjs/auth')
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 const { db } = require('@stacksjs/database')
@@ -307,9 +313,61 @@ function cfgValue(key) {
   return Array.isArray(value) ? value.join(', ') : value
 }
 
-const heartbeatRow = (monitor && monitor.type === 'cron')
+// Underscore-prefixed: the row carries ping_token, which is a credential --
+// anyone holding it can resolve this monitor's incidents. It belongs in the
+// owner's server-rendered HTML (that is the point of the card) but must never
+// reach the client data bridge. See tests/unit/bridge-hygiene.test.ts.
+const __heartbeatRow = (monitor && monitor.type === 'cron')
   ? (await db.selectFrom('heartbeat_monitors').where('monitor_id', '=', monitor.id).limit(1).execute())[0] || null
   : null
+
+// Heartbeat card state. `state` comes straight from summarizeHeartbeat, which
+// wraps evaluateHeartbeat -- the card and the alert are one verdict.
+const HB_PILL = { healthy: 'pill pill-up', awaiting: 'pill pill-unknown', running: 'pill pill-degraded', missed: 'pill pill-down', overrun: 'pill pill-down' }
+const HB_LABEL = { healthy: 'Checking in', awaiting: 'Awaiting first check-in', running: 'Run in progress', missed: 'Missed check-in', overrun: 'Overran grace window' }
+const HB_NOTE = {
+  healthy: 'The last check-in arrived on schedule.',
+  awaiting: 'No ping has arrived yet. This monitor goes down if the first one misses the deadline below.',
+  running: 'A /start ping arrived. The run has to report success before the deadline below or it counts as an overrun.',
+  missed: 'The expected ping never arrived within the cadence plus grace.',
+  overrun: 'The run started but never reported success inside the grace window.',
+}
+
+let __heartbeat = null
+if (__heartbeatRow) {
+  const hbState = {
+    createdAtMs: new Date(__heartbeatRow.created_at).getTime(),
+    lastPingAtMs: __heartbeatRow.last_ping_at ? new Date(__heartbeatRow.last_ping_at).getTime() : null,
+    lastStartedAtMs: __heartbeatRow.last_started_at ? new Date(__heartbeatRow.last_started_at).getTime() : null,
+    expectedIntervalSeconds: __heartbeatRow.expected_interval_seconds,
+    graceSeconds: __heartbeatRow.grace_seconds,
+    cronExpression: __heartbeatRow.cron_expression,
+  }
+  const hbSummary = summarizeHeartbeat(hbState, Date.now())
+  const hbUrls = pingUrls(appUrl, __heartbeatRow.ping_token)
+  // Labels are built here rather than in the template: string concatenation
+  // inside {{ }} is where this file has bitten before.
+  __heartbeat = {
+    pillClass: HB_PILL[hbSummary.state] || 'pill pill-unknown',
+    label: HB_LABEL[hbSummary.state] || 'Unknown',
+    note: HB_NOTE[hbSummary.state] || '',
+    cadence: describeCadence(hbState),
+    grace: formatDurationSeconds(__heartbeatRow.grace_seconds),
+    lastPing: __heartbeatRow.last_ping_at ? `${formatDate(__heartbeatRow.last_ping_at)} (${agoLabel(__heartbeatRow.last_ping_at)})` : 'Never',
+    hasStarted: !!__heartbeatRow.last_started_at,
+    lastStarted: __heartbeatRow.last_started_at ? `${formatDate(__heartbeatRow.last_started_at)} (${agoLabel(__heartbeatRow.last_started_at)})` : '--',
+    hasFailed: !!__heartbeatRow.last_fail_at,
+    lastFail: __heartbeatRow.last_fail_at ? `${formatDate(__heartbeatRow.last_fail_at)} (${agoLabel(__heartbeatRow.last_fail_at)})` : '--',
+    hasDuration: __heartbeatRow.last_duration_seconds != null,
+    lastDuration: formatDurationSeconds(__heartbeatRow.last_duration_seconds),
+    due: hbSummary.dueInSeconds >= 0
+      ? `${formatDate(new Date(hbSummary.dueAtMs).toISOString())} (in ${formatDurationSeconds(hbSummary.dueInSeconds)})`
+      : `${formatDate(new Date(hbSummary.dueAtMs).toISOString())} (overdue by ${formatDurationSeconds(-hbSummary.dueInSeconds)})`,
+    pingUrl: hbUrls.success,
+    startUrl: hbUrls.start,
+    failUrl: hbUrls.fail,
+  }
+}
 
 const monitorTypes = [
   { value: 'uptime', label: 'Uptime (HTTP)' },
@@ -841,6 +899,48 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
       </section>
     @endif
 
+    @if (monitor.type === 'cron')
+      <section class="card" aria-label="Heartbeat">
+        <div class="card-head">
+          <h3>Heartbeat</h3>
+          @if (__heartbeat)
+            <span class="{{ __heartbeat.pillClass }}"><span class="dot"></span>{{ __heartbeat.label }}</span>
+          @endif
+        </div>
+        <div class="card-body">
+          @if (__heartbeat)
+            <p class="subhead">{{ __heartbeat.note }}</p>
+            <dl class="kv">
+              <div><dt>Cadence</dt><dd>{{ __heartbeat.cadence }}</dd></div>
+              <div><dt>Grace period</dt><dd>{{ __heartbeat.grace }}</dd></div>
+              <div><dt>Last check-in</dt><dd>{{ __heartbeat.lastPing }}</dd></div>
+              <div><dt>Next check-in due</dt><dd>{{ __heartbeat.due }}</dd></div>
+              @if (__heartbeat.hasDuration)
+                <div><dt>Last run duration</dt><dd>{{ __heartbeat.lastDuration }}</dd></div>
+              @endif
+              @if (__heartbeat.hasStarted)
+                <div><dt>Last run started</dt><dd>{{ __heartbeat.lastStarted }}</dd></div>
+              @endif
+              @if (__heartbeat.hasFailed)
+                <div><dt>Last reported failure</dt><dd>{{ __heartbeat.lastFail }}</dd></div>
+              @endif
+            </dl>
+            <p class="subhead">Ping this URL when the job finishes successfully. Treat it as a secret &mdash; it is the only credential this endpoint has.</p>
+            <pre class="code-block"># at the end of the job, on success only
+{{ __heartbeat.pingUrl }}
+
+# optional: bracket the run to measure its duration and report a non-zero exit
+{{ __heartbeat.startUrl }}
+{{ __heartbeat.failUrl }}</pre>
+            <p class="subhead">In a crontab, that is:</p>
+            <pre class="code-block">0 2 * * *  /path/to/job.sh &amp;&amp; curl -fsS -m 10 --retry 3 {{ __heartbeat.pingUrl }}</pre>
+          @else
+            <p class="subhead">This monitor has no heartbeat configured, so nothing is watching it and it has no ping URL &mdash; it can never alert. Saving the monitor settings below generates one.</p>
+          @endif
+        </div>
+      </section>
+    @endif
+
     @if (rtChart)
       <section class="card" aria-label="Response time">
         <div class="card-head">
@@ -1309,16 +1409,16 @@ curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
               <div class="form-row">
                 <div class="field">
                   <label for="edit-expected-interval">Expected every (seconds)</label>
-                  <input id="edit-expected-interval" type="number" name="expected_interval_seconds" class="input" min="60" value="{{ heartbeatRow ? heartbeatRow.expected_interval_seconds : 3600 }}" />
+                  <input id="edit-expected-interval" type="number" name="expected_interval_seconds" class="input" min="60" value="{{ __heartbeatRow ? __heartbeatRow.expected_interval_seconds : 3600 }}" />
                 </div>
                 <div class="field">
                   <label for="edit-grace">Grace period (seconds)</label>
-                  <input id="edit-grace" type="number" name="grace_seconds" class="input" min="0" max="86400" value="{{ heartbeatRow ? heartbeatRow.grace_seconds : 300 }}" />
+                  <input id="edit-grace" type="number" name="grace_seconds" class="input" min="0" max="86400" value="{{ __heartbeatRow ? __heartbeatRow.grace_seconds : 300 }}" />
                 </div>
               </div>
               <div class="field">
                 <label for="edit-cron">Cron expression</label>
-                <input id="edit-cron" type="text" name="cron_expression" class="input" value="{{ heartbeatRow && heartbeatRow.cron_expression ? heartbeatRow.cron_expression : '' }}" />
+                <input id="edit-cron" type="text" name="cron_expression" class="input" value="{{ __heartbeatRow && __heartbeatRow.cron_expression ? __heartbeatRow.cron_expression : '' }}" />
               </div>
             @endif
 

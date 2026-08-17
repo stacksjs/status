@@ -21,15 +21,17 @@ Have the job ping on success — a plain GET or POST is enough:
 ```bash
 # Run at the end of your cron job, only on success
 0 2 * * *  /usr/local/bin/backup.sh && curl -fsS -m 10 --retry 3 \
-  https://statushq.org/ping/9f3c1a2e-heartbeat-token
+  https://statushq.org/api/ping/9f3c1a2e-heartbeat-token
 ```
 
 You can also signal **start** and **failure** to measure run duration and catch non-zero exits:
 
 ```bash
-curl -fsS https://statushq.org/ping/<token>/start   # job began
-curl -fsS https://statushq.org/ping/<token>/fail    # job errored
+curl -fsS https://statushq.org/api/ping/<token>/start   # job began
+curl -fsS https://statushq.org/api/ping/<token>/fail    # job errored
 ```
+
+Copy the exact URL from the monitor's **Heartbeat** card rather than assembling it by hand — the `/api` prefix is easy to miss, and a ping to the wrong path returns 404 without recording anything, so the monitor still alerts as if the job never ran.
 
 ## What triggers an alert
 
@@ -41,7 +43,7 @@ curl -fsS https://statushq.org/ping/<token>/fail    # job errored
 
 1. **Add monitor** and choose **Cron / Heartbeat**.
 2. Set the expected **cadence** and a **grace period**. Cadence can be a plain interval (every 30 seconds up to monthly) or a 5-field cron expression such as `0 2 * * *` (daily at 02:00 UTC) or a nickname like `@hourly`. When a cron expression is set, the next expected check-in is the next scheduled slot; the interval is used otherwise.
-3. Copy the generated **ping URL**.
+3. Copy the generated **ping URL** from the monitor's **Heartbeat** card. The card also shows the last check-in, the next one that is due, and the measured duration of the last run.
 4. Add the `curl` ping to the end of your job, as shown above.
 5. Attach **notifications**.
 
