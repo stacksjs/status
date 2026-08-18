@@ -161,6 +161,7 @@ export default new Job({
       .orderByDesc('created_at')
       .first()
     const previousBrokenLinks = Number(previousCrawl?.broken_links_count) || 0
+    const previousMixedContent = Number(previousCrawl?.mixed_content_count) || 0
 
     const startedAt = new Date().toISOString()
     const crawl = await Crawl.create({
@@ -279,13 +280,17 @@ export default new Job({
       })
     }
 
-    if (mixedContentCount > 0) {
+    // Same rise-gate as broken links above, and for the same reason: mixed
+    // content is a standing backlog on most sites, so alerting on the absolute
+    // count re-opened an incident (and re-notified every channel) on every
+    // crawl until someone fixed the last asset.
+    if (mixedContentCount > previousMixedContent) {
       await openIncident({
         monitor_id: monitor.id,
         started_at: new Date().toISOString(),
-        cause: `Crawl of ${monitor.name} found ${mixedContentCount} mixed-content resource${mixedContentCount === 1 ? '' : 's'}`,
+        cause: `Crawl of ${monitor.name} found ${mixedContentCount} mixed-content resource${mixedContentCount === 1 ? '' : 's'} (up from ${previousMixedContent})`,
         status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'mixed_content', mixedContentCount }]),
+        impacted_checks: JSON.stringify([{ type: 'mixed_content', mixedContentCount, previousMixedContent }]),
       })
     }
 

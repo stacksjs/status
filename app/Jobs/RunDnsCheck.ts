@@ -26,7 +26,12 @@ const RESOLVERS: Record<string, (host: string) => Promise<unknown>> = {
  * routinely) so this opens an incident with status 'monitoring' rather than
  * 'investigating' — informational, not a declared outage — except when NS
  * changes entirely, which is worth harder attention (a stolen or
- * misconfigured domain often shows up first as an NS change).
+ * misconfigured domain often shows up first as an NS change), or when a
+ * record set is removed outright (no MX at all means mail is dead, no NS
+ * means the delegation is gone) — those get 'investigating' too.
+ *
+ * Snapshots are written only when the value actually changes, so the table
+ * holds a change history rather than one row per record type per run.
  */
 export default new Job({
   name: 'RunDnsCheck',
@@ -58,15 +63,31 @@ export default new Job({
     const changedTypes: string[] = []
 
     for (const [recordType, resolver] of Object.entries(RESOLVERS)) {
-      let values: unknown[] = []
+      let values: unknown[] | null = []
       try {
         const result = await resolver(hostname)
         values = Array.isArray(result) ? result : [result]
+        recordTypesResolved++
       }
-      catch {
-        // record type not present for this domain — not an error, just skip
+      catch (error) {
+        // Distinguish "this domain genuinely publishes no such record" from
+        // "the resolver could not answer right now". ENODATA/ENOTFOUND mean
+        // the nameserver authoritatively has nothing, which is a real state
+        // worth diffing — deleting every MX or the SPF TXT record is exactly
+        // the misconfiguration this check exists to catch, and it used to be
+        // invisible because every failure was skipped. Anything else
+        // (SERVFAIL, ETIMEOUT, EREFUSED, ...) is a resolver problem, and
+        // treating it as "the records vanished" would page on every blip.
+        const code = (error as NodeJS.ErrnoException)?.code
+        if (code !== 'ENODATA' && code !== 'ENOTFOUND') {
+          values = null
+        }
+      }
+
+      // Resolver failure (not authoritative absence) — leave this record
+      // type's history untouched and try again on the next run.
+      if (values === null)
         continue
-      }
 
       // Canonicalize before serializing: resolvers return round-robin
       // rotations in whatever order the nameserver felt like, so a raw
@@ -79,23 +100,47 @@ export default new Job({
         .map(value => typeof value === 'string' ? value : JSON.stringify(value))
         .sort()
       const serialized = JSON.stringify(canonical)
+      // Order by id, not created_at: the timestamp is second-granular, so two
+      // snapshots written in the same second (a backfill, or two record types
+      // changing on one run) tie and the "previous" value comes back in
+      // whatever order the engine chose — which silently diffs against the
+      // wrong row. The autoincrement id is strictly insertion-ordered.
       const previous = await DnsSnapshot.where('monitor_id', monitor.id)
         .where('record_type', recordType)
-        .orderByDesc('created_at')
+        .orderByDesc('id')
         .first()
 
-      await DnsSnapshot.create({
-        monitor_id: monitor.id,
-        record_type: recordType,
-        record_values: serialized,
-        checked_at: checkedAt,
-      })
-      recordTypesResolved++
+      // A record type this domain has never published stays out of the
+      // table entirely, so an absent AAAA/CAA doesn't seed a baseline row
+      // for every monitored domain.
+      if (!previous && canonical.length === 0)
+        continue
 
-      if (previous && previous.record_values !== serialized) {
+      const changed = !previous || previous.record_values !== serialized
+
+      // Snapshot only on change. Writing an identical row on every run made
+      // this table the fastest-growing one in the schema (2,320 rows for a
+      // single monitor's A records in six weeks, of which two were actual
+      // changes) and made the monitor page's "last 10 snapshots" panel show
+      // ten copies of the current value instead of the change history.
+      if (changed) {
+        await DnsSnapshot.create({
+          monitor_id: monitor.id,
+          record_type: recordType,
+          record_values: serialized,
+          checked_at: checkedAt,
+        })
+      }
+
+      if (previous && changed) {
         changedTypes.push(recordType)
+        // Losing an entire record set is a harder failure than a rotation:
+        // no MX means mail stops, no NS means the delegation is gone.
+        const removed = canonical.length === 0
         const isNsChange = recordType === 'NS'
-        const cause = `${recordType} records changed for ${hostname}`
+        const cause = removed
+          ? `All ${recordType} records were removed for ${hostname}`
+          : `${recordType} records changed for ${hostname}`
 
         // One open incident per record type at a time: a record set that
         // keeps moving (or a snapshot-format migration) must not stack a
@@ -109,11 +154,11 @@ export default new Job({
             monitor_id: monitor.id,
             started_at: checkedAt,
             cause,
-            status: isNsChange ? 'investigating' : 'monitoring',
+            status: isNsChange || removed ? 'investigating' : 'monitoring',
             impacted_checks: JSON.stringify([{ type: 'dns', recordType, previous: previous.record_values, current: serialized }]),
           })
         }
-        log.info(`[job] RunDnsCheck: ${monitor.name} — ${recordType} records changed${openSameCause ? ' (incident already open, not duplicated)' : ''}`)
+        log.info(`[job] RunDnsCheck: ${monitor.name} — ${cause}${openSameCause ? ' (incident already open, not duplicated)' : ''}`)
       }
     }
 

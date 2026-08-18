@@ -130,11 +130,27 @@ export async function isMonitorInMaintenance(monitorId: number, atMs: number = D
 
 /**
  * Opens an incident unless the monitor is inside a maintenance window at the
- * incident's start time. During announced maintenance a failing check must not
- * open an incident (and so, via Incident's observe trait, must not page). When
- * the window closes a still-failing check opens one as usual. Returns the
- * created incident, or null when suppressed. Drop-in for `Incident.create`
- * at the auto-incident sites (none of which use the return value).
+ * incident's start time, or an unresolved incident with the identical cause is
+ * already open. During announced maintenance a failing check must not open an
+ * incident (and so, via Incident's observe trait, must not page). When the
+ * window closes a still-failing check opens one as usual. Returns the created
+ * incident, or null when suppressed. Drop-in for `Incident.create` at the
+ * auto-incident sites (none of which use the return value).
+ *
+ * The cause dedup lives here rather than in each check job because a repeating
+ * condition is the norm, not the exception: every check type re-runs on a
+ * schedule and re-derives the same cause while the problem persists, and each
+ * duplicate incident fires a fresh notification to every attached channel.
+ * Several jobs grew their own guard for this one at a time (SSL, DNS,
+ * blocklist, domain, Lighthouse, AI) while the rest silently stacked
+ * duplicates — production accumulated 18 identical "SSL check failed:
+ * ECONNREFUSED" incidents and 12 identical "unexpected port(s) open" ones.
+ * The remaining per-job guards are now redundant but harmless, and they keep
+ * their own more specific log lines.
+ *
+ * An incident whose cause embeds a changing measurement (a p95 figure, a
+ * broken-link count) will not dedup on an exact match — those callers gate on
+ * a state transition or a `whereLike` prefix of their own instead.
  */
 export async function openIncident(attrs: { monitor_id: number, started_at?: string, [key: string]: unknown }): Promise<any | null> {
   const parsed = attrs.started_at ? Date.parse(attrs.started_at) : Number.NaN
@@ -143,6 +159,17 @@ export async function openIncident(attrs: { monitor_id: number, started_at?: str
     log.debug(`[maintenance] suppressed incident for monitor ${attrs.monitor_id} (inside a maintenance window)`)
     return null
   }
+
+  if (typeof attrs.cause === 'string' && attrs.cause !== '') {
+    const sameCause = await Incident.where('monitor_id', attrs.monitor_id)
+      .where('cause', attrs.cause)
+      .get()
+    if (sameCause.some((existing: any) => existing.status !== 'resolved')) {
+      log.debug(`[incident] suppressed duplicate incident for monitor ${attrs.monitor_id}: "${attrs.cause}" is already open`)
+      return null
+    }
+  }
+
   // The generated models type their statics as `unknown`, so the call needs a
   // cast to typecheck. Narrow and local rather than loosening the model type.
   return (Incident as any).create(attrs as any)
