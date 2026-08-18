@@ -1,11 +1,14 @@
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
+import { CONSENSUS_TYPES } from '../../config/regions'
 import { parseMetricsThresholds } from '../Actions/Agents/metricsThresholds'
 import CheckResult from '../Models/CheckResult'
-import Incident from '../Models/Incident'
 import { openIncident } from '../lib/maintenance'
 import Monitor from '../Models/Monitor'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
+
+/** Monitor types whose availability verdict EvaluateMonitorConsensus owns. */
+const CONSENSUS_MANAGED = new Set<string>(CONSENSUS_TYPES)
 
 /**
  * Runs every minute (see app/Scheduler.ts). The missed-push half of server
@@ -34,7 +37,10 @@ export default new Job({
     let overdue = 0
 
     for (const monitor of monitors) {
-      if (monitor.status === 'down')
+      // Only meaningful where this job owns the status; a consensus-typed
+      // monitor's `up` is written by EvaluateMonitorConsensus and says nothing
+      // about whether its agent is still pushing.
+      if (monitor.status === 'down' && !CONSENSUS_MANAGED.has(monitor.type))
         continue
 
       const lastPush = await CheckResult.where('monitor_id', monitor.id)
@@ -51,20 +57,32 @@ export default new Job({
         continue
 
       const checkedAt = new Date().toISOString()
-      await monitor.update({ status: 'down', last_checked_at: checkedAt, consecutive_failures: monitor.consecutive_failures + 1 })
-      void broadcastMonitorUpdate(monitor.id)
 
-      // Guard against a duplicate open incident (idempotent across ticks).
-      const open = await Incident.where('monitor_id', monitor.id).where('status', '!=', 'resolved').first()
-      if (!open) {
-        await openIncident({
-          monitor_id: monitor.id,
-          started_at: checkedAt,
-          cause: `No metrics received from '${monitor.name}' agent within ${windowSeconds}s`,
-          status: 'investigating',
-          impacted_checks: JSON.stringify([{ type: 'server_metrics', reason: 'missed_push', windowSeconds }]),
-        })
+      // Availability of a consensus-typed monitor (uptime/ping/tcp_port/health)
+      // belongs to EvaluateMonitorConsensus, which documents itself as the
+      // single writer of that verdict. reportsMetrics is orthogonal to `type`,
+      // so a monitor can be both — and writing `down` here started a tug-of-war
+      // that flipped the status every minute forever, because the next
+      // consensus tick saw the polls passing and set it straight back to `up`.
+      // A silent agent on such a monitor is a metrics problem, not an outage:
+      // raise the incident, leave the availability verdict to its owner.
+      if (!CONSENSUS_MANAGED.has(monitor.type)) {
+        await monitor.update({ status: 'down', last_checked_at: checkedAt, consecutive_failures: monitor.consecutive_failures + 1 })
+        void broadcastMonitorUpdate(monitor.id)
       }
+
+      // openIncident() suppresses a second incident with this same cause while
+      // the first is unresolved, which is what keeps this idempotent across
+      // ticks. Guarding on `monitor.status` instead was the old approach and it
+      // could not work for a consensus-typed monitor, whose status this job
+      // does not own.
+      await openIncident({
+        monitor_id: monitor.id,
+        started_at: checkedAt,
+        cause: `No metrics received from '${monitor.name}' agent within ${windowSeconds}s`,
+        status: 'investigating',
+        impacted_checks: JSON.stringify([{ type: 'server_metrics', reason: 'missed_push', windowSeconds }]),
+      })
       overdue++
       log.warn(`[job] CheckStaleMetrics: ${monitor.name} stopped pushing metrics`)
     }

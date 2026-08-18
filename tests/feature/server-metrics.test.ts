@@ -100,7 +100,14 @@ describe('Server metrics (threshold alerting)', () => {
     expect(await statusOf(id)).toBe('down')
   })
 
-  test('missed-push job marks a stale metrics monitor down and opens an incident', async () => {
+  // This fixture is `type: 'uptime'`, which EvaluateMonitorConsensus owns the
+  // availability verdict for (reportsMetrics is orthogonal to type). This job
+  // therefore raises the incident but does NOT write `status` — it used to,
+  // and consensus set it straight back to 'up' from the passing polls on its
+  // next tick, so the two flip-flopped every minute. 93,864 of production's
+  // 96,350 incidents came from that one loop, each open/resolve pair paging
+  // every attached channel. See tests/feature/metrics-consensus-ownership.test.ts.
+  test('missed-push job opens an incident for a stale metrics monitor', async () => {
     const { id } = await makeMetricsMonitor({ metricsWindowSeconds: 60 })
     created.push(id)
 
@@ -109,10 +116,17 @@ describe('Server metrics (threshold alerting)', () => {
     await db.insertInto('check_results').values({ monitor_id: id, status: 'up', message: 'old', region: 'agent', checked_at: old } as never).execute()
 
     await CheckStaleMetrics.handle()
-    expect(await statusOf(id)).toBe('down')
+    expect(await openIncidents(id)).toHaveLength(1)
+    // Availability is left to its owner rather than contradicted here.
+    expect(await statusOf(id)).toBe('up')
+
+    // Ticking again while the agent is still silent must not stack a second
+    // incident - the old `monitor.status === 'down'` guard could not do this
+    // for a consensus-typed monitor, so the cause dedup in openIncident does.
+    await CheckStaleMetrics.handle()
     expect(await openIncidents(id)).toHaveLength(1)
 
-    // a fresh push recovers it
+    // a fresh push resolves it
     const { token } = { token: (await Monitor.find(id))!.metrics_token as string }
     await push(token, { cpuPercent: 10, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000 })
     expect(await statusOf(id)).toBe('up')

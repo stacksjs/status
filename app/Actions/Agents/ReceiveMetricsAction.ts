@@ -99,6 +99,35 @@ export default new Action({
     await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
     void broadcastMonitorUpdate(monitor.id)
 
+    // This push is proof the agent is alive, so it clears any open missed-push
+    // incident CheckStaleMetrics raised — unconditionally, not on a status
+    // transition. That job deliberately does not write `status` for a
+    // consensus-typed monitor (EvaluateMonitorConsensus owns that verdict), so
+    // there is no down->up edge to hang the recovery off; keying on one would
+    // leave the incident open forever once the agent came back.
+    const staleIncidents = await Incident.where('monitor_id', monitor.id)
+      .where('status', '!=', 'resolved')
+      .get()
+    for (const incident of staleIncidents) {
+      let isMissedPush = false
+      try {
+        const impacted = JSON.parse((incident as any).impacted_checks || '[]')
+        isMissedPush = Array.isArray(impacted) && impacted.some((entry: any) => entry?.reason === 'missed_push')
+      }
+      catch {
+        isMissedPush = false
+      }
+      if (!isMissedPush)
+        continue
+      await (incident as any).update({ status: 'resolved', resolved_at: checkedAt })
+      await IncidentUpdate.create({
+        incident_id: (incident as any).id,
+        message: 'Agent metrics are being received again.',
+        status: 'resolved',
+        posted_at: checkedAt,
+      })
+    }
+
     // Open on the down-transition, resolve on recovery — same shape as the
     // other monitor jobs so a metrics alert shows up in incident history and
     // notifications exactly like an uptime outage.

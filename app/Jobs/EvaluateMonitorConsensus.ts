@@ -132,10 +132,32 @@ export default new Job({
         log.warn(`[job] EvaluateMonitorConsensus: ${monitor.name} DOWN (consensus: ${downRegions.join(', ')})`)
       }
       else if (prev === 'down' && next === 'up') {
-        const openIncident = await Incident.where('monitor_id', monitor.id)
+        // Resolve only an incident THIS job opened. A monitor can carry
+        // incidents from sources that have nothing to do with cross-region
+        // availability — a stale metrics agent, DNS drift, an expiring
+        // certificate — and cross-region checks passing says nothing about
+        // any of them. Closing one of those here used to hand it straight
+        // back to the job that raised it, which re-opened it on its next
+        // tick: CheckStaleMetrics and this job flip-flopped monitor 48 every
+        // minute for weeks, and 93,864 of production's 96,350 incidents
+        // (97%) were that one loop, each pair firing a down + recovered
+        // notification at every attached channel.
+        //
+        // `impacted_checks.regions` is the ownership marker: this job is the
+        // only writer that records which regions voted.
+        const candidates = await Incident.where('monitor_id', monitor.id)
           .where('status', '!=', 'resolved')
           .orderByDesc('created_at')
-          .first()
+          .get()
+        const openIncident = candidates.find((incident: any) => {
+          try {
+            const impacted = JSON.parse(incident.impacted_checks || '[]')
+            return Array.isArray(impacted) && impacted.some((entry: any) => Array.isArray(entry?.regions))
+          }
+          catch {
+            return false
+          }
+        })
         if (openIncident) {
           const resolvedAt = new Date().toISOString()
           await openIncident.update({ status: 'resolved', resolved_at: resolvedAt })
