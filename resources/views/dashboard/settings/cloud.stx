@@ -34,9 +34,22 @@ const ACTIVE_TEAM_NAME = (TEAM_CTX.teams.find(t => t.id === TEAM_ID) || {}).name
 const teamScope = qb => SEE_ALL ? qb : qb.where('team_id', '=', TEAM_ID)
 const NAV_ACTIVE = 'settings'
 
-const creds = TEAM_ID !== -1
-  ? (await db.selectFrom('cloud_credentials').where('team_id', '=', TEAM_ID).where('provider', '=', 'aws').limit(1).execute())[0] || null
-  : null
+// Guarded because stx swallows a server-block error and renders the page with
+// whatever bindings it managed to extract -- which for this page meant
+// AUTH_USER came out undefined and the template showed "Sign in required".
+// A missing table or a dead database then reads to the operator as "you are
+// logged out", sending them to re-enter a password that was never the problem.
+// Auth is resolved above; nothing below it may be allowed to undo that.
+let creds = null
+let credsError = ''
+if (TEAM_ID !== -1) {
+  try {
+    creds = (await db.selectFrom('cloud_credentials').where('team_id', '=', TEAM_ID).where('provider', '=', 'aws').limit(1).execute())[0] || null
+  }
+  catch (error) {
+    credsError = error && error.message ? String(error.message) : String(error)
+  }
+}
 const hasSecret = !!(creds && creds.secret_access_key_encrypted)
 const awsAccessKeyId = creds ? (creds.access_key_id || '') : ''
 const awsRegion = creds ? (creds.region || 'us-east-1') : 'us-east-1'
@@ -99,6 +112,13 @@ useHead({ title: 'Cloud credentials · StatusHQ', meta: [{ name: 'robots', conte
       <h3>Sign in required</h3>
       <p>You need an authenticated session to manage cloud credentials.</p>
       <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER && credsError)
+    <div class="empty" style="margin: 2rem 0;">
+      <h3>Credentials could not be read</h3>
+      <p>You are signed in — this is a storage error, not an authentication one: {{ credsError }}</p>
     </div>
   @endif
 
