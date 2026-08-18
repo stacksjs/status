@@ -6,8 +6,8 @@ import { collect, cpuPercent, createCpuSampler, diskPercent, memory, systemFileR
  *
  * Emits the `spatie/laravel-health` schema deliberately — that is the format
  * the ecosystem standardized on, so an endpoint built with this is readable
- * by either service with no adapter, and matches what statushq/laravel emits
- * from the PHP side.
+ * by either service with no adapter, and matches what statushq/laravel-sdk
+ * emits from the PHP side.
  */
 
 export type CheckStatus = 'ok' | 'warning' | 'failed' | 'crashed' | 'skipped'

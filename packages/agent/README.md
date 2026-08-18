@@ -16,7 +16,7 @@ Two transports, because they answer different questions:
 Everything is measured with native APIs — `/proc`, the cgroup filesystem,
 `os.cpus()`, `fs.statfs()`. Nothing shells out to `df`.
 
-This is the Bun/Node counterpart of [`statushq/laravel`](https://github.com/bughq/statushq-laravel).
+This is the Bun/Node counterpart of [`statushq/laravel-sdk`](https://github.com/bughq/statushq-laravel).
 Both emit the same wire format, so one StatusHQ monitor reads either.
 
 ## No code at all

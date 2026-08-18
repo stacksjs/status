@@ -33,7 +33,7 @@ The monitor's status is then the fleet's, not the last sample's: it is **down wh
 
 A host whose samples stop is not held against the monitor forever — after the missed-push window its last reading is ignored, and silence is caught by the window rule below instead. Hostnames are lowercased and trimmed to 64 characters, so `Web-01` and `web-01` are one machine.
 
-The SDKs send `host` automatically ([`@statushq/agent`](https://github.com/stacksjs/status/tree/main/packages/agent) for Bun/Node, [`statushq/laravel`](https://github.com/bughq/statushq-laravel) for PHP), as does the shell snippet on the monitor page.
+The SDKs send `host` automatically ([`@statushq/agent`](https://github.com/stacksjs/status/tree/main/packages/agent) for Bun/Node, [`statushq/laravel-sdk`](https://github.com/bughq/statushq-laravel) for PHP), as does the shell snippet on the monitor page.
 
 ## What triggers an alert
 
