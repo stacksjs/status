@@ -15,6 +15,7 @@ import { generateTwoFactorSetup, getTwoFactorState, resolveTeamContext, stashPen
 import { config } from '@stacksjs/config'
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 import { db } from '@stacksjs/database'
+import { authRequest } from '../../../../app/lib/authRequest'
 import { isoDate } from '../../../../app/lib/display'
 
 // Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
@@ -24,7 +25,7 @@ import { isoDate } from '../../../../app/lib/display'
 // hand-rolling the team here meant this page silently dropped the switcher
 // (partials/app-nav.stx guards on SWITCHABLE_TEAMS being defined).
 const TEAM_CTX = await resolveTeamContext(
-  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  authRequest(typeof cookies !== 'undefined' ? cookies : null),
   { allowAnyTeam: u => !!(u && u.is_super_admin) },
 )
 const AUTH_USER = TEAM_CTX.user

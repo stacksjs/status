@@ -8,6 +8,7 @@
 -->
 <script server>
 import { resolveTeamContext } from '@stacksjs/auth'
+import { authRequest } from '../../../../app/lib/authRequest'
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 import { db } from '@stacksjs/database'
 import { formatDateTime, statusLabel, statusPillClass } from '../../../../app/lib/display'
@@ -32,7 +33,7 @@ const stLabel = statusLabel
 // and the switcher never rendered here (partials/app-nav.stx guards on
 // SWITCHABLE_TEAMS being defined).
 const TEAM_CTX = await resolveTeamContext(
-  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  authRequest(typeof cookies !== 'undefined' ? cookies : null),
   { allowAnyTeam: u => !!(u && u.is_super_admin) },
 )
 const AUTH_USER = TEAM_CTX.user

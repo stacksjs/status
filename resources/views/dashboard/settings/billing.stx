@@ -11,6 +11,7 @@
 -->
 <script server>
 import { resolveTeamContext } from '@stacksjs/auth'
+import { authRequest } from '../../../../app/lib/authRequest'
 import { db } from '@stacksjs/database'
 
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
@@ -25,7 +26,7 @@ import { db } from '@stacksjs/database'
 // full note). allowAnyTeam lets a super-admin switch to / see any team;
 // unpinned, a super-admin still sees every team merged.
 const TEAM_CTX = await resolveTeamContext(
-  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  authRequest(typeof cookies !== 'undefined' ? cookies : null),
   { allowAnyTeam: u => !!(u && u.is_super_admin) },
 )
 const AUTH_USER = TEAM_CTX.user

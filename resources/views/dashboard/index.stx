@@ -15,6 +15,7 @@
 import { relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../app/lib/display'
 import { db } from '@stacksjs/database'
 import { resolveTeamContext } from '@stacksjs/auth'
+import { authRequest } from '../../../app/lib/authRequest'
 
 // Display helpers live in app/lib/display (migration Phase 5). NB: `import
 // { x as y }` binds undefined in a server block in this stx build, so the
@@ -30,7 +31,7 @@ const agoLabel = relativeTime
 // from stx's requestContext. `allowAnyTeam` lets a super-admin switch to (and
 // see) any team; an unpinned super-admin still sees every team merged.
 const TEAM_CTX = await resolveTeamContext(
-  { cookies: { get: n => ((typeof globalThis !== 'undefined' && globalThis.requestContext) ? globalThis.requestContext.cookie(n) : null) } },
+  authRequest(typeof cookies !== 'undefined' ? cookies : null),
   { allowAnyTeam: u => !!(u && u.is_super_admin) },
 )
 const AUTH_USER = TEAM_CTX.user
