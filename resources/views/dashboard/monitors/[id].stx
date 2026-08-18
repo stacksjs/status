@@ -665,6 +665,19 @@ if (monitor && monitor.type === 'dns_blocklist') {
   }
 }
 
+// Agent install commands. Built here, not interpolated in the template:
+// `metrics_token` is a credential, so it must stay on a `__`-prefixed binding
+// that stx's server->client bridge skips (see tests/unit/bridge-hygiene.test.ts),
+// and this file has been bitten before by string concatenation inside {{ }}.
+let __agentInstall = null
+if (monitor && monitor.reports_metrics && monitor.metrics_token) {
+  __agentInstall = {
+    install: `curl -fsSL ${appUrl}/install-agent.sh | sudo sh -s -- --token=${monitor.metrics_token}`,
+    uninstall: `curl -fsSL ${appUrl}/install-agent.sh | sudo sh -s -- --uninstall`,
+    endpoint: `${appUrl}/api/agent/${monitor.metrics_token}/metrics`,
+  }
+}
+
 // Latest application-health report, for endpoints that speak the
 // spatie/laravel-health schema. RunHealthCheck stores the per-check detail on
 // the check result; without this card the monitor would only ever show the
@@ -942,27 +955,26 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
       </section>
     @endif
 
-    @if (monitor.reports_metrics)
+    @if (__agentInstall)
       <section class="card" aria-label="Agent setup">
         <div class="card-head">
           <h3>Agent setup</h3>
-          <span class="sub">Cron push</span>
+          <span class="sub">One command</span>
         </div>
         <div class="card-body">
-          <p class="subhead">Push CPU, memory and disk samples from this server on a cron schedule:</p>
-          <pre class="code-block"># CPU averaged over 1s from /proc/stat. A single `top -bn1` sample reports
-# an instantaneous slice (and catches the cron's own spike), so it swings
-# wildly between 0 and 100 — this deltas the busy vs idle jiffies instead.
-read _ u n s i w q sq st _ &lt; /proc/stat; a=$((u+n+s+i+w+q+sq+st)); b=$((i+w))
-sleep 1
-read _ u n s i w q sq st _ &lt; /proc/stat; c=$((u+n+s+i+w+q+sq+st)); d=$((i+w))
-CPU=$(( (c-a) > 0 ? 100 * ((c-a)-(d-b)) / (c-a) : 0 ))
-read TOTAL USED &lt; &lt;(free -m | awk '/Mem:/{print $2, $3}')
-# Root filesystem use. Change the mount to watch a different volume.
-DISK=$(df -P / | awk 'NR==2{print $5}' | tr -d '%')
-curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
+          <p class="subhead">Run this on the server you want to watch. It installs a small collector and a systemd timer (or a cron entry where systemd is absent), then sends a first sample so you know it works before you walk away:</p>
+          <pre class="code-block">{{ __agentInstall.install }}</pre>
+          <p class="subhead">Safe to re-run &mdash; that is also how you upgrade the collector or rotate the token. It reports CPU, memory and disk once a minute; pass <code>--interval=</code> to change the cadence (keep it under the missed-push window), <code>--mount=</code> to watch a volume other than <code>/</code>, or <code>--url=</code> for a self-hosted install.</p>
+          <details>
+            <summary>Other options</summary>
+            <p class="subhead">Remove it again:</p>
+            <pre class="code-block">{{ __agentInstall.uninstall }}</pre>
+            <p class="subhead">Or skip the installer entirely &mdash; anything that can POST this JSON on a schedule works:</p>
+            <pre class="code-block">curl -fsS -X POST {{ __agentInstall.endpoint }} \
   -H 'Content-Type: application/json' \
-  -d "{\"host\":\"$(hostname)\",\"cpuPercent\":$CPU,\"ramPercent\":$(( USED * 100 / TOTAL )),\"ramUsedMb\":$USED,\"ramTotalMb\":$TOTAL,\"diskPercent\":$DISK}"</pre>
+  -d '{"host":"web-01","cpuPercent":37,"ramPercent":38,"ramUsedMb":6112,"ramTotalMb":16384,"diskPercent":68}'</pre>
+            <p class="subhead"><code>cpuPercent</code>, <code>ramPercent</code>, <code>ramUsedMb</code> and <code>ramTotalMb</code> are required (percentages 0&ndash;100); <code>diskPercent</code> is optional. <code>host</code> is optional but send it if more than one machine shares this token &mdash; without it every box collapses into a single <code>default</code> series.</p>
+          </details>
         </div>
       </section>
     @endif
