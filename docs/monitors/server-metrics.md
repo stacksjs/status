@@ -20,10 +20,20 @@ Because it's push, there's nothing to expose publicly - the collector dials out 
 ```bash
 curl -fsS -X POST https://statushq.org/api/agent/<metrics-token>/metrics \
   -H "Content-Type: application/json" \
-  -d '{"cpuPercent":37.2,"ramPercent":38.4,"ramUsedMb":6112,"ramTotalMb":16384,"diskPercent":68}'
+  -d '{"host":"web-01","cpuPercent":37.2,"ramPercent":38.4,"ramUsedMb":6112,"ramTotalMb":16384,"diskPercent":68}'
 ```
 
-The snippet does this for you on a schedule; the raw call is shown so you understand the shape. `cpuPercent`, `ramPercent`, `ramUsedMb`, and `ramTotalMb` are required (percentages 0-100); `diskPercent` is optional.
+The snippet does this for you on a schedule; the raw call is shown so you understand the shape. `cpuPercent`, `ramPercent`, `ramUsedMb`, and `ramTotalMb` are required (percentages 0-100); `diskPercent` and `host` are optional.
+
+## Several machines, one monitor
+
+`host` is what makes a fleet legible. Send it and each machine is its own series, listed on the monitor's **Hosts** card with its own CPU, memory, disk and last-sample time; omit it and every collector is one anonymous series, which is what a single-server monitor wants.
+
+The monitor's status is then the fleet's, not the last sample's: it is **down while any host is breaching**, and recovers only when the breaching host itself recovers. A healthy push from a second machine cannot clear the first machine's alert — without that rule, two nodes taking turns would flap the monitor up and down once a minute. Incidents name the host that breached, so the page you are woken up to says which box to open a shell on.
+
+A host whose samples stop is not held against the monitor forever — after the missed-push window its last reading is ignored, and silence is caught by the window rule below instead. Hostnames are lowercased and trimmed to 64 characters, so `Web-01` and `web-01` are one machine.
+
+The SDKs send `host` automatically ([`@statushq/agent`](https://github.com/stacksjs/status/tree/main/packages/agent) for Bun/Node, [`statushq/laravel`](https://github.com/bughq/statushq-laravel) for PHP), as does the shell snippet on the monitor page.
 
 ## What triggers an alert
 

@@ -30,6 +30,8 @@ const chartArea = area
 // from a server block (see STX-MIGRATION-PLAN.md Phase 5).
 // NB: `import { x as y }` does NOT work in a server block in this stx build --
 // the alias binds undefined. Import the real names, then bind locally below.
+import { parseMetricsThresholds } from '../../../../app/Actions/Agents/metricsThresholds'
+import { aggregateHostStatus, DEFAULT_HOST, readingsFromRows } from '../../../../app/lib/agentHosts'
 import { checkPillClass } from '../../../../app/lib/appHealth'
 import { formatDateTime, relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../../app/lib/display'
 import { describeCadence, formatDurationSeconds, pingUrls, summarizeHeartbeat } from '../../../../app/lib/heartbeat'
@@ -451,16 +453,52 @@ if (denseBuckets.length > 0) {
 // (uneven sample spacing is honoured), the y-axis is a fixed 0-100%, and
 // line.defined leaves gaps where a sample carried only one of CPU/RAM.
 let hostChart = null
+// One row per machine pushing to this monitor. Before the agents sent a
+// `host`, four app servers behind a load balancer were one anonymous series
+// and the page showed whichever node reported last -- with no way to tell
+// that was happening.
+let __hostRows = []
 if (monitor && monitor.reports_metrics) {
   const metricRows = await db.selectFrom('check_results')
     .where('monitor_id', '=', monitor.id)
     .where('checked_at', '>=', since)
     .orderBy('checked_at', 'asc')
     .execute()
+
+  // The same aggregation the ingest decides status with, so this table can
+  // never disagree with the pill at the top of the page.
+  const metricsThresholds = parseMetricsThresholds(monitor.config)
+  const fleet = aggregateHostStatus(readingsFromRows(metricRows), Date.now(), metricsThresholds.windowSeconds)
+  __hostRows = fleet.hosts.map(h => {
+    const parts = []
+    if (h.cpuPercent !== null) parts.push(Math.round(h.cpuPercent) + '% CPU')
+    if (h.ramPercent !== null) parts.push(Math.round(h.ramPercent) + '% RAM')
+    if (h.diskPercent !== null) parts.push(Math.round(h.diskPercent) + '% disk')
+    return {
+      host: h.host === DEFAULT_HOST ? 'this host' : h.host,
+      status: stLabel(h.status),
+      pillClass: stClass(h.status),
+      summary: parts.length ? parts.join(' / ') : 'no sample',
+      seen: agoLabel(new Date(h.checkedAtMs).toISOString()),
+      detail: h.breaches.join('; '),
+    }
+  })
+
+  // With more than one host reporting, plotting every sample on one line
+  // draws a sawtooth between machines that is not any machine's history.
+  // Show the most recently reporting host and say whose line it is; per-host
+  // series are the next step here.
+  const chartHost = fleet.hosts.length > 1 ? fleet.hosts[0].host : null
+
   const samples = []
   for (const r of metricRows) {
     let meta = {}
     try { meta = JSON.parse(r.metadata || '{}') } catch {}
+    if (chartHost !== null) {
+      const rowHost = typeof meta.host === 'string' && meta.host !== '' ? meta.host : DEFAULT_HOST
+      if (rowHost !== chartHost)
+        continue
+    }
     const cpu = typeof meta.cpuPercent === 'number' ? meta.cpuPercent : null
     const ram = typeof meta.ramPercent === 'number' ? meta.ramPercent : null
     // diskPercent has been ingested and threshold-alerted since server
@@ -505,6 +543,8 @@ if (monitor && monitor.reports_metrics) {
       hasDisk: samples.some(s => s.disk !== null),
       ticks: [0, 50, 100].map(t => ({ y: y(t).toFixed(1), label: t + '%' })),
       nowLabel: nowParts.length ? nowParts.join(' / ') : '--',
+      // Whose line this is, when more than one machine reports here.
+      host: chartHost === null || chartHost === DEFAULT_HOST ? '' : chartHost,
       hits: samples.filter((_s, i) => i % stepH === 0).map(s => ({
         x: (x(s.t) - hostHitW / 2).toFixed(1),
         w: hostHitW.toFixed(1),
@@ -868,7 +908,35 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
             @if (hostChart.hasDisk)
               <span style="color: var(--amber);">&#9632; Disk</span>
             @endif
+            @if (hostChart.host)
+              <span class="sub">showing {{ hostChart.host }}</span>
+            @endif
           </div>
+        </div>
+      </section>
+    @endif
+
+    @if (__hostRows.length)
+      <section class="card" aria-label="Reporting hosts">
+        <div class="card-head">
+          <h3>Hosts</h3>
+          <span class="sub">{{ __hostRows.length }} reporting</span>
+        </div>
+        <div class="card-body">
+          <dl class="kv">
+            @foreach (__hostRows as row)
+              <div>
+                <dt>{{ row.host }}</dt>
+                <dd>
+                  <span class="{{ row.pillClass }}"><span class="dot"></span>{{ row.status }}</span>
+                  {{ row.summary }} &middot; {{ row.seen }}
+                  @if (row.detail)
+                    &middot; {{ row.detail }}
+                  @endif
+                </dd>
+              </div>
+            @endforeach
+          </dl>
         </div>
       </section>
     @endif
@@ -893,7 +961,7 @@ read TOTAL USED &lt; &lt;(free -m | awk '/Mem:/{print $2, $3}')
 DISK=$(df -P / | awk 'NR==2{print $5}' | tr -d '%')
 curl -s -X POST {{ appUrl }}/api/agent/{{ monitor.metrics_token }}/metrics \
   -H 'Content-Type: application/json' \
-  -d "{\"cpuPercent\":$CPU,\"ramPercent\":$(( USED * 100 / TOTAL )),\"ramUsedMb\":$USED,\"ramTotalMb\":$TOTAL,\"diskPercent\":$DISK}"</pre>
+  -d "{\"host\":\"$(hostname)\",\"cpuPercent\":$CPU,\"ramPercent\":$(( USED * 100 / TOTAL )),\"ramUsedMb\":$USED,\"ramTotalMb\":$TOTAL,\"diskPercent\":$DISK}"</pre>
         </div>
       </section>
     @endif

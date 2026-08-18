@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import CheckResult from '../../Models/CheckResult'
 import Incident from '../../Models/Incident'
+import { aggregateHostStatus, describeBreaches, normalizeHost, readingsFromRows } from '../../lib/agentHosts'
 import { openIncident } from '../../lib/maintenance'
 import IncidentUpdate from '../../Models/IncidentUpdate'
 import Monitor from '../../Models/Monitor'
@@ -56,19 +57,42 @@ export default new Action({
       )
     }
 
+    // Which machine this sample describes. Absent for agents predating the
+    // field, which normalize to a single 'default' host and behave exactly as
+    // they did before.
+    const host = normalizeHost(request.get('host'))
+
     const thresholds = parseMetricsThresholds(monitor.config)
     const breaches = evaluateBreaches({ cpuPercent, ramPercent, diskPercent }, thresholds)
-    const status: 'up' | 'down' = breaches.length > 0 ? 'down' : 'up'
+    const sampleStatus: 'up' | 'down' = breaches.length > 0 ? 'down' : 'up'
     const checkedAt = new Date().toISOString()
 
     await CheckResult.create({
       monitor_id: monitor.id,
-      status,
-      message: breaches.length > 0 ? `Threshold breach: ${breaches.join('; ')}` : 'Agent metrics received',
-      metadata: JSON.stringify({ cpuPercent, ramPercent, ramUsedMb, ramTotalMb, ...(hasDisk ? { diskPercent } : {}) }),
+      status: sampleStatus,
+      message: breaches.length > 0 ? `Threshold breach on ${host}: ${breaches.join('; ')}` : `Agent metrics received from ${host}`,
+      // breaches are persisted so the monitor's status can be recomputed from
+      // the stored samples without re-evaluating thresholds that may since
+      // have been edited.
+      metadata: JSON.stringify({ host, cpuPercent, ramPercent, ramUsedMb, ramTotalMb, ...(hasDisk ? { diskPercent } : {}), breaches }),
       region: 'agent',
       checked_at: checkedAt,
     })
+
+    // The monitor's status is the whole fleet's, not this sample's. With two
+    // hosts pushing, taking the newest sample's verdict would flap the monitor
+    // up and down once a minute as a breaching node and a healthy one take
+    // turns reporting.
+    const windowStart = new Date(Date.parse(checkedAt) - thresholds.windowSeconds * 1000).toISOString()
+    const recent = await CheckResult.where('monitor_id', monitor.id)
+      .where('region', 'agent')
+      .where('checked_at', '>=', windowStart)
+      .orderBy('checked_at', 'desc')
+      .orderBy('id', 'desc')
+      .get()
+
+    const fleet = aggregateHostStatus(readingsFromRows(recent), Date.parse(checkedAt), thresholds.windowSeconds)
+    const status = fleet.status
 
     const prev = monitor.status
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
@@ -82,9 +106,15 @@ export default new Action({
       await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
-        cause: `Host resource threshold breached: ${breaches.join('; ')}`,
+        // Named per host: "CPU 96% ≥ 90%" across a fleet does not say which
+        // machine to open a shell on, which is the first thing the person
+        // being woken up needs.
+        cause: `Host resource threshold breached: ${describeBreaches(fleet.breaching)}`,
         status: 'investigating',
-        impacted_checks: JSON.stringify([{ type: 'server_metrics', breaches }]),
+        impacted_checks: JSON.stringify([{
+          type: 'server_metrics',
+          hosts: fleet.breaching.map(reading => ({ host: reading.host, breaches: reading.breaches })),
+        }]),
       })
     }
     else if (prev === 'down' && status === 'up') {
@@ -103,6 +133,9 @@ export default new Action({
       }
     }
 
-    return { success: true, status, breaches }
+    // `status` is the fleet's verdict and `sampleStatus` is this host's own,
+    // which differ whenever another node is breaching. An agent that only saw
+    // the fleet verdict could not tell whether it was the problem.
+    return { success: true, status, host, sampleStatus, breaches, hosts: fleet.hosts.length }
   },
 })

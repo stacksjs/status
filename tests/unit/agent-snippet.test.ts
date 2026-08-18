@@ -44,6 +44,15 @@ describe('agent setup snippet', () => {
       expect(ACTION).toContain(field)
   })
 
+  test('identifies which machine the sample came from', () => {
+    // Without it, four boxes cron-ing the same token are one anonymous series
+    // and the page shows whichever reported last. The SDKs send `host`; the
+    // snippet is the third collector and must not be the odd one out.
+    const body = snippet()
+    expect(body).toContain('host')
+    expect(body).toContain('hostname')
+  })
+
   test('posts to the agent ingest route with the monitor token', () => {
     const body = snippet()
     expect(body).toContain('/api/agent/')
