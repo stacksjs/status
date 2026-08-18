@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  cpuLoadCheck,
+  cpuUsageCheck,
   createHealthHandler,
   defaultChecks,
   metricsEndpoint,
@@ -97,7 +97,7 @@ describe('health report', () => {
     const names = (await runChecks(defaultChecks())).checkResults.map(c => c.name)
     expect(names).toContain('UsedDiskSpace')
     expect(names).toContain('UsedMemory')
-    expect(names).toContain('CpuLoad')
+    expect(names).toContain('CpuUsage')
   })
 })
 
@@ -138,8 +138,8 @@ describe('metricsEndpoint', () => {
 
 describe('cpu check', () => {
   test('samples without blocking the event loop for a second', async () => {
-    const report = await runChecks([cpuLoadCheck({ sampleMs: 30 })])
-    expect(report.checkResults[0]!.name).toBe('CpuLoad')
+    const report = await runChecks([cpuUsageCheck({ sampleMs: 30 })])
+    expect(report.checkResults[0]!.name).toBe('CpuUsage')
     expect(report.checkResults[0]!.meta).toHaveProperty('cpu_used_percentage')
   })
 })

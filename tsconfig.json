@@ -36,7 +36,10 @@
     // pulls in app/Jobs transitively, so those are covered too). The test
     // dirs are the remaining step — see STX-MIGRATION-PLAN.md.
     "app/lib/**/*.ts",
-    "app/Actions/**/*.ts"
+    "app/Actions/**/*.ts",
+    // The agent is code customers install in their own apps. It is the last
+    // place a type error should be found by someone else.
+    "packages/**/*.ts"
   ],
   "exclude": [
     "cloud/**",

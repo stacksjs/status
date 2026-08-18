@@ -1,11 +1,13 @@
-import { collect, cpuPercent, diskPercent, memory } from './metrics'
+import type { CpuSampler, FileReader, MemorySource } from './metrics'
+import { collect, cpuPercent, createCpuSampler, diskPercent, memory, systemFileReader } from './metrics'
 
 /**
  * The pull side: expose an endpoint StatusHQ (or Oh Dear) polls.
  *
  * Emits the `spatie/laravel-health` schema deliberately — that is the format
  * the ecosystem standardized on, so an endpoint built with this is readable
- * by either service with no adapter.
+ * by either service with no adapter, and matches what statushq/laravel emits
+ * from the PHP side.
  */
 
 export type CheckStatus = 'ok' | 'warning' | 'failed' | 'crashed' | 'skipped'
@@ -42,33 +44,43 @@ function result(
 function thresholdResult(
   name: string,
   label: string,
-  value: number | undefined,
+  value: number | undefined | null,
   unit: string,
   { warning, failure }: { warning: number, failure: number },
   metaKey: string,
+  unavailableReason: string,
+  extraMeta: Record<string, unknown> = {},
 ): CheckResult {
-  if (value === undefined)
-    return result(name, label, 'skipped', 'unavailable', `${label} could not be measured on this platform`)
+  // Skipped, not failed. An unmeasurable metric says nothing about the
+  // application's health, and paging on "we could not look" is how a monitor
+  // teaches its owner to ignore it.
+  if (value === undefined || value === null)
+    return result(name, label, 'skipped', 'unavailable', unavailableReason, extraMeta)
 
   const status: CheckStatus = value >= failure ? 'failed' : value >= warning ? 'warning' : 'ok'
   const message = status === 'ok' ? '' : `${label} is at ${value}${unit} (threshold ${status === 'failed' ? failure : warning}${unit})`
-  return result(name, label, status, `${value}${unit}`, message, { [metaKey]: value })
+  return result(name, label, status, `${value}${unit}`, message, { [metaKey]: value, ...extraMeta })
 }
 
 export function usedDiskSpaceCheck(options: { mount?: string, warning?: number, failure?: number } = {}): Check {
+  const mount = options.mount ?? '/'
   return () => thresholdResult(
+    // The name spatie/laravel-health uses, so a team migrating from Oh Dear
+    // keeps its history instead of starting a fresh series.
     'UsedDiskSpace',
     'Used disk space',
-    diskPercent(options.mount ?? '/'),
+    diskPercent(mount),
     '%',
     { warning: options.warning ?? 70, failure: options.failure ?? 90 },
     'disk_space_used_percentage',
+    `${mount} could not be stat-ed`,
+    { path: mount },
   )
 }
 
-export function usedMemoryCheck(options: { warning?: number, failure?: number } = {}): Check {
+export function usedMemoryCheck(options: { warning?: number, failure?: number, files?: FileReader } = {}): Check {
   return () => {
-    const mem = memory()
+    const mem = memory(options.files ?? systemFileReader)
     return thresholdResult(
       'UsedMemory',
       'Used memory',
@@ -76,18 +88,42 @@ export function usedMemoryCheck(options: { warning?: number, failure?: number } 
       '%',
       { warning: options.warning ?? 80, failure: options.failure ?? 95 },
       'memory_used_percentage',
+      'memory could not be read on this host',
+      {
+        memory_used_mb: mem.ramUsedMb,
+        memory_total_mb: mem.ramTotalMb,
+        // Which interface answered. A container reporting the host's 64 GB
+        // instead of its own 512 MB limit is the failure mode this check
+        // exists to avoid, and `source` is how you see it from the outside.
+        source: mem.source satisfies MemorySource,
+      },
     )
   }
 }
 
-export function cpuLoadCheck(options: { warning?: number, failure?: number, sampleMs?: number } = {}): Check {
+/**
+ * CPU in use as a percentage of what this container or host may use.
+ *
+ * Not a load average. `sys_getloadavg`-style load counts runnable processes
+ * and is unbounded and core-count-relative — 8.0 is idle on a 16-core box and
+ * a fire on a 2-core one. This is a bounded percentage, which is what the
+ * StatusHQ ingest and its thresholds are defined in terms of.
+ *
+ * Pass a shared `sampler` in a long-lived server: it differences against the
+ * previous call instead of holding the event loop for a second, at the cost
+ * of reporting `skipped` until it has been called twice.
+ */
+export function cpuUsageCheck(options: { warning?: number, failure?: number, sampleMs?: number, sampler?: CpuSampler, files?: FileReader } = {}): Check {
   return async () => thresholdResult(
-    'CpuLoad',
-    'CPU load',
-    await cpuPercent(options.sampleMs ?? 1000),
+    'CpuUsage',
+    'CPU usage',
+    options.sampler
+      ? options.sampler.sample()
+      : await createCpuSampler({ files: options.files }).sampleBlocking(options.sampleMs ?? 1000),
     '%',
     { warning: options.warning ?? 75, failure: options.failure ?? 90 },
     'cpu_used_percentage',
+    'no previous sample to compare against yet — usage is a rate, so the first reading cannot report one',
   )
 }
 
@@ -115,11 +151,12 @@ export async function runChecks(checks: Check[]): Promise<HealthReport> {
 
 /**
  * A `fetch`-style handler serving the report — works in Bun.serve, Hono,
- * Elysia, and Node via any Request/Response adapter.
+ * Elysia, Stacks, and Node via any Request/Response adapter.
  *
  * When `secret` is set the caller must present it in the
  * `oh-dear-health-check-secret` header, the same header spatie/laravel-health
- * validates, and a mismatch is a flat 403 with no report body.
+ * validates, and a mismatch is a flat 403 with no report body: the check names
+ * alone describe the application's internals.
  */
 export function createHealthHandler(options: { checks: Check[], secret?: string }) {
   return async (request: Request): Promise<Response> => {
@@ -129,15 +166,21 @@ export function createHealthHandler(options: { checks: Check[], secret?: string 
         return Response.json({ error: 'Invalid health check secret' }, { status: 403 })
     }
 
-    const report = await runChecks(options.checks)
-    return Response.json(report)
+    // Always 200, including when checks failed. The status code answers "did
+    // the endpoint work", the body answers "is the app healthy" — conflating
+    // them means a consumer cannot tell a failing check from a dead server.
+    return Response.json(await runChecks(options.checks))
   }
 }
 
 /** The default set: everything measurable about the host, no configuration. */
-export function defaultChecks(): Check[] {
-  return [usedDiskSpaceCheck(), usedMemoryCheck(), cpuLoadCheck()]
+export function defaultChecks(options: { sampler?: CpuSampler, files?: FileReader } = {}): Check[] {
+  return [
+    usedDiskSpaceCheck(),
+    usedMemoryCheck({ files: options.files }),
+    cpuUsageCheck({ sampler: options.sampler, files: options.files }),
+  ]
 }
 
-export { collect, cpuPercent, diskPercent, memory }
-export type { HostMetrics } from './metrics'
+export { collect, cpuPercent, createCpuSampler, diskPercent, memory }
+export type { CpuSampler, HostMetrics, MemorySource } from './metrics'
