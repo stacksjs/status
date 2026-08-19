@@ -34,6 +34,12 @@ describe('Security settings backend (stacksjs/status#1 Phase 9 follow-up)', () =
   })
 
   afterAll(async () => {
+    // Children before parents. team_members.user_id references users.id, so
+    // deleting the user first fails the foreign key, aborts the rest of this
+    // block, and leaves the fixture rows behind -- which then collides on
+    // users.email the next time this file runs. A teardown that throws poisons
+    // every later run, so the ordering here is load-bearing.
+    await db.deleteFrom('team_members').where('team_id', '=', TEAM_ID).execute()
     for (const userId of [ownerId, otherId]) {
       await db.deleteFrom('oauth_access_tokens').where('user_id', '=', userId).execute()
       await db.deleteFrom('two_factor_pending_secrets').where('user_id', '=', userId).execute()
@@ -41,7 +47,6 @@ describe('Security settings backend (stacksjs/status#1 Phase 9 follow-up)', () =
       await db.deleteFrom('passkeys').where('user_id', '=', userId).execute()
       await db.deleteFrom('users').where('id', '=', userId).execute()
     }
-    await db.deleteFrom('team_members').where('team_id', '=', TEAM_ID).execute()
     await db.deleteFrom('teams').where('id', '=', TEAM_ID).execute()
   })
 

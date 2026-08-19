@@ -73,11 +73,14 @@ describe('Passkey WebAuthn end-to-end (stacksjs/status#1 Phase 9 follow-up)', ()
   })
 
   afterAll(async () => {
+    // Children before parents -- see the same note in security-settings.test.ts.
+    // team_members.user_id references users.id, so deleting the user first
+    // fails the foreign key and strands the fixtures for the next run.
+    await db.deleteFrom('team_members').where('team_id', '=', TEAM_ID).execute()
     await db.deleteFrom('passkeys').where('user_id', '=', userId).execute()
     await db.deleteFrom('webauthn_challenges').where('user_id', '=', userId).execute()
     await db.deleteFrom('oauth_access_tokens').where('user_id', '=', userId).execute()
     await db.deleteFrom('users').where('id', '=', userId).execute()
-    await db.deleteFrom('team_members').where('team_id', '=', TEAM_ID).execute()
     await db.deleteFrom('teams').where('id', '=', TEAM_ID).execute()
   })
 
