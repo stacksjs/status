@@ -141,8 +141,8 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status: listedOn.length > 0 ? 'degraded' : 'up',
-      responseTimeMs: null,
-      statusCode: null,
+      responseTimeMs: undefined,
+      statusCode: undefined,
       message: listedOn.length > 0 ? `Listed on: ${labels}` : 'Not listed on any checked blocklist',
       metadata: JSON.stringify({ ip, listedOn, ipSource, listings }),
       region: process.env.WORKER_REGION || 'default',

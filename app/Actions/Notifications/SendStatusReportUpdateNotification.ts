@@ -1,4 +1,4 @@
-import { Action } from '@stacksjs/actions'
+import { eventAction } from '../../lib/eventAction'
 import { log } from '@stacksjs/logging'
 import NotifyStatusReportSubscribers from '../../Jobs/NotifyStatusReportSubscribers'
 import StatusReport from '../../Models/StatusReport'
@@ -17,7 +17,7 @@ import StatusReport from '../../Models/StatusReport'
  * time the audience is always empty. The authoring flow is: create the
  * report, attach monitors, then post the first update to announce it.
  */
-export default new Action({
+export default eventAction({
   name: 'SendStatusReportUpdateNotification',
   description: 'Email status page subscribers when a status report update is posted',
 

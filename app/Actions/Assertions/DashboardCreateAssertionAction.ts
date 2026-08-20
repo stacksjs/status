@@ -38,7 +38,7 @@ export default new Action({
       await Assertion.create({
         monitor_id: monitorId,
         target,
-        property: property || null,
+        property: property || undefined,
         compare,
         expected: expected.slice(0, 1000),
         sortOrder: 0,

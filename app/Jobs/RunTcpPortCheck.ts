@@ -73,7 +73,7 @@ export default new Job({
       monitor_id: monitor.id,
       status,
       responseTimeMs: result.timeMs,
-      statusCode: null,
+      statusCode: undefined,
       message,
       metadata: JSON.stringify({ port }),
       region: process.env.WORKER_REGION || 'default',

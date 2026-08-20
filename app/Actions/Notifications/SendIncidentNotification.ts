@@ -1,4 +1,4 @@
-import { Action } from '@stacksjs/actions'
+import { eventAction } from '../../lib/eventAction'
 import { log } from '@stacksjs/logging'
 import { isMonitorInMaintenance } from '../../lib/maintenance'
 import { channelFiresFor, incidentSeverityForType } from '../../lib/notificationSeverity'
@@ -20,7 +20,7 @@ import SendNotification from '../../Jobs/SendNotification'
  * running incident with several status updates would spam every channel
  * once per update.
  */
-export default new Action({
+export default eventAction({
   name: 'SendIncidentNotification',
   description: 'Notify configured channels when an incident opens',
 

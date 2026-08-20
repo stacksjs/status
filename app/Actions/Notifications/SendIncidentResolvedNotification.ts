@@ -1,4 +1,4 @@
-import { Action } from '@stacksjs/actions'
+import { eventAction } from '../../lib/eventAction'
 import { log } from '@stacksjs/logging'
 import { isMonitorInMaintenance } from '../../lib/maintenance'
 import { channelFiresFor, incidentSeverityForType } from '../../lib/notificationSeverity'
@@ -15,7 +15,7 @@ import SendNotification from '../../Jobs/SendNotification'
  * after already being resolved" — acceptable here since nothing in this
  * codebase updates an already-resolved incident again.
  */
-export default new Action({
+export default eventAction({
   name: 'SendIncidentResolvedNotification',
   description: 'Notify configured channels when an incident resolves',
 

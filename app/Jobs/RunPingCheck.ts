@@ -93,8 +93,8 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status,
-      responseTimeMs: result.timeMs != null ? Math.round(result.timeMs) : null,
-      statusCode: null,
+      responseTimeMs: result.timeMs != null ? Math.round(result.timeMs) : undefined,
+      statusCode: undefined,
       message,
       metadata: JSON.stringify({ lossPercent: result.lossPercent }),
       region: process.env.WORKER_REGION || 'default',

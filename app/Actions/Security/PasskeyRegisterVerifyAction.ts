@@ -3,7 +3,7 @@ import { consumeWebAuthnChallenge, resolveAuthenticatedUser } from '@stacksjs/au
 import { db } from '@stacksjs/database'
 import { log } from '@stacksjs/logging'
 import { response } from '@stacksjs/router'
-import { base64urlToBytes, decodeClientData, parseAuthenticatorData, relyingParty, verifyClientData, verifyRpIdHash } from './webauthn'
+import { base64urlToBytes, bytesToBase64url, decodeClientData, parseAuthenticatorData, relyingParty, verifyClientData, verifyRpIdHash } from './webauthn'
 
 /**
  * `POST /passkeys/register/verify` — finish enrollment. The browser posts
@@ -59,7 +59,12 @@ export default new Action({
       return response.json({ verified: false, error: 'Malformed client data.' }, { status: 400 })
     }
 
-    const clientError = verifyClientData(client, { type: 'webauthn.create', challengeB64url: storedChallenge, origin, rpId })
+    // consumeWebAuthnChallenge returns the raw challenge bytes (a Buffer),
+    // while the browser reports its challenge as base64url. Comparing the two
+    // directly is never equal, so registration would reject every valid
+    // passkey. The login leg does not need this: it reads its challenge from a
+    // cookie, which is already base64url.
+    const clientError = verifyClientData(client, { type: 'webauthn.create', challengeB64url: bytesToBase64url(storedChallenge), origin, rpId })
     if (clientError)
       return response.json({ verified: false, error: `Verification failed: ${clientError}` }, { status: 400 })
 

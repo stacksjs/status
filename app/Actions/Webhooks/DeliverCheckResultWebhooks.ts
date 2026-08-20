@@ -1,4 +1,4 @@
-import { Action } from '@stacksjs/actions'
+import { eventAction } from '../../lib/eventAction'
 import DeliverWebhook from '../../Jobs/DeliverWebhook'
 import Monitor from '../../Models/Monitor'
 import WebhookSubscription from '../../Models/WebhookSubscription'
@@ -10,7 +10,7 @@ import WebhookSubscription from '../../Models/WebhookSubscription'
  * check, not just incidents); short-circuits immediately when a team has
  * no subscriptions so this is a no-op for the common case.
  */
-export default new Action({
+export default eventAction({
   name: 'DeliverCheckResultWebhooks',
   description: 'Fan out a check result to the team\'s webhook subscriptions',
 

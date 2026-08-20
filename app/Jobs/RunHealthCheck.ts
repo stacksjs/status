@@ -168,7 +168,7 @@ export default new Job({
       monitor_id: monitor.id,
       status,
       responseTimeMs: responseTimeMs,
-      statusCode: null,
+      statusCode: undefined,
       message,
       metadata: JSON.stringify(metadata),
       region: process.env.WORKER_REGION || 'default',

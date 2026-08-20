@@ -1,19 +1,27 @@
 {
-  "extends": "./storage/framework/core/tsconfig.json",
+  // No `extends` any more. This used to extend
+  // storage/framework/core/tsconfig.json, which supplied target/module/lib,
+  // `strict`, and — importantly — `skipLibCheck`. That file went away with the
+  // vendored framework, so the extends silently resolved to nothing: `strict`
+  // read as undefined and TypeScript began type-checking every framework .d.ts
+  // in node_modules, which is where 197 of the 225 reported errors came from.
+  // The options it provided are inlined here rather than re-pointed, because
+  // the published packages ship no tsconfig to extend.
   "compilerOptions": {
+    "incremental": true,
+    "target": "esnext",
+    "jsx": "preserve",
     "lib": ["esnext", "dom"],
-    // `compilerOptions.paths` is not merged with the base config it
-    // extends (storage/framework/core/tsconfig.json) — TypeScript replaces
-    // the whole object when a child re-declares it. That base config's
-    // `@stacksjs/*` -> `storage/framework/core/*/src` mapping is how every
-    // `import ... from '@stacksjs/orm'` (etc.) in app/Models, app/Jobs, ...
-    // resolves; without restating it here, `buddy test:types`/
-    // `generate:types` fails "Cannot find module '@stacksjs/orm'" on every
-    // file under app/ that imports a framework package (i.e. nearly all of
-    // them) the moment app/Models has any real content.
+    "moduleDetection": "force",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+
+    // `@stacksjs/*` and `stacks/*` used to map to the vendored sources. The
+    // framework is an npm dependency now, so ordinary node resolution finds
+    // it and no mapping is needed — restating one that points at a deleted
+    // directory is what made every framework import fall back to an
+    // unchecked .d.ts.
     "paths": {
-      "@stacksjs/*": ["./storage/framework/core/*/src"],
-      "stacks/*": ["./storage/framework/core/*/src"],
       "Actions/*": ["./app/Actions/*"],
       "Commands/*": ["./app/Commands/*"],
       "Jobs/*": ["./app/Jobs/*"],
@@ -22,7 +30,31 @@
       "Notifications/*": ["./app/Notifications/*"],
       "~/*": ["./*"],
       "@/*": ["./resources/*"]
-    }
+    },
+
+    "resolveJsonModule": true,
+    "types": ["bun"],
+    "allowImportingTsExtensions": true,
+
+    // Cluster 11 of the stx standards. These were inherited, not absent — the
+    // audit's "strict: false" reading was the broken extends showing through.
+    "strict": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "noUncheckedSideEffectImports": true,
+    "noUnusedLocals": false,
+
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+
+    // Dependencies' own declarations are their problem, not this app's. Without
+    // this, a type error inside @stacksjs/orm's shipped .d.ts fails our gate.
+    "skipLibCheck": true
   },
   "include": [
     "*.ts",

@@ -165,7 +165,7 @@ export default new Job({
     await DomainRegistration.create({
       monitor_id: monitor.id,
       registrar: registrar ?? 'Unknown',
-      registeredAt: registeredRaw ? parseWhoisDate(registeredRaw).toISOString() : null,
+      registeredAt: registeredRaw ? parseWhoisDate(registeredRaw).toISOString() : undefined,
       expiresAt: expiresAt.toISOString(),
       lastCheckedAt: checkedAt,
     })

@@ -65,10 +65,15 @@ export default new Action({
       // forceCreate note), so the report columns need the escape hatch.
       // Empty recipients stores NULL, which means "send to the team owner"
       // (teams.owner) in SendUptimeReports.
+      // Cast because the Team model does not declare these columns -- which is
+      // the whole reason this uses forceUpdate. They are added by
+      // 0000000195-alter-teams-report-settings.sql and read by
+      // SendUptimeReports. Declaring them on the model would be the tidier fix
+      // but drags migration regeneration into an unrelated change.
       await Team.forceUpdate(authTeamId, {
         report_frequency: frequency,
         report_recipients: recipients.length > 0 ? recipients.join(', ') : null,
-      })
+      } as never)
     }
 
     // Preserve the team context on the way back, same as the siblings.

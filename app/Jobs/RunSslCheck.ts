@@ -16,6 +16,18 @@ import SslCertificate from '../Models/SslCertificate'
 import SendNotification from './SendNotification'
 import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
 
+/**
+ * First value of a certificate Distinguished Name field.
+ *
+ * A DN may repeat an attribute (two O= entries, say), so Node types these as
+ * `string | string[]`. Everything downstream stores a single string.
+ */
+function firstDnValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value))
+    return value[0]
+  return value
+}
+
 function fetchPeerCertificate(hostname: string, port = 443): Promise<import('node:tls').PeerCertificate> {
   return new Promise((resolve, reject) => {
     const socket = connect({ host: hostname, port, servername: hostname, timeout: 15_000 }, () => {
@@ -127,8 +139,12 @@ export default new Job({
 
     await SslCertificate.create({
       monitor_id: monitor.id,
-      issuer: cert.issuer?.O ?? cert.issuer?.CN ?? 'Unknown',
-      subject: cert.subject?.CN ?? hostname,
+      // Node types these DN fields as `string | string[]` because a
+      // Distinguished Name may legitimately repeat an attribute. Take the
+      // first value rather than letting an array reach a string column, where
+      // it would stringify as "a,b" and quietly corrupt the stored issuer.
+      issuer: firstDnValue(cert.issuer?.O) ?? firstDnValue(cert.issuer?.CN) ?? 'Unknown',
+      subject: firstDnValue(cert.subject?.CN) ?? hostname,
       validFrom: new Date(cert.valid_from).toISOString(),
       expiresAt: expiresAt.toISOString(),
       fingerprint,

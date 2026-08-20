@@ -58,7 +58,12 @@ export default new Action({
 
     let customer
     try {
-      customer = await manageCustomer.createOrGetStripeUser(owner, {})
+      // `createOrGetStripeUser` is declared against the legacy `UserModel`
+      // interface, while `User.find()` returns the query builder's
+      // `ModelRecord`. The same row satisfies both at runtime -- the billable
+      // trait only reads id/email/stripe_id -- but the two declarations are
+      // structurally unrelated, so the call cannot typecheck without this.
+      customer = await manageCustomer.createOrGetStripeUser(owner as never, {})
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)

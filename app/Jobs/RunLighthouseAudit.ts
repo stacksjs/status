@@ -129,10 +129,15 @@ export default new Job({
 
       await LighthouseReport.create({
         monitor_id: monitor.id,
-        performanceScore: performanceScore,
-        accessibilityScore: accessibilityScore,
-        seoScore: seoScore,
-        bestPracticesScore: bestPracticesScore,
+        // `?? undefined` only here, rather than changing toPercent's return
+        // type: the same values are JSON.stringify'd into metadata below, and
+        // undefined would drop those keys from the stored blob while null
+        // serializes. The model wants absent-as-undefined; the metadata wants
+        // absent-as-null. Convert at the boundary that needs it.
+        performanceScore: performanceScore ?? undefined,
+        accessibilityScore: accessibilityScore ?? undefined,
+        seoScore: seoScore ?? undefined,
+        bestPracticesScore: bestPracticesScore ?? undefined,
         reportJson: raw,
         checkedAt: checkedAt,
       })
