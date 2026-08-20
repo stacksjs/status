@@ -51,9 +51,29 @@ export const tsCloud: TsCloudConfig = {
     region: 'us-east-1', // Unused on the Hetzner path — kept for the AWS driver interface.
   },
 
-  // Deploy compute to Hetzner Cloud (apiToken falls back to HCLOUD_TOKEN env).
+  // Deploy compute to Hetzner Cloud.
   cloud: {
     provider: 'hetzner',
+  },
+
+  // The token has to be stated here, not left to the env fallback.
+  //
+  // buddy's deployToHetzner resolves it correctly —
+  //   apiToken = tsCloudConfig.hetzner?.apiToken || process.env.HCLOUD_TOKEN || ...
+  // — and uses it for the "No Hetzner API token found" guard, but then builds
+  // the driver with `createCloudDriver({ config, provider })` and never passes
+  // the token it just resolved. The driver falls back to reading
+  // config.hetzner.apiToken, which was undefined, so it authenticated with
+  // nothing and every call came back
+  //   HetznerApiError: GET /firewalls (401) the token you have provided is invalid
+  // while that same token answered 200 to /servers, /firewalls and /ssh_keys
+  // when used directly, and was verified intact inside the deploy process
+  // (sha256 fc2aed12f07315ba, length 64).
+  //
+  // Setting it here puts the value on the one path the driver actually reads.
+  // Remove once buddy forwards its resolved token to createCloudDriver.
+  hetzner: {
+    apiToken: process.env.HCLOUD_TOKEN,
   },
 
   /**
