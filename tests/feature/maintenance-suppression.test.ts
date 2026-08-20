@@ -14,6 +14,17 @@ import Monitor from '../../app/Models/Monitor'
 const TEAM_ID = 90013
 
 async function cleanupTeamFixtures(): Promise<void> {
+  // Children before parents -- see the same note in security-settings.test.ts.
+  // maintenance_window_monitors references monitors as well as windows, so the
+  // links have to go before either one. Deleting a monitor while a link still
+  // points at it fails the foreign key and aborts the rest of this helper,
+  // stranding fixtures for the next test. bun-query-builder enforced this from
+  // 0.2 onward; under 0.1.x the same ordering passed silently.
+  for (const win of await MaintenanceWindow.where('team_id', TEAM_ID).get()) {
+    for (const link of await MaintenanceWindowMonitor.where('maintenance_window_id', win.id).get())
+      await link.delete()
+    await win.delete()
+  }
   for (const monitor of await Monitor.where('team_id', TEAM_ID).get()) {
     for (const incident of await Incident.where('monitor_id', monitor.id).get()) {
       for (const update of await IncidentUpdate.where('incident_id', incident.id).get())
@@ -23,11 +34,6 @@ async function cleanupTeamFixtures(): Promise<void> {
     for (const result of await CheckResult.where('monitor_id', monitor.id).get())
       await result.delete()
     await monitor.delete()
-  }
-  for (const win of await MaintenanceWindow.where('team_id', TEAM_ID).get()) {
-    for (const link of await MaintenanceWindowMonitor.where('maintenance_window_id', win.id).get())
-      await link.delete()
-    await win.delete()
   }
 }
 
