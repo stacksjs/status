@@ -7,6 +7,7 @@ export { default as RunLighthouseAudit } from '../../../app/Jobs/RunLighthouseAu
 export { default as CheckPerformanceTrends } from '../../../app/Jobs/CheckPerformanceTrends'
 export { default as NotifyStatusPageSubscribers } from '../../../app/Jobs/NotifyStatusPageSubscribers'
 export { default as RunTcpPortCheck } from '../../../app/Jobs/RunTcpPortCheck'
+export { default as NotifyUpcomingMaintenance } from '../../../app/Jobs/NotifyUpcomingMaintenance'
 export { default as RunUptimeCheck } from '../../../app/Jobs/RunUptimeCheck'
 export { default as EvaluateMonitorConsensus } from '../../../app/Jobs/EvaluateMonitorConsensus'
 export { default as PruneOldCheckResults } from '../../../app/Jobs/PruneOldCheckResults'
