@@ -96,10 +96,10 @@ export default new Action({
       else {
         await HeartbeatMonitor.create({
           monitor_id: monitorId,
-          ping_token: randomUUIDv7().replace(/-/g, ''),
-          expected_interval_seconds: parsed.heartbeat.expected_interval_seconds,
-          grace_seconds: parsed.heartbeat.grace_seconds,
-          cron_expression: parsed.heartbeat.cron_expression,
+          pingToken: randomUUIDv7().replace(/-/g, ''),
+          expectedIntervalSeconds: parsed.heartbeat.expected_interval_seconds,
+          graceSeconds: parsed.heartbeat.grace_seconds,
+          cronExpression: parsed.heartbeat.cron_expression,
         })
       }
     }

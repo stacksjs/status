@@ -19,15 +19,15 @@ async function cleanupTeamFixtures(): Promise<void> {
 }
 
 async function makeMonitor(name: string) {
-  return Monitor.create({ team_id: TEAM_ID, name, url: 'https://example.com', type: 'uptime', check_interval_seconds: 60, enabled: true, status: 'up' })
+  return Monitor.create({ teamId: TEAM_ID, name, url: 'https://example.com', type: 'uptime', checkIntervalSeconds: 60, enabled: true, status: 'up' })
 }
 
 async function makeWindow(opts: Record<string, unknown>) {
   return MaintenanceWindow.create({
-    team_id: TEAM_ID,
+    teamId: TEAM_ID,
     title: 'Recurring work',
-    starts_at: '2026-07-05T02:00:00.000Z',
-    ends_at: '2026-07-05T02:30:00.000Z',
+    startsAt: '2026-07-05T02:00:00.000Z',
+    endsAt: '2026-07-05T02:30:00.000Z',
     status: 'active',
     ...opts,
   })

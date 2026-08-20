@@ -54,12 +54,12 @@ export default new Job({
       await CheckResult.create({
         monitor_id: monitor.id,
         status: 'down',
-        response_time_ms: 0,
-        status_code: 0,
+        responseTimeMs: 0,
+        statusCode: 0,
         message: 'Invalid monitor URL: only http/https targets are supported',
         metadata: JSON.stringify({}),
         region: process.env.WORKER_REGION || 'default',
-        checked_at: checkedAt,
+        checkedAt: checkedAt,
       })
       await monitor.update({ last_checked_at: checkedAt })
       void broadcastMonitorUpdate(monitor.id)
@@ -118,12 +118,12 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status,
-      response_time_ms: responseTimeMs,
-      status_code: statusCode ?? 0,
+      responseTimeMs: responseTimeMs,
+      statusCode: statusCode ?? 0,
       message,
       metadata: JSON.stringify({}),
       region: process.env.WORKER_REGION || 'default',
-      checked_at: checkedAt,
+      checkedAt: checkedAt,
     })
 
     // Status + incident transitions are owned centrally by

@@ -33,11 +33,11 @@ export default new Action({
       return response.json(existing, { status: 200 })
 
     const member = await TeamMember.create({
-      team_id: teamId,
-      invited_email: email,
+      teamId: teamId,
+      invitedEmail: email,
       role,
       status: 'pending',
-      invited_at: new Date().toISOString(),
+      invitedAt: new Date().toISOString(),
     })
 
     // Best-effort on the sync queue driver: the invite row already exists,

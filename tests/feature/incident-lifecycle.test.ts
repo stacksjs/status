@@ -59,11 +59,11 @@ describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
     })
 
     const monitor = await Monitor.create({
-      team_id: TEAM_ID,
+      teamId: TEAM_ID,
       name: 'Incident-open test',
       url: `http://localhost:${server.port}/`,
       type: 'uptime',
-      check_interval_seconds: 60,
+      checkIntervalSeconds: 60,
       enabled: true,
       status: 'up', // starts healthy so the failing check is a real transition
     })
@@ -89,11 +89,11 @@ describe('Incident open/resolve lifecycle (stacksjs/status#1 Phase 1)', () => {
     })
 
     const monitor = await Monitor.create({
-      team_id: TEAM_ID,
+      teamId: TEAM_ID,
       name: 'Incident-resolve test',
       url: `http://localhost:${server.port}/`,
       type: 'uptime',
-      check_interval_seconds: 60,
+      checkIntervalSeconds: 60,
       enabled: true,
       status: 'up',
     })

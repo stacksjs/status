@@ -29,12 +29,12 @@ function fakeRequest(fields: Record<string, string | undefined>) {
 }
 
 async function makeHeartbeat(name: string, opts: Record<string, unknown> = {}) {
-  const monitor = await Monitor.create({ team_id: TEAM_ID, name, url: 'https://example.com', type: 'cron', status: 'up' })
+  const monitor = await Monitor.create({ teamId: TEAM_ID, name, url: 'https://example.com', type: 'cron', status: 'up' })
   const heartbeat = await HeartbeatMonitor.create({
     monitor_id: monitor.id,
-    ping_token: `tok-${TEAM_ID}-${name}`,
-    expected_interval_seconds: 3600,
-    grace_seconds: 300,
+    pingToken: `tok-${TEAM_ID}-${name}`,
+    expectedIntervalSeconds: 3600,
+    graceSeconds: 300,
     ...opts,
   })
   return { monitor, heartbeat }

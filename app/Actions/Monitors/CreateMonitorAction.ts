@@ -49,14 +49,14 @@ export default new Action({
     const reportsMetrics = coerceCheckbox(request.get('reports_metrics'))
 
     const monitor = await Monitor.create({
-      team_id: teamId,
+      teamId: teamId,
       name: request.get('name'),
       url: request.get('url'),
       type,
       enabled: request.get('enabled') ?? true,
-      check_interval_seconds: checkIntervalSeconds,
+      checkIntervalSeconds: checkIntervalSeconds,
       config: request.get('config'),
-      reports_metrics: reportsMetrics,
+      reportsMetrics: reportsMetrics,
       // metrics_token is hidden:true, so the auto-CRUD layer strips it from
       // write bodies — nothing else would ever mint one, and a metrics
       // monitor created here could never receive an agent push.
@@ -76,10 +76,10 @@ export default new Action({
     if (heartbeat) {
       await HeartbeatMonitor.create({
         monitor_id: monitor.id,
-        ping_token: randomUUIDv7().replace(/-/g, ''),
-        expected_interval_seconds: heartbeat.expected_interval_seconds,
-        grace_seconds: heartbeat.grace_seconds,
-        cron_expression: heartbeat.cron_expression,
+        pingToken: randomUUIDv7().replace(/-/g, ''),
+        expectedIntervalSeconds: heartbeat.expected_interval_seconds,
+        graceSeconds: heartbeat.grace_seconds,
+        cronExpression: heartbeat.cron_expression,
       })
     }
 

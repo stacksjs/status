@@ -167,12 +167,12 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status,
-      response_time_ms: responseTimeMs,
-      status_code: null,
+      responseTimeMs: responseTimeMs,
+      statusCode: null,
       message,
       metadata: JSON.stringify(metadata),
       region: process.env.WORKER_REGION || 'default',
-      checked_at: checkedAt,
+      checkedAt: checkedAt,
     })
 
     // Status + incident transitions are owned centrally by

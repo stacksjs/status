@@ -86,7 +86,7 @@ export default new Action({
           incident_id: open.id,
           message: 'Scheduled task checked in again - monitor recovered.',
           status: 'resolved',
-          posted_at: now,
+          postedAt: now,
         })
       }
     }

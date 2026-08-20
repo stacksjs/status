@@ -44,7 +44,7 @@ export default new Action({
       status_report_id: report.id,
       message,
       status,
-      posted_at: new Date().toISOString(),
+      postedAt: new Date().toISOString(),
     })
 
     // Reflect the new state on the parent report.

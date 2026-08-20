@@ -100,7 +100,7 @@ describe('Monitor CRUD (stacksjs/status#1 Phase 1)', () => {
   })
 
   test('read returns the persisted monitor', async () => {
-    const monitor = await Monitor.create({ team_id: realTeamId, name: 'Read test', url: 'https://example.com', type: 'uptime', status: 'unknown' })
+    const monitor = await Monitor.create({ teamId: realTeamId, name: 'Read test', url: 'https://example.com', type: 'uptime', status: 'unknown' })
     createdIds.push(monitor.id)
 
     const found = await Monitor.find(monitor.id)
@@ -109,7 +109,7 @@ describe('Monitor CRUD (stacksjs/status#1 Phase 1)', () => {
   })
 
   test('update persists changed fields', async () => {
-    const monitor = await Monitor.create({ team_id: realTeamId, name: 'Update test', url: 'https://example.com', type: 'uptime', status: 'unknown' })
+    const monitor = await Monitor.create({ teamId: realTeamId, name: 'Update test', url: 'https://example.com', type: 'uptime', status: 'unknown' })
     createdIds.push(monitor.id)
 
     await monitor.update({ name: 'Update test (renamed)', check_interval_seconds: 900 })
@@ -120,7 +120,7 @@ describe('Monitor CRUD (stacksjs/status#1 Phase 1)', () => {
   })
 
   test('delete removes the monitor', async () => {
-    const monitor = await Monitor.create({ team_id: realTeamId, name: 'Delete test', url: 'https://example.com', type: 'uptime', status: 'unknown' })
+    const monitor = await Monitor.create({ teamId: realTeamId, name: 'Delete test', url: 'https://example.com', type: 'uptime', status: 'unknown' })
     await monitor.delete()
 
     const found = await Monitor.find(monitor.id)

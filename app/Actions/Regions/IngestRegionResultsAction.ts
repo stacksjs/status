@@ -94,12 +94,12 @@ export default new Action({
       await CheckResult.create({
         monitor_id: monitorId,
         status,
-        response_time_ms: r.response_time_ms != null ? Math.round(Number(r.response_time_ms)) : null,
-        status_code: r.status_code != null ? Number(r.status_code) : null,
+        responseTimeMs: r.response_time_ms != null ? Math.round(Number(r.response_time_ms)) : null,
+        statusCode: r.status_code != null ? Number(r.status_code) : null,
         message: typeof r.message === 'string' ? r.message.slice(0, 1000) : '',
         metadata: typeof r.metadata === 'string' ? r.metadata : JSON.stringify({}),
         region,
-        checked_at: checkedAt,
+        checkedAt: checkedAt,
       })
 
       // Advance last_checked_at so the primary's DispatchDueChecks and the

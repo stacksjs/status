@@ -38,11 +38,11 @@ async function cleanupTeamFixtures(): Promise<void> {
 }
 
 async function makeMonitor(name: string, url = 'https://example.com') {
-  return Monitor.create({ team_id: TEAM_ID, name, url, type: 'uptime', check_interval_seconds: 60, enabled: true, status: 'up' })
+  return Monitor.create({ teamId: TEAM_ID, name, url, type: 'uptime', checkIntervalSeconds: 60, enabled: true, status: 'up' })
 }
 
 async function coverWithWindow(monitorId: number, startsAt: string, endsAt: string, status = 'active') {
-  const win = await MaintenanceWindow.create({ team_id: TEAM_ID, title: 'Planned work', starts_at: startsAt, ends_at: endsAt, status })
+  const win = await MaintenanceWindow.create({ teamId: TEAM_ID, title: 'Planned work', startsAt: startsAt, endsAt: endsAt, status })
   await MaintenanceWindowMonitor.create({ maintenance_window_id: win.id, monitor_id: monitorId })
   return win
 }

@@ -37,7 +37,7 @@ export default new Action({
       status_report_id: report.id,
       message,
       status,
-      posted_at: request.get('posted_at') || new Date().toISOString(),
+      postedAt: request.get('posted_at') || new Date().toISOString(),
     })
 
     return response.json(update, { status: 201 })

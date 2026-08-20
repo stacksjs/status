@@ -30,11 +30,11 @@ describe('Health-check field assertions (stacksjs/status#1)', () => {
   afterEach(cleanup)
 
   async function healthMonitor() {
-    return Monitor.create({ team_id: TEAM_ID, name: 'Health', url: `http://localhost:${server.port}/`, type: 'health', status: 'up' })
+    return Monitor.create({ teamId: TEAM_ID, name: 'Health', url: `http://localhost:${server.port}/`, type: 'health', status: 'up' })
   }
 
   async function addAssertion(monitorId: number, property: string, compare: string, expected: string) {
-    await Assertion.create({ monitor_id: monitorId, target: 'body', property, compare, expected, sort_order: 0 })
+    await Assertion.create({ monitor_id: monitorId, target: 'body', property, compare, expected, sortOrder: 0 })
   }
 
   async function latestStatus(monitorId: number): Promise<{ status: string, message: string }> {

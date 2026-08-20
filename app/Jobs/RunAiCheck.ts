@@ -154,7 +154,7 @@ export default new Job({
         incident_id: open.id,
         message: 'AI check is passing again.',
         status: 'resolved',
-        posted_at: checkedAt,
+        postedAt: checkedAt,
       })
     }
   },

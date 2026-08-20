@@ -92,9 +92,9 @@ export default new Job({
 
     await PortScanResult.create({
       monitor_id: monitor.id,
-      open_ports: JSON.stringify(openPorts),
-      expected_ports: JSON.stringify(expectedPorts),
-      checked_at: checkedAt,
+      openPorts: JSON.stringify(openPorts),
+      expectedPorts: JSON.stringify(expectedPorts),
+      checkedAt: checkedAt,
     })
 
     const missingExpected = expectedPorts.filter(p => !openPorts.includes(p))
@@ -139,12 +139,12 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status,
-      response_time_ms: Math.round(performance.now() - startedAt),
-      status_code: 0,
+      responseTimeMs: Math.round(performance.now() - startedAt),
+      statusCode: 0,
       message,
       metadata: JSON.stringify({ openPorts, missingExpected, unexpectedOpen }),
       region: process.env.WORKER_REGION || 'default',
-      checked_at: checkedAt,
+      checkedAt: checkedAt,
     })
 
     // last_checked_at must advance on every terminal path - DispatchDueChecks

@@ -43,8 +43,8 @@ describe('Auto-CRUD team scoping (framework enhancement)', () => {
     tokenA = String((await Auth.loginUsingId(userA, { withRefreshToken: false }))!.token)
 
     // One monitor per team.
-    const mA = await Monitor.create({ team_id: teamA, name: 'Scope A monitor', url: 'https://a.example.com', type: 'uptime', status: 'unknown' })
-    const mB = await Monitor.create({ team_id: teamB, name: 'Scope B monitor', url: 'https://b.example.com', type: 'uptime', status: 'unknown' })
+    const mA = await Monitor.create({ teamId: teamA, name: 'Scope A monitor', url: 'https://a.example.com', type: 'uptime', status: 'unknown' })
+    const mB = await Monitor.create({ teamId: teamB, name: 'Scope B monitor', url: 'https://b.example.com', type: 'uptime', status: 'unknown' })
     monitorA = mA.id
     monitorB = mB.id
   })

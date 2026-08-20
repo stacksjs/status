@@ -44,7 +44,7 @@ export default new Action({
     }
 
     await NotificationChannel.create({
-      team_id: authTeamId,
+      teamId: authTeamId,
       name,
       type,
       config,
