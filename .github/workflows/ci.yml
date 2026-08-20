@@ -265,6 +265,18 @@ jobs:
           [ -z "$HCLOUD_TOKEN" ] && missing="$missing HCLOUD_TOKEN"
           [ -z "$DEPLOY_SSH_PRIVATE_KEY" ] && missing="$missing DEPLOY_SSH_PRIVATE_KEY"
           [ -z "$DOTENV_PRIVATE_KEY_PRODUCTION" ] && missing="$missing DOTENV_PRIVATE_KEY_PRODUCTION"
+          # Fingerprint, not the value: a length and a SHA-256 prefix are safe
+          # to print and are enough to tell whether the token the job receives
+          # is the one you think you set. Added because a deploy kept returning
+          # Hetzner 401 while that same token answered 200 to /servers,
+          # /firewalls and /ssh_keys when tested directly — which means the
+          # value arriving here is a different one. Whitespace is the usual
+          # culprit, so the raw and trimmed lengths are both shown.
+          raw_len=$(printf '%s' "$HCLOUD_TOKEN" | wc -c | tr -d ' ')
+          trim_len=$(printf '%s' "$HCLOUD_TOKEN" | tr -d '[:space:]' | wc -c | tr -d ' ')
+          fp=$(printf '%s' "$HCLOUD_TOKEN" | tr -d '[:space:]' | shasum -a 256 | cut -c1-16)
+          echo "HCLOUD_TOKEN length=$raw_len trimmed=$trim_len sha256[0:16]=$fp"
+
           if [ -n "$missing" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
             echo "::warning::Skipping production deploy - missing repo secret(s):$missing"
