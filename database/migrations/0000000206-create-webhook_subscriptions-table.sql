@@ -1,10 +1,10 @@
 CREATE TABLE IF NOT EXISTS "webhook_subscriptions" (
-  "id" BIGSERIAL PRIMARY KEY,
-  "team_id" integer,
-  "url" text,
-  "secret" varchar(255),
-  "enabled" boolean default true,
-  "created_at" timestamp not null default CURRENT_TIMESTAMP,
-  "updated_at" timestamp,
-  "uuid" varchar(255)
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "team_id" INTEGER,
+  "url" TEXT,
+  "secret" TEXT,
+  "enabled" INTEGER default 1,
+  "created_at" TEXT not null default CURRENT_TIMESTAMP,
+  "updated_at" TEXT,
+  "uuid" TEXT
 );

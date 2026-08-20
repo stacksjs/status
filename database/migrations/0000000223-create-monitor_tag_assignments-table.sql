@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS "monitor_tag_assignments" (
-  "id" BIGSERIAL PRIMARY KEY,
-  "monitor_id" bigint,
-  "monitor_tag_id" bigint,
-  "created_at" timestamp not null default CURRENT_TIMESTAMP,
-  "updated_at" timestamp
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "monitor_id" INTEGER,
+  "monitor_tag_id" INTEGER,
+  "created_at" TEXT not null default CURRENT_TIMESTAMP,
+  "updated_at" TEXT
 );

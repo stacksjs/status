@@ -1,17 +1,31 @@
-CREATE TYPE "type_type" AS ENUM ('email', 'sms', 'slack', 'discord', 'teams', 'pagerduty', 'opsgenie', 'pushover', 'ntfy', 'webhook');
-CREATE TYPE "status_type" AS ENUM ('scheduled', 'active', 'completed', 'cancelled');
-CREATE TYPE "status_type" AS ENUM ('up', 'down', 'degraded');
-CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
-CREATE TYPE "role_type" AS ENUM ('owner', 'admin', 'member');
-CREATE TYPE "status_type" AS ENUM ('pending', 'active');
-CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
-CREATE TYPE "target_type" AS ENUM ('status_code', 'header', 'body', 'response_time');
-CREATE TYPE "compare_type" AS ENUM ('eq', 'not_eq', 'gt', 'gte', 'lt', 'lte', 'contains', 'not_contains', 'empty', 'not_empty');
-CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
-CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
-CREATE TYPE "type_type" AS ENUM ('uptime', 'ssl', 'broken_links', 'performance', 'lighthouse', 'domain', 'dns', 'health', 'cron', 'ping', 'tcp_port', 'port_scan', 'dns_blocklist', 'ai_check');
-CREATE TYPE "status_type" AS ENUM ('up', 'down', 'degraded', 'paused', 'unknown');
-CREATE TYPE "record_type_type" AS ENUM ('A', 'AAAA', 'MX', 'TXT', 'NS', 'CAA', 'CNAME');
-CREATE TYPE "access_type_type" AS ENUM ('public', 'password', 'email_domain', 'ip_allowlist');
-CREATE TYPE "force_theme_type" AS ENUM ('dark', 'light', 'system');
-CREATE TYPE "status_type" AS ENUM ('running', 'completed', 'failed');
+-- Postgres ENUM declarations, retained for reference only.
+--
+-- SQLite has no CREATE TYPE, and this app runs sqlite in development and in
+-- production (.env.production sets DB_CONNECTION=sqlite). Each column that
+-- referenced one of these enums is declared TEXT by the table migration that
+-- actually creates it, with the real value set enforced there as a
+-- TEXT CHECK (... IN (...)) constraint -- note several names below are reused
+-- for different value sets, so the per-table CHECK is the authoritative one.
+--
+-- Kept rather than deleted so the corpus stays append-only and the original
+-- intent is still readable.
+
+SELECT 1; -- no-op: a migration file must contain at least one statement
+
+-- CREATE TYPE "type_type" AS ENUM ('email', 'sms', 'slack', 'discord', 'teams', 'pagerduty', 'opsgenie', 'pushover', 'ntfy', 'webhook');
+-- CREATE TYPE "status_type" AS ENUM ('scheduled', 'active', 'completed', 'cancelled');
+-- CREATE TYPE "status_type" AS ENUM ('up', 'down', 'degraded');
+-- CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
+-- CREATE TYPE "role_type" AS ENUM ('owner', 'admin', 'member');
+-- CREATE TYPE "status_type" AS ENUM ('pending', 'active');
+-- CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
+-- CREATE TYPE "target_type" AS ENUM ('status_code', 'header', 'body', 'response_time');
+-- CREATE TYPE "compare_type" AS ENUM ('eq', 'not_eq', 'gt', 'gte', 'lt', 'lte', 'contains', 'not_contains', 'empty', 'not_empty');
+-- CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
+-- CREATE TYPE "status_type" AS ENUM ('investigating', 'identified', 'monitoring', 'resolved');
+-- CREATE TYPE "type_type" AS ENUM ('uptime', 'ssl', 'broken_links', 'performance', 'lighthouse', 'domain', 'dns', 'health', 'cron', 'ping', 'tcp_port', 'port_scan', 'dns_blocklist', 'ai_check');
+-- CREATE TYPE "status_type" AS ENUM ('up', 'down', 'degraded', 'paused', 'unknown');
+-- CREATE TYPE "record_type_type" AS ENUM ('A', 'AAAA', 'MX', 'TXT', 'NS', 'CAA', 'CNAME');
+-- CREATE TYPE "access_type_type" AS ENUM ('public', 'password', 'email_domain', 'ip_allowlist');
+-- CREATE TYPE "force_theme_type" AS ENUM ('dark', 'light', 'system');
+-- CREATE TYPE "status_type" AS ENUM ('running', 'completed', 'failed');

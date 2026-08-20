@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT EXISTS "status_page_component_groups" (
-  "id" BIGSERIAL PRIMARY KEY,
-  "name" varchar(255),
-  "display_order" integer default 0,
-  "status_page_id" bigint,
-  "created_at" timestamp not null default CURRENT_TIMESTAMP,
-  "updated_at" timestamp,
-  "uuid" varchar(255)
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "name" TEXT,
+  "display_order" INTEGER default 0,
+  "status_page_id" INTEGER,
+  "created_at" TEXT not null default CURRENT_TIMESTAMP,
+  "updated_at" TEXT,
+  "uuid" TEXT
 );

@@ -144,6 +144,20 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
+      # The vendored @stacksjs/testing used to build the schema from
+      # setupTestEnvironment() — it shipped a database.ts that ran the auth,
+      # notification and RBAC migrators. The published package exports only the
+      # bun:test re-exports plus setupTestEnvironment/featureTest, so a fresh
+      # checkout now starts with an empty database and every DB-backed test
+      # fails with "no such table". Migrating explicitly is what the framework's
+      # own docs describe as the separate step, and it is fast (~2s).
+      #
+      # Note this also rewrites database/migrations (the runner prunes files it
+      # considers redundant — stacksjs/stacks#2234). That is harmless on an
+      # ephemeral checkout and must not be run casually on a working tree.
+      - name: Migrate database
+        run: bun buddy migrate
+
       - name: Test Suite
         env:
           AWS_DYNAMODB_ENDPOINT: http://localhost:8000

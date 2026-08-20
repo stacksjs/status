@@ -1,13 +1,13 @@
 CREATE TABLE IF NOT EXISTS "crawls" (
-  "id" BIGSERIAL PRIMARY KEY,
-  "started_at" varchar(255),
-  "finished_at" varchar(255),
-  "pages_crawled" integer default 0,
-  "broken_links_count" integer default 0,
-  "mixed_content_count" integer default 0,
-  "status" status_type default 'running',
-  "monitor_id" bigint,
-  "created_at" timestamp not null default CURRENT_TIMESTAMP,
-  "updated_at" timestamp,
-  "uuid" varchar(255)
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "started_at" TEXT,
+  "finished_at" TEXT,
+  "pages_crawled" INTEGER default 0,
+  "broken_links_count" INTEGER default 0,
+  "mixed_content_count" INTEGER default 0,
+  "status" TEXT default 'running',
+  "monitor_id" INTEGER,
+  "created_at" TEXT not null default CURRENT_TIMESTAMP,
+  "updated_at" TEXT,
+  "uuid" TEXT
 );
