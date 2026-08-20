@@ -436,6 +436,49 @@ jobs:
             console.log("known-good key sha=9bc3de45963c9dcb")
           '
 
+      # Decrypt .env.production up front, so the deploy has nothing left to
+      # decrypt.
+      #
+      # The env loader picks its key by environment name, and that name is
+      # decided by:
+      #
+      #   F(f.env) || r || F("development") || F(process.env.DOTENV_ENV) || F(process.env.APP_ENV) || "development"
+      #
+      # F("development") is a literal sitting before the two env-var checks, so
+      # it always wins and DOTENV_ENV / APP_ENV are unreachable. A production
+      # deploy therefore always resolves as "development" and looks for a key
+      # by that name — which is why supplying the correct key as
+      # DOTENV_PRIVATE_KEY_PRODUCTION, as DOTENV_PRIVATE_KEY_DEVELOPMENT, as a
+      # bare DOTENV_PRIVATE_KEY, in .env, and in .env.keys all failed in turn.
+      #
+      # getEnv(file) does work — it decrypts all 53 values in this job, one
+      # step above. So do that here and write the result back. The deploy then
+      # reads a file with nothing encrypted in it and the broken lookup never
+      # runs.
+      #
+      # The runner is ephemeral and .env.production is never committed from CI.
+      # Remove this once the resolver consults the environment it was given.
+      - name: Decrypt .env.production for the deploy
+        if: steps.deploy-secrets.outputs.available == 'true'
+        env:
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+        run: |
+          bun -e '
+            const fs = require("fs")
+            const { getEnv } = await import("@stacksjs/env")
+            const r = getEnv(undefined, { file: ".env.production", format: "json" })
+            if (!r.success || !r.output) { console.error("getEnv failed:", r.error); process.exit(1) }
+            const parsed = JSON.parse(r.output)
+
+            const left = Object.entries(parsed).filter(([, v]) => /^(encrypted|enc):/.test(String(v)))
+            if (left.length) { console.error("still encrypted after getEnv:", left.map(([k]) => k).join(", ")); process.exit(1) }
+
+            const lines = Object.entries(parsed).map(([k, v]) => `${k}=${JSON.stringify(String(v))}`)
+            fs.writeFileSync(".env.production", lines.join("\n") + "\n")
+            console.log(`.env.production rewritten plaintext: ${lines.length} values, 0 encrypted`)
+          '
+
       - name: Deploy
         if: steps.deploy-secrets.outputs.available == 'true'
         env:
