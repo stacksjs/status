@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { awaitConfig, config } from '@stacksjs/config'
-import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture.ts'
+import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture'
 import NotifyUpcomingMaintenance from '../../app/Jobs/NotifyUpcomingMaintenance'
 import MaintenanceWindow from '../../app/Models/MaintenanceWindow'
 import MaintenanceWindowMonitor from '../../app/Models/MaintenanceWindowMonitor'
@@ -33,23 +33,23 @@ describe('Upcoming-maintenance subscriber notices (stacksjs/status#1)', () => {
   const HOUR = 3600_000
 
   async function makeMonitor(name: string) {
-    const monitor = await Monitor.create({ team_id: TEAM_ID, name, url: 'https://example.com', type: 'uptime', status: 'up' })
+    const monitor = await Monitor.create({ teamId: TEAM_ID, name, url: 'https://example.com', type: 'uptime', status: 'up' })
     cleanup.push(monitor)
     return monitor
   }
 
   async function makePageWithSubscriber(slug: string, email: string, monitorIds: number[]) {
-    const page = await StatusPage.create({ team_id: TEAM_ID, title: slug, slug, is_public: true })
+    const page = await StatusPage.create({ teamId: TEAM_ID, title: slug, slug, isPublic: true })
     cleanup.push(page)
     for (const [index, monitorId] of monitorIds.entries()) {
-      const pivot = await StatusPageMonitor.create({ status_page_id: page.id, monitor_id: monitorId, display_name: `m${index}`, display_order: index })
+      const pivot = await StatusPageMonitor.create({ status_page_id: page.id, monitor_id: monitorId, displayName: `m${index}`, displayOrder: index })
       cleanup.push(pivot)
     }
     const subscriber = await StatusPageSubscriber.create({
       status_page_id: page.id,
       email,
-      unsubscribe_token: crypto.randomUUID().replace(/-/g, ''),
-      confirmed_at: new Date().toISOString(),
+      unsubscribeToken: crypto.randomUUID().replace(/-/g, ''),
+      confirmedAt: new Date().toISOString(),
     })
     cleanup.push(subscriber)
     return { page, subscriber }
@@ -57,11 +57,11 @@ describe('Upcoming-maintenance subscriber notices (stacksjs/status#1)', () => {
 
   async function makeWindow(opts: Record<string, unknown>, monitorIds: number[]) {
     const win = await MaintenanceWindow.create({
-      team_id: TEAM_ID,
+      teamId: TEAM_ID,
       title: 'Database upgrade',
       description: 'Expect ~10 min of downtime',
-      starts_at: iso(2 * HOUR),
-      ends_at: iso(2 * HOUR + 30 * 60_000),
+      startsAt: iso(2 * HOUR),
+      endsAt: iso(2 * HOUR + 30 * 60_000),
       status: 'scheduled',
       ...opts,
     })

@@ -67,14 +67,14 @@ export default new Action({
       return back(`?error=plan_interval&floor=${limits.checkIntervalFloorSeconds}`)
 
     const monitor = await Monitor.create({
-      team_id: authTeamId,
+      teamId: authTeamId,
       name: parsed.values.name,
       url: parsed.values.url,
       type: parsed.values.type,
       enabled: parsed.values.enabled,
-      check_interval_seconds: parsed.values.check_interval_seconds,
+      checkIntervalSeconds: parsed.values.check_interval_seconds,
       config: parsed.values.config,
-      reports_metrics: parsed.values.reports_metrics,
+      reportsMetrics: parsed.values.reports_metrics,
       // The agent ingest credential is minted here because nothing else in
       // the app ever did: metrics_token is hidden:true, so the auto-CRUD
       // layer strips it from write bodies and a metrics monitor created
@@ -88,10 +88,10 @@ export default new Action({
     if (parsed.values.type === 'cron' && parsed.heartbeat) {
       await HeartbeatMonitor.create({
         monitor_id: monitor.id,
-        ping_token: randomUUIDv7().replace(/-/g, ''),
-        expected_interval_seconds: parsed.heartbeat.expected_interval_seconds,
-        grace_seconds: parsed.heartbeat.grace_seconds,
-        cron_expression: parsed.heartbeat.cron_expression,
+        pingToken: randomUUIDv7().replace(/-/g, ''),
+        expectedIntervalSeconds: parsed.heartbeat.expected_interval_seconds,
+        graceSeconds: parsed.heartbeat.grace_seconds,
+        cronExpression: parsed.heartbeat.cron_expression,
       })
     }
 

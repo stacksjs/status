@@ -45,7 +45,7 @@ export default new Action({
       incident_id: incident.id,
       message: 'Incident acknowledged.',
       status: 'identified',
-      posted_at: new Date().toISOString(),
+      postedAt: new Date().toISOString(),
     })
 
     return { success: true, message: `Incident ${id} acknowledged`, incident: await Incident.find(incident.id) }

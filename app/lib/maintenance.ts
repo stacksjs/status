@@ -170,7 +170,22 @@ export async function openIncident(attrs: { monitor_id: number, started_at?: str
     }
   }
 
+  // Callers pass database-style snake_case (`started_at`, `impacted_checks`)
+  // because that is what this helper's signature has always accepted, but the
+  // model declares its attributes in camelCase and the ORM validates against
+  // the declared names -- a snake_case key is simply absent, so a required
+  // attribute reads as missing. Normalising here keeps every call site
+  // unchanged rather than pushing the rename out to a dozen jobs and actions.
+  const ATTR_ALIASES: Record<string, string> = {
+    started_at: 'startedAt',
+    resolved_at: 'resolvedAt',
+    impacted_checks: 'impactedChecks',
+  }
+  const normalized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(attrs))
+    normalized[ATTR_ALIASES[key] ?? key] = value
+
   // The generated models type their statics as `unknown`, so the call needs a
   // cast to typecheck. Narrow and local rather than loosening the model type.
-  return (Incident as any).create(attrs as any)
+  return (Incident as any).create(normalized as any)
 }

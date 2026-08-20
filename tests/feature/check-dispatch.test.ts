@@ -47,12 +47,12 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
   test('a monitor whose check_interval_seconds has elapsed gets checked (QUEUE_DRIVER=sync runs the job inline)', async () => {
     const staleCheckedAt = new Date(Date.now() - 120_000).toISOString()
     const monitor = await Monitor.create({
-      team_id: TEAM_ID,
+      teamId: TEAM_ID,
       name: 'Dispatch-due test',
       url: `http://localhost:${server.port}/`,
       type: 'uptime',
-      check_interval_seconds: 60,
-      last_checked_at: staleCheckedAt,
+      checkIntervalSeconds: 60,
+      lastCheckedAt: staleCheckedAt,
       enabled: true,
     })
 
@@ -73,12 +73,12 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
   test('a monitor not yet due for a check is skipped', async () => {
     const recentCheckedAt = new Date().toISOString()
     const monitor = await Monitor.create({
-      team_id: TEAM_ID,
+      teamId: TEAM_ID,
       name: 'Dispatch-not-due test',
       url: `http://localhost:${server.port}/`,
       type: 'uptime',
-      check_interval_seconds: 3600,
-      last_checked_at: recentCheckedAt,
+      checkIntervalSeconds: 3600,
+      lastCheckedAt: recentCheckedAt,
       enabled: true,
     })
 
@@ -91,12 +91,12 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
   test('a disabled monitor is never dispatched regardless of how overdue it is', async () => {
     const veryStale = new Date(Date.now() - 86_400_000).toISOString()
     const monitor = await Monitor.create({
-      team_id: TEAM_ID,
+      teamId: TEAM_ID,
       name: 'Dispatch-disabled test',
       url: `http://localhost:${server.port}/`,
       type: 'uptime',
-      check_interval_seconds: 60,
-      last_checked_at: veryStale,
+      checkIntervalSeconds: 60,
+      lastCheckedAt: veryStale,
       enabled: false,
     })
 

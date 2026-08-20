@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { awaitConfig, config } from '@stacksjs/config'
-import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture.ts'
+import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture'
 import { emitter } from '@stacksjs/events'
 import { db } from '@stacksjs/database'
 import { featureTest } from '@stacksjs/testing'
@@ -52,13 +52,13 @@ describe('Status report authoring (stacksjs/status#1 Phase 12 follow-up)', () =>
       await db.insertInto('team_members').values({ team_id: team, user_id: user, role: 'owner', status: 'active', invited_email: email }).execute()
     }
 
-    const monitor = await Monitor.create({ team_id: TEAM_ID, name: 'SR monitor', url: 'https://example.com', type: 'uptime', status: 'up' })
+    const monitor = await Monitor.create({ teamId: TEAM_ID, name: 'SR monitor', url: 'https://example.com', type: 'uptime', status: 'up' })
     monitorId = monitor.id
 
-    const page = await StatusPage.create({ team_id: TEAM_ID, title: 'SR status page', slug: 'sr-status-90009', is_public: true })
+    const page = await StatusPage.create({ teamId: TEAM_ID, title: 'SR status page', slug: 'sr-status-90009', isPublic: true })
     statusPage = { id: page.id, slug: page.slug }
-    await StatusPageMonitor.create({ status_page_id: page.id, monitor_id: monitorId, display_name: 'SR', display_order: 0 })
-    await StatusPageSubscriber.create({ status_page_id: page.id, email: 'watcher-90009@example.com', unsubscribe_token: 'tok90009', confirmed_at: new Date().toISOString() })
+    await StatusPageMonitor.create({ status_page_id: page.id, monitor_id: monitorId, displayName: 'SR', displayOrder: 0 })
+    await StatusPageSubscriber.create({ status_page_id: page.id, email: 'watcher-90009@example.com', unsubscribeToken: 'tok90009', confirmedAt: new Date().toISOString() })
   })
 
   afterEach(() => {

@@ -57,7 +57,7 @@ describe('Application health endpoint (spatie/laravel-health schema)', () => {
   async function runAgainst(payload: string, config: Record<string, unknown> = {}) {
     responseBody = payload
     const monitor = await Monitor.create({
-      team_id: TEAM_ID,
+      teamId: TEAM_ID,
       name: 'App health',
       url: `http://localhost:${server.port}/oh-dear-health-check-results`,
       type: 'health',
@@ -150,7 +150,7 @@ describe('Application health endpoint (spatie/laravel-health schema)', () => {
     const agentServer = Bun.serve({ port: 0, fetch: handler })
     try {
       const monitor = await Monitor.create({
-        team_id: TEAM_ID,
+        teamId: TEAM_ID,
         name: 'Agent-served health',
         url: `http://localhost:${agentServer.port}/health`,
         type: 'health',
@@ -177,7 +177,7 @@ describe('Application health endpoint (spatie/laravel-health schema)', () => {
     const agentServer = Bun.serve({ port: 0, fetch: handler })
     try {
       const monitor = await Monitor.create({
-        team_id: TEAM_ID,
+        teamId: TEAM_ID,
         name: 'Bad secret',
         url: `http://localhost:${agentServer.port}/health`,
         type: 'health',

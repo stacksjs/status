@@ -59,7 +59,7 @@ describe('DNS change detection and duplicate-incident suppression', () => {
       await monitor.delete()
     }
     const monitor = await Monitor.create({
-      team_id: teamId,
+      teamId: teamId,
       name: `dns-change-${SEED}`,
       type: 'dns',
       url: 'https://example.com',
@@ -106,7 +106,7 @@ describe('DNS change detection and duplicate-incident suppression', () => {
     // Canonicalised the way RunDnsCheck writes it: values sorted, so a
     // round-robin rotation from the nameserver is not a change.
     const serialized = JSON.stringify(['93.184.216.34', '93.184.216.35'])
-    await DnsSnapshot.create({ monitor_id: monitorId, record_type: 'A', record_values: serialized, checked_at: new Date().toISOString() })
+    await DnsSnapshot.create({ monitor_id: monitorId, recordType: 'A', recordValues: serialized, checkedAt: new Date().toISOString() })
 
     const previous = await DnsSnapshot.where('monitor_id', monitorId).where('record_type', 'A').orderByDesc('id').first()
     const rotated = JSON.stringify(['93.184.216.35', '93.184.216.34'].sort())
@@ -120,12 +120,12 @@ describe('DNS change detection and duplicate-incident suppression', () => {
 
   test('a removed record set is distinguishable from a changed one', async () => {
     const before = JSON.stringify(['10 mail.example.com'])
-    await DnsSnapshot.create({ monitor_id: monitorId, record_type: 'MX', record_values: before, checked_at: new Date().toISOString() })
+    await DnsSnapshot.create({ monitor_id: monitorId, recordType: 'MX', recordValues: before, checkedAt: new Date().toISOString() })
 
     // What the job records when the resolver answers ENODATA: an empty set,
     // which is a real state and not a resolver failure.
     const removed = JSON.stringify([])
-    await DnsSnapshot.create({ monitor_id: monitorId, record_type: 'MX', record_values: removed, checked_at: new Date().toISOString() })
+    await DnsSnapshot.create({ monitor_id: monitorId, recordType: 'MX', recordValues: removed, checkedAt: new Date().toISOString() })
 
     const snapshots = await DnsSnapshot.where('monitor_id', monitorId).where('record_type', 'MX').get()
     expect(snapshots.length).toBe(2)

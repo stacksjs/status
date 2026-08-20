@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test
 import { Auth } from '@stacksjs/auth'
 import { awaitConfig, config } from '@stacksjs/config'
 import { db } from '@stacksjs/database'
-import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture.ts'
+import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture'
 import DashboardAssignChannelAction from '../../app/Actions/Notifications/DashboardAssignChannelAction'
 import SendIncidentNotification from '../../app/Actions/Notifications/SendIncidentNotification'
 import Monitor from '../../app/Models/Monitor'
@@ -68,11 +68,11 @@ describe('Per-severity notification routing (stacksjs/status#1)', () => {
   afterAll(cleanupTeam)
 
   async function emailChannel(name: string, address: string) {
-    return NotificationChannel.create({ team_id: teamId, name, type: 'email', config: JSON.stringify({ email: address }), enabled: true })
+    return NotificationChannel.create({ teamId: teamId, name, type: 'email', config: JSON.stringify({ email: address }), enabled: true })
   }
 
   async function attach(monitorId: number, channelId: number, firesOn: string) {
-    await MonitorNotificationChannel.create({ monitor_id: monitorId, notification_channel_id: channelId, fires_on: firesOn })
+    await MonitorNotificationChannel.create({ monitor_id: monitorId, notification_channel_id: channelId, firesOn: firesOn })
   }
 
   async function recipients(): Promise<string[]> {
@@ -80,7 +80,7 @@ describe('Per-severity notification routing (stacksjs/status#1)', () => {
   }
 
   test('a down incident notifies down-only and both channels, not issue-only', async () => {
-    const monitor = await Monitor.create({ team_id: teamId, name: 'API', url: 'https://api.example.com', type: 'uptime', status: 'up' })
+    const monitor = await Monitor.create({ teamId: teamId, name: 'API', url: 'https://api.example.com', type: 'uptime', status: 'up' })
     await attach(monitor.id, (await emailChannel('down', 'down@example.com')).id, 'down')
     await attach(monitor.id, (await emailChannel('issue', 'issue@example.com')).id, 'issue')
     await attach(monitor.id, (await emailChannel('both', 'both@example.com')).id, 'both')
@@ -95,7 +95,7 @@ describe('Per-severity notification routing (stacksjs/status#1)', () => {
 
   test('an issue incident notifies issue-only and both channels, not down-only', async () => {
     // A 'dns' monitor's incident is a soft issue (see ISSUE_MONITOR_TYPES).
-    const monitor = await Monitor.create({ team_id: teamId, name: 'DNS', url: 'https://example.com', type: 'dns', status: 'up' })
+    const monitor = await Monitor.create({ teamId: teamId, name: 'DNS', url: 'https://example.com', type: 'dns', status: 'up' })
     await attach(monitor.id, (await emailChannel('down', 'down@example.com')).id, 'down')
     await attach(monitor.id, (await emailChannel('issue', 'issue@example.com')).id, 'issue')
     await attach(monitor.id, (await emailChannel('both', 'both@example.com')).id, 'both')
@@ -109,7 +109,7 @@ describe('Per-severity notification routing (stacksjs/status#1)', () => {
   })
 
   test('the assign action persists fires_on and updates it on re-assign', async () => {
-    const monitor = await Monitor.create({ team_id: teamId, name: 'Assign', url: 'https://example.com', type: 'uptime', status: 'up' })
+    const monitor = await Monitor.create({ teamId: teamId, name: 'Assign', url: 'https://example.com', type: 'uptime', status: 'up' })
     const channel = await emailChannel('chan', 'chan@example.com')
 
     const res = await DashboardAssignChannelAction.handle(fakeRequest({ monitorId: String(monitor.id), channel_id: String(channel.id), fires_on: 'down' }, token))
@@ -124,7 +124,7 @@ describe('Per-severity notification routing (stacksjs/status#1)', () => {
     expect(links[0]!.fires_on).toBe('issue')
 
     // An omitted preference falls back to 'both'.
-    const m2 = await Monitor.create({ team_id: teamId, name: 'Assign2', url: 'https://example.com', type: 'uptime', status: 'up' })
+    const m2 = await Monitor.create({ teamId: teamId, name: 'Assign2', url: 'https://example.com', type: 'uptime', status: 'up' })
     await DashboardAssignChannelAction.handle(fakeRequest({ monitorId: String(m2.id), channel_id: String(channel.id) }, token))
     link = await MonitorNotificationChannel.where('monitor_id', m2.id).where('notification_channel_id', channel.id).first()
     expect(link!.fires_on).toBe('both')

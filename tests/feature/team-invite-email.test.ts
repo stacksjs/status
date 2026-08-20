@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test
 import { Auth } from '@stacksjs/auth'
 import { awaitConfig, config } from '@stacksjs/config'
 import { db } from '@stacksjs/database'
-import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture.ts'
+import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture'
 import DashboardInviteTeamMemberAction from '../../app/Actions/Teams/DashboardInviteTeamMemberAction'
 import InviteTeamMemberAction from '../../app/Actions/Teams/InviteTeamMemberAction'
 import TeamMember from '../../app/Models/TeamMember'

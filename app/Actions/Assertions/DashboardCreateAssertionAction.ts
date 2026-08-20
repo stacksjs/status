@@ -41,7 +41,7 @@ export default new Action({
         property: property || null,
         compare,
         expected: expected.slice(0, 1000),
-        sort_order: 0,
+        sortOrder: 0,
       })
     }
 

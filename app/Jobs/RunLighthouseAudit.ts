@@ -129,12 +129,12 @@ export default new Job({
 
       await LighthouseReport.create({
         monitor_id: monitor.id,
-        performance_score: performanceScore,
-        accessibility_score: accessibilityScore,
-        seo_score: seoScore,
-        best_practices_score: bestPracticesScore,
-        report_json: raw,
-        checked_at: checkedAt,
+        performanceScore: performanceScore,
+        accessibilityScore: accessibilityScore,
+        seoScore: seoScore,
+        bestPracticesScore: bestPracticesScore,
+        reportJson: raw,
+        checkedAt: checkedAt,
       })
 
       // A completed audit is 'up' unless it caught the performance
@@ -163,12 +163,12 @@ export default new Job({
       await CheckResult.create({
         monitor_id: monitor.id,
         status,
-        response_time_ms: Math.round(performance.now() - startedAt),
-        status_code: 0,
+        responseTimeMs: Math.round(performance.now() - startedAt),
+        statusCode: 0,
         message,
         metadata: JSON.stringify({ performanceScore, accessibilityScore, seoScore, bestPracticesScore, device }),
         region: process.env.WORKER_REGION || 'default',
-        checked_at: checkedAt,
+        checkedAt: checkedAt,
       })
 
       // last_checked_at must advance on every terminal path - DispatchDueChecks

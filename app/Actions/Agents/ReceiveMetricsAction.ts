@@ -76,7 +76,7 @@ export default new Action({
       // have been edited.
       metadata: JSON.stringify({ host, cpuPercent, ramPercent, ramUsedMb, ramTotalMb, ...(hasDisk ? { diskPercent } : {}), breaches }),
       region: 'agent',
-      checked_at: checkedAt,
+      checkedAt: checkedAt,
     })
 
     // The monitor's status is the whole fleet's, not this sample's. With two
@@ -128,7 +128,7 @@ export default new Action({
           incident_id: existingIncident.id,
           message: 'Host resource usage back within thresholds.',
           status: 'resolved',
-          posted_at: checkedAt,
+          postedAt: checkedAt,
         })
       }
     }

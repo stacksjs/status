@@ -39,10 +39,10 @@ export default new Action({
       return new Response(null, { status: 302, headers: { Location: '/dashboard/status-pages?error=limit' } })
 
     const statusPage = await StatusPage.create({
-      team_id: authTeamId,
+      teamId: authTeamId,
       slug,
       title,
-      is_public: true,
+      isPublic: true,
     })
 
     return new Response(null, { status: 302, headers: { Location: `/dashboard/status-pages/${statusPage.id}` } })

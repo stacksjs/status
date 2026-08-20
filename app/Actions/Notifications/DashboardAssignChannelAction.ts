@@ -39,7 +39,7 @@ export default new Action({
       if (existing)
         await existing.update({ fires_on: firesOn })
       else
-        await MonitorNotificationChannel.create({ monitor_id: monitorId, notification_channel_id: channelId, fires_on: firesOn })
+        await MonitorNotificationChannel.create({ monitor_id: monitorId, notification_channel_id: channelId, firesOn: firesOn })
     }
 
     return new Response(null, { status: 302, headers: { Location: `/dashboard/monitors/${monitorId}` } })

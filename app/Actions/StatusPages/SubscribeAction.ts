@@ -32,7 +32,7 @@ export default new Action({
     const subscriber = await StatusPageSubscriber.create({
       status_page_id: statusPage.id,
       email,
-      confirmed_at: new Date().toISOString(),
+      confirmedAt: new Date().toISOString(),
     })
 
     await mail.send({

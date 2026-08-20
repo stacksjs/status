@@ -44,7 +44,7 @@ describe('Webhook notification payload (stacksjs/status#1)', () => {
 
   async function makeWebhookChannel(extraConfig: Record<string, unknown> = {}) {
     const channel = await NotificationChannel.create({
-      team_id: TEAM_ID,
+      teamId: TEAM_ID,
       name: 'Webhook test',
       type: 'webhook',
       config: JSON.stringify({ url: `http://localhost:${server.port}/hook`, ...extraConfig }),

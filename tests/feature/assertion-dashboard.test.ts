@@ -54,7 +54,7 @@ describe('Assertion dashboard forms (stacksjs/status#1)', () => {
   afterAll(cleanupTeam)
 
   async function healthMonitor() {
-    return Monitor.create({ team_id: teamId, name: 'H', url: 'https://example.com', type: 'health', status: 'up' })
+    return Monitor.create({ teamId: teamId, name: 'H', url: 'https://example.com', type: 'health', status: 'up' })
   }
 
   test('the create form adds a dot-path body assertion', async () => {
@@ -85,7 +85,7 @@ describe('Assertion dashboard forms (stacksjs/status#1)', () => {
 
   test('the remove form deletes an assertion', async () => {
     const monitor = await healthMonitor()
-    const assertion = await Assertion.create({ monitor_id: monitor.id, target: 'status_code', property: null, compare: 'eq', expected: '200', sort_order: 0 })
+    const assertion = await Assertion.create({ monitor_id: monitor.id, target: 'status_code', property: null, compare: 'eq', expected: '200', sortOrder: 0 })
 
     const res = await DashboardRemoveAssertionAction.handle(fakeRequest({ monitorId: String(monitor.id), assertion_id: String(assertion.id) }, token))
     expect(res.status).toBe(302)
@@ -94,7 +94,7 @@ describe('Assertion dashboard forms (stacksjs/status#1)', () => {
 
   test("another team's owner cannot add to or remove from this monitor", async () => {
     const monitor = await healthMonitor()
-    const assertion = await Assertion.create({ monitor_id: monitor.id, target: 'status_code', property: null, compare: 'eq', expected: '200', sort_order: 0 })
+    const assertion = await Assertion.create({ monitor_id: monitor.id, target: 'status_code', property: null, compare: 'eq', expected: '200', sortOrder: 0 })
 
     const otherEmail = `assert-dash-intruder-${SEED}@example.com`
     await db.insertInto('teams').values({ name: `Assert Dash Intruder ${SEED}` }).execute()

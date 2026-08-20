@@ -91,12 +91,12 @@ export default new Job({
       await CheckResult.create({
         monitor_id: monitor.id,
         status: 'down',
-        response_time_ms: Math.round(performance.now() - startedAt),
-        status_code: 0,
+        responseTimeMs: Math.round(performance.now() - startedAt),
+        statusCode: 0,
         message: `SSL check failed: ${message}`,
         metadata: JSON.stringify({ hostname }),
         region: process.env.WORKER_REGION || 'default',
-        checked_at: checkedAt,
+        checkedAt: checkedAt,
       })
       // last_checked_at must advance on every terminal path - DispatchDueChecks
       // schedules off it, so skipping it would re-dispatch this check every minute.
@@ -129,10 +129,10 @@ export default new Job({
       monitor_id: monitor.id,
       issuer: cert.issuer?.O ?? cert.issuer?.CN ?? 'Unknown',
       subject: cert.subject?.CN ?? hostname,
-      valid_from: new Date(cert.valid_from).toISOString(),
-      expires_at: expiresAt.toISOString(),
+      validFrom: new Date(cert.valid_from).toISOString(),
+      expiresAt: expiresAt.toISOString(),
       fingerprint,
-      last_checked_at: checkedAt,
+      lastCheckedAt: checkedAt,
     })
 
     const fingerprintChanged = previous && previous.fingerprint && previous.fingerprint !== fingerprint
@@ -216,7 +216,7 @@ export default new Job({
           incident_id: open.id,
           message: `Certificate for ${hostname} is valid again, expires in ${daysUntilExpiry} day(s).`,
           status: 'resolved',
-          posted_at: checkedAt,
+          postedAt: checkedAt,
         })
         log.info(`[job] RunSslCheck: ${monitor.name} certificate healthy - incident resolved`)
       }
@@ -233,12 +233,12 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status,
-      response_time_ms: Math.round(performance.now() - startedAt),
-      status_code: 0,
+      responseTimeMs: Math.round(performance.now() - startedAt),
+      statusCode: 0,
       message,
       metadata: JSON.stringify({ hostname, daysUntilExpiry, expiresAt: expiresAt.toISOString() }),
       region: process.env.WORKER_REGION || 'default',
-      checked_at: checkedAt,
+      checkedAt: checkedAt,
     })
 
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1

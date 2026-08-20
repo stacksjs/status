@@ -264,12 +264,16 @@ export default new Action({
               user_id: userId,
               owner: email,
             })
+            // invitedEmail/invitedAt are required on the model -- see the same
+            // note in RegisterAction.
             await TeamMember.create({
-              team_id: team.id,
-              user_id: userId,
+              teamId: team.id,
+              userId: userId,
               role: 'owner',
               status: 'active',
-              joined_at: new Date().toISOString(),
+              invitedEmail: email,
+              invitedAt: new Date().toISOString(),
+              joinedAt: new Date().toISOString(),
             })
           }
         }

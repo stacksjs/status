@@ -40,8 +40,8 @@ export default new Action({
         await StatusPageMonitor.create({
           status_page_id: statusPageId,
           monitor_id: monitorId,
-          display_name: displayName || undefined,
-          display_order: 0,
+          displayName: displayName || undefined,
+          displayOrder: 0,
         })
       }
     }

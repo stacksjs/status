@@ -11,8 +11,8 @@ const TEAM = 90600
 async function makeMetricsMonitor(config: Record<string, unknown> = {}): Promise<{ id: number, token: string }> {
   const token = `mtok-${TEAM}-${Math.floor(performance.now() * 1000)}`
   const m = await Monitor.create({
-    team_id: TEAM, name: 'metrics-host', url: 'https://host.example', type: 'uptime',
-    status: 'up', enabled: true, reports_metrics: true, metrics_token: token, config: JSON.stringify(config),
+    teamId: TEAM, name: 'metrics-host', url: 'https://host.example', type: 'uptime',
+    status: 'up', enabled: true, reportsMetrics: true, metricsToken: token, config: JSON.stringify(config),
   })
   return { id: m.id, token }
 }

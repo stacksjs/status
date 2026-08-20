@@ -140,7 +140,7 @@ describe('Monitor dashboard forms (create / update / delete)', () => {
     expect(created.headers.get('Location')).toContain('error=plan_interval')
     expect(await Monitor.where('team_id', teamId).get()).toHaveLength(0)
 
-    const monitor = await Monitor.create({ team_id: teamId, name: 'Fine', url: 'https://example.com', type: 'uptime', check_interval_seconds: 300, status: 'unknown' })
+    const monitor = await Monitor.create({ teamId: teamId, name: 'Fine', url: 'https://example.com', type: 'uptime', checkIntervalSeconds: 300, status: 'unknown' })
     const edited = await DashboardUpdateMonitorAction.handle(fakeRequest({
       monitorId: String(monitor.id), name: 'Fine', url: 'https://example.com', type: 'uptime', check_interval_seconds: '10',
     }, token))
@@ -190,8 +190,8 @@ describe('Monitor dashboard forms (create / update / delete)', () => {
 
   test('the edit form updates fields and rewrites config for the new type', async () => {
     const monitor = await Monitor.create({
-      team_id: teamId, name: 'Old', url: 'https://old.example.com', type: 'tcp_port',
-      check_interval_seconds: 300, config: JSON.stringify({ port: 5432 }), status: 'unknown',
+      teamId: teamId, name: 'Old', url: 'https://old.example.com', type: 'tcp_port',
+      checkIntervalSeconds: 300, config: JSON.stringify({ port: 5432 }), status: 'unknown',
     })
 
     const res = await DashboardUpdateMonitorAction.handle(fakeRequest({
@@ -209,7 +209,7 @@ describe('Monitor dashboard forms (create / update / delete)', () => {
   })
 
   test('another team cannot edit or delete a monitor it does not own', async () => {
-    const monitor = await Monitor.create({ team_id: teamId, name: 'Mine', url: 'https://example.com', type: 'uptime', check_interval_seconds: 300, status: 'unknown' })
+    const monitor = await Monitor.create({ teamId: teamId, name: 'Mine', url: 'https://example.com', type: 'uptime', checkIntervalSeconds: 300, status: 'unknown' })
 
     const edit = await DashboardUpdateMonitorAction.handle(fakeRequest({
       monitorId: String(monitor.id), name: 'Hijacked', url: 'https://evil.example.com', type: 'uptime', check_interval_seconds: '300',
@@ -232,9 +232,9 @@ describe('Monitor dashboard forms (create / update / delete)', () => {
   })
 
   test('deleting a monitor takes its dependent rows with it', async () => {
-    const monitor = await Monitor.create({ team_id: teamId, name: 'Doomed', url: 'jobs.example.com', type: 'cron', check_interval_seconds: 300, status: 'unknown' })
-    await HeartbeatMonitor.create({ monitor_id: monitor.id, ping_token: 'tok'.repeat(8), expected_interval_seconds: 3600, grace_seconds: 300 })
-    await CheckResult.create({ monitor_id: monitor.id, status: 'up', response_time_ms: 5, status_code: 200, message: 'ok', region: 'default', checked_at: new Date().toISOString() })
+    const monitor = await Monitor.create({ teamId: teamId, name: 'Doomed', url: 'jobs.example.com', type: 'cron', checkIntervalSeconds: 300, status: 'unknown' })
+    await HeartbeatMonitor.create({ monitor_id: monitor.id, pingToken: 'tok'.repeat(8), expectedIntervalSeconds: 3600, graceSeconds: 300 })
+    await CheckResult.create({ monitor_id: monitor.id, status: 'up', responseTimeMs: 5, statusCode: 200, message: 'ok', region: 'default', checkedAt: new Date().toISOString() })
 
     const res = await DashboardDeleteMonitorAction.handle(fakeRequest({ monitorId: String(monitor.id) }, token))
     expect(res.status).toBe(302)

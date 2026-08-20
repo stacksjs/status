@@ -123,10 +123,10 @@ export default new Job({
         const detail = sample?.message ? `${sample.message} — ` : ''
         await Incident.create({
           monitor_id: monitor.id,
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           cause: `${detail}down from ${downRegions.length}/${votes.length} region(s): ${downRegions.join(', ')}`,
           status: 'investigating',
-          impacted_checks: JSON.stringify([{ type: monitor.type, regions: downRegions }]),
+          impactedChecks: JSON.stringify([{ type: monitor.type, regions: downRegions }]),
         })
         transitions++
         log.warn(`[job] EvaluateMonitorConsensus: ${monitor.name} DOWN (consensus: ${downRegions.join(', ')})`)
@@ -143,7 +143,7 @@ export default new Job({
             incident_id: openIncident.id,
             message: 'Monitor recovered — checks are passing across regions again.',
             status: 'resolved',
-            posted_at: resolvedAt,
+            postedAt: resolvedAt,
           })
         }
         transitions++

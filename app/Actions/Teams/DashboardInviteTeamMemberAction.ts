@@ -39,11 +39,11 @@ export default new Action({
       const existing = await TeamMember.where('team_id', authTeamId).where('invited_email', email).first()
       if (!existing) {
         const member = await TeamMember.create({
-          team_id: authTeamId,
-          invited_email: email,
+          teamId: authTeamId,
+          invitedEmail: email,
           role,
           status: 'pending',
-          invited_at: new Date().toISOString(),
+          invitedAt: new Date().toISOString(),
         })
 
         // Best-effort, same as InviteTeamMemberAction — the row exists;

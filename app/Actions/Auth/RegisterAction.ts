@@ -75,12 +75,18 @@ export default new Action({
               owner: user.email,
             })
 
+            // invitedEmail/invitedAt are `required: true` on the model. An
+            // owner creating their own team was never "invited", but the row
+            // still has to carry them -- the older ORM accepted the omission
+            // silently and wrote NULLs.
             await TeamMember.create({
-              team_id: team.id,
-              user_id: user.id,
+              teamId: team.id,
+              userId: user.id,
               role: 'owner',
               status: 'active',
-              joined_at: new Date().toISOString(),
+              invitedEmail: user.email,
+              invitedAt: new Date().toISOString(),
+              joinedAt: new Date().toISOString(),
             })
           }
         }

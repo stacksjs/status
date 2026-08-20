@@ -40,12 +40,12 @@ export default new Action({
     }
 
     const statusPage = await StatusPage.create({
-      team_id: teamId,
+      teamId: teamId,
       slug: request.get('slug'),
       title: request.get('title'),
-      custom_domain: request.get('custom_domain'),
+      customDomain: request.get('custom_domain'),
       branding: request.get('branding'),
-      is_public: request.get('is_public') ?? true,
+      isPublic: request.get('is_public') ?? true,
     })
 
     return response.json(statusPage, { status: 201 })

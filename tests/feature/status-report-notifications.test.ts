@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { awaitConfig, config } from '@stacksjs/config'
-import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture.ts'
+import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture'
 import { emitter } from '@stacksjs/events'
 import SendStatusReportUpdateNotification from '../../app/Actions/Notifications/SendStatusReportUpdateNotification'
 import CreateStatusReportUpdateAction from '../../app/Actions/StatusPages/CreateStatusReportUpdateAction'
@@ -37,25 +37,25 @@ describe('Status report subscriber notifications (stacksjs/status#1 Phase 12 fol
   })
 
   async function makeMonitor(name: string) {
-    const monitor = await Monitor.create({ team_id: TEAM_ID, name, url: 'https://example.com', type: 'uptime', status: 'up' })
+    const monitor = await Monitor.create({ teamId: TEAM_ID, name, url: 'https://example.com', type: 'uptime', status: 'up' })
     cleanup.push(monitor)
     return monitor
   }
 
   async function makePageWithSubscriber(slug: string, email: string, monitorIds: number[]) {
-    const page = await StatusPage.create({ team_id: TEAM_ID, title: slug, slug, is_public: true })
+    const page = await StatusPage.create({ teamId: TEAM_ID, title: slug, slug, isPublic: true })
     cleanup.push(page)
 
     for (const [index, monitorId] of monitorIds.entries()) {
-      const pivot = await StatusPageMonitor.create({ status_page_id: page.id, monitor_id: monitorId, display_name: `m${index}`, display_order: index })
+      const pivot = await StatusPageMonitor.create({ status_page_id: page.id, monitor_id: monitorId, displayName: `m${index}`, displayOrder: index })
       cleanup.push(pivot)
     }
 
     const subscriber = await StatusPageSubscriber.create({
       status_page_id: page.id,
       email,
-      unsubscribe_token: crypto.randomUUID().replace(/-/g, ''),
-      confirmed_at: new Date().toISOString(),
+      unsubscribeToken: crypto.randomUUID().replace(/-/g, ''),
+      confirmedAt: new Date().toISOString(),
     })
     cleanup.push(subscriber)
 
@@ -63,7 +63,7 @@ describe('Status report subscriber notifications (stacksjs/status#1 Phase 12 fol
   }
 
   async function makeReportCovering(monitorIds: number[]) {
-    const report = await StatusReport.create({ team_id: TEAM_ID, title: 'Database migration this weekend', body: 'Planned work', status: 'monitoring', started_at: new Date().toISOString() })
+    const report = await StatusReport.create({ teamId: TEAM_ID, title: 'Database migration this weekend', body: 'Planned work', status: 'monitoring', startedAt: new Date().toISOString() })
     cleanup.push(report)
 
     for (const monitorId of monitorIds) {
@@ -138,7 +138,7 @@ describe('Status report subscriber notifications (stacksjs/status#1 Phase 12 fol
         status_report_id: report.id,
         message: 'Read-only window starts in ten minutes.',
         status: 'identified',
-        posted_at: new Date().toISOString(),
+        postedAt: new Date().toISOString(),
       })
       cleanup.push(update)
 

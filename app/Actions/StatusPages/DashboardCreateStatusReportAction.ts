@@ -31,12 +31,12 @@ export default new Action({
       return new Response(null, { status: 302, headers: { Location: '/dashboard/status-reports?error=status' } })
 
     const report = await StatusReport.create({
-      team_id: authTeamId,
+      teamId: authTeamId,
       title,
       body: body || undefined,
       status,
-      started_at: new Date().toISOString(),
-      resolved_at: status === 'resolved' ? new Date().toISOString() : undefined,
+      startedAt: new Date().toISOString(),
+      resolvedAt: status === 'resolved' ? new Date().toISOString() : undefined,
     })
 
     return new Response(null, { status: 302, headers: { Location: `/dashboard/status-reports/${report.id}` } })

@@ -70,29 +70,29 @@ export default new Action({
     const slug = requestedSlug ? slugify(String(requestedSlug)) : slugify(title)
 
     const statusPage = await StatusPage.create({
-      team_id: teamId,
+      teamId: teamId,
       slug,
       title,
-      is_public: true,
+      isPublic: true,
     })
 
     let monitorsCreated = 0
     for (const [index, component] of imported.components.entries()) {
       const monitor = await Monitor.create({
-        team_id: teamId,
+        teamId: teamId,
         name: component.name,
         url: sourceUrl,
         type: 'uptime',
         enabled: false,
-        check_interval_seconds: 300,
+        checkIntervalSeconds: 300,
         status: component.status,
       })
 
       await StatusPageMonitor.create({
         status_page_id: statusPage.id,
         monitor_id: monitor.id,
-        display_name: component.name,
-        display_order: index,
+        displayName: component.name,
+        displayOrder: index,
       })
 
       monitorsCreated++

@@ -166,7 +166,7 @@ export default new Job({
     const startedAt = new Date().toISOString()
     const crawl = await Crawl.create({
       monitor_id: monitor.id,
-      started_at: startedAt,
+      startedAt: startedAt,
       status: 'running',
     })
 
@@ -202,10 +202,10 @@ export default new Job({
       await CrawledPage.create({
         crawl_id: crawl.id,
         url,
-        status_code: statusCode,
-        found_on_url: foundOnUrl,
-        is_mixed_content: false,
-        is_broken_link: isBrokenLink,
+        statusCode: statusCode,
+        foundOnUrl: foundOnUrl,
+        isMixedContent: false,
+        isBrokenLink: isBrokenLink,
       })
       pagesCrawled++
 
@@ -221,10 +221,10 @@ export default new Job({
           await CrawledPage.create({
             crawl_id: crawl.id,
             url: resource,
-            status_code: 0,
-            found_on_url: url,
-            is_mixed_content: true,
-            is_broken_link: false,
+            statusCode: 0,
+            foundOnUrl: url,
+            isMixedContent: true,
+            isBrokenLink: false,
           })
         }
       }
@@ -305,12 +305,12 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status,
-      response_time_ms: Math.round(performance.now() - startedAtMs),
-      status_code: 0,
+      responseTimeMs: Math.round(performance.now() - startedAtMs),
+      statusCode: 0,
       message,
       metadata: JSON.stringify({ pagesCrawled, brokenLinksCount, mixedContentCount }),
       region: process.env.WORKER_REGION || 'default',
-      checked_at: checkedAt,
+      checkedAt: checkedAt,
     })
 
     // last_checked_at must advance on every terminal path - DispatchDueChecks
@@ -362,10 +362,10 @@ async function checkSitemap(origin: string, visited: Set<string>, crawlId: numbe
       await CrawledPage.create({
         crawl_id: crawlId,
         url,
-        status_code: statusCode,
-        found_on_url: 'sitemap.xml',
-        is_mixed_content: false,
-        is_broken_link: true,
+        statusCode: statusCode,
+        foundOnUrl: 'sitemap.xml',
+        isMixedContent: false,
+        isBrokenLink: true,
       })
     }
   }

@@ -165,9 +165,9 @@ export default new Job({
     await DomainRegistration.create({
       monitor_id: monitor.id,
       registrar: registrar ?? 'Unknown',
-      registered_at: registeredRaw ? parseWhoisDate(registeredRaw).toISOString() : null,
-      expires_at: expiresAt.toISOString(),
-      last_checked_at: checkedAt,
+      registeredAt: registeredRaw ? parseWhoisDate(registeredRaw).toISOString() : null,
+      expiresAt: expiresAt.toISOString(),
+      lastCheckedAt: checkedAt,
     })
 
     const daysUntilExpiry = Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -223,12 +223,12 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status,
-      response_time_ms: Math.round(performance.now() - startedAt),
-      status_code: 0,
+      responseTimeMs: Math.round(performance.now() - startedAt),
+      statusCode: 0,
       message,
       metadata: JSON.stringify({ domain, registrar: registrar ?? 'Unknown', daysUntilExpiry, expiresAt: expiresAt.toISOString() }),
       region: process.env.WORKER_REGION || 'default',
-      checked_at: checkedAt,
+      checkedAt: checkedAt,
     })
 
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1

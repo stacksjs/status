@@ -141,12 +141,12 @@ export default new Job({
     await CheckResult.create({
       monitor_id: monitor.id,
       status: listedOn.length > 0 ? 'degraded' : 'up',
-      response_time_ms: null,
-      status_code: null,
+      responseTimeMs: null,
+      statusCode: null,
       message: listedOn.length > 0 ? `Listed on: ${labels}` : 'Not listed on any checked blocklist',
       metadata: JSON.stringify({ ip, listedOn, ipSource, listings }),
       region: process.env.WORKER_REGION || 'default',
-      checked_at: checkedAt,
+      checkedAt: checkedAt,
     })
 
     // Level-triggered incident lifecycle: one incident stays open while the IP
@@ -189,7 +189,7 @@ export default new Job({
           incident_id: existingIncident.id,
           message: `Still listed on ${labels}. Delisting: ${delistLines}`.slice(0, 2000),
           status: 'monitoring',
-          posted_at: checkedAt,
+          postedAt: checkedAt,
         })
       }
     }
@@ -200,7 +200,7 @@ export default new Job({
         incident_id: existingIncident.id,
         message: 'No longer listed on any checked blocklist.',
         status: 'resolved',
-        posted_at: checkedAt,
+        postedAt: checkedAt,
       })
       log.info(`[job] RunBlocklistCheck: ${monitor.name} (${ip}) delisted - incident resolved`)
     }

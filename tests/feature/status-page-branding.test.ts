@@ -35,7 +35,7 @@ describe('Status page branding (stacksjs/status#1)', () => {
 
     token = String((await Auth.loginUsingId(userId, { withRefreshToken: false }))!.token)
 
-    page = await StatusPage.create({ team_id: teamId, title: 'Branding page', slug: `sp-branding-${SEED}`, is_public: true })
+    page = await StatusPage.create({ teamId: teamId, title: 'Branding page', slug: `sp-branding-${SEED}`, isPublic: true })
   })
 
   afterAll(async () => {
