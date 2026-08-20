@@ -82,18 +82,25 @@ jobs:
       # verify tsc actually ran before trusting a clean result.
       - name: Typecheck (app code)
         run: |
+          # Proving tsc ran by requiring at least one "error TS" line worked
+          # only while errors existed. The app now typechecks clean, so that
+          # check inverted: a perfect run looked identical to a crash and the
+          # job failed on success. Assert the compiler is present and runnable
+          # instead — that is the thing the guard was really trying to
+          # establish, and it stays true at zero errors.
+          bunx tsc --version
+
           bunx tsc --noEmit 2>&1 | tee /tmp/tsc.log || true
-          if ! grep -q "error TS" /tmp/tsc.log; then
-            echo "tsc produced no diagnostics at all — it did not run. Failing rather than reporting a vacuous pass:"
-            tail -20 /tmp/tsc.log
-            exit 1
-          fi
-          if grep "error TS" /tmp/tsc.log | grep -v "^storage/framework/" | grep -q .; then
+
+          # Framework code lives in node_modules now, not storage/framework.
+          # Dependencies' own declarations are skipLibCheck'd, so anything that
+          # still surfaces from there is not this app's gate to fail.
+          if grep "error TS" /tmp/tsc.log | grep -v "^node_modules/" | grep -q .; then
             echo "App-code type errors:"
-            grep "error TS" /tmp/tsc.log | grep -v "^storage/framework/"
+            grep "error TS" /tmp/tsc.log | grep -v "^node_modules/"
             exit 1
           fi
-          echo "App code typechecks clean ($(grep -c 'error TS' /tmp/tsc.log || true) pre-existing framework errors ignored)"
+          echo "App code typechecks clean ($(grep -c 'error TS' /tmp/tsc.log || true) dependency diagnostics ignored)"
 
   test:
     runs-on: ${{ matrix.os }}

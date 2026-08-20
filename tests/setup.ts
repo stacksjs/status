@@ -13,6 +13,15 @@ import { setupTestEnvironment } from '@stacksjs/testing'
 if (!Bun.env.STRIPE_SECRET_KEY)
   Bun.env.STRIPE_SECRET_KEY = 'sk_test_fake_key_for_testing'
 
+// SSO signs its flow cookie with an HMAC keyed on APP_KEY and throws without
+// one (app/Actions/Auth/oidc.ts hmacKey). A developer machine has APP_KEY in
+// .env, but .env is gitignored, so CI had none and every SSO test 500'd while
+// passing locally. Fixed rather than random: the tests assert on signatures,
+// so the key has to be stable within a run, and a real secret must never be
+// needed to run the suite. Guarded so a real env always wins.
+if (!Bun.env.APP_KEY)
+  Bun.env.APP_KEY = 'base64:dGVzdC1vbmx5LWFwcC1rZXktZm9yLXRoZS1zdWl0ZQ=='
+
 // Fake social-login credentials so config/sso.ts + config/services.ts
 // enable the google/apple/github providers under test — see
 // tests/feature/sso-social-login.test.ts, which mocks the provider HTTP
