@@ -298,10 +298,19 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
 
-      # ./buddy (the sh wrapper), NOT `bun buddy`: the wrapper bootstraps
-      # pantry and puts pantry/.bin on PATH before the CLI runs. The bare
-      # CLI's own pantry bootstrap installs pantry but then can't find it
-      # on PATH in a fresh runner and dies with a silent exit 1.
+      # `bun buddy`, NOT the ./buddy wrapper. The wrapper execs with
+      #   NODE_PATH="${PANTRY_DIR}:${NODE_PATH}"
+      # so pantry wins module resolution — and every one of pantry's 106
+      # @stacksjs entries is a symlink into storage/framework/core, the
+      # vendored tree removed in 323df65. The deploy was therefore resolving
+      # @stacksjs/env somewhere other than node_modules, which is why it could
+      # not decrypt .env.production while the identical getEnv() call, run from
+      # node_modules one step earlier in the same job, decrypted all 53 values.
+      #
+      # The comment this replaces said the bare CLI dies in a fresh runner
+      # because it cannot find pantry on PATH. That was true while the
+      # framework was vendored; lint, typecheck, test and migrate have all run
+      # through `bun buddy` since the de-vendor without needing pantry at all.
       # Same env as the Deploy step below, run through bun so the bunfig
       # preload and env loading happen exactly as they do for the CLI. The
       # earlier fingerprint was taken in a plain shell step, which proves what
@@ -444,7 +453,7 @@ jobs:
           # used, only whether the lookup finds it.
           DOTENV_PRIVATE_KEY_DEVELOPMENT: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
-        run: ./buddy deploy production --yes --verbose
+        run: bun buddy deploy production --yes --verbose
 
   publish-commit:
     if: github.event_name == 'pull_request'
