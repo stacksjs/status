@@ -302,6 +302,25 @@ jobs:
       # pantry and puts pantry/.bin on PATH before the CLI runs. The bare
       # CLI's own pantry bootstrap installs pantry but then can't find it
       # on PATH in a fresh runner and dies with a silent exit 1.
+      # Same env as the Deploy step below, run through bun so the bunfig
+      # preload and env loading happen exactly as they do for the CLI. The
+      # earlier fingerprint was taken in a plain shell step, which proves what
+      # GitHub injected but not what the process actually ends up holding —
+      # and a token that arrives correct and is then rewritten (to ciphertext,
+      # to undefined) would look identical from outside. Fingerprint only.
+      - name: Token as the deploy process sees it
+        if: steps.deploy-secrets.outputs.available == 'true'
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+        run: |
+          bun -e '
+            const t = process.env.HCLOUD_TOKEN ?? ""
+            const c = require("crypto").createHash("sha256").update(t).digest("hex").slice(0,16)
+            console.log("in-process HCLOUD_TOKEN: len=" + t.length + " cipher=" + t.startsWith("encrypted:") + " sha256=" + c)
+            console.log("expected good token    : len=64 sha256=fc2aed12f07315ba")
+          '
+
       - name: Deploy
         if: steps.deploy-secrets.outputs.available == 'true'
         env:
