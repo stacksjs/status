@@ -20,7 +20,7 @@
   },
   "scripts": {
     "build:reset": "rm -rf node_modules pantry.lock && pantry install && ./buddy generate:types && ./buddy lint:fix && cd storage/framework && bun run build && cd ../../",
-    "buddy": "./buddy",
+    "buddy": "bun node_modules/@stacksjs/buddy/dist/cli.js",
     "stacks": "./buddy",
     "setup": "./bootstrap",
     "fresh": "./buddy fresh",

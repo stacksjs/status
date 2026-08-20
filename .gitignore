@@ -88,3 +88,6 @@ storage/framework/cache/
 /.stacks
 /.ts-cloud
 .claude/settings.local.json
+
+# stx route manifest + asset copies, regenerated on every dev boot
+storage/framework/stx/

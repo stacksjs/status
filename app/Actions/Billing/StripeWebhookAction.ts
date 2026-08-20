@@ -3,7 +3,7 @@ import type Stripe from 'stripe'
 import { Action } from '@stacksjs/actions'
 import { config } from '@stacksjs/config'
 import { db } from '@stacksjs/database'
-import { constructEvent, handleWebhookEvent, onSubscription } from '@stacksjs/payments'
+import { constructEventAsync, handleWebhookEvent, onSubscription } from '@stacksjs/payments'
 import { response } from '@stacksjs/router'
 import { PAID_PLAN } from '../../../config/plans'
 import User from '../../Models/User'
@@ -118,7 +118,12 @@ export default new Action({
 
     let event: Stripe.Event
     try {
-      event = constructEvent(rawBody, signature, secret)
+      // Async variant, not `constructEvent`: under Bun the Stripe SDK verifies
+      // with SubtleCrypto, which is async-only and throws "SubtleCryptoProvider
+      // cannot be used in a synchronous context" from the sync call. That
+      // surfaces as a 401 on every webhook, so the sync version does not just
+      // fail the tests -- it rejects genuine Stripe deliveries in production.
+      event = await constructEventAsync(rawBody, signature, secret)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)

@@ -83,6 +83,11 @@ const config: PickierOptions = {
     '**/storage/framework/auto-imports/**',
     '**/storage/framework/frontend-dist/**',
     '**/storage/framework/server/storage/**',
+    // Route manifest and the asset copies stx emits on boot. Same class as the
+    // entries above: regenerated every dev start, so a lint fix here is
+    // overwritten before it can be committed. The originals under
+    // resources/assets are the editable copies.
+    '**/storage/framework/stx/**',
     '**/.bunpress/**',
     '**/docs/deps/**',
     // Generated scaffolds copied into pantry — out of project control
