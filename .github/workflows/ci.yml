@@ -368,10 +368,30 @@ jobs:
           # Seeding .env with the real pair makes both checks true, so no
           # keypair is generated and the correct key is the one in play. The
           # public half is not secret and already lives in .env.production.
+          # Replace in place, do not append. .env.example ships the pair as
+          # empty placeholders:
+          #
+          #   DOTENV_PUBLIC_KEY=
+          #   DOTENV_PRIVATE_KEY=
+          #
+          # so appending leaves two lines for each name, and readers disagree
+          # about which one counts — the loader took the populated one (getEnv
+          # decrypts all 53 values in this job), while anything matching the
+          # first occurrence, as setEnvValue does, got the empty one. That is
+          # the split that let every input look correct while the deploy still
+          # failed to decrypt.
           pub=$(grep '^DOTENV_PUBLIC_KEY_PRODUCTION=' .env.production | cut -d= -f2- | tr -d '"')
-          printf '\nDOTENV_PUBLIC_KEY="%s"\nDOTENV_PRIVATE_KEY="%s"\n' \
-            "$pub" "$DOTENV_PRIVATE_KEY_PRODUCTION" >> .env
-          echo "seeded .env with the production keypair (public len=${#pub})"
+          if grep -q '^DOTENV_PUBLIC_KEY=' .env; then
+            sed -i "s|^DOTENV_PUBLIC_KEY=.*|DOTENV_PUBLIC_KEY=\"$pub\"|" .env
+          else
+            printf '\nDOTENV_PUBLIC_KEY="%s"\n' "$pub" >> .env
+          fi
+          if grep -q '^DOTENV_PRIVATE_KEY=' .env; then
+            sed -i "s|^DOTENV_PRIVATE_KEY=.*|DOTENV_PRIVATE_KEY=\"$DOTENV_PRIVATE_KEY_PRODUCTION\"|" .env
+          else
+            printf 'DOTENV_PRIVATE_KEY="%s"\n' "$DOTENV_PRIVATE_KEY_PRODUCTION" >> .env
+          fi
+          echo "seeded .env keypair in place — public occurrences=$(grep -c '^DOTENV_PUBLIC_KEY=' .env) private occurrences=$(grep -c '^DOTENV_PRIVATE_KEY=' .env)"
 
       # Runs the exact call the deploy fails on:
       #   resolveDeployEnvValues -> getEnv(undefined, { file: '.env.production', format: 'json' })
