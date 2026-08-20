@@ -1,0 +1,17 @@
+-- Adds users.avatar, which the User model has always declared but no applied
+-- migration ever created.
+--
+-- The column exists in 0000000225-create-users-table.sql, but that file is a
+-- second `CREATE TABLE IF NOT EXISTS "users"` -- 0000000044 creates the table
+-- first, so 225 is a no-op and its two extra columns (avatar, uuid) never
+-- land. uuid arrives separately via the framework's auth-table migrator; avatar
+-- had nowhere else to come from.
+--
+-- The symptom was `buddy seed` failing with "table users has no column named
+-- avatar" and taking the deploy's post-database-setup step to exit 1 with it,
+-- in production as well as development.
+--
+-- Adding the column rather than editing 0000000044: the corpus is append-only,
+-- and rewriting an already-applied CREATE TABLE would not change any database
+-- that has run it.
+ALTER TABLE "users" ADD COLUMN "avatar" TEXT;

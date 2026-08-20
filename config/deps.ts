@@ -17,6 +17,13 @@ import type { PantryConfig } from "ts-pantry";
  * @see https://pantry.sh/docs/configuration
  */
 const usePostgres = (process.env.DB_CONNECTION || "sqlite") === "postgres";
+
+// Seeders populate every model from faker — `faker.person.fullName()`,
+// `faker.internet.email()`, `faker.image.avatar()` on User alone. That is what
+// you want on a fresh developer machine and never what you want on the box
+// serving statushq.org: a production deploy was reporting "Seeded your
+// production database. 24/25 model(s) seeded", i.e. inventing users.
+const isProduction = (process.env.APP_ENV || process.env.NODE_ENV || "").toLowerCase() === "production";
 const useRedis = usePostgres || process.env.QUEUE_DRIVER === "redis";
 
 // System-binary provisioning is OPT-IN (STACKS_SYSTEM_DEPS=1) while
@@ -88,7 +95,9 @@ export const config: PantryConfig = {
     // there until the 1200s timeout killed it, never reaching the SSH step.
     // The package.json script enters the published CLI directly; bun install
     // has already run by this point, so node_modules is present.
-    postDatabaseSetup: ["bun buddy migrate", "bun buddy seed"],
+    postDatabaseSetup: isProduction
+      ? ["bun buddy migrate"]
+      : ["bun buddy migrate", "bun buddy seed"],
 
     /**
      * Framework-specific service detection
