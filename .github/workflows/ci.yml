@@ -342,7 +342,16 @@ jobs:
           printf 'DOTENV_PRIVATE_KEY="%s"\nDOTENV_PRIVATE_KEY_PRODUCTION="%s"\n' \
             "$DOTENV_PRIVATE_KEY_PRODUCTION" "$DOTENV_PRIVATE_KEY_PRODUCTION" > .env.keys
           chmod 600 .env.keys
-          echo "wrote .env.keys ($(wc -l < .env.keys | tr -d ' ') keys, value not shown)"
+
+          # Fingerprint, not the value. The private key secret dates from the
+          # same day as the Hetzner token that turned out to be the wrong
+          # value, and a wrong key fails decryption in exactly the way a
+          # missing one does. The working key from the project's own .env.keys
+          # is sha256 9bc3de45963c9dcb — if this differs, the secret is stale
+          # and no amount of writing it to disk will decrypt anything.
+          klen=$(printf '%s' "$DOTENV_PRIVATE_KEY_PRODUCTION" | tr -d '[:space:]' | wc -c | tr -d ' ')
+          kfp=$(printf '%s' "$DOTENV_PRIVATE_KEY_PRODUCTION" | tr -d '[:space:]' | shasum -a 256 | cut -c1-16)
+          echo "wrote .env.keys — key len=$klen sha256=$kfp (expected sha256=9bc3de45963c9dcb)"
 
       - name: Deploy
         if: steps.deploy-secrets.outputs.available == 'true'
