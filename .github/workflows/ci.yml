@@ -353,6 +353,26 @@ jobs:
           kfp=$(printf '%s' "$DOTENV_PRIVATE_KEY_PRODUCTION" | tr -d '[:space:]' | shasum -a 256 | cut -c1-16)
           echo "wrote .env.keys — key len=$klen sha256=$kfp (expected sha256=9bc3de45963c9dcb)"
 
+          # .env.keys alone is not enough. `buddy key:generate` runs during the
+          # deploy and does:
+          #
+          #   hasPrivate = /^DOTENV_PRIVATE_KEY=.+$/m.test(<.env>)
+          #   if (!hasPublic || !hasPrivate) { generateKeypair() -> setEnvValue(...) }
+          #
+          # .env is copied from .env.example, which carries no keypair, so it
+          # mints a RANDOM one and writes it into .env. The loader then reads
+          # that into process.env.DOTENV_PRIVATE_KEY, which outranks .env.keys —
+          # so .env.production gets decrypted with a key that has existed for
+          # about a second, and all 12 encrypted values fail.
+          #
+          # Seeding .env with the real pair makes both checks true, so no
+          # keypair is generated and the correct key is the one in play. The
+          # public half is not secret and already lives in .env.production.
+          pub=$(grep '^DOTENV_PUBLIC_KEY_PRODUCTION=' .env.production | cut -d= -f2- | tr -d '"')
+          printf '\nDOTENV_PUBLIC_KEY="%s"\nDOTENV_PRIVATE_KEY="%s"\n' \
+            "$pub" "$DOTENV_PRIVATE_KEY_PRODUCTION" >> .env
+          echo "seeded .env with the production keypair (public len=${#pub})"
+
       - name: Deploy
         if: steps.deploy-secrets.outputs.available == 'true'
         env:
