@@ -604,7 +604,11 @@ export const tsCloud: TsCloudConfig = {
           root: '.',
           path: '/',
           domain: env.APP_DOMAIN || 'statushq.org',
-          start: 'bun storage/framework/core/buddy/src/cli.ts serve',
+          // `./buddy` rather than a direct path: the framework is an npm
+          // dependency now, and the shell wrapper resolves the CLI through its
+          // fallback chain (vendored -> @stacksjs/buddy src -> dist) instead of
+          // hardcoding a location that moved.
+          start: './buddy serve',
           port: 3000,
           // Zero-downtime cutover (ts-cloud default for ported sites):
           // stx >= 0.2.81 supports reusePort, which buddy serve enables in
@@ -617,7 +621,7 @@ export const tsCloud: TsCloudConfig = {
           // owns migrations for the shared database. `docs:build` renders the
           // bunpress documentation to dist/docs/.bunpress, which `buddy serve`
           // then serves in-process under /docs (see serveDocsStatic in
-          // storage/framework/core/buddy/src/commands/serve.ts).
+          // @stacksjs/buddy's serve command).
           preStart: ['bun install', 'bun buddy migrate', 'bun run docs:build'],
         },
 
@@ -633,7 +637,7 @@ export const tsCloud: TsCloudConfig = {
         // API off the public internet.
         api: {
           root: '.',
-          start: 'bun storage/framework/core/actions/src/serve/api.ts',
+          start: 'bun node_modules/@stacksjs/actions/dist/serve/api.js',
           port: 3008,
           preStart: ['bun install'],
           env: { HOST: '127.0.0.1', APP_ENV: 'production' },

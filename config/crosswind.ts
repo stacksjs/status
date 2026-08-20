@@ -15,7 +15,10 @@ export default {
     './resources/**/*.{stx,html}',
     './storage/framework/defaults/resources/views/**/*.{stx,html}',
     './storage/framework/defaults/resources/components/**/*.{stx,html}',
-    './storage/framework/core/error-handling/src/views/**/*.{stx,html}',
+    // The framework's error-page views used to be scanned from the vendored
+    // tree. @stacksjs/error-handling now renders them from JS and ships its
+    // own error-page-styles, so there is no .stx left to scan -- the package
+    // contains none. Nothing to repoint this glob at; it is simply gone.
   ],
   preflight: true,
   minify: false,

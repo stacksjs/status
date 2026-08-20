@@ -9,10 +9,10 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "paths": {
-      "@stacksjs/*": ["../storage/framework/core/*/dist"],
-      "stacks/*": ["../storage/framework/core/*/dist"],
-      "buddy": ["../storage/framework/core/buddy/dist/index.js"],
-      "buddy/*": ["../storage/framework/core/buddy/dist/*"],
+      "@stacksjs/*": ["../node_modules/@stacksjs/*/dist"],
+      "stacks/*": ["../node_modules/@stacksjs/*/dist"],
+      "buddy": ["../node_modules/@stacksjs/buddy/dist/index.js"],
+      "buddy/*": ["../node_modules/@stacksjs/buddy/dist/*"],
       "Actions/*": ["../app/Actions/*"],
       "Jobs/*": ["../app/Jobs/*"],
       "./app/*": ["../app/*"], // it's outside the dist folder
