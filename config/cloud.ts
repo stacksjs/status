@@ -40,6 +40,33 @@ const DEPLOY_ROLE = process.env.STATUS_DEPLOY_ROLE === 'worker' ? 'worker' : 'pr
  * @see https://github.com/stacksjs/ts-cloud
  */
 
+/**
+ * Hetzner API token, read at config-evaluation time.
+ *
+ * Also reports what it found. This file is imported by buddy's
+ * loadTsCloudConfig() during a deploy, which makes it the only place that can
+ * observe whether HCLOUD_TOKEN is actually visible at that point — every other
+ * check so far ran in a plain `bun` step rather than under the ./buddy wrapper,
+ * which bootstraps pantry and re-execs before the CLI starts.
+ *
+ * Logs a fingerprint, never the value. Remove the logging once the deploy
+ * authenticates; keep the resolution itself until buddy forwards its own
+ * resolved token to createCloudDriver.
+ */
+function resolveHetznerToken(): string | undefined {
+  const token = process.env.HCLOUD_TOKEN || process.env.HETZNER_API_TOKEN
+
+  if (process.env.CI) {
+    const shape = token
+      ? `len=${token.length} cipher=${token.startsWith('encrypted:')}`
+      : 'MISSING'
+    // eslint-disable-next-line no-console
+    console.warn(`[cloud.ts] HCLOUD_TOKEN at config-eval: ${shape}`)
+  }
+
+  return token
+}
+
 // ts-cloud configuration for deployment
 export const tsCloud: TsCloudConfig = {
   /**
@@ -73,7 +100,7 @@ export const tsCloud: TsCloudConfig = {
   // Setting it here puts the value on the one path the driver actually reads.
   // Remove once buddy forwards its resolved token to createCloudDriver.
   hetzner: {
-    apiToken: process.env.HCLOUD_TOKEN,
+    apiToken: resolveHetznerToken(),
   },
 
   /**
