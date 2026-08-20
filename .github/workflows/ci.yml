@@ -373,6 +373,40 @@ jobs:
             "$pub" "$DOTENV_PRIVATE_KEY_PRODUCTION" >> .env
           echo "seeded .env with the production keypair (public len=${#pub})"
 
+      # Runs the exact call the deploy fails on:
+      #   resolveDeployEnvValues -> getEnv(undefined, { file: '.env.production', format: 'json' })
+      # Locally that returns 52 keys with 0 still encrypted. In the runner the
+      # deploy reports 12 undecryptable, with the correct key present in both
+      # .env.keys and .env. Running it here shows which key the resolver
+      # actually picks, and from where, instead of inferring it.
+      - name: Can the runner decrypt .env.production?
+        if: steps.deploy-secrets.outputs.available == 'true'
+        env:
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+        run: |
+          bun -e '
+            const sha = (v) => v ? require("crypto").createHash("sha256").update(v).digest("hex").slice(0,16) : "-"
+            for (const k of ["DOTENV_PRIVATE_KEY", "DOTENV_PRIVATE_KEY_PRODUCTION", "DOTENV_PRIVATE_KEY_DEVELOPMENT"]) {
+              const v = process.env[k]
+              console.log(`env ${k}: ${v ? "len=" + v.length + " sha=" + sha(v) : "unset"}`)
+            }
+            const fs = require("fs")
+            for (const f of [".env", ".env.keys"]) {
+              const line = fs.existsSync(f) ? (fs.readFileSync(f, "utf8").split("\n").find(l => /^DOTENV_PRIVATE_KEY=/.test(l)) ?? "") : "(file absent)"
+              const val = line.replace(/^DOTENV_PRIVATE_KEY=/, "").replace(/^"|"$/g, "")
+              console.log(`file ${f}: ${val ? "len=" + val.length + " sha=" + sha(val) : line || "no bare key"}`)
+            }
+            const { getEnv } = await import("@stacksjs/env")
+            const r = getEnv(undefined, { file: ".env.production", format: "json" })
+            if (!r.success || !r.output) { console.log("getEnv FAILED:", r.error); }
+            else {
+              const p = JSON.parse(r.output)
+              const enc = Object.entries(p).filter(([, v]) => /^(encrypted|enc):/.test(String(v))).map(([k]) => k)
+              console.log(`getEnv: ${Object.keys(p).length} keys, ${enc.length} still encrypted`)
+            }
+            console.log("known-good key sha=9bc3de45963c9dcb")
+          '
+
       - name: Deploy
         if: steps.deploy-secrets.outputs.available == 'true'
         env:
