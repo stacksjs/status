@@ -81,7 +81,14 @@ export const config: PantryConfig = {
      * Commands to run after database setup
      * Useful for migrations and seeding
      */
-    postDatabaseSetup: ["./buddy migrate", "./buddy seed"],
+    // `bun buddy ...`, not `./buddy ...`. These run *inside* `pantry install`,
+    // and ./buddy is the shell wrapper that bootstraps pantry when the
+    // gitignored pantry/ dir is missing — which it is on a fresh runner. So the
+    // hook re-entered the installer that invoked it and the whole deploy sat
+    // there until the 1200s timeout killed it, never reaching the SSH step.
+    // The package.json script enters the published CLI directly; bun install
+    // has already run by this point, so node_modules is present.
+    postDatabaseSetup: ["bun buddy migrate", "bun buddy seed"],
 
     /**
      * Framework-specific service detection
@@ -108,8 +115,11 @@ export const config: PantryConfig = {
     commands: [
       {
         name: "Generate model files",
-        command: "./buddy",
-        args: ["generate:model-files"],
+        // Direct CLI entry for the same reason as postDatabaseSetup above:
+        // this runs inside pantry's own setup, where ./buddy would bootstrap
+        // pantry recursively.
+        command: "bun",
+        args: ["node_modules/@stacksjs/buddy/dist/cli.js", "generate:model-files"],
         description: "Generate TypeScript model files from database schema",
         required: false,
       },

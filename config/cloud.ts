@@ -608,7 +608,10 @@ export const tsCloud: TsCloudConfig = {
           // dependency now, and the shell wrapper resolves the CLI through its
           // fallback chain (vendored -> @stacksjs/buddy src -> dist) instead of
           // hardcoding a location that moved.
-          start: './buddy serve',
+          // Direct CLI entry, not the ./buddy wrapper: the wrapper bootstraps
+          // pantry when pantry/ is absent, which would run on every service
+          // start on the box (and against a registry that has been 502ing).
+          start: 'bun node_modules/@stacksjs/buddy/dist/cli.js serve',
           port: 3000,
           // Zero-downtime cutover (ts-cloud default for ported sites):
           // stx >= 0.2.81 supports reusePort, which buddy serve enables in
