@@ -432,6 +432,18 @@ jobs:
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          # Same key under the name the loader actually asks for. It resolves
+          # the environment as "development" during a production deploy —
+          #   no usable private key was found for the "development" environment;
+          #   Set DOTENV_PRIVATE_KEY_DEVELOPMENT or ship .env.keys
+          # — and looks up DOTENV_PRIVATE_KEY_<ENV> by that name, so
+          # _PRODUCTION is never consulted no matter how correct it is.
+          #
+          # The values in .env.production are encrypted against a single
+          # keypair, so naming it _DEVELOPMENT does not change which key is
+          # used, only whether the lookup finds it.
+          DOTENV_PRIVATE_KEY_DEVELOPMENT: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
         run: ./buddy deploy production --yes --verbose
 
   publish-commit:
