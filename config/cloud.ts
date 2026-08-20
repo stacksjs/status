@@ -1,7 +1,7 @@
 import type { CloudConfig } from '@stacksjs/types'
 import type { CloudConfig as TsCloudConfig } from '@stacksjs/ts-cloud'
 import process from 'node:process'
-import { env } from '@stacksjs/env'
+import { decryptEnvValue, env } from '@stacksjs/env'
 
 /**
  * Deploy role (stacksjs/status#1 Phase 11 — multi-region).
@@ -54,17 +54,32 @@ const DEPLOY_ROLE = process.env.STATUS_DEPLOY_ROLE === 'worker' ? 'worker' : 'pr
  * resolved token to createCloudDriver.
  */
 function resolveHetznerToken(): string | undefined {
-  const token = process.env.HCLOUD_TOKEN || process.env.HETZNER_API_TOKEN
+  const raw = process.env.HCLOUD_TOKEN || process.env.HETZNER_API_TOKEN
+  if (!raw)
+    return undefined
 
-  if (process.env.CI) {
-    const shape = token
-      ? `len=${token.length} cipher=${token.startsWith('encrypted:')}`
-      : 'MISSING'
+  // A plain token is already the answer.
+  if (!raw.startsWith('encrypted:'))
+    return raw
+
+  // Otherwise the env loader has overwritten the value CI injected with the
+  // still-encrypted one from .env.production. It does that while resolving the
+  // "development" environment, where DOTENV_PRIVATE_KEY_DEVELOPMENT is absent
+  // (the `[env] warning: ... falling back to its default` lines during a
+  // production deploy), so the ciphertext is left in place. ts-cloud then sent
+  // `Bearer encrypted:...` and Hetzner reported the token as invalid — while
+  // every other step of the same job held the correct 64-character value.
+  //
+  // DOTENV_PRIVATE_KEY_PRODUCTION is present in the deploy environment, so the
+  // value can simply be decrypted here.
+  const plain = decryptEnvValue(raw, { env: 'production' })
+  if (!plain) {
     // eslint-disable-next-line no-console
-    console.warn(`[cloud.ts] HCLOUD_TOKEN at config-eval: ${shape}`)
+    console.warn('[cloud.ts] HCLOUD_TOKEN arrived encrypted and could not be decrypted; deploy will fail to authenticate.')
+    return undefined
   }
 
-  return token
+  return plain
 }
 
 // ts-cloud configuration for deployment
