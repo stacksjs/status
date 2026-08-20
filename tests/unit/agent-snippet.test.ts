@@ -52,7 +52,10 @@ describe('agent collector', () => {
     // and the page shows whichever reported last. The SDKs send `host`; the
     // installer is the third collector and must not be the odd one out.
     const body = collector()
-    expect(body).toContain('"host"')
+    // The payload is built inside a double-quoted shell string, so the JSON
+    // key is escaped as \"host\" -- matching on a bare "host" would pass on
+    // the surrounding prose and fail on the line that matters.
+    expect(body).toContain('\\"host\\":')
     expect(body).toContain('hostname')
   })
 
