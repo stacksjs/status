@@ -307,7 +307,7 @@ jobs:
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
-        run: ./buddy deploy production --yes
+        run: ./buddy deploy production --yes --verbose
 
   publish-commit:
     if: github.event_name == 'pull_request'
