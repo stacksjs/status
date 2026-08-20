@@ -321,6 +321,29 @@ jobs:
             console.log("expected good token    : len=64 sha256=fc2aed12f07315ba")
           '
 
+      # The env loader resolves the environment name to "development" and then
+      # looks for DOTENV_PRIVATE_KEY_DEVELOPMENT, so DOTENV_PRIVATE_KEY_PRODUCTION
+      # being set in the job is not enough — a production deploy still reports
+      #   12 value(s) in .env.production could not be decrypted
+      # and every encrypted value falls back to its default.
+      #
+      # Its key lookup reads .env.keys and, when it finds no key named for the
+      # environment it thinks it is in, falls back to a bare DOTENV_PRIVATE_KEY.
+      # Writing the production key under that name is what makes the lookup
+      # succeed regardless of which environment it believes it is resolving.
+      #
+      # .env.keys is gitignored, the runner is ephemeral, and the value comes
+      # from the same secret already passed below.
+      - name: Provide the decryption key as .env.keys
+        if: steps.deploy-secrets.outputs.available == 'true'
+        env:
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+        run: |
+          printf 'DOTENV_PRIVATE_KEY="%s"\nDOTENV_PRIVATE_KEY_PRODUCTION="%s"\n' \
+            "$DOTENV_PRIVATE_KEY_PRODUCTION" "$DOTENV_PRIVATE_KEY_PRODUCTION" > .env.keys
+          chmod 600 .env.keys
+          echo "wrote .env.keys ($(wc -l < .env.keys | tr -d ' ') keys, value not shown)"
+
       - name: Deploy
         if: steps.deploy-secrets.outputs.available == 'true'
         env:
