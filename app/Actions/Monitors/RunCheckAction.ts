@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { log } from '@stacksjs/logging'
 import { response } from '@stacksjs/router'
+import { isActivelyPolled, type PolledMonitorType } from '../../lib/monitorTypes'
 import AiCheck from '../../Models/AiCheck'
 import Monitor from '../../Models/Monitor'
 import RunAiCheck from '../../Jobs/RunAiCheck'
@@ -17,7 +18,11 @@ import RunSslCheck from '../../Jobs/RunSslCheck'
 import RunTcpPortCheck from '../../Jobs/RunTcpPortCheck'
 import RunUptimeCheck from '../../Jobs/RunUptimeCheck'
 
-const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }>> = {
+// Keyed by PolledMonitorType, so a polled type without an on-demand runner
+// (or a runner for a type nothing declares as polled) is a build error. This
+// file is inside tsconfig's include, so this is the copy that enforces it for
+// both maps until app/Jobs joins the ratchet.
+const CHECK_JOBS: Record<PolledMonitorType, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }> = {
   uptime: RunUptimeCheck,
   performance: RunUptimeCheck,
   ssl: RunSslCheck,
@@ -65,7 +70,7 @@ export default new Action({
       return { success: true, message: `${assertions.length} AI check(s) dispatched for ${monitor.name}` }
     }
 
-    const job = CHECK_JOBS[monitor.type]
+    const job = isActivelyPolled(monitor.type) ? CHECK_JOBS[monitor.type as PolledMonitorType] : undefined
     if (!job) {
       log.warn(`[RunCheckAction] Monitor type '${monitor.type}' has no on-demand check runner yet`)
       return { success: false, message: `Check type '${monitor.type}' is not implemented yet` }

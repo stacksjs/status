@@ -4,6 +4,7 @@ import CheckResult from '../../Models/CheckResult'
 import Incident from '../../Models/Incident'
 import { aggregateHostStatus, describeBreaches, normalizeHost, readingsFromRows } from '../../lib/agentHosts'
 import { openIncident } from '../../lib/maintenance'
+import { isActivelyPolled } from '../../lib/monitorTypes'
 import IncidentUpdate from '../../Models/IncidentUpdate'
 import Monitor from '../../Models/Monitor'
 import { broadcastMonitorUpdate } from '../../Realtime/broadcastMonitorUpdate'
@@ -96,7 +97,24 @@ export default new Action({
 
     const prev = monitor.status
     const consecutiveFailures = status === 'up' ? 0 : monitor.consecutive_failures + 1
-    await monitor.update({ status, last_checked_at: checkedAt, consecutive_failures: consecutiveFailures })
+
+    // `last_checked_at` is the ACTIVE PROBE's scheduling clock, not a generic
+    // "we heard something" timestamp: DispatchDueChecks computes
+    // `dueAt = last_checked_at + interval`, so advancing it here pushes the
+    // next probe further out. An agent pushing faster than the monitor's
+    // interval keeps dueAt permanently in the future and the probe stops
+    // running entirely — production monitor 49 went unprobed from
+    // 2026-08-21T08:44 (agent every ~30s, 60s interval), which in turn starved
+    // CheckPerformanceTrends of response times and stranded two degradation
+    // incidents with no data to recover on. Monitor 48 escaped only because
+    // its agent pushed slightly slower than its own interval.
+    //
+    // So only a monitor nothing else probes may have its clock set from here;
+    // for the rest the probe owns it. Agent freshness is tracked separately
+    // off the last region='agent' CheckResult (see CheckStaleMetrics, which
+    // learned the same lesson from the other direction).
+    const clock = isActivelyPolled(monitor.type) ? {} : { last_checked_at: checkedAt }
+    await monitor.update({ status, ...clock, consecutive_failures: consecutiveFailures })
     void broadcastMonitorUpdate(monitor.id)
 
     // This push is proof the agent is alive, so it clears any open missed-push

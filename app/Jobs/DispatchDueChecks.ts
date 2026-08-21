@@ -1,6 +1,7 @@
 import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import AiCheck from '../Models/AiCheck'
+import { isActivelyPolled, type PolledMonitorType } from '../lib/monitorTypes'
 import Monitor from '../Models/Monitor'
 import RunAiCheck from './RunAiCheck'
 import RunBlocklistCheck from './RunBlocklistCheck'
@@ -51,7 +52,14 @@ function backoffMultiplier(consecutiveFailures: number): number {
   return Math.min(MAX_BACKOFF_MULTIPLIER, 2 ** doublings)
 }
 
-const CHECK_JOBS: Partial<Record<string, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }>> = {
+// Keyed by PolledMonitorType rather than `string`, so a type listed in
+// POLLED_MONITOR_TYPES with no runner here — or a runner for a type nothing
+// declares as polled — is a build error rather than a monitor that silently
+// stops being dispatched. NOTE: app/Jobs is not in tsconfig's include yet
+// (only app/lib and app/Actions are — see the Phase 7 ratchet), so today that
+// check actually bites in RunCheckAction, which keys the same map the same
+// way and IS typechecked. This one starts enforcing when app/Jobs joins.
+const CHECK_JOBS: Record<PolledMonitorType, { dispatch: (payload: { monitorId: number }) => Promise<unknown> }> = {
   uptime: RunUptimeCheck,
   // 'performance' monitors run the same HTTP check as uptime — the
   // response times it records are exactly what CheckPerformanceTrends
@@ -114,7 +122,7 @@ export default new Job({
         continue
       }
 
-      const job = CHECK_JOBS[monitor.type]
+      const job = isActivelyPolled(monitor.type) ? CHECK_JOBS[monitor.type as PolledMonitorType] : undefined
       if (!job)
         continue
 

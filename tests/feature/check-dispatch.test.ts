@@ -1,5 +1,6 @@
 import type { Server } from 'bun'
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
+import { featureTest } from '@stacksjs/testing'
 import DispatchDueChecks from '../../app/Jobs/DispatchDueChecks'
 import CheckResult from '../../app/Models/CheckResult'
 import Incident from '../../app/Models/Incident'
@@ -104,5 +105,77 @@ describe('DispatchDueChecks (stacksjs/status#1 Phase 1)', () => {
 
     const refreshed = await Monitor.find(monitor.id)
     expect(refreshed!.last_checked_at).toBe(veryStale)
+  })
+
+  /**
+   * `last_checked_at` is this job's scheduling clock — `dueAt` is derived from
+   * it — so anything else writing it moves the next probe further away.
+   * ReceiveMetricsAction used to write it on every agent push, and an agent
+   * pushing faster than the monitor's own interval therefore held dueAt
+   * permanently in the future: production monitor 49 went unprobed from
+   * 2026-08-21T08:44 (agent every ~30s against a 60s interval) while monitor
+   * 48 survived only because its agent happened to push a little slower than
+   * its interval. Losing the probe also starved CheckPerformanceTrends of
+   * response times, stranding two degradation incidents with nothing to
+   * recover on.
+   */
+  describe('an agent metrics push must not starve the monitor\'s own probe', () => {
+    test('a polled monitor is still dispatched after an agent push', async () => {
+      const token = `mtok-dispatch-${TEAM_ID}-${Math.floor(performance.now() * 1000)}`
+      const monitor = await Monitor.create({
+        teamId: TEAM_ID,
+        name: 'Dispatch agent-fed test',
+        url: `http://localhost:${server.port}/`,
+        type: 'uptime',
+        checkIntervalSeconds: 60,
+        lastCheckedAt: new Date(Date.now() - 120_000).toISOString(),
+        enabled: true,
+        reportsMetrics: true,
+        metricsToken: token,
+      })
+
+      // The agent reports in, exactly as it would seconds before the probe is due.
+      const pushed = await featureTest().post(`/api/agent/${token}/metrics`, {
+        cpuPercent: 5,
+        ramPercent: 5,
+        ramUsedMb: 1,
+        ramTotalMb: 2,
+      })
+      expect(pushed.status).toBe(200)
+
+      await DispatchDueChecks.handle({ teamId: TEAM_ID })
+
+      // The probe's own observation, not the agent's sample.
+      const probed = (await CheckResult.where('monitor_id', monitor.id).get()).filter(r => r.region !== 'agent')
+      expect(probed.length).toBeGreaterThan(0)
+    })
+
+    test('a monitor nothing else probes still takes its clock from the agent push', async () => {
+      const token = `mtok-passive-${TEAM_ID}-${Math.floor(performance.now() * 1000)}`
+      const stale = new Date(Date.now() - 120_000).toISOString()
+      // 'cron' is heartbeat-based, so DispatchDueChecks never dispatches it and
+      // no probe will ever set this column — the agent is the only writer left.
+      const monitor = await Monitor.create({
+        teamId: TEAM_ID,
+        name: 'Dispatch passive test',
+        url: `http://localhost:${server.port}/`,
+        type: 'cron',
+        checkIntervalSeconds: 60,
+        lastCheckedAt: stale,
+        enabled: true,
+        reportsMetrics: true,
+        metricsToken: token,
+      })
+
+      await featureTest().post(`/api/agent/${token}/metrics`, {
+        cpuPercent: 5,
+        ramPercent: 5,
+        ramUsedMb: 1,
+        ramTotalMb: 2,
+      })
+
+      const refreshed = await Monitor.find(monitor.id)
+      expect(refreshed!.last_checked_at).not.toBe(stale)
+    })
   })
 })
