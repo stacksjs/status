@@ -298,38 +298,6 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
 
-      # `bun buddy`, NOT the ./buddy wrapper. The wrapper execs with
-      #   NODE_PATH="${PANTRY_DIR}:${NODE_PATH}"
-      # so pantry wins module resolution — and every one of pantry's 106
-      # @stacksjs entries is a symlink into storage/framework/core, the
-      # vendored tree removed in 323df65. The deploy was therefore resolving
-      # @stacksjs/env somewhere other than node_modules, which is why it could
-      # not decrypt .env.production while the identical getEnv() call, run from
-      # node_modules one step earlier in the same job, decrypted all 53 values.
-      #
-      # The comment this replaces said the bare CLI dies in a fresh runner
-      # because it cannot find pantry on PATH. That was true while the
-      # framework was vendored; lint, typecheck, test and migrate have all run
-      # through `bun buddy` since the de-vendor without needing pantry at all.
-      # Same env as the Deploy step below, run through bun so the bunfig
-      # preload and env loading happen exactly as they do for the CLI. The
-      # earlier fingerprint was taken in a plain shell step, which proves what
-      # GitHub injected but not what the process actually ends up holding —
-      # and a token that arrives correct and is then rewritten (to ciphertext,
-      # to undefined) would look identical from outside. Fingerprint only.
-      - name: Token as the deploy process sees it
-        if: steps.deploy-secrets.outputs.available == 'true'
-        env:
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
-        run: |
-          bun -e '
-            const t = process.env.HCLOUD_TOKEN ?? ""
-            const c = require("crypto").createHash("sha256").update(t).digest("hex").slice(0,16)
-            console.log("in-process HCLOUD_TOKEN: len=" + t.length + " cipher=" + t.startsWith("encrypted:") + " sha256=" + c)
-            console.log("expected good token    : len=64 sha256=fc2aed12f07315ba")
-          '
-
       # The env loader resolves the environment name to "development" and then
       # looks for DOTENV_PRIVATE_KEY_DEVELOPMENT, so DOTENV_PRIVATE_KEY_PRODUCTION
       # being set in the job is not enough — a production deploy still reports
@@ -351,16 +319,6 @@ jobs:
           printf 'DOTENV_PRIVATE_KEY="%s"\nDOTENV_PRIVATE_KEY_PRODUCTION="%s"\n' \
             "$DOTENV_PRIVATE_KEY_PRODUCTION" "$DOTENV_PRIVATE_KEY_PRODUCTION" > .env.keys
           chmod 600 .env.keys
-
-          # Fingerprint, not the value. The private key secret dates from the
-          # same day as the Hetzner token that turned out to be the wrong
-          # value, and a wrong key fails decryption in exactly the way a
-          # missing one does. The working key from the project's own .env.keys
-          # is sha256 9bc3de45963c9dcb — if this differs, the secret is stale
-          # and no amount of writing it to disk will decrypt anything.
-          klen=$(printf '%s' "$DOTENV_PRIVATE_KEY_PRODUCTION" | tr -d '[:space:]' | wc -c | tr -d ' ')
-          kfp=$(printf '%s' "$DOTENV_PRIVATE_KEY_PRODUCTION" | tr -d '[:space:]' | shasum -a 256 | cut -c1-16)
-          echo "wrote .env.keys — key len=$klen sha256=$kfp (expected sha256=9bc3de45963c9dcb)"
 
           # .env.keys alone is not enough. `buddy key:generate` runs during the
           # deploy and does:
@@ -400,41 +358,7 @@ jobs:
           else
             printf 'DOTENV_PRIVATE_KEY="%s"\n' "$DOTENV_PRIVATE_KEY_PRODUCTION" >> .env
           fi
-          echo "seeded .env keypair in place — public occurrences=$(grep -c '^DOTENV_PUBLIC_KEY=' .env) private occurrences=$(grep -c '^DOTENV_PRIVATE_KEY=' .env)"
-
-      # Runs the exact call the deploy fails on:
-      #   resolveDeployEnvValues -> getEnv(undefined, { file: '.env.production', format: 'json' })
-      # Locally that returns 52 keys with 0 still encrypted. In the runner the
-      # deploy reports 12 undecryptable, with the correct key present in both
-      # .env.keys and .env. Running it here shows which key the resolver
-      # actually picks, and from where, instead of inferring it.
-      - name: Can the runner decrypt .env.production?
-        if: steps.deploy-secrets.outputs.available == 'true'
-        env:
-          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
-        run: |
-          bun -e '
-            const sha = (v) => v ? require("crypto").createHash("sha256").update(v).digest("hex").slice(0,16) : "-"
-            for (const k of ["DOTENV_PRIVATE_KEY", "DOTENV_PRIVATE_KEY_PRODUCTION", "DOTENV_PRIVATE_KEY_DEVELOPMENT"]) {
-              const v = process.env[k]
-              console.log(`env ${k}: ${v ? "len=" + v.length + " sha=" + sha(v) : "unset"}`)
-            }
-            const fs = require("fs")
-            for (const f of [".env", ".env.keys"]) {
-              const line = fs.existsSync(f) ? (fs.readFileSync(f, "utf8").split("\n").find(l => /^DOTENV_PRIVATE_KEY=/.test(l)) ?? "") : "(file absent)"
-              const val = line.replace(/^DOTENV_PRIVATE_KEY=/, "").replace(/^"|"$/g, "")
-              console.log(`file ${f}: ${val ? "len=" + val.length + " sha=" + sha(val) : line || "no bare key"}`)
-            }
-            const { getEnv } = await import("@stacksjs/env")
-            const r = getEnv(undefined, { file: ".env.production", format: "json" })
-            if (!r.success || !r.output) { console.log("getEnv FAILED:", r.error); }
-            else {
-              const p = JSON.parse(r.output)
-              const enc = Object.entries(p).filter(([, v]) => /^(encrypted|enc):/.test(String(v))).map(([k]) => k)
-              console.log(`getEnv: ${Object.keys(p).length} keys, ${enc.length} still encrypted`)
-            }
-            console.log("known-good key sha=9bc3de45963c9dcb")
-          '
+          echo "seeded .env keypair in place"
 
       # Decrypt .env.production up front, so the deploy has nothing left to
       # decrypt.
@@ -451,8 +375,8 @@ jobs:
       # DOTENV_PRIVATE_KEY_PRODUCTION, as DOTENV_PRIVATE_KEY_DEVELOPMENT, as a
       # bare DOTENV_PRIVATE_KEY, in .env, and in .env.keys all failed in turn.
       #
-      # getEnv(file) does work — it decrypts all 53 values in this job, one
-      # step above. So do that here and write the result back. The deploy then
+      # getEnv(file) does work — given the file explicitly it decrypts all 53
+      # values. So do that here and write the result back. The deploy then
       # reads a file with nothing encrypted in it and the broken lookup never
       # runs.
       #
@@ -496,7 +420,14 @@ jobs:
           # used, only whether the lookup finds it.
           DOTENV_PRIVATE_KEY_DEVELOPMENT: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
-        run: bun buddy deploy production --yes --verbose
+        # `bun buddy`, NOT the ./buddy wrapper. The wrapper execs with
+        #   NODE_PATH="${PANTRY_DIR}:${NODE_PATH}"
+        # so pantry wins module resolution — and every one of pantry's 106
+        # @stacksjs entries is a symlink into storage/framework/core, the
+        # vendored tree removed in 323df65. Going through the wrapper resolves
+        # @stacksjs/env somewhere other than node_modules and the deploy cannot
+        # decrypt anything.
+        run: bun buddy deploy production --yes
 
   publish-commit:
     if: github.event_name == 'pull_request'
