@@ -19,6 +19,30 @@ import { decryptEnvValue, env } from '@stacksjs/env'
 const DEPLOY_ROLE = process.env.STATUS_DEPLOY_ROLE === 'worker' ? 'worker' : 'primary'
 
 /**
+ * The loopback port the `api` site binds, and the port `main`'s same-origin
+ * `/api` proxy forwards to. ONE constant on purpose: these are two halves of
+ * the same fact, and when they were written out separately the proxy half was
+ * simply never written at all.
+ *
+ * `buddy serve` resolves its proxy target with (production-server.js):
+ *
+ *   if (env.API_URL) return env.API_URL
+ *   if (Number(env.PORT_API)) return `http://127.0.0.1:${env.PORT_API}`
+ *   if (['production','staging','development'].includes(env.APP_ENV)) return null
+ *   return `http://127.0.0.1:${configuredPort || 3008}`
+ *
+ * Note the third line: in production it returns `null` rather than falling
+ * through to `configuredPort`, because a shared host has no safe port to
+ * guess. So `config/ports.ts`'s `api: 3008` is deliberately NOT consulted
+ * here — a correct ports config cannot satisfy this, only a PORT_API in
+ * `main`'s own environment can. Without it every `/api/*` request 502s while
+ * the API itself sits healthy on loopback (which is exactly what shipped in
+ * 6f752f9, and what crash-looped statushq-agent against the agent metrics
+ * endpoint).
+ */
+const API_PORT = 3008
+
+/**
  * StatusHQ Cloud Configuration
  *
  * Single Hetzner Cloud box (Forge-style, no AWS) running the app, its
@@ -681,6 +705,10 @@ export const tsCloud: TsCloudConfig = {
           // behind the gateway. The gate additionally probes / before the
           // old instance stops.
           healthCheck: { path: '/' },
+          // PORT_API is what makes the same-origin `/api` proxy work at all in
+          // production — see API_PORT above. The `api` site below binds this
+          // same constant on loopback.
+          env: { APP_ENV: 'production', PORT_API: String(API_PORT) },
           // `buddy migrate` only applies pending schema changes, so running it
           // on every deploy is safe/idempotent — this is the one site that
           // owns migrations for the shared database. `docs:build` renders the
@@ -703,7 +731,7 @@ export const tsCloud: TsCloudConfig = {
         api: {
           root: '.',
           start: 'bun node_modules/@stacksjs/actions/dist/serve/api.js',
-          port: 3008,
+          port: API_PORT,
           preStart: ['bun install'],
           env: { HOST: '127.0.0.1', APP_ENV: 'production' },
           // Zero-downtime cutover (ts-cloud default for ported sites): the
