@@ -3,6 +3,8 @@ import { awaitConfig } from '@stacksjs/config'
 import { db } from '@stacksjs/database'
 import { CONSENSUS_TYPES } from '../../config/regions'
 import { openIncident } from '../../app/lib/maintenance'
+import EvaluateMonitorConsensus from '../../app/Jobs/EvaluateMonitorConsensus'
+import CheckResult from '../../app/Models/CheckResult'
 import Incident from '../../app/Models/Incident'
 import Monitor from '../../app/Models/Monitor'
 
@@ -45,14 +47,29 @@ describe('Metrics vs consensus incident ownership', () => {
     }
   }
 
+  /**
+   * Children before parents, depth-first: incident_updates -> incidents and
+   * check_results -> monitors are both real FKs, and resolving an incident
+   * writes an IncidentUpdate, so any test that drives the job leaves
+   * grandchildren behind. One helper for both teardowns — when these were
+   * written out twice they drifted, and the copy that was missing a level
+   * failed only when the suite ran in order.
+   */
+  async function purgeTeamMonitors(): Promise<void> {
+    for (const monitor of await Monitor.where('team_id', teamId).get()) {
+      await db.deleteFrom('check_results').where('monitor_id', '=', monitor.id).execute()
+      for (const incident of await Incident.where('monitor_id', monitor.id).get())
+        await db.deleteFrom('incident_updates').where('incident_id', '=', incident.id).execute()
+      await db.deleteFrom('incidents').where('monitor_id', '=', monitor.id).execute()
+      await monitor.delete()
+    }
+  }
+
   async function cleanupTeam(): Promise<void> {
     const team = await db.selectFrom('teams').where('name', '=', TEAM_NAME).select(['id']).executeTakeFirst()
     if (team) {
       teamId = Number(team.id)
-      for (const monitor of await Monitor.where('team_id', teamId).get()) {
-        await db.deleteFrom('incidents').where('monitor_id', '=', monitor.id).execute()
-        await monitor.delete()
-      }
+      await purgeTeamMonitors()
       await db.deleteFrom('teams').where('id', '=', teamId).execute()
     }
   }
@@ -65,10 +82,7 @@ describe('Metrics vs consensus incident ownership', () => {
   })
 
   beforeEach(async () => {
-    for (const monitor of await Monitor.where('team_id', teamId).get()) {
-      await db.deleteFrom('incidents').where('monitor_id', '=', monitor.id).execute()
-      await monitor.delete()
-    }
+    await purgeTeamMonitors()
     const monitor = await Monitor.create({
       team_id: teamId,
       name: `metrics-owner-${SEED}`,
@@ -149,5 +163,70 @@ describe('Metrics vs consensus incident ownership', () => {
     await openIncident({ ...attrs, started_at: new Date().toISOString() })
 
     expect((await Incident.where('monitor_id', monitorId).get()).length).toBe(1)
+  })
+
+  /**
+   * Recovery must be reconciled from state, not from the down->up edge.
+   *
+   * `monitor.status` has more than one writer: ReceiveMetricsAction writes it
+   * straight from the agent's fleet aggregation. So by the time
+   * EvaluateMonitorConsensus runs, the monitor can already read 'up' and the
+   * edge is gone — `next === prev` short-circuits, and an incident this job
+   * opened stays open forever. Production #96382 sat open for hours against a
+   * monitor reading 'up' with six passing checks behind it.
+   *
+   * These two drive the real job rather than a copy of its predicate, so they
+   * fail against the edge-triggered version.
+   */
+  describe('recovery reconciles from state, not the transition edge', () => {
+    /** A fresh passing vote, so consensus computes next === 'up'. */
+    async function recordPassingCheck(): Promise<void> {
+      await CheckResult.create({
+        monitor_id: monitorId,
+        status: 'up',
+        responseTimeMs: 12,
+        statusCode: 200,
+        message: 'ok',
+        region: 'default',
+        checkedAt: new Date().toISOString(),
+      })
+    }
+
+    test('resolves an incident whose recovery edge was already spent by another writer', async () => {
+      // The monitor already reads 'up' (beforeEach) — exactly the state left
+      // behind when ReceiveMetricsAction wrote the recovery first.
+      await openIncident({
+        monitor_id: monitorId,
+        started_at: new Date().toISOString(),
+        cause: 'Unexpected status code 504 — down from 1/1 region(s): eu-central',
+        status: 'investigating',
+        impacted_checks: CONSENSUS_IMPACT,
+      })
+      await recordPassingCheck()
+
+      expect((await Incident.where('monitor_id', monitorId).where('status', '!=', 'resolved').get()).length).toBe(1)
+
+      await EvaluateMonitorConsensus.handle({})
+
+      const stillOpen = await Incident.where('monitor_id', monitorId).where('status', '!=', 'resolved').get()
+      expect(stillOpen.length).toBe(0)
+    })
+
+    test('still leaves a metrics incident alone — reconciling is not a licence to close what it does not own', async () => {
+      await openIncident({
+        monitor_id: monitorId,
+        started_at: new Date().toISOString(),
+        cause: `No metrics received from 'metrics-owner' agent within 300s`,
+        status: 'investigating',
+        impacted_checks: METRICS_IMPACT,
+      })
+      await recordPassingCheck()
+
+      await EvaluateMonitorConsensus.handle({})
+
+      const stillOpen = await Incident.where('monitor_id', monitorId).where('status', '!=', 'resolved').get()
+      expect(stillOpen.length).toBe(1)
+      expect(stillOpen[0].cause).toContain('No metrics received')
+    })
   })
 })

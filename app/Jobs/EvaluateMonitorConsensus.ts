@@ -11,6 +11,37 @@ import Monitor from '../Models/Monitor'
 type Status = 'up' | 'down' | 'degraded' | 'unknown'
 
 /**
+ * This monitor's currently-open incident that THIS job opened, if any.
+ *
+ * `impacted_checks.regions` is the ownership marker: this job is the only
+ * writer that records which regions voted. A monitor can carry incidents from
+ * sources that have nothing to do with cross-region availability — a stale
+ * metrics agent, DNS drift, an expiring certificate — and cross-region checks
+ * passing says nothing about any of them. Closing one of those here used to
+ * hand it straight back to the job that raised it, which re-opened it on its
+ * next tick: CheckStaleMetrics and this job flip-flopped monitor 48 every
+ * minute for weeks, and 93,864 of production's 96,350 incidents (97%) were
+ * that one loop, each pair firing a down + recovered notification at every
+ * attached channel.
+ */
+async function openConsensusIncident(monitorId: number): Promise<any | null> {
+  const candidates = await Incident.where('monitor_id', monitorId)
+    .where('status', '!=', 'resolved')
+    .orderByDesc('created_at')
+    .get()
+
+  return candidates.find((incident: any) => {
+    try {
+      const impacted = JSON.parse(incident.impacted_checks || '[]')
+      return Array.isArray(impacted) && impacted.some((entry: any) => Array.isArray(entry?.regions))
+    }
+    catch {
+      return false
+    }
+  }) ?? null
+}
+
+/**
  * Runs every minute on the primary scheduler only (see app/Scheduler.ts).
  *
  * Owns the availability status transition + incident open/resolve that the
@@ -107,6 +138,39 @@ export default new Job({
       if (next !== prev || nextFailures !== (monitor.consecutive_failures || 0))
         await monitor.update({ status: next, consecutive_failures: nextFailures })
 
+      // Recovery is reconciled from state, NOT triggered by the down->up edge.
+      // `monitor.status` has more than one writer — ReceiveMetricsAction sets
+      // it straight from the agent's fleet aggregation (deliberately: that
+      // aggregation is what stops a two-host fleet flapping once a minute as
+      // a breaching node and a healthy one take turns reporting). So the edge
+      // this job used to hang recovery off can be spent before this job ever
+      // observes it. When that happens `next === prev` short-circuits below
+      // and the incident stays open forever — production #96382 sat open for
+      // hours against a monitor reading `up` with six passing checks behind
+      // it. Keying on the state ("consensus says up and one of mine is still
+      // open") is idempotent and self-healing, and it is the same reasoning
+      // ReceiveMetricsAction already applies when it clears CheckStaleMetrics'
+      // incidents unconditionally rather than on an edge.
+      if (next === 'up') {
+        const stillOpen = await openConsensusIncident(monitor.id)
+
+        if (stillOpen) {
+          const resolvedAt = new Date().toISOString()
+          await stillOpen.update({ status: 'resolved', resolved_at: resolvedAt })
+          await IncidentUpdate.create({
+            incident_id: stillOpen.id,
+            message: 'Monitor recovered — checks are passing across regions again.',
+            status: 'resolved',
+            postedAt: resolvedAt,
+          })
+
+          // prev === 'down' is the ordinary path and is logged as a transition
+          // below; anything else means we just reclaimed an orphan.
+          if (prev !== 'down')
+            log.info(`[job] EvaluateMonitorConsensus: reclaimed orphaned incident #${stillOpen.id} on ${monitor.name} (its recovery edge was consumed by another writer)`)
+        }
+      }
+
       if (next === prev)
         continue
 
@@ -132,42 +196,8 @@ export default new Job({
         log.warn(`[job] EvaluateMonitorConsensus: ${monitor.name} DOWN (consensus: ${downRegions.join(', ')})`)
       }
       else if (prev === 'down' && next === 'up') {
-        // Resolve only an incident THIS job opened. A monitor can carry
-        // incidents from sources that have nothing to do with cross-region
-        // availability — a stale metrics agent, DNS drift, an expiring
-        // certificate — and cross-region checks passing says nothing about
-        // any of them. Closing one of those here used to hand it straight
-        // back to the job that raised it, which re-opened it on its next
-        // tick: CheckStaleMetrics and this job flip-flopped monitor 48 every
-        // minute for weeks, and 93,864 of production's 96,350 incidents
-        // (97%) were that one loop, each pair firing a down + recovered
-        // notification at every attached channel.
-        //
-        // `impacted_checks.regions` is the ownership marker: this job is the
-        // only writer that records which regions voted.
-        const candidates = await Incident.where('monitor_id', monitor.id)
-          .where('status', '!=', 'resolved')
-          .orderByDesc('created_at')
-          .get()
-        const openIncident = candidates.find((incident: any) => {
-          try {
-            const impacted = JSON.parse(incident.impacted_checks || '[]')
-            return Array.isArray(impacted) && impacted.some((entry: any) => Array.isArray(entry?.regions))
-          }
-          catch {
-            return false
-          }
-        })
-        if (openIncident) {
-          const resolvedAt = new Date().toISOString()
-          await openIncident.update({ status: 'resolved', resolved_at: resolvedAt })
-          await IncidentUpdate.create({
-            incident_id: openIncident.id,
-            message: 'Monitor recovered — checks are passing across regions again.',
-            status: 'resolved',
-            postedAt: resolvedAt,
-          })
-        }
+        // The incident itself was already resolved by the state-reconcile
+        // above, which covers this edge and the orphan case alike.
         transitions++
         log.info(`[job] EvaluateMonitorConsensus: ${monitor.name} recovered`)
       }
