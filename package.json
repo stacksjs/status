@@ -65,14 +65,14 @@
     "stx": "./buddy"
   },
   "dependencies": {
-    "@stacksjs/stx": "^0.2.198",
-    "bun-plugin-stx": "^0.2.198",
-    "stacks": "^0.70.380",
-    "stx-router": "^0.2.198",
+    "@stacksjs/stx": "^0.2.216",
+    "bun-plugin-stx": "^0.2.216",
+    "stacks": "^0.72.49",
+    "stx-router": "^0.2.216",
     "ts-charts": "github:stacksjs/ts-charts"
   },
   "devDependencies": {
-    "better-dx": "^0.2.15"
+    "better-dx": "^0.2.25"
   },
   "workspaces": [],
   "git-hooks": {
