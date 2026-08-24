@@ -2,9 +2,9 @@
   App navigation for every post-login dashboard page: the marketing nav's
   sibling (same brand block, blur backdrop, theme toggle) with section
   links and the session controls. Expects AUTH_USER (nullable) and
-  NAV_ACTIVE ('monitors' | 'incidents' | 'status-pages' | 'settings')
-  from the including page's server script. The logout form is stamped by
-  csrf-forms.js, loaded in app-head.stx.
+  NAV_ACTIVE ('overview' | 'monitors' | 'incidents' | 'status-pages' |
+  'maintenance' | 'settings') from the including page's server script. The
+  logout form is stamped by csrf-forms.js, loaded in app-head.stx.
 -->
 <nav class="app-nav">
   <div class="app-shell app-nav-inner">
@@ -48,6 +48,7 @@
       <StxLink to="/dashboard/monitors" class="{{ NAV_ACTIVE === 'monitors' ? 'active' : '' }}">Monitors</StxLink>
       <StxLink to="/dashboard/incidents" class="{{ NAV_ACTIVE === 'incidents' ? 'active' : '' }}">Incidents</StxLink>
       <StxLink to="/dashboard/status-pages" class="{{ NAV_ACTIVE === 'status-pages' ? 'active' : '' }}">Status pages</StxLink>
+      <StxLink to="/dashboard/maintenance" class="{{ NAV_ACTIVE === 'maintenance' ? 'active' : '' }}">Maintenance</StxLink>
       <StxLink to="/dashboard/settings/notifications" class="{{ NAV_ACTIVE === 'settings' ? 'active' : '' }}">Settings</StxLink>
     </div>
     <div class="app-nav-right">

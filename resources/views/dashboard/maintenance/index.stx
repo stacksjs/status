@@ -1,0 +1,254 @@
+<!--
+  Maintenance window list + create form — the dashboard surface that was
+  missing. The MaintenanceWindow model, its suppression logic
+  (app/lib/maintenance.ts), the UpdateMaintenanceWindowStatus and
+  NotifyUpcomingMaintenance jobs, subscriber notices and an auth-guarded
+  CRUD API all shipped in Phase 12, but nothing in the product ever posted
+  to them: a window could only be created with curl, while
+  docs/operate/maintenance.md instructed operators to "go to Maintenance
+  and click Schedule window". This page is that button.
+
+  Same server-rendered convention as status-pages/index.stx: the create
+  form is a native HTML POST to Actions/Maintenance/
+  DashboardCreateMaintenanceWindowAction, no client JS.
+-->
+<script server>
+import { resolveTeamContext } from '@stacksjs/auth'
+import { db } from '@stacksjs/database'
+import { authRequest } from '../../../../app/lib/authRequest'
+
+// Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
+// which honors the workspace-switcher cookie (see dashboard/index.stx for
+// the full note). allowAnyTeam lets a super-admin act for any team.
+const TEAM_CTX = await resolveTeamContext(
+  authRequest(typeof cookies !== 'undefined' ? cookies : null),
+  { allowAnyTeam: u => !!(u && u.is_super_admin) },
+)
+const AUTH_USER = TEAM_CTX.user
+const TEAM_ID = TEAM_CTX.teamId ?? -1
+const IS_SUPER = !!(AUTH_USER && AUTH_USER.is_super_admin)
+const SWITCHABLE_TEAMS = TEAM_CTX.teams
+const SEE_ALL = IS_SUPER && !TEAM_CTX.activeTeamId
+const ACTIVE_TEAM_NAME = (TEAM_CTX.teams.find(t => t.id === TEAM_ID) || {}).name || ''
+const teamScope = qb => SEE_ALL ? qb : qb.where('team_id', '=', TEAM_ID)
+const NAV_ACTIVE = 'maintenance'
+
+const windows = AUTH_USER
+  ? await teamScope(db.selectFrom('maintenance_windows')).orderBy('starts_at', 'desc').execute()
+  : []
+
+// Monitor counts per window in one query rather than one per row — a
+// window covering no monitors announces itself and suppresses nothing,
+// which is the single most useful thing to see from the list.
+const windowIds = windows.map(w => w.id)
+const links = windowIds.length > 0
+  ? await db.selectFrom('maintenance_window_monitors')
+      .select(['maintenance_window_id', 'monitor_id'])
+      .where('maintenance_window_id', 'in', windowIds)
+      .execute()
+  : []
+const monitorCountByWindow = {}
+for (const link of links)
+  monitorCountByWindow[link.maintenance_window_id] = (monitorCountByWindow[link.maintenance_window_id] || 0) + 1
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const errorCode = query.get('error') || ''
+const justDeleted = query.get('deleted') === '1'
+
+// One banner per code the action redirects with; wording lives here with
+// the rest of the page copy, matching monitors/new.stx's convention.
+function errorLabel(code) {
+  if (code === 'title_required') return 'Give the window a title — subscribers see it.'
+  if (code === 'title_too_long') return 'That title is longer than 150 characters.'
+  if (code === 'description_too_long') return 'That description is longer than 2000 characters.'
+  if (code === 'starts_at_invalid') return 'Enter when the window starts.'
+  if (code === 'ends_at_invalid') return 'Enter when the window ends.'
+  if (code === 'ends_before_starts') return 'The window has to end after it starts.'
+  if (code === 'cron_invalid') return 'That repeat schedule is not a valid cron expression. Try 0 2 * * 0, or leave it blank for a one-off.'
+  if (code === 'status_invalid') return 'Pick a status from the list.'
+  return ''
+}
+
+const nowMs = Date.now()
+const activeCount = windows.filter(w => w.status === 'active').length
+const upcomingCount = windows.filter(w => w.status === 'scheduled' && Date.parse(w.starts_at || '') > nowMs).length
+const recurringCount = windows.filter(w => !!w.recurrence_cron).length
+const uncoveredCount = windows.filter(w => w.status !== 'completed' && w.status !== 'cancelled' && !monitorCountByWindow[w.id]).length
+
+function fmt(iso) {
+  const ms = Date.parse(String(iso || ''))
+  if (!Number.isFinite(ms)) return '--'
+  return new Date(ms).toISOString().replace('T', ' ').slice(0, 16)
+}
+
+function durationLabel(startIso, endIso) {
+  const a = Date.parse(String(startIso || ''))
+  const b = Date.parse(String(endIso || ''))
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return '--'
+  const mins = Math.round((b - a) / 60000)
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  const rem = mins % 60
+  if (hours < 24) return rem ? `${hours}h ${rem}m` : `${hours}h`
+  const days = Math.floor(hours / 24)
+  return `${days}d ${hours % 24}h`
+}
+
+function statusPill(status) {
+  if (status === 'active') return 'pill pill-degraded'
+  if (status === 'scheduled') return 'pill pill-unknown'
+  if (status === 'completed') return 'pill pill-up'
+  return 'pill pill-down'
+}
+
+function statusLabel(status) {
+  if (status === 'active') return 'In progress'
+  if (status === 'scheduled') return 'Scheduled'
+  if (status === 'completed') return 'Completed'
+  if (status === 'cancelled') return 'Cancelled'
+  return 'Unknown'
+}
+
+// Sensible defaults for the create form: the next whole hour, lasting an
+// hour. Typing a full timestamp twice to schedule the common case is the
+// kind of friction that keeps a feature unused.
+const nextHour = new Date(Math.ceil(nowMs / 3600000) * 3600000)
+const defaultStart = nextHour.toISOString().slice(0, 16)
+const defaultEnd = new Date(nextHour.getTime() + 3600000).toISOString().slice(0, 16)
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+useHead({ title: 'Maintenance · StatusHQ', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<main class="app-shell">
+  @if (!AUTH_USER)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view maintenance windows.</p>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER)
+    <header class="page-head">
+      <div>
+        <h1>Maintenance</h1>
+        <p class="meta">Announced downtime. Monitors inside a window don't open incidents or page anyone, and the time is excluded from uptime.</p>
+      </div>
+    </header>
+
+    @if (errorCode && errorLabel(errorCode))
+      <div class="flash error" role="alert">{{ errorLabel(errorCode) }}</div>
+    @endif
+
+    @if (justDeleted)
+      <div class="flash" role="status">Maintenance window deleted.</div>
+    @endif
+
+    <dl class="stat-grid">
+      <div class="stat-card">
+        <dt>Windows</dt>
+        <dd>{{ windows.length }}</dd>
+      </div>
+      <div class="stat-card">
+        <dt>In progress</dt>
+        <dd class="{{ activeCount > 0 ? 'warn' : '' }}">{{ activeCount }}</dd>
+      </div>
+      <div class="stat-card">
+        <dt>Upcoming</dt>
+        <dd>{{ upcomingCount }}</dd>
+      </div>
+      <div class="stat-card">
+        <dt>Recurring</dt>
+        <dd>{{ recurringCount }}</dd>
+      </div>
+    </dl>
+
+    @if (uncoveredCount > 0)
+      <div class="flash error" role="alert">
+        {{ uncoveredCount }} open window{{ uncoveredCount === 1 ? '' : 's' }} cover{{ uncoveredCount === 1 ? 's' : '' }} no monitors. A window with nothing attached still announces itself to subscribers but suppresses no alerts — open it and add the monitors going down.
+      </div>
+    @endif
+
+    @if (windows.length === 0)
+      <div class="empty">
+        <h3>No maintenance windows yet</h3>
+        <p>Schedule one before planned work so a deliberate outage doesn't page anyone or turn your status page red.</p>
+      </div>
+    @endif
+
+    @if (windows.length > 0)
+      <section class="card scroll-x" aria-label="Maintenance windows">
+        <div class="rows">
+          <div class="trow thead" style="grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 90px 110px 100px 120px;">
+            <span class="tcell">Title</span>
+            <span class="tcell">Starts (UTC)</span>
+            <span class="tcell">Length</span>
+            <span class="tcell">Repeats</span>
+            <span class="tcell num">Monitors</span>
+            <span class="tcell num">Status</span>
+          </div>
+          @foreach (windows as w)
+            <StxLink class="trow" to="/dashboard/maintenance/{{ w.id }}" style="grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 90px 110px 100px 120px;">
+              <span class="tcell ellipsis name">{{ w.title }}</span>
+              <span class="tcell sub">{{ fmt(w.starts_at) }}</span>
+              <span class="tcell sub">{{ durationLabel(w.starts_at, w.ends_at) }}</span>
+              <span class="tcell sub ellipsis">{{ w.recurrence_cron || 'One-off' }}</span>
+              <span class="tcell num {{ monitorCountByWindow[w.id] ? '' : 'sub' }}">{{ monitorCountByWindow[w.id] || 0 }}</span>
+              <span class="tcell num"><data class="{{ statusPill(w.status) }}" value="{{ w.status }}"><span class="dot"></span>{{ statusLabel(w.status) }}</data></span>
+            </StxLink>
+          @endforeach
+        </div>
+      </section>
+    @endif
+
+    <section class="card" style="margin-top: 1.25rem;" aria-label="Schedule maintenance window">
+      <div class="card-head">
+        <h3>Schedule window</h3>
+        <span class="sub">Times are UTC</span>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="/api/maintenance-forms/create">
+          <div class="field">
+            <label for="mw-title">Title</label>
+            <input id="mw-title" type="text" name="title" required maxlength="150" class="input" placeholder="Database upgrade" />
+            <p class="help">Shown to status page visitors and emailed to subscribers.</p>
+          </div>
+
+          <div class="field">
+            <label for="mw-description">Description</label>
+            <textarea id="mw-description" name="description" maxlength="2000" class="input" rows="3" placeholder="What you're doing and what visitors should expect."></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="mw-starts">Starts (UTC)</label>
+              <input id="mw-starts" type="datetime-local" name="starts_at" required class="input" value="{{ defaultStart }}" />
+            </div>
+            <div class="field">
+              <label for="mw-ends">Ends (UTC)</label>
+              <input id="mw-ends" type="datetime-local" name="ends_at" required class="input" value="{{ defaultEnd }}" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="mw-cron">Repeat (optional)</label>
+            <input id="mw-cron" type="text" name="recurrence_cron" maxlength="120" class="input" placeholder="0 2 * * 0" />
+            <p class="help">A 5-field cron expression, or a nickname like @weekly, giving the start of each occurrence — each one lasts as long as the window above. Leave blank for a one-off.</p>
+          </div>
+
+          <button type="submit" class="button primary">Schedule window</button>
+        </form>
+      </div>
+    </section>
+
+    <footer class="app-foot">
+      <span>{{ windows.length }} window{{ windows.length === 1 ? '' : 's' }} on this team</span>
+      <span>Updated {{ generatedAt }} UTC</span>
+    </footer>
+  @endif
+</main>

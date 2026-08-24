@@ -136,6 +136,20 @@ route.post('/status-report-forms/{id}/monitors/remove', 'Actions/StatusPages/Das
 route.post('/status-report-forms/{id}/updates', 'Actions/StatusPages/DashboardPostReportUpdateAction')
 route.post('/status-report-forms/{id}/delete', 'Actions/StatusPages/DashboardDeleteStatusReportAction')
 
+// Maintenance-window form posts. The model has carried an auto-generated
+// CRUD API (`/maintenance-windows`) since Phase 12 and the suppression
+// logic, status job and subscriber notices were all built against it, but
+// nothing in the product ever posted to it — no view, no form, no nav
+// entry — so scheduling announced downtime meant curl, while
+// docs/operate/maintenance.md told operators to click a button that did
+// not exist. Same /*-forms/ prefix as the routes above, for the same
+// dynamic-view-collision reason.
+route.post('/maintenance-forms/create', 'Actions/Maintenance/DashboardCreateMaintenanceWindowAction')
+route.post('/maintenance-forms/{id}/update', 'Actions/Maintenance/DashboardUpdateMaintenanceWindowAction')
+route.post('/maintenance-forms/{id}/delete', 'Actions/Maintenance/DashboardDeleteMaintenanceWindowAction')
+route.post('/maintenance-forms/{id}/monitors/add', 'Actions/Maintenance/DashboardAttachMaintenanceMonitorAction')
+route.post('/maintenance-forms/{id}/monitors/remove', 'Actions/Maintenance/DashboardRemoveMaintenanceMonitorAction')
+
 // Dashboard notification-channel form posts (stacksjs/status#1 Phase 8) —
 // same plain-POST convention, and same /*-forms/ naming to dodge the
 // dynamic-view-collision explained above (there's no [id].stx under

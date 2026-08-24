@@ -1,0 +1,313 @@
+<!--
+  Maintenance window detail — edit the window, choose which monitors it
+  covers, and preview the occurrences a recurrence rule actually produces.
+
+  The monitor list is the part that matters operationally: app/lib/
+  maintenance.ts decides whether a failing check opens an incident by
+  looking up that monitor's covering windows, and a status page only shows
+  a maintenance banner when one of ITS monitors is attached. A window with
+  nothing attached announces itself and suppresses nothing, so this page
+  says so out loud.
+
+  Same plain-POST, no-client-JS convention as status-pages/[id].stx.
+-->
+<script server>
+import { resolveTeamContext } from '@stacksjs/auth'
+import { db } from '@stacksjs/database'
+import { authRequest } from '../../../../app/lib/authRequest'
+import { expandWindowIntervals } from '../../../../app/lib/maintenance'
+import { toDateTimeLocalValue } from '../../../../app/lib/maintenanceForm'
+
+const TEAM_CTX = await resolveTeamContext(
+  authRequest(typeof cookies !== 'undefined' ? cookies : null),
+  { allowAnyTeam: u => !!(u && u.is_super_admin) },
+)
+const AUTH_USER = TEAM_CTX.user
+const TEAM_ID = TEAM_CTX.teamId ?? -1
+const IS_SUPER = !!(AUTH_USER && AUTH_USER.is_super_admin)
+const SWITCHABLE_TEAMS = TEAM_CTX.teams
+const SEE_ALL = IS_SUPER && !TEAM_CTX.activeTeamId
+const ACTIVE_TEAM_NAME = (TEAM_CTX.teams.find(t => t.id === TEAM_ID) || {}).name || ''
+const NAV_ACTIVE = 'maintenance'
+
+// The route param arrives as a bare `id` binding, same as
+// status-pages/[id].stx — not under a `params` object.
+const windowId = (typeof id !== 'undefined' && id) ? Number(id) : 0
+
+// Team-scoped read: the id comes from the URL, so scoping here is what
+// stops one team reading another's window by guessing a number.
+let win = null
+if (AUTH_USER && windowId) {
+  const rows = await db.selectFrom('maintenance_windows')
+    .where('id', '=', windowId)
+    .execute()
+  const candidate = rows[0] || null
+  if (candidate && (SEE_ALL || candidate.team_id === TEAM_ID))
+    win = candidate
+}
+
+const attachedLinks = win
+  ? await db.selectFrom('maintenance_window_monitors')
+      .select(['monitor_id'])
+      .where('maintenance_window_id', '=', win.id)
+      .execute()
+  : []
+const attachedIds = attachedLinks.map(l => l.monitor_id)
+
+// SECURITY: project to display fields immediately — raw monitor rows carry
+// metrics_token, the agent-ingest credential, and stx's server->client
+// bridge serializes any server binding word-matched by a plain script.
+// Same discipline as monitors/index.stx, enforced by bridge-hygiene tests.
+const teamMonitors = win
+  ? (await db.selectFrom('monitors')
+      .where('team_id', '=', win.team_id)
+      .execute()).map(m => ({ id: m.id, name: m.name, type: m.type, status: m.status }))
+  : []
+
+const attachedMonitors = teamMonitors.filter(m => attachedIds.includes(m.id))
+const availableMonitors = teamMonitors.filter(m => !attachedIds.includes(m.id))
+
+const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const errorCode = query.get('error') || ''
+const justSaved = query.get('saved') === '1'
+
+function errorLabel(code) {
+  if (code === 'title_required') return 'Give the window a title — subscribers see it.'
+  if (code === 'title_too_long') return 'That title is longer than 150 characters.'
+  if (code === 'description_too_long') return 'That description is longer than 2000 characters.'
+  if (code === 'starts_at_invalid') return 'Enter when the window starts.'
+  if (code === 'ends_at_invalid') return 'Enter when the window ends.'
+  if (code === 'ends_before_starts') return 'The window has to end after it starts.'
+  if (code === 'cron_invalid') return 'That repeat schedule is not a valid cron expression. Try 0 2 * * 0, or leave it blank for a one-off.'
+  if (code === 'status_invalid') return 'Pick a status from the list.'
+  return ''
+}
+
+// Preview the next occurrences from the SAME function the suppression path
+// uses, rather than re-deriving the schedule for display. A recurrence rule
+// that reads plausibly but expands to nothing is exactly the mistake worth
+// catching before the maintenance runs, not after nobody got paged.
+const nowMs = Date.now()
+const HORIZON_DAYS = 60
+const occurrences = win
+  ? expandWindowIntervals(
+      { starts_at: win.starts_at, ends_at: win.ends_at, recurrence_cron: win.recurrence_cron },
+      nowMs - 86400000,
+      nowMs + HORIZON_DAYS * 86400000,
+    ).slice(0, 8)
+  : []
+
+const startsValue = win ? toDateTimeLocalValue(win.starts_at) : ''
+const endsValue = win ? toDateTimeLocalValue(win.ends_at) : ''
+
+const statusOptions = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'active', label: 'In progress' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+]
+
+function fmt(ms) {
+  if (!Number.isFinite(ms)) return '--'
+  return new Date(ms).toISOString().replace('T', ' ').slice(0, 16)
+}
+
+const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+useHead({ title: (win ? `${win.title} · Maintenance` : 'Maintenance') + ' · StatusHQ', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+
+@include('../partials/app-head.stx')
+@include('../partials/app-nav.stx')
+
+<main class="app-shell">
+  @if (!AUTH_USER)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Sign in required</h3>
+      <p>You need an authenticated session to view this maintenance window.</p>
+      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER && !win)
+    <div class="empty" style="margin: 3rem 0;">
+      <h3>Maintenance window not found</h3>
+      <p>It may have been deleted, or it belongs to another team.</p>
+      <div class="actions"><StxLink class="button" to="/dashboard/maintenance">Back to maintenance</StxLink></div>
+    </div>
+  @endif
+
+  @if (AUTH_USER && win)
+    <header class="page-head">
+      <div>
+        <h1>{{ win.title }}</h1>
+        <p class="meta">{{ win.recurrence_cron ? 'Repeats ' + win.recurrence_cron : 'One-off window' }} &middot; {{ attachedMonitors.length }} monitor{{ attachedMonitors.length === 1 ? '' : 's' }} covered</p>
+      </div>
+      <div class="actions">
+        <StxLink to="/dashboard/maintenance" class="button">Back to maintenance</StxLink>
+      </div>
+    </header>
+
+    @if (errorCode && errorLabel(errorCode))
+      <div class="flash error" role="alert">{{ errorLabel(errorCode) }}</div>
+    @endif
+
+    @if (justSaved)
+      <div class="flash" role="status">Maintenance window saved.</div>
+    @endif
+
+    @if (attachedMonitors.length === 0 && win.status !== 'completed' && win.status !== 'cancelled')
+      <div class="flash error" role="alert">
+        This window covers no monitors, so it will announce itself to subscribers but suppress no alerts. Attach the monitors going down below.
+      </div>
+    @endif
+
+    <section class="card" aria-label="Window details">
+      <div class="card-head">
+        <h3>Details</h3>
+        <span class="sub">Times are UTC</span>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="/api/maintenance-forms/{{ win.id }}/update">
+          <div class="field">
+            <label for="mw-title">Title</label>
+            <input id="mw-title" type="text" name="title" required maxlength="150" class="input" value="{{ win.title }}" />
+          </div>
+
+          <div class="field">
+            <label for="mw-description">Description</label>
+            <textarea id="mw-description" name="description" maxlength="2000" class="input" rows="3">{{ win.description || '' }}</textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="mw-starts">Starts (UTC)</label>
+              <input id="mw-starts" type="datetime-local" name="starts_at" required class="input" value="{{ startsValue }}" />
+            </div>
+            <div class="field">
+              <label for="mw-ends">Ends (UTC)</label>
+              <input id="mw-ends" type="datetime-local" name="ends_at" required class="input" value="{{ endsValue }}" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="mw-cron">Repeat</label>
+              <input id="mw-cron" type="text" name="recurrence_cron" maxlength="120" class="input" value="{{ win.recurrence_cron || '' }}" placeholder="0 2 * * 0" />
+              <p class="help">Blank for a one-off. Each occurrence lasts as long as the window above.</p>
+            </div>
+            <div class="field">
+              <label for="mw-status">Status</label>
+              <select id="mw-status" name="status" class="select">
+                @foreach (statusOptions as opt)
+                  <option value="{{ opt.value }}" {{ win.status === opt.value ? 'selected' : '' }}>{{ opt.label }}</option>
+                @endforeach
+              </select>
+              <p class="help">Normally maintained automatically. Cancelling says the work did not happen, so alerting resumes and the time counts against uptime again.</p>
+            </div>
+          </div>
+
+          <button type="submit" class="button primary">Save changes</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 1.25rem;" aria-label="Covered monitors">
+      <div class="card-head">
+        <h3>Covered monitors</h3>
+        <span class="sub">{{ attachedMonitors.length }} attached</span>
+      </div>
+      <div class="card-body">
+        @if (attachedMonitors.length === 0)
+          <p class="help">Nothing attached yet.</p>
+        @endif
+
+        @if (attachedMonitors.length > 0)
+          <div class="rows">
+            @foreach (attachedMonitors as m)
+              <div class="trow" style="grid-template-columns: minmax(0, 1.6fr) 140px 120px;">
+                <span class="tcell ellipsis name">{{ m.name }}</span>
+                <span class="tcell sub">{{ m.type }}</span>
+                <span class="tcell num">
+                  <form method="POST" action="/api/maintenance-forms/{{ win.id }}/monitors/remove">
+                    <input type="hidden" name="monitor_id" value="{{ m.id }}" />
+                    <button type="submit" class="button sm">Remove</button>
+                  </form>
+                </span>
+              </div>
+            @endforeach
+          </div>
+        @endif
+
+        @if (availableMonitors.length > 0)
+          <form method="POST" action="/api/maintenance-forms/{{ win.id }}/monitors/add" style="margin-top: 1rem;">
+            <div class="form-row">
+              <div class="field">
+                <label for="mw-monitor">Add a monitor</label>
+                <select id="mw-monitor" name="monitor_id" class="select">
+                  @foreach (availableMonitors as m)
+                    <option value="{{ m.id }}">{{ m.name }} ({{ m.type }})</option>
+                  @endforeach
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="button">Attach monitor</button>
+          </form>
+        @endif
+
+        @if (availableMonitors.length === 0 && teamMonitors.length > 0)
+          <p class="help" style="margin-top: 1rem;">Every monitor on this team is already covered.</p>
+        @endif
+
+        @if (teamMonitors.length === 0)
+          <p class="help" style="margin-top: 1rem;">This team has no monitors yet. <StxLink to="/dashboard/monitors/new">Create one</StxLink> first.</p>
+        @endif
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 1.25rem;" aria-label="Upcoming occurrences">
+      <div class="card-head">
+        <h3>Occurrences</h3>
+        <span class="sub">Next {{ HORIZON_DAYS }} days</span>
+      </div>
+      <div class="card-body">
+        @if (occurrences.length === 0)
+          <p class="help">No occurrences in the next {{ HORIZON_DAYS }} days. For a one-off window that just means it is already over; for a repeating one, check the expression.</p>
+        @endif
+
+        @if (occurrences.length > 0)
+          <div class="rows">
+            <div class="trow thead" style="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);">
+              <span class="tcell">Starts (UTC)</span>
+              <span class="tcell">Ends (UTC)</span>
+            </div>
+            @foreach (occurrences as occ)
+              <div class="trow" style="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);">
+                <span class="tcell sub">{{ fmt(occ.startMs) }}</span>
+                <span class="tcell sub">{{ fmt(occ.endMs) }}</span>
+              </div>
+            @endforeach
+          </div>
+          <p class="help" style="margin-top: 0.75rem;">Expanded with the same function the suppression path uses, so what you see here is exactly what will be suppressed.</p>
+        @endif
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 1.25rem;" aria-label="Delete window">
+      <div class="card-head">
+        <h3>Delete</h3>
+      </div>
+      <div class="card-body">
+        <p class="help">Prefer <b>Cancelled</b> above for anything already announced — it keeps the record and resumes alerting. Deleting removes the window and its monitor links for good.</p>
+        <form method="POST" action="/api/maintenance-forms/{{ win.id }}/delete" style="margin-top: 0.75rem;">
+          <button type="submit" class="button">Delete window</button>
+        </form>
+      </div>
+    </section>
+
+    <footer class="app-foot">
+      <span>Team {{ TEAM_ID }}</span>
+      <span>Updated {{ generatedAt }} UTC</span>
+    </footer>
+  @endif
+</main>

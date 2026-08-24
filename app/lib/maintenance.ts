@@ -5,9 +5,11 @@
  * page anyone, and time inside the window is excluded from the uptime
  * percentage. This module is the single source of that logic - the pure
  * interval math (`inAnyInterval`) plus the DB-backed lookups every check job
- * and the notification listeners use. (The public status page reimplements the
- * same exclusion inline because its stx server script cannot import app/ TS -
- * keep the two in sync.)
+ * and the notification listeners use. The public status page imports this
+ * module directly (migration Phase 5) rather than mirroring it, so the page
+ * and the jobs cannot disagree about what counts as maintenance, and the
+ * dashboard at resources/views/dashboard/maintenance/ previews occurrences
+ * with the same `expandWindowIntervals` the suppression path calls.
  */
 
 import { parseCron } from '@stacksjs/cron'
@@ -38,9 +40,10 @@ const MAX_OCCURRENCES = 10_000
  * expression is fail-safe: treated as one-off, so a typo can't silently make a
  * window never apply.
  *
- * KEEP IN SYNC with the inline copy in resources/views/status/[slug].stx
- * (the stx server script can require npm packages like @stacksjs/cron but
- * cannot import app/ TS).
+ * Every caller shares this one implementation — the public status page and
+ * the maintenance dashboard both import it rather than reimplementing the
+ * schedule, which is why the dashboard's occurrence preview is trustworthy:
+ * what it lists is literally what will be suppressed.
  */
 export function expandWindowIntervals(
   win: { starts_at: string, ends_at: string, recurrence_cron?: string | null },
