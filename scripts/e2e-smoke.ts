@@ -272,6 +272,9 @@ async function authBoundary(): Promise<void> {
     ['POST', '/api/status-page-forms/create', { title: 'e2e', slug: 'e2e-probe' }],
     ['POST', '/api/team-forms/switch', { team_id: 1 }],
     ['POST', '/api/security-forms/two-factor/disable', {}],
+    // A maintenance window SILENCES alerting, so an unauthenticated caller
+    // reaching this would be a way to stop someone else being paged.
+    ['POST', '/api/maintenance-forms/create', { title: 'e2e', starts_at: '2030-01-01T00:00', ends_at: '2030-01-01T01:00' }],
   ]
 
   for (const [method, path, payload] of guarded) {
@@ -309,6 +312,44 @@ async function authBoundary(): Promise<void> {
     metrics.status === 404,
     `expected 404, got ${metrics.status} — ${metrics.body.slice(0, 160)}`,
   )
+}
+
+/**
+ * Dashboard routes are noindex and absent from the sitemap, so the crawl
+ * above never touches them — yet a view that throws during SSR is exactly
+ * the regression a deploy introduces. Signed out, each must render its own
+ * "sign in required" state: a 404 means the route was never registered
+ * (the failure mode that left maintenance windows unreachable for weeks),
+ * and a 5xx means the server block threw before it could check auth.
+ */
+async function dashboardRoutesExist(): Promise<void> {
+  setGroup('Dashboard routes are registered')
+
+  const routes = [
+    '/dashboard',
+    '/dashboard/monitors',
+    '/dashboard/monitors/new',
+    '/dashboard/incidents',
+    '/dashboard/status-pages',
+    '/dashboard/maintenance',
+  ]
+
+  for (const path of routes) {
+    const res = await hit(path)
+    const reachable = res.status === 200 || (res.status >= 300 && res.status < 400)
+    if (!reachable) {
+      fail(`GET ${path}`, `expected 200 or a redirect, got ${res.status}`)
+      continue
+    }
+    if (res.status === 200) {
+      const rot = scanForRot(res.body)
+      if (rot.length > 0) {
+        fail(`GET ${path}`, `rendered but contains ${rot.join(', ')}`)
+        continue
+      }
+    }
+    ok(`GET ${path}`, `${res.status}`)
+  }
 }
 
 async function transportSecurity(): Promise<void> {
@@ -442,6 +483,7 @@ await publicPages()
 await notFoundBehaviour()
 await apiReachable()
 await authBoundary()
+await dashboardRoutesExist()
 await transportSecurity()
 if (JOURNEY) await journey()
 
