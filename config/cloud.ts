@@ -709,6 +709,25 @@ export const tsCloud: TsCloudConfig = {
           // production — see API_PORT above. The `api` site below binds this
           // same constant on loopback.
           env: { APP_ENV: 'production', PORT_API: String(API_PORT) },
+          // MUST stay false. buddy's deploy (applyScheduledWork) attaches a
+          // scheduler to the migration-owning app site automatically when no
+          // site declares a `scheduler` PROPERTY and app/Scheduler.ts declares
+          // scheduled work. This app does run the scheduler — as the dedicated
+          // `scheduler` site below — but that is a site *named* scheduler, not
+          // a `scheduler:` property, so the auto-detection could not see it and
+          // added a second one here. `main` owns migrations, so it was always
+          // the site chosen.
+          //
+          // Production therefore ran TWO schedulers, firing every job about
+          // 11ms apart: statushq-main-scheduler (ts-cloud's
+          // stacks-scheduler.js) and statushq-scheduler (`buddy schedule:run`).
+          // That doubled every outbound check and, because DispatchDueChecks
+          // and EvaluateMonitorConsensus both ran twice concurrently, it is
+          // what let openIncident()'s read-then-write duplicate guard be raced
+          // — the pairs of identical incidents opened milliseconds apart that
+          // the feature audit found. Declaring the property (at any value)
+          // also short-circuits the auto-attach for every other site.
+          scheduler: false,
           // `buddy migrate` only applies pending schema changes, so running it
           // on every deploy is safe/idempotent — this is the one site that
           // owns migrations for the shared database. `docs:build` renders the
@@ -753,8 +772,14 @@ export const tsCloud: TsCloudConfig = {
         // Scheduler — drives app/Scheduler.ts's cron-style jobs (every-minute
         // monitor-check dispatch, heartbeat overdue checks, consensus
         // evaluation, maintenance-window status sync, etc.). Runs on the
-        // PRIMARY ONLY — a second scheduler would double-dispatch checks and
-        // race EvaluateMonitorConsensus on the shared status/incident writes.
+        // PRIMARY ONLY — a second scheduler double-dispatches checks and races
+        // EvaluateMonitorConsensus on the shared status/incident writes.
+        //
+        // That is not hypothetical: it happened. This site being *named*
+        // `scheduler` is not what stops a second one being created — only
+        // `scheduler: false` on `main` above does, because buddy's
+        // auto-attach inspects the `scheduler` property, not site names. Keep
+        // both, and see the note on `main` before changing either.
         scheduler: {
           root: '.',
           start: 'bun buddy schedule:run',
