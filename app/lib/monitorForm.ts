@@ -57,6 +57,18 @@ const NEEDS_HTTP_URL = new Set<string>(['uptime', 'health', 'lighthouse', 'broke
 /** Types that accept a bare hostname (the job resolves/dials the host). */
 const HOST_ONLY_OK = new Set<string>(['ping', 'tcp_port', 'port_scan', 'dns', 'domain', 'dns_blocklist', 'cron'])
 
+/**
+ * Whether this type's `url` may be a bare hostname rather than a full
+ * http(s) URL. Exported because the new-monitor form has to tell the
+ * operator which one to type, and a hand-maintained prose copy of the set
+ * above drifts: the form's help text listed six of these seven types for
+ * months, omitting `cron`, so a heartbeat monitor looked like it needed a
+ * scheme the validator never wanted.
+ */
+export function acceptsBareHost(type: string): boolean {
+  return HOST_ONLY_OK.has(type)
+}
+
 export function isMonitorType(value: unknown): value is MonitorType {
   return typeof value === 'string' && (MONITOR_TYPES as readonly string[]).includes(value)
 }

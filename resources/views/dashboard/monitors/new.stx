@@ -9,11 +9,13 @@
   action runs no validation, because Monitor.create does not execute the
   model's schema rules.
 
-  No client JS by the app's convention, so the type-specific options can't
-  show/hide as the type changes: they live in one always-visible "Advanced
-  options" block, each labelled with the types it applies to. The action
-  only reads the keys that matter for the submitted type, so leaving the
-  rest blank is correct rather than merely harmless.
+  Fourteen monitor types share this one form, so most of its fields are
+  irrelevant to any given monitor. Each field declares the types it belongs
+  to in `data-types`, and the script at the foot of the page hides the rest
+  as the type changes — the same progressive-enhancement shape the monitors
+  list uses for realtime updates. Without JS every field shows, exactly as
+  before: the action only reads the keys that matter for the submitted type,
+  so leaving the rest blank is correct rather than merely harmless.
 
   Visual language: the marketing site's design system (emerald accent,
   Space Grotesk display, light + dark) via partials/app-head.stx +
@@ -22,6 +24,7 @@
 <script server>
 import { resolveTeamContext } from '@stacksjs/auth'
 import { authRequest } from '../../../../app/lib/authRequest'
+import { acceptsBareHost } from '../../../../app/lib/monitorForm'
 import { db } from '@stacksjs/database'
 
 // Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
@@ -57,24 +60,49 @@ function errorLabel(code) {
 }
 
 // Type options, ordered the way an operator thinks about them (the common
-// availability checks first). Kept in the view rather than imported from
-// app/lib because an stx server script is a separate module graph.
+// availability checks first). Labels are duplicated from app/lib's
+// TYPE_LABELS rather than imported so the ordering and the operator-facing
+// hints can live together; `example` is what to type in the URL field, and
+// whether it carries a scheme is DERIVED from the validator's own rule via
+// acceptsBareHost() instead of being asserted a second time here.
 const monitorTypes = [
-  { value: 'uptime', label: 'Uptime (HTTP)', hint: 'GET the URL and alert when it stops answering 2xx/3xx.' },
-  { value: 'ping', label: 'Ping (ICMP)', hint: 'Round-trip time and packet loss to a host.' },
-  { value: 'tcp_port', label: 'TCP port', hint: 'Open a socket to a port and alert when it refuses.' },
-  { value: 'ssl', label: 'SSL certificate', hint: 'Expiry warnings at 30/14/7/1 days, plus fingerprint changes.' },
-  { value: 'domain', label: 'Domain expiry', hint: 'WHOIS registration and expiry warnings.' },
-  { value: 'dns', label: 'DNS records', hint: 'Snapshot A/AAAA/MX/TXT/NS/CAA and alert on changes.' },
-  { value: 'dns_blocklist', label: 'DNS blocklist', hint: 'Check the origin IP against Spamhaus, Barracuda, SORBS, SpamCop.' },
-  { value: 'health', label: 'Health check (JSON)', hint: 'Fetch a JSON endpoint and assert on its fields.' },
-  { value: 'cron', label: 'Heartbeat / cron job', hint: 'A job pings a URL when it runs; alert when the ping is late.' },
-  { value: 'performance', label: 'Performance', hint: 'Alert when response time regresses against its own baseline.' },
-  { value: 'lighthouse', label: 'Lighthouse audit', hint: 'Performance/accessibility/SEO scores, with regression alerts.' },
-  { value: 'broken_links', label: 'Broken links crawl', hint: 'Crawl the site and report 4xx/5xx links and mixed content.' },
-  { value: 'port_scan', label: 'Port scan', hint: 'Alert when an unexpected port opens or an expected one closes.' },
-  { value: 'ai_check', label: 'AI check', hint: 'Verify a plain-English assertion about the page.' },
+  { value: 'uptime', label: 'Uptime (HTTP)', hint: 'GET the URL and alert when it stops answering 2xx/3xx.', example: 'https://example.com' },
+  { value: 'ping', label: 'Ping (ICMP)', hint: 'Round-trip time and packet loss to a host.', example: 'example.com' },
+  { value: 'tcp_port', label: 'TCP port', hint: 'Open a socket to a port and alert when it refuses.', example: 'db.example.com' },
+  { value: 'ssl', label: 'SSL certificate', hint: 'Expiry warnings at 30/14/7/1 days, plus fingerprint changes.', example: 'https://example.com' },
+  { value: 'domain', label: 'Domain expiry', hint: 'WHOIS registration and expiry warnings.', example: 'example.com' },
+  { value: 'dns', label: 'DNS records', hint: 'Snapshot A/AAAA/MX/TXT/NS/CAA and alert on changes.', example: 'example.com' },
+  { value: 'dns_blocklist', label: 'DNS blocklist', hint: 'Check the origin IP against Spamhaus, Barracuda, SORBS, SpamCop.', example: 'mail.example.com' },
+  { value: 'health', label: 'Health check (JSON)', hint: 'Fetch a JSON endpoint and assert on its fields.', example: 'https://example.com/health' },
+  { value: 'cron', label: 'Heartbeat / cron job', hint: 'A job pings a URL when it runs; alert when the ping is late.', example: 'cron-01.example.com' },
+  { value: 'performance', label: 'Performance', hint: 'Alert when response time regresses against its own baseline.', example: 'https://example.com' },
+  { value: 'lighthouse', label: 'Lighthouse audit', hint: 'Performance/accessibility/SEO scores, with regression alerts.', example: 'https://example.com' },
+  { value: 'broken_links', label: 'Broken links crawl', hint: 'Crawl the site and report 4xx/5xx links and mixed content.', example: 'https://example.com' },
+  { value: 'port_scan', label: 'Port scan', hint: 'Alert when an unexpected port opens or an expected one closes.', example: 'example.com' },
+  { value: 'ai_check', label: 'AI check', hint: 'Verify a plain-English assertion about the page.', example: 'https://example.com/pricing' },
 ]
+
+// What the URL field should say for the selected type. The scheme sentence
+// comes from acceptsBareHost() — the validator's own set — so the guidance
+// can never contradict what the form will accept. A heartbeat's URL is
+// documentation rather than a target: nothing dials it, the job pings us.
+// The <select> has no `selected` attribute, so the browser picks the first
+// option — these seed the URL field's placeholder/help to match it before
+// the script runs (and permanently, without JS).
+const defaultType = monitorTypes[0]
+
+const __typeCopy = Object.fromEntries(monitorTypes.map(t => [
+  t.value,
+  {
+    hint: t.hint,
+    example: t.example,
+    help: t.value === 'cron'
+      ? 'Reference only — where the job runs. Nothing is dialled; your job pings the URL we issue after you save.'
+      : (acceptsBareHost(t.value)
+          ? 'A hostname or IP. No http:// needed.'
+          : 'A full http(s) URL, including the scheme.'),
+  },
+]))
 
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
@@ -130,13 +158,14 @@ useHead({ title: 'New monitor · StatusHQ', meta: [{ name: 'robots', content: 'n
                   <option value="{{ t.value }}">{{ t.label }}</option>
                 @endforeach
               </select>
+              <p class="help" id="type-hint">{{ defaultType.hint }}</p>
             </div>
           </div>
 
           <div class="field">
             <label for="url">URL or host</label>
-            <input id="url" type="text" name="url" required maxlength="2048" class="input" placeholder="https://api.example.com/health" />
-            <p class="help">HTTP, health, SSL, Lighthouse, crawl and AI checks need a full http(s) URL. Ping, TCP, DNS, domain, blocklist and port-scan checks accept a bare hostname. For a heartbeat, use where the job runs — it is shown on the monitor page for reference.</p>
+            <input id="url" type="text" name="url" required maxlength="2048" class="input" placeholder="{{ defaultType.example }}" />
+            <p class="help" id="url-help">A full http(s) URL, including the scheme.</p>
           </div>
 
           <div class="form-row">
@@ -156,68 +185,73 @@ useHead({ title: 'New monitor · StatusHQ', meta: [{ name: 'robots', content: 'n
         </div>
       </section>
 
-      <section class="card" aria-label="Type-specific options" style="margin-top: 1.25rem;">
+      {{-- Every field below carries data-types: the monitor types it actually
+           applies to. The script at the bottom of the page hides the rest as
+           soon as a type is chosen. Without JS nothing is hidden and the form
+           behaves exactly as it did before — parseMonitorForm() only reads the
+           keys that belong to the submitted type, so a stray value is inert. --}}
+      <section class="card" aria-label="Type-specific options" style="margin-top: 1.25rem;" data-optional-card>
         <div class="card-head">
           <h2>Options for this type</h2>
-          <span class="sub">Only the ones matching your type are used</span>
+          <span class="sub" id="options-sub">Only the ones matching your type are used</span>
         </div>
         <div class="card-body">
           <div class="form-row">
-            <div class="field">
+            <div class="field" data-types="tcp_port">
               <label for="port">TCP port</label>
               <input id="port" type="number" name="port" class="input" min="1" max="65535" placeholder="443" />
-              <p class="help">TCP port checks. Defaults to 443.</p>
+              <p class="help">Defaults to 443.</p>
             </div>
-            <div class="field">
+            <div class="field" data-types="health">
               <label for="path">Health path</label>
               <input id="path" type="text" name="path" class="input" placeholder="/health" />
-              <p class="help">Health checks. Resolved against the URL above.</p>
+              <p class="help">Resolved against the URL above.</p>
             </div>
-            <div class="field">
+            <div class="field" data-types="health">
               <label for="health_secret">Health endpoint secret</label>
               <input id="health_secret" type="text" name="health_secret" class="input" placeholder="leave empty if the endpoint is open" />
-              <p class="help">Health checks. Sent as the <code>oh-dear-health-check-secret</code> header &mdash; the one <code>spatie/laravel-health</code> validates.</p>
+              <p class="help">Sent as the <code>oh-dear-health-check-secret</code> header &mdash; the one <code>spatie/laravel-health</code> validates.</p>
             </div>
-            <div class="field">
+            <div class="field" data-types="health">
               <label for="health_max_age_seconds">Report freshness (seconds)</label>
               <input id="health_max_age_seconds" type="number" name="health_max_age_seconds" class="input" min="30" max="86400" placeholder="600" />
-              <p class="help">Health checks. A report older than this is down whatever its checks say, so a cached response can't look healthy.</p>
+              <p class="help">A report older than this is down whatever its checks say, so a cached response can't look healthy.</p>
             </div>
           </div>
 
           <div class="form-row">
-            <div class="field">
+            <div class="field" data-types="uptime tcp_port health ping">
               <label for="latency_threshold_ms">Degraded above (ms)</label>
               <input id="latency_threshold_ms" type="number" name="latency_threshold_ms" class="input" min="0" max="600000" placeholder="0" />
-              <p class="help">Uptime, TCP, health and ping checks. 0 disables.</p>
+              <p class="help">0 disables.</p>
             </div>
-            <div class="field">
+            <div class="field" data-types="ping">
               <label for="ping_count">Ping packets</label>
               <input id="ping_count" type="number" name="ping_count" class="input" min="1" max="10" placeholder="3" />
-              <p class="help">Ping checks. 1–10 per run.</p>
+              <p class="help">1–10 per run.</p>
             </div>
           </div>
 
           <div class="form-row">
-            <div class="field">
+            <div class="field" data-types="ping">
               <label for="packet_loss_threshold_percent">Degraded above packet loss (%)</label>
               <input id="packet_loss_threshold_percent" type="number" name="packet_loss_threshold_percent" class="input" min="0" max="100" placeholder="0" />
-              <p class="help">Ping checks. 0 disables.</p>
+              <p class="help">0 disables.</p>
             </div>
-            <div class="field">
+            <div class="field" data-types="dns_blocklist">
               <label for="origin_ip">Origin IP</label>
               <input id="origin_ip" type="text" name="origin_ip" class="input" placeholder="203.0.113.10" />
-              <p class="help">Blocklist checks. Set this when the host sits behind a CDN.</p>
+              <p class="help">Set this when the host sits behind a CDN.</p>
             </div>
           </div>
 
           <div class="form-row">
-            <div class="field">
+            <div class="field" data-types="port_scan">
               <label for="expected_ports">Expected open ports</label>
               <input id="expected_ports" type="text" name="expected_ports" class="input" placeholder="22, 80, 443" />
-              <p class="help">Port scans. Alerts when one of these closes, or anything else opens.</p>
+              <p class="help">Alerts when one of these closes, or anything else opens.</p>
             </div>
-            <div class="field">
+            <div class="field" data-types="lighthouse">
               <label for="lighthouse_device">Lighthouse device</label>
               <select id="lighthouse_device" name="lighthouse_device" class="select">
                 <option value="mobile">Mobile</option>
@@ -226,23 +260,23 @@ useHead({ title: 'New monitor · StatusHQ', meta: [{ name: 'robots', content: 'n
             </div>
           </div>
 
-          <div class="field">
+          <div class="field" data-types="port_scan">
             <label for="full_scan">
               <input id="full_scan" type="checkbox" name="full_scan" value="on" /> Scan all 65535 ports
             </label>
-            <p class="help">Port scans. Off scans the well-known 1–1024 range, which is much faster.</p>
+            <p class="help">Off scans the well-known 1–1024 range, which is much faster.</p>
           </div>
 
-          <div class="field">
+          <div class="field" data-types="ssl">
             <label for="alert_on_fingerprint_change">
               <input id="alert_on_fingerprint_change" type="checkbox" name="alert_on_fingerprint_change" value="on" /> Alert when the TLS fingerprint changes
             </label>
-            <p class="help">SSL checks. Off by default — a renewal changes the fingerprint routinely.</p>
+            <p class="help">Off by default — a renewal changes the fingerprint routinely.</p>
           </div>
         </div>
       </section>
 
-      <section class="card" aria-label="Heartbeat options" style="margin-top: 1.25rem;">
+      <section class="card" aria-label="Heartbeat options" style="margin-top: 1.25rem;" data-types="cron" data-optional-card>
         <div class="card-head">
           <h2>Heartbeat</h2>
           <span class="sub">Heartbeat / cron type only</span>
@@ -310,3 +344,81 @@ useHead({ title: 'New monitor · StatusHQ', meta: [{ name: 'robots', content: 'n
     </footer>
   @endif
 </main>
+
+<script>
+  ;(function () {
+    // Progressive enhancement: the form is complete and submittable before
+    // this runs. All it does is hide the fields that do not apply to the
+    // chosen type, which is otherwise every field on the page — fourteen
+    // types share one form, so an operator picking "Uptime" was being shown
+    // ping packet counts, cron expressions and port-scan ranges and left to
+    // guess. `parseMonitorForm()` already ignores the keys that do not
+    // belong to the submitted type, so hiding them changes nothing about
+    // what gets saved.
+    //
+    // stx `{{ }}` inside a script emits JSON.stringify(value), so this lands
+    // as an object literal. The `__` prefix keeps it out of stx's
+    // server->client bridge collection (see monitors/index.stx) — it is
+    // already being written here verbatim, and a second copy in the page
+    // would just be dead weight.
+    var COPY = {{ __typeCopy }}
+
+    var typeSelect = document.getElementById('type')
+    var urlInput = document.getElementById('url')
+    var urlHelp = document.getElementById('url-help')
+    var typeHint = document.getElementById('type-hint')
+    var optionsSub = document.getElementById('options-sub')
+    if (!typeSelect || !urlInput) return
+
+    function applies(el, type) {
+      var want = el.getAttribute('data-types')
+      // No data-types means "every type" (e.g. the server-metrics card).
+      return !want || want.split(' ').indexOf(type) !== -1
+    }
+
+    function show(el, on) {
+      el.hidden = !on
+    }
+
+    function sync() {
+      var type = typeSelect.value
+      var copy = COPY[type]
+
+      if (copy) {
+        urlInput.placeholder = copy.example
+        if (urlHelp) urlHelp.textContent = copy.help
+        if (typeHint) typeHint.textContent = copy.hint
+      }
+
+      var fields = document.querySelectorAll('[data-types]')
+      for (var i = 0; i < fields.length; i++) show(fields[i], applies(fields[i], type))
+
+      // A .form-row is a two-up flex container; with both children hidden it
+      // would still occupy its own gap, so collapse the row itself.
+      var rows = document.querySelectorAll('.form-row')
+      for (var r = 0; r < rows.length; r++) {
+        var kids = rows[r].querySelectorAll('.field')
+        var anyVisible = false
+        for (var k = 0; k < kids.length; k++) if (!kids[k].hidden) anyVisible = true
+        show(rows[r], anyVisible || kids.length === 0)
+      }
+
+      // Same for a whole card: "Options for this type" is empty for types
+      // like DNS or domain expiry, and an empty card reads as a bug.
+      var cards = document.querySelectorAll('[data-optional-card]')
+      for (var c = 0; c < cards.length; c++) {
+        if (!applies(cards[c], type)) { show(cards[c], false); continue }
+        var body = cards[c].querySelector('.card-body')
+        var visible = body ? body.querySelectorAll('.field:not([hidden])').length : 0
+        show(cards[c], visible > 0)
+      }
+
+      if (optionsSub) {
+        optionsSub.textContent = 'Applies to ' + (COPY[type] ? typeSelect.options[typeSelect.selectedIndex].text : type)
+      }
+    }
+
+    typeSelect.addEventListener('change', sync)
+    sync()
+  })()
+</script>

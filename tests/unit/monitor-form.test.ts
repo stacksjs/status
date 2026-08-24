@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { buildMonitorConfig, coerceCheckbox, intInRange, isMonitorType, MONITOR_TYPES, parseMonitorForm, parsePortList } from '../../app/lib/monitorForm'
+import { acceptsBareHost, buildMonitorConfig, coerceCheckbox, intInRange, isMonitorType, MONITOR_TYPES, parseMonitorForm, parsePortList } from '../../app/lib/monitorForm'
 
 /** A minimally valid submission; individual tests override one field. */
 function form(overrides: Record<string, unknown> = {}) {
@@ -80,6 +80,43 @@ describe('isMonitorType', () => {
 
   test('covers the 14 DB CHECK-constrained values', () => {
     expect(MONITOR_TYPES).toHaveLength(14)
+  })
+})
+
+/**
+ * The new-monitor form tells the operator whether to type a scheme, and it
+ * derives that sentence from acceptsBareHost() rather than restating the
+ * set. These assertions are what makes that derivation safe: they pin the
+ * two halves together so a type added to one side can't drift from the
+ * other. Regression guard — the form's prose used to omit `cron`, telling
+ * operators a heartbeat needed a URL when a bare hostname was always fine.
+ */
+describe('acceptsBareHost', () => {
+  test('every monitor type gives a definite answer', () => {
+    for (const type of MONITOR_TYPES)
+      expect(typeof acceptsBareHost(type)).toBe('boolean')
+  })
+
+  test('types the job dials or resolves take a bare hostname', () => {
+    for (const type of ['ping', 'tcp_port', 'port_scan', 'dns', 'domain', 'dns_blocklist', 'cron'])
+      expect(acceptsBareHost(type)).toBe(true)
+  })
+
+  test('types the job fetches over HTTP require a full URL', () => {
+    for (const type of ['uptime', 'health', 'lighthouse', 'broken_links', 'performance', 'ai_check', 'ssl'])
+      expect(acceptsBareHost(type)).toBe(false)
+  })
+
+  test('the two sets together cover every monitor type, so the form can never be silent', () => {
+    const bare = MONITOR_TYPES.filter(t => acceptsBareHost(t))
+    const full = MONITOR_TYPES.filter(t => !acceptsBareHost(t))
+    expect(bare.length + full.length).toBe(MONITOR_TYPES.length)
+    expect(bare.length).toBeGreaterThan(0)
+    expect(full.length).toBeGreaterThan(0)
+  })
+
+  test('an unknown type is not quietly told a hostname will do', () => {
+    expect(acceptsBareHost('not_a_type')).toBe(false)
   })
 })
 
