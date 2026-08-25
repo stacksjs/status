@@ -174,6 +174,24 @@
     font-weight: 600;
     background: var(--accent-soft);
   }
+  /* Overview only counts when you are actually ON /dashboard.
+     The router re-derives these classes on the client after every
+     navigation and its rule is `cur.startsWith(href)`, so "/dashboard"
+     matches every dashboard route and Overview lit up next to whichever
+     section you were really in -- two highlighted tabs, everywhere.
+     It adds `exact-active` alongside `active` when the paths match
+     exactly, so requiring both here narrows Overview to its own page
+     while every other tab keeps the prefix match that (correctly) lights
+     Monitors on /dashboard/monitors/new.
+     Done in CSS rather than with data-stx-active-class on the link:
+     StxLink emits its own default active-class attributes, and an
+     override added on the element lands SECOND, where the HTML parser
+     ignores it. */
+  .app-links a[href="/dashboard"].active:not(.exact-active) {
+    color: var(--muted);
+    font-weight: 500;
+    background: transparent;
+  }
 
   .app-nav-right {
     display: flex;

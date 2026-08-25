@@ -43,6 +43,16 @@
         </div>
       </details>
     @endif
+    {{-- NAV_ACTIVE below only drives the no-JS render. The router re-derives
+         these classes on the client after every navigation, and it has to:
+         this nav lives in the layout, so it is never part of a fragment swap
+         and the server-rendered class would otherwise go stale the moment
+         you navigate.
+
+         Overview needs narrowing to its own page -- see the
+         a[href="/dashboard"].active:not(.exact-active) rule in
+         partials/app-head.stx for why that is done in CSS rather than with
+         data-stx-active-class here. --}}
     <div class="app-links" aria-label="Dashboard sections">
       <StxLink to="/dashboard" class="{{ NAV_ACTIVE === 'overview' ? 'active' : '' }}">Overview</StxLink>
       <StxLink to="/dashboard/monitors" class="{{ NAV_ACTIVE === 'monitors' ? 'active' : '' }}">Monitors</StxLink>

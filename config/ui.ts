@@ -96,5 +96,29 @@ export default {
   // an explicit data-no-router as documentation.
   router: {
     interceptAllLinks: false,
+
+    // OFF because hover-prefetch corrupts the routed container's layout.
+    //
+    // The server sends the destination container's own attributes in
+    // X-STX-Container-Attrs -- for every dashboard route that is
+    // `class="app-shell"`, which supplies the max-width and centring. The
+    // router's navigate path caches that alongside the HTML. Its two
+    // PREFETCH paths do not: they never read the header, and they call
+    // setCache with five arguments instead of six, so the entry lands with
+    // an empty attribute string.
+    //
+    // Click a link you hovered first and the cache hit applies '' to the
+    // container. setContainerAttrs then walks data-stx-cattrs from the last
+    // navigation, finds `class` absent from the incoming (empty) map, and
+    // REMOVES it -- so <main class="app-shell"> becomes <main>, and the page
+    // renders edge to edge with a horizontal scrollbar.
+    //
+    // That is why it looked intermittent and why a hard reload always
+    // "fixed" it: it only happens when the link was prefetched, and a full
+    // load rebuilds the document from server HTML. Prefetch is a latency
+    // optimisation; correct layout is not optional, so it stays off until
+    // the upstream fix lands (@stacksjs/stx router, both setCache call
+    // sites in the prefetch path need the container attrs).
+    prefetch: false,
   },
 } satisfies UiOptions
