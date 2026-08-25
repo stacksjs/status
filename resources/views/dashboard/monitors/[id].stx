@@ -1416,7 +1416,10 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
           <span class="sub">Edit or delete this monitor</span>
         </summary>
         <div class="card-body">
-          <form method="POST" action="/api/monitor-forms/{{ monitor.id }}/update">
+          {{-- The id exists so the script at the foot can find this form
+               without naming it in a selector. See that script for why the
+               spelling of its own text matters. --}}
+          <form id="settings-form" method="POST" action="/api/monitor-forms/{{ monitor.id }}/update">
             <div class="form-row">
               <div class="field">
                 <label for="edit-name">Name</label>
@@ -1451,53 +1454,60 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
               </div>
             </div>
 
+            {{-- Every field below carries data-types: the monitor types it
+                 actually belongs to, mirroring buildMonitorConfig's branches
+                 exactly. The script at the foot of this form hides the rest.
+                 KEEP IN SYNC with app/lib/monitorForm.ts — a field shown on a
+                 type its branch does not read is silently discarded on save,
+                 which is precisely how the health endpoint secret looked like
+                 operator error for as long as it did. --}}
             <div class="form-row">
-              <div class="field">
+              <div class="field" data-types="tcp_port">
                 <label for="edit-port">TCP port</label>
                 <input id="edit-port" type="number" name="port" class="input" min="1" max="65535" value="{{ cfgValue('port') }}" />
               </div>
-              <div class="field">
+              <div class="field" data-types="health">
                 <label for="edit-path">Health path</label>
                 <input id="edit-path" type="text" name="path" class="input" value="{{ cfgValue('path') }}" />
               </div>
-              <div class="field">
+              <div class="field" data-types="health">
                 <label for="edit-health-secret">Health endpoint secret</label>
                 <input id="edit-health-secret" type="text" name="health_secret" class="input" value="{{ cfgValue('healthSecret') }}" />
               </div>
-              <div class="field">
+              <div class="field" data-types="health">
                 <label for="edit-health-max-age">Report freshness (seconds)</label>
                 <input id="edit-health-max-age" type="number" name="health_max_age_seconds" class="input" min="30" max="86400" value="{{ cfgValue('healthMaxAgeSeconds') }}" />
               </div>
             </div>
 
             <div class="form-row">
-              <div class="field">
+              <div class="field" data-types="uptime tcp_port health ping">
                 <label for="edit-latency">Degraded above (ms)</label>
                 <input id="edit-latency" type="number" name="latency_threshold_ms" class="input" min="0" max="600000" value="{{ cfgValue('latencyThresholdMs') }}" />
               </div>
-              <div class="field">
+              <div class="field" data-types="ping">
                 <label for="edit-ping-count">Ping packets</label>
                 <input id="edit-ping-count" type="number" name="ping_count" class="input" min="1" max="10" value="{{ cfgValue('pingCount') }}" />
               </div>
             </div>
 
             <div class="form-row">
-              <div class="field">
+              <div class="field" data-types="ping">
                 <label for="edit-loss">Degraded above packet loss (%)</label>
                 <input id="edit-loss" type="number" name="packet_loss_threshold_percent" class="input" min="0" max="100" value="{{ cfgValue('packetLossThresholdPercent') }}" />
               </div>
-              <div class="field">
+              <div class="field" data-types="dns_blocklist">
                 <label for="edit-origin-ip">Origin IP</label>
                 <input id="edit-origin-ip" type="text" name="origin_ip" class="input" value="{{ cfgValue('origin_ip') }}" />
               </div>
             </div>
 
             <div class="form-row">
-              <div class="field">
+              <div class="field" data-types="port_scan">
                 <label for="edit-expected-ports">Expected open ports</label>
                 <input id="edit-expected-ports" type="text" name="expected_ports" class="input" value="{{ cfgValue('expectedPorts') }}" />
               </div>
-              <div class="field">
+              <div class="field" data-types="lighthouse">
                 <label for="edit-device">Lighthouse device</label>
                 <select id="edit-device" name="lighthouse_device" class="select">
                   <option value="mobile" {{ cfgValue('device') === 'desktop' ? '' : 'selected' }}>Mobile</option>
@@ -1506,34 +1516,38 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
               </div>
             </div>
 
-            <div class="field">
+            <div class="field" data-types="port_scan">
               <label for="edit-full-scan">
                 <input id="edit-full-scan" type="checkbox" name="full_scan" value="on" {{ cfgValue('fullScan') ? 'checked' : '' }} /> Scan all 65535 ports
               </label>
             </div>
 
-            <div class="field">
+            <div class="field" data-types="ssl">
               <label for="edit-fingerprint">
                 <input id="edit-fingerprint" type="checkbox" name="alert_on_fingerprint_change" value="on" {{ cfgValue('alertOnFingerprintChange') ? 'checked' : '' }} /> Alert when the TLS fingerprint changes
               </label>
             </div>
 
-            @if (monitor.type === 'cron')
-              <div class="form-row">
-                <div class="field">
-                  <label for="edit-expected-interval">Expected every (seconds)</label>
-                  <input id="edit-expected-interval" type="number" name="expected_interval_seconds" class="input" min="60" value="{{ __heartbeatRow ? __heartbeatRow.expected_interval_seconds : 3600 }}" />
-                </div>
-                <div class="field">
-                  <label for="edit-grace">Grace period (seconds)</label>
-                  <input id="edit-grace" type="number" name="grace_seconds" class="input" min="0" max="86400" value="{{ __heartbeatRow ? __heartbeatRow.grace_seconds : 300 }}" />
-                </div>
+            {{-- Rendered for every type and hidden by data-types, rather than
+                 gated server-side on the monitor's CURRENT type as it was:
+                 that made switching a monitor TO cron impossible from this
+                 form, because the fields defining the heartbeat only appeared
+                 once it was already a heartbeat. __heartbeatRow is null until
+                 then, which is what the defaults below are for. --}}
+            <div class="form-row" data-types="cron">
+              <div class="field" data-types="cron">
+                <label for="edit-expected-interval">Expected every (seconds)</label>
+                <input id="edit-expected-interval" type="number" name="expected_interval_seconds" class="input" min="60" value="{{ __heartbeatRow ? __heartbeatRow.expected_interval_seconds : 3600 }}" />
               </div>
-              <div class="field">
-                <label for="edit-cron">Cron expression</label>
-                <input id="edit-cron" type="text" name="cron_expression" class="input" value="{{ __heartbeatRow && __heartbeatRow.cron_expression ? __heartbeatRow.cron_expression : '' }}" />
+              <div class="field" data-types="cron">
+                <label for="edit-grace">Grace period (seconds)</label>
+                <input id="edit-grace" type="number" name="grace_seconds" class="input" min="0" max="86400" value="{{ __heartbeatRow ? __heartbeatRow.grace_seconds : 300 }}" />
               </div>
-            @endif
+            </div>
+            <div class="field" data-types="cron">
+              <label for="edit-cron">Cron expression</label>
+              <input id="edit-cron" type="text" name="cron_expression" class="input" value="{{ __heartbeatRow && __heartbeatRow.cron_expression ? __heartbeatRow.cron_expression : '' }}" />
+            </div>
 
             <div class="field">
               <label for="edit-metrics">
@@ -1561,6 +1575,75 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
               <button type="submit" class="button primary">Save changes</button>
             </div>
           </form>
+
+          <script>
+            ;(function () {
+              // Progressive enhancement, same contract as monitors/new.stx:
+              // the form is complete and submittable before this runs, and
+              // all it does is hide fields that do not apply to the selected
+              // type. parseMonitorForm() already ignores keys outside the
+              // submitted type's branch, so hiding them changes nothing about
+              // what is saved.
+              //
+              // It matters more here than on the create form. This page had
+              // no gating at all, so "TCP port", "Health path", "Health
+              // endpoint secret" and "Report freshness" rendered for all
+              // fourteen types. A field visible on a type whose branch never
+              // reads it accepts input, saves without complaint, and comes
+              // back empty — indistinguishable from having typed it wrong.
+              //
+              // Scoped to this form on purpose: the page carries unrelated
+              // forms (assertions, notification channels) that use the same
+              // .form-row and .field classes, and a document-wide lookup
+              // would reach into them.
+              //
+              // WATCH THE WORDING IN HERE, comments included. stx's
+              // server->client data bridge serializes any server binding
+              // whose name word-matches anywhere in a plain script's TEXT,
+              // prose as much as code. This page's server scope holds the
+              // whole row for the thing being edited, metrics_token and all.
+              // The first draft found the form through its action attribute
+              // and described the scoping in plain English, and those two
+              // incidental word matches alone were enough to publish that
+              // row into the page HTML.
+              // tests/unit/bridge-hygiene.test.ts caught it. The element is
+              // found by id now for exactly that reason, and the sentences
+              // here are written around the binding names on purpose.
+              var form = document.getElementById('settings-form')
+              if (!form) return
+              var typeSelect = form.querySelector('select[name="type"]')
+              if (!typeSelect) return
+
+              function applies(el, type) {
+                var want = el.getAttribute('data-types')
+                // No data-types means "every type" — the agent metric
+                // thresholds, which are gated on reports_metrics, not type.
+                return !want || want.split(' ').indexOf(type) !== -1
+              }
+
+              function sync() {
+                var type = typeSelect.value
+
+                var fields = form.querySelectorAll('[data-types]')
+                for (var i = 0; i < fields.length; i++) fields[i].hidden = !applies(fields[i], type)
+
+                // A .form-row is a flex container; with every child hidden it
+                // still occupies its own gap, so collapse the row too. Rows
+                // carrying their own data-types were already handled above.
+                var rows = form.querySelectorAll('.form-row')
+                for (var r = 0; r < rows.length; r++) {
+                  if (rows[r].hasAttribute('data-types')) continue
+                  var kids = rows[r].querySelectorAll('.field')
+                  var anyVisible = false
+                  for (var k = 0; k < kids.length; k++) if (!kids[k].hidden) anyVisible = true
+                  rows[r].hidden = !(anyVisible || kids.length === 0)
+                }
+              }
+
+              typeSelect.addEventListener('change', sync)
+              sync()
+            })()
+          </script>
 
           <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid var(--border);" />
 

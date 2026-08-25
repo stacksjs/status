@@ -466,6 +466,45 @@ async function journey(): Promise<void> {
   if (typeof monitorId === 'number') {
     const ran = await postJson(`/api/monitors/${monitorId}/check`, {})
     check('run an out-of-band check on it', ran.status < 300, `got ${ran.status} — ${ran.body.slice(0, 240)}`)
+
+    // The edit form's type gating, on a real signed-in render. The unit
+    // tests assert the data-types attributes exist in the source; only a
+    // live render proves the server actually emits them and that the health
+    // secret round-trips through the action, which is the pair that was
+    // broken. Worth doing here because the dashboard views are only
+    // reachable with a session, so nothing else in this file covers them
+    // beyond "the route returns 200".
+    const edit = await hit(`/dashboard/monitors/${monitorId}`)
+    check(
+      'the monitor edit form renders',
+      edit.status === 200 && edit.body.includes('name="health_secret"'),
+      `got ${edit.status}; health_secret field ${edit.body.includes('name="health_secret"')}`,
+    )
+    check(
+      'its type-specific fields are gated by data-types',
+      (edit.body.match(/data-types="/g) ?? []).length >= 10,
+      `found ${(edit.body.match(/data-types="/g) ?? []).length} data-types attributes, expected the full set`,
+    )
+
+    const secret = `e2e-secret-${stamp}`
+    const toHealth = await postJson(`/api/monitor-forms/${monitorId}/update`, {
+      name: `E2E probe ${stamp}`,
+      url: 'https://example.com',
+      type: 'health',
+      path: '/api/health',
+      health_secret: secret,
+      health_max_age_seconds: '300',
+      check_interval_seconds: 300,
+      enabled: true,
+    })
+    check('switch the monitor to a health check with a secret', toHealth.status < 400, `got ${toHealth.status}`)
+
+    const reread = await hit(`/dashboard/monitors/${monitorId}`)
+    check(
+      'the health secret survived the save',
+      reread.body.includes(secret),
+      'the secret is absent from the re-rendered form — it was dropped on save',
+    )
   }
 
   const page = await postJson('/api/status-page-forms/create', {
