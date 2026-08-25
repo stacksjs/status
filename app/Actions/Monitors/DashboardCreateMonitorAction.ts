@@ -38,6 +38,11 @@ export default new Action({
       reports_metrics: request.get('reports_metrics'),
       port: request.get('port'),
       path: request.get('path'),
+      // See the same pair in DashboardUpdateMonitorAction: rendered by the
+      // form, posted by the browser, read by neither action until now, so a
+      // health monitor could never carry a secret.
+      health_secret: request.get('health_secret'),
+      health_max_age_seconds: request.get('health_max_age_seconds'),
       ping_count: request.get('ping_count'),
       packet_loss_threshold_percent: request.get('packet_loss_threshold_percent'),
       latency_threshold_ms: request.get('latency_threshold_ms'),

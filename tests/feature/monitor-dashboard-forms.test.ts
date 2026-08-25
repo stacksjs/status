@@ -247,4 +247,99 @@ describe('Monitor dashboard forms (create / update / delete)', () => {
     expect(await HeartbeatMonitor.where('monitor_id', monitor.id).get()).toHaveLength(0)
     expect(await CheckResult.where('monitor_id', monitor.id).get()).toHaveLength(0)
   })
+
+  /**
+   * The health endpoint secret was unsettable from the UI for as long as the
+   * health type has existed. Every piece was in place except one: both forms
+   * rendered the field, the browser posted it, buildMonitorConfig knew how to
+   * store it (monitor-form.test.ts covers that directly, and passed the whole
+   * time), and RunHealthCheck knew how to send it — but neither dashboard
+   * action pulled `health_secret` off the request, so the library was always
+   * handed undefined. The field accepted input, saved without error, and came
+   * back empty, which reads as "I typed it wrong".
+   *
+   * The unit tests could not catch this because they call
+   * buildMonitorConfig directly, which is precisely the layer that was fine.
+   * These go through the actions, the layer that was not.
+   */
+  describe('health monitor secrets survive the round trip', () => {
+    test('create stores the secret and freshness window', async () => {
+      const res = await DashboardCreateMonitorAction.handle(fakeRequest({
+        name: 'API health',
+        url: 'https://api.example.com',
+        type: 'health',
+        path: '/api/health',
+        health_secret: 'sh4red-s3cret',
+        health_max_age_seconds: '300',
+        check_interval_seconds: '300',
+        enabled: 'true',
+      }, token))
+      expect(res.status).toBe(302)
+
+      const monitor = (await Monitor.where('team_id', teamId).get())[0]
+      expect(JSON.parse(monitor.config)).toEqual({
+        path: '/api/health',
+        healthSecret: 'sh4red-s3cret',
+        healthMaxAgeSeconds: 300,
+      })
+    })
+
+    test('update stores a secret on a monitor that had none', async () => {
+      const monitor = await Monitor.create({
+        teamId,
+        name: 'API health',
+        url: 'https://api.example.com',
+        type: 'health',
+        checkIntervalSeconds: 300,
+        status: 'unknown',
+        config: '{}',
+      })
+
+      const res = await DashboardUpdateMonitorAction.handle(fakeRequest({
+        monitorId: String(monitor.id),
+        name: 'API health',
+        url: 'https://api.example.com',
+        type: 'health',
+        path: '/api/health',
+        health_secret: 'sh4red-s3cret',
+        health_max_age_seconds: '300',
+        check_interval_seconds: '300',
+        enabled: 'true',
+      }, token))
+      expect(res.status).toBe(302)
+
+      const saved = await Monitor.find(monitor.id)
+      expect(JSON.parse(saved!.config).healthSecret).toBe('sh4red-s3cret')
+      expect(JSON.parse(saved!.config).healthMaxAgeSeconds).toBe(300)
+    })
+
+    test('switching a monitor to another type drops the secret rather than orphaning it', async () => {
+      // config is rebuilt from scratch per save and only the branches
+      // matching `type` are filled, so this is the existing contract rather
+      // than a new behaviour — asserted so the fix above cannot be
+      // "improved" into leaking a credential onto a type that never sends it.
+      const monitor = await Monitor.create({
+        teamId,
+        name: 'API health',
+        url: 'https://api.example.com',
+        type: 'health',
+        checkIntervalSeconds: 300,
+        status: 'unknown',
+        config: JSON.stringify({ path: '/api/health', healthSecret: 'sh4red-s3cret' }),
+      })
+
+      await DashboardUpdateMonitorAction.handle(fakeRequest({
+        monitorId: String(monitor.id),
+        name: 'API health',
+        url: 'https://api.example.com',
+        type: 'uptime',
+        health_secret: 'sh4red-s3cret',
+        check_interval_seconds: '300',
+        enabled: 'true',
+      }, token))
+
+      const saved = await Monitor.find(monitor.id)
+      expect(JSON.parse(saved!.config).healthSecret).toBeUndefined()
+    })
+  })
 })

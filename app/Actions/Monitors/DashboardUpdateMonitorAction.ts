@@ -40,6 +40,15 @@ export default new Action({
       reports_metrics: request.get('reports_metrics'),
       port: request.get('port'),
       path: request.get('path'),
+      // Both forms have rendered these two since the health type shipped and
+      // neither action read them, so buildMonitorConfig always saw undefined
+      // and dropped them: the health endpoint secret could not be set from
+      // the UI at all, at any monitor type. The field accepted input, saved
+      // without complaint, and came back empty. Everything either side of
+      // this line was already in place — monitorForm.ts builds the config
+      // keys, RunHealthCheck sends the oh-dear-health-check-secret header.
+      health_secret: request.get('health_secret'),
+      health_max_age_seconds: request.get('health_max_age_seconds'),
       ping_count: request.get('ping_count'),
       packet_loss_threshold_percent: request.get('packet_loss_threshold_percent'),
       latency_threshold_ms: request.get('latency_threshold_ms'),
