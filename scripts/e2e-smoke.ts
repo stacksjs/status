@@ -118,10 +118,43 @@ async function hit(path: string, init: RequestInit = {}): Promise<Hit> {
   return { status: res.status, body, headers: res.headers, ms }
 }
 
+/**
+ * Whether a dashboard form endpoint succeeded. They answer POST/redirect/GET
+ * with an empty body, so the only signal is the Location: the created
+ * resource on success, or back to the form carrying `?error=CODE`.
+ */
+function redirectedOk(res: Hit): boolean {
+  if (res.status < 200 || res.status >= 400)
+    return false
+  const location = res.headers.get('location') ?? ''
+  return res.status < 300 || (location !== '' && !location.includes('error='))
+}
+
+/** The trailing numeric id of a form endpoint's success redirect. */
+function idFromLocation(res: Hit): number | undefined {
+  const id = /\/(\d+)(?:\?|$)/.exec(res.headers.get('location') ?? '')?.[1]
+  return id ? Number(id) : undefined
+}
+
 async function postJson(path: string, payload: unknown): Promise<Hit> {
+  // Echo the CSRF cookie back as a header. The app issues X-CSRF-Token as a
+  // SameSite=Lax cookie on any page load and requires the same value on the
+  // header of a mutating request; the jar was already storing it and nothing
+  // was sending it, so EVERY POST in the journey answered 403 and the whole
+  // signed-in half of this harness had never actually run — the first check
+  // (register) failed and the rest returned early behind it. A GET first, so
+  // there is a token to echo when a run starts cold.
+  if (!jar.has('X-CSRF-Token'))
+    await hit('/login')
+
+  const csrf = jar.get('X-CSRF-Token')
+
   return hit(path, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
+    },
     body: JSON.stringify(payload),
   })
 }
@@ -454,18 +487,27 @@ async function journey(): Promise<void> {
     enabled: true,
     check_interval_seconds: 300,
   })
-  const monitorOk = check('create a monitor', monitor.status < 300, `got ${monitor.status} — ${monitor.body.slice(0, 240)}`)
+  // These are FORM endpoints: success is a 302 to the created resource,
+  // failure is a 302 back to the form with ?error=CODE, and the body is
+  // empty either way. `status < 300` plus a JSON id lookup was reading a
+  // correct response as a failure and then never finding an id in a body
+  // that never had one -- which is why everything below this point had
+  // never run even once the CSRF fix let the journey get this far.
+  const monitorOk = check(
+    'create a monitor',
+    redirectedOk(monitor),
+    `got ${monitor.status} -> ${monitor.headers.get('location') ?? '(no Location)'}`,
+  )
 
   let monitorId: number | undefined
   if (monitorOk) {
-    const parsed = safeJson(monitor.body)
-    monitorId = parsed?.id ?? parsed?.monitor?.id ?? parsed?.data?.id
-    check('the created monitor came back with an id', typeof monitorId === 'number', `body was ${monitor.body.slice(0, 240)}`)
+    monitorId = idFromLocation(monitor)
+    check('the created monitor came back with an id', typeof monitorId === 'number', `Location was ${monitor.headers.get('location')}`)
   }
 
   if (typeof monitorId === 'number') {
     const ran = await postJson(`/api/monitors/${monitorId}/check`, {})
-    check('run an out-of-band check on it', ran.status < 300, `got ${ran.status} — ${ran.body.slice(0, 240)}`)
+    check('run an out-of-band check on it', redirectedOk(ran), `got ${ran.status} -> ${ran.headers.get('location') ?? '(no Location)'}`)
 
     // The edit form's type gating, on a real signed-in render. The unit
     // tests assert the data-types attributes exist in the source; only a
@@ -497,7 +539,7 @@ async function journey(): Promise<void> {
       check_interval_seconds: 300,
       enabled: true,
     })
-    check('switch the monitor to a health check with a secret', toHealth.status < 400, `got ${toHealth.status}`)
+    check('switch the monitor to a health check with a secret', redirectedOk(toHealth), `got ${toHealth.status} -> ${toHealth.headers.get('location') ?? '(no Location)'}`)
 
     const reread = await hit(`/dashboard/monitors/${monitorId}`)
     check(
@@ -511,7 +553,7 @@ async function journey(): Promise<void> {
     title: `E2E Smoke ${stamp}`,
     slug,
   })
-  const pageOk = check('publish a status page', page.status < 300, `got ${page.status} — ${page.body.slice(0, 240)}`)
+  const pageOk = check('publish a status page', redirectedOk(page), `got ${page.status} -> ${page.headers.get('location') ?? '(no Location)'}`)
 
   if (pageOk) {
     // Read it back with no credentials at all — a status page that only works
@@ -539,7 +581,7 @@ async function journey(): Promise<void> {
   setGroup('Journey cleanup')
   if (typeof monitorId === 'number') {
     const deleted = await postJson(`/api/monitor-forms/${monitorId}/delete`, {})
-    check('the e2e monitor was deleted', deleted.status < 300, `got ${deleted.status}; monitor ${monitorId} may need manual removal`)
+    check('the e2e monitor was deleted', redirectedOk(deleted), `got ${deleted.status} -> ${deleted.headers.get('location') ?? '(no Location)'}; monitor ${monitorId} may need manual removal`)
   }
   console.log(`  \x1B[2mleft behind: account ${email}, status page /status/${slug}\x1B[0m`)
 
