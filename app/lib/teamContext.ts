@@ -86,24 +86,53 @@ export async function resolveOrCreateTeamId(request: unknown): Promise<number | 
  * still unexplained.
  */
 export async function createPersonalTeam(userId: number, name: string, email: string): Promise<number | null> {
-  try {
-    const teamName = name.trim() ? `${name.trim()}'s Team` : 'My Team'
-    const now = new Date().toISOString()
+  // `teams.name` carries a UNIQUE index (teams_name_unique), and the name is
+  // derived from the user's -- so the SECOND person called Chris collides
+  // with the first, and every signup that leaves the name blank collides
+  // with whoever took "My Team". That is the whole bug: signup's team
+  // creation was inside a swallowing try/catch, so the collision threw, the
+  // account got no team, and every later write answered "Authentication
+  // required" while the session was perfectly valid.
+  //
+  // It hid well. The first signup of any given name works, so it looks fine
+  // in a fresh environment and fails only as an install accumulates users --
+  // and locally every test happened to pick a distinct name.
+  //
+  // So: fall back to a per-user name. The suffix is the user id rather than
+  // a timestamp or random value, which keeps it deterministic and means a
+  // retry of the same repair lands on the same name instead of littering.
+  const base = name.trim() ? `${name.trim()}'s Team` : 'My Team'
 
+  for (const teamName of [base, `${base} (${userId})`]) {
+    const teamId = await insertTeam(teamName, userId, email)
+    if (teamId !== null)
+      return teamId
+  }
+
+  log.error(`[teamContext] exhausted every team name for user#${userId}`)
+  return null
+}
+
+/** One attempt at a given name. Null on any failure, including a collision. */
+async function insertTeam(teamName: string, userId: number, email: string): Promise<number | null> {
+  try {
+    // Check first so an expected collision costs a read instead of an
+    // exception, and keep the catch below for the race between the two.
+    const taken = await db.selectFrom('teams').where('name', '=', teamName).select(['id']).executeTakeFirst()
+    if (taken?.id) {
+      log.info(`[teamContext] team name "${teamName}" is taken, trying the next candidate`)
+      return null
+    }
+
+    const now = new Date().toISOString()
     await db.insertInto('teams').values({ name: teamName, status: 'active' }).execute()
 
     // Read back rather than trusting a returned id: the dialect differs
     // between the self-hosted SQLite and the hosted Postgres, and this runs
-    // on both.
-    const created = await db
-      .selectFrom('teams')
-      .where('name', '=', teamName)
-      .orderBy('id', 'desc')
-      .select(['id'])
-      .executeTakeFirst()
-
+    // on both. Safe to match on name -- it is unique, which is the point.
+    const created = await db.selectFrom('teams').where('name', '=', teamName).select(['id']).executeTakeFirst()
     if (!created?.id) {
-      log.error(`[teamContext] created a team for user#${userId} and could not read it back`)
+      log.error(`[teamContext] created team "${teamName}" for user#${userId} and could not read it back`)
       return null
     }
 
@@ -119,14 +148,14 @@ export async function createPersonalTeam(userId: number, name: string, email: st
       joined_at: now,
     }).execute()
 
-    log.info(`[teamContext] created team#${teamId} for user#${userId}`)
+    log.info(`[teamContext] created team#${teamId} ("${teamName}") for user#${userId}`)
     return teamId
   }
   catch (err) {
-    // Loud, and with the reason attached. The old call site swallowed this
-    // into a bare console.error, which is why the production failure went
-    // unexplained for as long as it did.
-    log.error(`[teamContext] failed to create a team for user#${userId}: ${err instanceof Error ? err.message : String(err)}`)
+    // Loud, and with the reason attached. The original call site swallowed
+    // this into a bare console.error, which is why a unique-constraint
+    // violation went unexplained for as long as it did.
+    log.error(`[teamContext] failed to create team "${teamName}" for user#${userId}: ${err instanceof Error ? err.message : String(err)}`)
     return null
   }
 }

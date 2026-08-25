@@ -116,6 +116,38 @@ describe('team self-heal', () => {
     expect(typeof healed).toBe('number')
   })
 
+  test('two users with the same name both get a team', async () => {
+    // The actual production bug. teams.name is UNIQUE (teams_name_unique),
+    // and the name is derived from the user's, so the second Chris to sign
+    // up collided with the first, the swallowed exception left them with no
+    // team, and every write then claimed they were not authenticated. It
+    // hides well: the first signup of any name works, so a fresh install
+    // looks healthy and only breaks as users accumulate.
+    const first = await makeUser('samename-a')
+    const second = await makeUser('samename-b')
+
+    const firstTeam = await createPersonalTeam(first.id, 'Chris', first.email)
+    const secondTeam = await createPersonalTeam(second.id, 'Chris', second.email)
+
+    expect(firstTeam).not.toBeNull()
+    expect(secondTeam).not.toBeNull()
+    expect(secondTeam).not.toBe(firstTeam!)
+
+    const names = await db.selectFrom('teams')
+      .where('id', 'in', [firstTeam!, secondTeam!])
+      .select(['name'])
+      .execute()
+    expect(new Set(names.map(n => n.name)).size).toBe(2)
+  })
+
+  test('a blank name collides on "My Team" and still succeeds', async () => {
+    const first = await makeUser('blank-a')
+    const second = await makeUser('blank-b')
+
+    expect(await createPersonalTeam(first.id, '', first.email)).not.toBeNull()
+    expect(await createPersonalTeam(second.id, '', second.email)).not.toBeNull()
+  })
+
   test('createPersonalTeam names the team after the user, or falls back', async () => {
     const named = await makeUser('named')
     const teamId = await createPersonalTeam(named.id, 'Ada', named.email)
