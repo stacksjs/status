@@ -1,8 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /notification-channel-forms/monitors/{monitorId}/remove` —
@@ -19,7 +19,7 @@ export default new Action({
   description: 'Detach a notification channel from a monitor from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

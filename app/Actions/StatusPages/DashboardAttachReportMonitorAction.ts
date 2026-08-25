@@ -1,9 +1,9 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import Monitor from '../../Models/Monitor'
 import StatusReport from '../../Models/StatusReport'
 import StatusReportMonitor from '../../Models/StatusReportMonitor'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /status-report-forms/{id}/monitors/add` — attach a monitor to a
@@ -19,7 +19,7 @@ export default new Action({
   description: 'Attach a monitor to a status report from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

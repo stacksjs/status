@@ -1,8 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import SendNotification from '../../Jobs/SendNotification'
 import NotificationChannel from '../../Models/NotificationChannel'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /notification-channel-forms/{id}/test-send` — the dashboard's
@@ -23,7 +23,7 @@ export default new Action({
   description: 'Send a test notification through a channel',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

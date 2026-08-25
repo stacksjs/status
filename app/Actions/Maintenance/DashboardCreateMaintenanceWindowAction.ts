@@ -1,8 +1,8 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import { parseMaintenanceForm } from '../../lib/maintenanceForm'
 import MaintenanceWindow from '../../Models/MaintenanceWindow'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /api/maintenance-forms/create` — the dashboard's native HTML form
@@ -23,7 +23,7 @@ export default new Action({
   description: 'Create a maintenance window from a dashboard form post',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.json({ error: 'Authentication required' }, { status: 401 })
 

@@ -1,8 +1,8 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import StatusReport from '../../Models/StatusReport'
 import StatusReportMonitor from '../../Models/StatusReportMonitor'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /status-report-forms/{id}/monitors/remove` — detach a monitor
@@ -15,7 +15,7 @@ export default new Action({
   description: 'Detach a monitor from a status report from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

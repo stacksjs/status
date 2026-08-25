@@ -1,9 +1,9 @@
 import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { randomUUIDv7 } from 'bun'
 import { db } from '@stacksjs/database'
 import { encryptSecret } from './cloudCrypto'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /cloud-credential-forms/aws` — dashboard settings form to store the
@@ -22,7 +22,7 @@ export default new Action({
   method: 'POST',
 
   async handle(request: RequestInstance) {
-    const teamId = await resolveAuthenticatedTeamId(request)
+    const teamId = await resolveOrCreateTeamId(request)
     if (!teamId)
       return new Response(null, { status: 302, headers: { Location: '/login' } })
 

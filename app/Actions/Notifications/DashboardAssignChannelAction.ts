@@ -1,10 +1,10 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { normalizeFiresOn } from '../../lib/notificationSeverity'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotificationChannel from '../../Models/NotificationChannel'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /notification-channel-forms/monitors/{monitorId}/assign` —
@@ -21,7 +21,7 @@ export default new Action({
   description: 'Attach a notification channel to a monitor from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

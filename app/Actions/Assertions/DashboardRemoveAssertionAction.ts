@@ -1,8 +1,8 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import Assertion from '../../Models/Assertion'
 import Monitor from '../../Models/Monitor'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /assertion-forms/monitors/{monitorId}/remove` — deletes one of a
@@ -15,7 +15,7 @@ export default new Action({
   description: 'Delete a monitor response assertion from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

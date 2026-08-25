@@ -1,9 +1,9 @@
 import { PAYMENT_REQUIRED } from '../../lib/http'
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import { limitReachedMessage, planForTeam } from '../../../config/plans'
 import StatusPage from '../../Models/StatusPage'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * Overrides the useApi-generated `POST /status-pages` (user-defined
@@ -19,7 +19,7 @@ export default new Action({
     // Bind the status page to the authenticated team, not a client-supplied
     // team_id (that trust let a cross-team caller create pages under any team
     // and consume its quota — IDOR). A body team_id must match the caller's.
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

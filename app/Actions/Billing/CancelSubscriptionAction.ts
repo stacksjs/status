@@ -2,8 +2,8 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { manageSubscription } from '@stacksjs/payments'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { getTeamOwnerUserId } from '../../../config/plans'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /billing-forms/cancel` — cancels the team owner's active Stripe
@@ -30,7 +30,7 @@ export default new Action({
   description: "Cancel the team owner's active paid subscription",
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.json({ error: 'Authentication required' }, { status: 401 })
 

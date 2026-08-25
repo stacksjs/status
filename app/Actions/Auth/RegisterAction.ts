@@ -2,11 +2,11 @@ import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { dispatch } from '@stacksjs/events'
 import { Auth, register } from '@stacksjs/auth'
-import { Team } from '@stacksjs/orm'
 import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
 import TeamMember from '../../Models/TeamMember'
 import { buildAuthCookie } from './authCookie'
+import { createPersonalTeam } from '../../lib/teamContext'
 
 /**
  * Project override of the framework's default RegisterAction (registered
@@ -56,43 +56,17 @@ export default new Action({
       // "no team" state and CreateMonitorAction has nothing to attach
       // to. registration doesn't create a team by default, so the
       // post-signup "Get started" flow would otherwise land nowhere.
-      // Best-effort: a team-creation hiccup must not fail the whole
-      // registration (the account + token already exist).
+      //
+      // Still best-effort: the account and token already exist, and failing
+      // the whole registration over the team would be worse. What changed is
+      // that failing here is no longer terminal — resolveOrCreateTeamId
+      // retries on the user's next action, so a hiccup costs a moment rather
+      // than permanently laming the account. Shared helper so signup and that
+      // repair path cannot produce differently-shaped teams.
       if (user?.id) {
-        try {
-          const existingMembership = await TeamMember.where('user_id', user.id).where('status', 'active').first()
-          if (!existingMembership) {
-            const teamName = name ? `${name}'s Team` : 'My Team'
-            // forceCreate: `owner`/`user_id` aren't in the Team model's
-            // fillable allowlist (only name/description/memberCount/status
-            // are), but the columns exist and recording ownership on the
-            // team row itself is correct. The dashboard resolves the active
-            // team via the team_members row below, not these columns.
-            const team = await Team.forceCreate({
-              name: teamName,
-              status: 'active',
-              user_id: user.id,
-              owner: user.email,
-            })
-
-            // invitedEmail/invitedAt are `required: true` on the model. An
-            // owner creating their own team was never "invited", but the row
-            // still has to carry them -- the older ORM accepted the omission
-            // silently and wrote NULLs.
-            await TeamMember.create({
-              teamId: team.id,
-              userId: user.id,
-              role: 'owner',
-              status: 'active',
-              invitedEmail: user.email,
-              invitedAt: new Date().toISOString(),
-              joinedAt: new Date().toISOString(),
-            })
-          }
-        }
-        catch (err) {
-          console.error('[RegisterAction] failed to create default team', err)
-        }
+        const existingMembership = await TeamMember.where('user_id', user.id).where('status', 'active').first()
+        if (!existingMembership)
+          await createPersonalTeam(Number(user.id), String(name ?? ''), String(user.email ?? ''))
       }
 
       // Fire `user:registered` so app/Events.ts listeners (welcome email,

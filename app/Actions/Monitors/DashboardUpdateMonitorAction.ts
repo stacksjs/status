@@ -1,11 +1,11 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import { randomUUIDv7 } from 'bun'
 import { planForTeam } from '../../../config/plans'
 import { parseMonitorForm } from '../../lib/monitorForm'
 import HeartbeatMonitor from '../../Models/HeartbeatMonitor'
 import Monitor from '../../Models/Monitor'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * Edit a monitor from the dashboard form. Same validation as create; the
@@ -17,7 +17,7 @@ export default new Action({
   description: 'Update a monitor from the dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

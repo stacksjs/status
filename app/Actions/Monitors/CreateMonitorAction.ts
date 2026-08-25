@@ -1,12 +1,12 @@
 import { PAYMENT_REQUIRED } from '../../lib/http'
 import { randomUUIDv7 } from 'bun'
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import { limitReachedMessage, planForTeam } from '../../../config/plans'
 import { coerceCheckbox, heartbeatAttributesFor, isMonitorType } from '../../lib/monitorForm'
 import HeartbeatMonitor from '../../Models/HeartbeatMonitor'
 import Monitor from '../../Models/Monitor'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 export default new Action({
   name: 'CreateMonitorAction',
@@ -17,7 +17,7 @@ export default new Action({
     // request body: trusting a client-supplied team_id let an unauthenticated
     // or cross-team caller create monitors under (and burn the quota of) any
     // team (IDOR). A body team_id, if sent, must match the authenticated team.
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

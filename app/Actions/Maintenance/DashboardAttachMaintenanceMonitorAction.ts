@@ -1,9 +1,9 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import MaintenanceWindow from '../../Models/MaintenanceWindow'
 import MaintenanceWindowMonitor from '../../Models/MaintenanceWindowMonitor'
 import Monitor from '../../Models/Monitor'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /api/maintenance-forms/{id}/monitors/add` — put a monitor inside a
@@ -24,7 +24,7 @@ export default new Action({
   description: 'Attach a monitor to a maintenance window from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

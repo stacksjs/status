@@ -3,9 +3,9 @@ import { Action } from '@stacksjs/actions'
 import { config } from '@stacksjs/config'
 import { manageCustomer, stripe } from '@stacksjs/payments'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { PAID_PLAN, PAID_PLAN_PRICE_USD_CENTS, PLAN_STRIPE_PRICE_ID, getTeamOwnerUserId } from '../../../config/plans'
 import User from '../../Models/User'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /billing-forms/checkout` — plain-POST, redirect-to-Stripe
@@ -35,7 +35,7 @@ export default new Action({
   description: 'Start a Stripe subscription checkout for the paid plan',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.json({ error: 'Authentication required' }, { status: 401 })
 

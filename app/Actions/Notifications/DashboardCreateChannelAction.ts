@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import NotificationChannel from '../../Models/NotificationChannel'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /notification-channel-forms/create` — dashboard form to create a
@@ -23,7 +23,7 @@ export default new Action({
   description: 'Create a notification channel from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.json({ error: 'Authentication required' }, { status: 401 })
 

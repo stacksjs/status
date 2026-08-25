@@ -1,8 +1,8 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { db } from '@stacksjs/database'
 import { response } from '@stacksjs/router'
 import StatusReport from '../../Models/StatusReport'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /status-report-forms/{id}/delete` — delete a status report and its
@@ -16,7 +16,7 @@ export default new Action({
   description: 'Delete a status report from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

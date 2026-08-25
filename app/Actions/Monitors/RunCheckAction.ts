@@ -1,5 +1,4 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { log } from '@stacksjs/logging'
 import { response } from '@stacksjs/router'
 import { isActivelyPolled, type PolledMonitorType } from '../../lib/monitorTypes'
@@ -17,6 +16,7 @@ import RunPortScan from '../../Jobs/RunPortScan'
 import RunSslCheck from '../../Jobs/RunSslCheck'
 import RunTcpPortCheck from '../../Jobs/RunTcpPortCheck'
 import RunUptimeCheck from '../../Jobs/RunUptimeCheck'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 // Keyed by PolledMonitorType, so a polled type without an on-demand runner
 // (or a runner for a type nothing declares as polled) is a build error. This
@@ -49,7 +49,7 @@ export default new Action({
   description: 'Run an on-demand check for a monitor',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

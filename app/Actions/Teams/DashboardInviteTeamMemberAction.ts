@@ -1,8 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import SendTeamInviteEmail from '../../Jobs/SendTeamInviteEmail'
 import TeamMember from '../../Models/TeamMember'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /team-forms/{id}/invite` — a plain-POST, redirect-back
@@ -24,7 +24,7 @@ export default new Action({
   description: 'Invite a team member from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 

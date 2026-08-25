@@ -1,8 +1,8 @@
 import { Action } from '@stacksjs/actions'
-import { resolveAuthenticatedTeamId } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
 import StatusReport from '../../Models/StatusReport'
 import StatusReportUpdate from '../../Models/StatusReportUpdate'
+import { resolveOrCreateTeamId } from '../../lib/teamContext'
 
 /**
  * `POST /status-report-forms/{id}/updates` — post a timeline update to a
@@ -24,7 +24,7 @@ export default new Action({
   description: 'Post a status report update from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveAuthenticatedTeamId(request)
+    const authTeamId = await resolveOrCreateTeamId(request)
     if (!authTeamId)
       return response.unauthorized('Authentication required')
 
