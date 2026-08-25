@@ -13,14 +13,14 @@
   DashboardCreateMaintenanceWindowAction, no client JS.
 -->
 <script server>
-import { resolveTeamContext } from '@stacksjs/auth'
+import { resolveHealedTeamContext } from '../../../../app/lib/teamContext'
 import { db } from '@stacksjs/database'
 import { authRequest } from '../../../../app/lib/authRequest'
 
 // Auth + active-team resolution via @stacksjs/auth's resolveTeamContext,
 // which honors the workspace-switcher cookie (see dashboard/index.stx for
 // the full note). allowAnyTeam lets a super-admin act for any team.
-const TEAM_CTX = await resolveTeamContext(
+const TEAM_CTX = await resolveHealedTeamContext(
   authRequest(typeof cookies !== 'undefined' ? cookies : null),
   { allowAnyTeam: u => !!(u && u.is_super_admin) },
 )

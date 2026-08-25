@@ -1,4 +1,4 @@
-import { resolveAuthenticatedTeamId, resolveAuthenticatedUser } from '@stacksjs/auth'
+import { resolveAuthenticatedTeamId, resolveAuthenticatedUser, resolveTeamContext } from '@stacksjs/auth'
 import { db } from '@stacksjs/database'
 import { log } from '@stacksjs/logging'
 
@@ -29,6 +29,49 @@ import { log } from '@stacksjs/logging'
  * Returns null ONLY when there is genuinely no session. Callers can therefore
  * treat null as "not signed in" and say so honestly.
  */
+/**
+ * resolveTeamContext, but a signed-in user without a team gets one first.
+ *
+ * The dashboard VIEWS resolve their own context rather than going through the
+ * actions, so healing only the write path left every page rendering
+ * `Team -1` (the fail-closed sentinel) for an account whose signup team
+ * creation had failed. The write would succeed and the page would still look
+ * broken, which is indistinguishable from the write being broken too.
+ *
+ * Yes, this can write during a GET. That is deliberate: the alternative is a
+ * dashboard that renders a dead "no team" state until the user guesses that
+ * submitting a form will fix it. The write is idempotent and only fires for
+ * an account that is already in a state it cannot get out of on its own.
+ *
+ * Re-resolves after creating so `teams`, `role` and the switcher list come
+ * back populated rather than hand-assembled here.
+ */
+export async function resolveHealedTeamContext(request: unknown, opts?: unknown): Promise<TeamContext> {
+  const ctx = await resolveTeamContext(request as never, opts as never) as TeamContext
+
+  if (!ctx?.user || ctx.teamId != null)
+    return ctx
+
+  const user = ctx.user as { id?: unknown, name?: unknown, email?: unknown }
+  if (!user.id)
+    return ctx
+
+  const created = await createPersonalTeam(Number(user.id), String(user.name ?? ''), String(user.email ?? ''))
+  if (created == null)
+    return ctx
+
+  return await resolveTeamContext(request as never, opts as never) as TeamContext
+}
+
+/** The shape the dashboard views destructure. */
+interface TeamContext {
+  user: unknown
+  teamId: number | null
+  role: string | null
+  teams: Array<{ id: number, name: string, role: string }>
+  activeTeamId: number | null
+}
+
 /**
  * Why a caller has no team, for callers that need to say something honest.
  *

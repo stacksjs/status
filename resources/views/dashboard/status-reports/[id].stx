@@ -7,7 +7,7 @@
   same convention as status-pages/[id].stx.
 -->
 <script server>
-import { resolveTeamContext } from '@stacksjs/auth'
+import { resolveHealedTeamContext } from '../../../../app/lib/teamContext'
 import { authRequest } from '../../../../app/lib/authRequest'
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
 import { db } from '@stacksjs/database'
@@ -32,7 +32,7 @@ const stLabel = statusLabel
 // memberships by role and taking the first -- so it ignored the switcher,
 // and the switcher never rendered here (partials/app-nav.stx guards on
 // SWITCHABLE_TEAMS being defined).
-const TEAM_CTX = await resolveTeamContext(
+const TEAM_CTX = await resolveHealedTeamContext(
   authRequest(typeof cookies !== 'undefined' ? cookies : null),
   { allowAnyTeam: u => !!(u && u.is_super_admin) },
 )

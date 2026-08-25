@@ -116,6 +116,23 @@ describe('team self-heal', () => {
     expect(typeof healed).toBe('number')
   })
 
+  test('the dashboard view context heals too, so pages stop rendering Team -1', async () => {
+    // Healing only the write path was not enough: the dashboard VIEWS resolve
+    // their own context, so every page kept rendering the fail-closed
+    // sentinel (TEAM_ID = ctx.teamId ?? -1) for an account whose signup team
+    // creation had failed. The write would succeed while the page still
+    // looked broken, which is indistinguishable from the write being broken.
+    const { resolveHealedTeamContext } = await import('../../app/lib/teamContext')
+    const user = await makeUser('viewctx')
+
+    const ctx = await resolveHealedTeamContext(fakeRequest(user.token), { allowAnyTeam: () => false })
+
+    expect(ctx.teamId).not.toBeNull()
+    expect(Number(ctx.teamId)).toBeGreaterThan(0)
+    // Re-resolved rather than hand-assembled, so the switcher list is real.
+    expect(ctx.teams.some(t => t.id === Number(ctx.teamId))).toBe(true)
+  })
+
   test('two users with the same name both get a team', async () => {
     // The actual production bug. teams.name is UNIQUE (teams_name_unique),
     // and the name is derived from the user's, so the second Chris to sign

@@ -12,13 +12,13 @@
   Same plain-POST, no-client-JS convention as status-pages/[id].stx.
 -->
 <script server>
-import { resolveTeamContext } from '@stacksjs/auth'
+import { resolveHealedTeamContext } from '../../../../app/lib/teamContext'
 import { db } from '@stacksjs/database'
 import { authRequest } from '../../../../app/lib/authRequest'
 import { expandWindowIntervals } from '../../../../app/lib/maintenance'
 import { toDateTimeLocalValue } from '../../../../app/lib/maintenanceForm'
 
-const TEAM_CTX = await resolveTeamContext(
+const TEAM_CTX = await resolveHealedTeamContext(
   authRequest(typeof cookies !== 'undefined' ? cookies : null),
   { allowAnyTeam: u => !!(u && u.is_super_admin) },
 )

@@ -11,7 +11,7 @@
 -->
 <script server>
 import { relativeTime, siteHost, siteSlug, statusLabel, statusPillClass } from '../../../../app/lib/display'
-import { resolveTeamContext } from '@stacksjs/auth'
+import { resolveHealedTeamContext } from '../../../../app/lib/teamContext'
 import { authRequest } from '../../../../app/lib/authRequest'
 import { db } from '@stacksjs/database'
 import { scaleLinear, line, curveMonotoneX } from 'ts-charts'
@@ -35,7 +35,7 @@ const agoLabel = relativeTime
 // which honors the workspace-switcher cookie (see dashboard/index.stx for the
 // full note). allowAnyTeam lets a super-admin switch to / see any team;
 // unpinned, a super-admin still sees every team merged.
-const TEAM_CTX = await resolveTeamContext(
+const TEAM_CTX = await resolveHealedTeamContext(
   authRequest(typeof cookies !== 'undefined' ? cookies : null),
   { allowAnyTeam: u => !!(u && u.is_super_admin) },
 )
