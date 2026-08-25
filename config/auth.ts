@@ -47,18 +47,41 @@ export default {
   password: env.AUTH_PASSWORD_FIELD || 'password',
 
   /**
-   * Access-token expiry in milliseconds (default: 1 hour).
+   * Access-token expiry in milliseconds (default: 24 hours).
    *
-   * Access tokens are deliberately short-lived: a leaked bearer (logs,
-   * proxy, browser storage) is then usable for an hour, not a month. The
-   * paired refresh token (`refreshTokenExpiry`) carries the long-lived
-   * session and is rotated on use, so UX is unaffected.
+   * This value IS the browser session length, not just an API-bearer TTL.
+   * LoginAction mirrors the issued access token into the HttpOnly
+   * `auth-token` cookie (see Actions/Auth/authCookie.ts) because the
+   * dashboard is server-rendered stx with no client hydration and has no
+   * other way to know who is asking. Both the cookie's Max-Age and the
+   * `oauth_access_tokens.expires_at` row are stamped from here, and
+   * nothing extends either one — `getUserFromToken` bumps `updated_at` on
+   * every request but leaves `expires_at` alone, then deletes the row
+   * once it passes. So a signed-in operator is logged out exactly this
+   * long after login regardless of activity, mid-click.
+   *
+   * It was 1 hour, which is a sane API-bearer TTL and a hostile session.
+   * The comment here used to justify that by pointing at the refresh
+   * token below — but that flow does not exist (see `refreshTokenExpiry`),
+   * so the short TTL bought a shorter leaked-bearer window at the cost of
+   * hourly re-logins and nothing else.
    */
-  tokenExpiry: env.AUTH_TOKEN_EXPIRY || 60 * 60 * 1000,
+  tokenExpiry: env.AUTH_TOKEN_EXPIRY || 24 * 60 * 60 * 1000,
 
   /**
-   * Refresh-token expiry in milliseconds (default: 30 days). This is the
-   * long-lived credential exchanged for fresh access tokens.
+   * Refresh-token expiry in milliseconds (default: 30 days).
+   *
+   * NOT WIRED UP. A refresh token is minted and returned in the login
+   * response body by LoginAction, VerifyTwoFactorLoginAction and
+   * PasskeyLoginVerifyAction — and consumed by nothing. There is no
+   * refresh route in routes/api.ts and no cookie stores it, so the value
+   * below only bounds a row in `oauth_refresh_tokens` that never gets
+   * read. Session length is `tokenExpiry` above, alone.
+   *
+   * Building the exchange is awkward here: an stx server block cannot set
+   * response headers, so a server-rendered dashboard page has nowhere to
+   * rotate the cookie. Anything relying on refresh needs that solved
+   * first.
    */
   refreshTokenExpiry: env.AUTH_REFRESH_TOKEN_EXPIRY || 30 * 24 * 60 * 60 * 1000,
 
