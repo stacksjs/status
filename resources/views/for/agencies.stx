@@ -95,7 +95,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Stop juggling one free-tier account per client. Monitor every site you ship from a single place, and give each client a status page on their own domain.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <StxLink class="button" to="/features/status-pages">See client status pages</StxLink>
           </div>
         </div>

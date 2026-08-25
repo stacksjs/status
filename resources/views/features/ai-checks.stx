@@ -72,7 +72,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             A page can return 200 with an error message where your content should be. Describe what correct looks like in plain English. We verify it.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
           </div>
         </div>

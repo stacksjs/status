@@ -1,8 +1,45 @@
 <!--
-  Shared marketing navigation for subpages (features/*, for/*, compare).
-  The homepage keeps its own inline nav with anchor links; this one links
-  to real routes. Expects `appName` from the including page's server script.
+  Shared marketing navigation for every public page, the homepage included
+  (index.stx includes this partial too — it does not have its own inline
+  nav). Expects `appName` from the including page's server script.
 -->
+<script server>
+import { authRequest } from '../../../app/lib/authRequest'
+
+// This is the codebase's first server block in a PARTIAL, so: it works.
+// stx's include processor branches on the `server` attribute and runs
+// extractVariables against an include context spread from the parent, so
+// imports bind and `cookies` is visible. Verified against a running
+// server, signed-in and guest. It matters because the alternative was
+// resolving the session in all ~30 pages that include this file and
+// threading a binding down through every one of them.
+//
+// Hazard worth knowing before writing the next one, since it cost an
+// hour of misattributed results: a comment ANYWHERE in a partial whose
+// text contains a literal script-open tag makes the include's
+// script-stripping regex match from inside that comment through the real
+// block's closing tag. The block and a chunk of the markup after it
+// vanish silently, and the surviving bindings render empty — which reads
+// exactly like "the evaluator cannot do imports or bracket access"
+// rather than "your comment ate the block". Describe such a tag; do not
+// spell it.
+
+// Signed-in visitors get a way back into the product instead of being
+// asked to sign in again. Presence of the cookie is the whole test: no
+// query, no token validation. That is sound rather than lazy here,
+// because buildAuthCookie stamps Max-Age from the same config value that
+// stamps the token row's expires_at, so the browser drops the cookie at
+// the moment the session dies. The two can only diverge when a session is
+// revoked early — logout elsewhere, a password change — and the cost of
+// being wrong is one bounce to /login, which is what an expired session
+// does anyway.
+//
+// Deliberately NOT resolveTeamContext() like the dashboard pages use:
+// this renders on every public marketing pageview, and getUserFromToken
+// WRITES (it bumps updated_at), which would put a database write on the
+// hot path of the most-trafficked pages on the site.
+const IS_SIGNED_IN = !!authRequest(typeof cookies !== 'undefined' ? cookies : null).cookies.get('auth-token')
+</script>
 <nav class="site-nav">
   <div class="site-shell nav-inner">
     <StxLink class="brand" to="/" aria-label="{{ appName }} home">
@@ -72,8 +109,13 @@
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36-1.41-1.41M6.05 6.05 4.64 4.64m14.72 0-1.41 1.41M6.05 17.95l-1.41 1.41"/><circle cx="12" cy="12" r="4.5"/></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
       </button>
-      <a class="button" href="/login">Sign in</a>
-      <a class="button primary" href="/register">Get started</a>
+      @if (IS_SIGNED_IN)
+      <StxLink class="button primary" to="/dashboard">Dashboard</StxLink>
+      @endif
+      @if (!IS_SIGNED_IN)
+      <StxLink class="button" to="/login">Sign in</StxLink>
+      <StxLink class="button primary" to="/register">Get started</StxLink>
+      @endif
     </div>
   </div>
 </nav>

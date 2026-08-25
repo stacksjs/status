@@ -312,6 +312,24 @@ async function authBoundary(): Promise<void> {
     metrics.status === 404,
     `expected 404, got ${metrics.status} — ${metrics.body.slice(0, 160)}`,
   )
+
+  // The marketing shell's session-aware CTA, guest half. The signed-in half
+  // is asserted in journey(); both halves are needed, because the failure
+  // that shipped for months was the control being a constant — and a
+  // constant satisfies whichever half you check on its own.
+  for (const path of ['/', '/features']) {
+    const res = await hit(path)
+    check(
+      `${path} offers an anonymous visitor a way to sign in`,
+      res.body.includes('href="/login"'),
+      'no /login link in the rendered HTML',
+    )
+    check(
+      `${path} does not offer a dashboard to an anonymous visitor`,
+      !res.body.includes('href="/dashboard"'),
+      'a /dashboard link rendered for a signed-out visitor',
+    )
+  }
 }
 
 /**
@@ -408,6 +426,26 @@ async function journey(): Promise<void> {
     dashboard.status === 200 && !dashboard.body.includes('need to sign in'),
     `got ${dashboard.status}; signed-out marker ${dashboard.body.includes('need to sign in')}`,
   )
+
+  // The marketing shell's session-aware CTA, signed-in half — the guest
+  // half is asserted in authBoundary(). Worth an assertion because the
+  // marketing pages resolve the session from the auth cookie in a partial's
+  // own server block, which is a different code path from anything the
+  // dashboard exercises: a change that breaks it takes the whole public
+  // site's signed-in state with it while every dashboard route stays green.
+  for (const path of ['/', '/features']) {
+    const res = await hit(path)
+    check(
+      `${path} offers a signed-in visitor their dashboard`,
+      res.body.includes('href="/dashboard"'),
+      'no /dashboard link in the rendered HTML',
+    )
+    check(
+      `${path} stops asking a signed-in visitor to sign in`,
+      !res.body.includes('href="/login"'),
+      'a /login link still rendered for a signed-in visitor',
+    )
+  }
 
   const monitor = await postJson('/api/monitor-forms/create', {
     name: `E2E probe ${stamp}`,

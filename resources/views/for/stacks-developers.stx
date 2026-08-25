@@ -87,7 +87,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             {{ appName }} is itself a Stacks app. Wire health routes, heartbeat pings, and deploy hooks into monitoring that feels like part of your stack.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Read the source</a>
           </div>
         </div>

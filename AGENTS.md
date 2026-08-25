@@ -22,6 +22,29 @@ before doing non-trivial work in that area rather than guessing an API.
 - Use **Crosswind** as the CSS framework (Tailwind-like utility classes).
 - stx `<script>` tags may only contain stx-compatible code (signals, composables, directives).
 
+### Links
+- **Every internal destination uses `<StxLink to="/path">`, never `<a href="/path">`.** This
+  holds across shells too — marketing to `/login`, dashboard to `/`, anywhere to `/status/*`.
+  There is no "cross-shell links stay plain anchors" carve-out; an earlier one was removed
+  after checking what the router actually does.
+- It is safe across shells because the router compares layout groups
+  (`meta[name="stx-layout-group"]`, falling back to a name derived from the layout) and does a
+  full document load when they differ. This app renders five distinct groups — `marketing`,
+  `auth`, `status`, `default`, and `app` for the layout-less homepage — so every cross-shell
+  hop full-loads on its own.
+- StxLink server-renders a plain crawlable `<a href … data-stx-link>`, so converting costs
+  nothing in SEO. Attributes and classes carry through; write `to=` where you would have
+  written `href=`.
+- **The only four exceptions**, all of which must stay plain `<a>`:
+  - `/api/*` — server routes, not pages. The SSO ones 302 to an identity provider; fetching
+    one as a fragment breaks the flow.
+  - same-page hashes (`/#pricing`) — not a navigation.
+  - `target="_blank"` — `data-stx-link` bypasses the router's `shouldIntercept`, so an
+    intercepted new-tab link would open in place instead.
+  - external `http(s)://` URLs.
+- `data-no-router` should not appear on anything you are converting; StxLink IS the opt-in
+  (`interceptAllLinks: false` in `config/ui.ts`), so the attribute is contradictory there.
+
 ### Dependencies
 - **buddy-bot** handles dependency updates, not renovatebot.
 - **better-dx** provides shared dev tooling as peer dependencies; do not install its peers (e.g.

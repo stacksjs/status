@@ -72,7 +72,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Most teams learn about downtime from an angry email. {{ appName }} checks your endpoints every 30 seconds from six regions and tells you first.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
           </div>
         </div>

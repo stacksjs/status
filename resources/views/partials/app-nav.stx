@@ -8,12 +8,12 @@
 -->
 <nav class="app-nav">
   <div class="app-shell app-nav-inner">
-    <a class="brand" href="/" aria-label="StatusHQ home">
+    <StxLink class="brand" to="/" aria-label="StatusHQ home">
       <span class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg>
       </span>
       <span class="brand-name">StatusHQ</span>
-    </a>
+    </StxLink>
     @if (AUTH_USER && typeof SWITCHABLE_TEAMS !== 'undefined' && SWITCHABLE_TEAMS && SWITCHABLE_TEAMS.length > 1)
       <details class="team-switch">
         <summary aria-label="Switch workspace">
@@ -63,7 +63,7 @@
         </form>
       @endif
       @if (!AUTH_USER)
-        <a class="button sm primary" href="/login">Sign in</a>
+        <StxLink class="button sm primary" to="/login">Sign in</StxLink>
       @endif
     </div>
   </div>

@@ -36,10 +36,10 @@ useHead({
 
 @section('content')
     <div class="auth-card">
-      <a class="brand" href="/">
+      <StxLink class="brand" to="/">
         <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg></span>
         <span class="brand-name">{{ appName }}</span>
-      </a>
+      </StxLink>
 
       <div id="error" class="error"></div>
 
@@ -71,7 +71,7 @@ useHead({
         @endif
       </form>
 
-      <p class="alt">Already have an account? <a href="/login">Sign in</a></p>
+      <p class="alt">Already have an account? <StxLink to="/login">Sign in</StxLink></p>
     </div>
 
     <script>

@@ -4,6 +4,20 @@
   Expects `appName` from the including page's server script. Also carries
   the theme-toggle wiring so every page that includes it gets the toggle.
 -->
+<script server>
+import { authRequest } from '../../../app/lib/authRequest'
+
+// Same session test, and for the same reason, as partials/marketing-nav.stx
+// — see that file for why cookie presence is the whole check and why this
+// deliberately avoids resolveTeamContext(). Kept here rather than read from
+// the nav's binding because an include's server-block variables are local
+// to that include, so this partial cannot see the nav's.
+//
+// The footer flips too so the page does not contradict itself: a nav
+// reading "Dashboard" above a footer still offering "Sign in" looks like
+// the session is half-recognised.
+const IS_SIGNED_IN = !!authRequest(typeof cookies !== 'undefined' ? cookies : null).cookies.get('auth-token')
+</script>
 <footer class="site-shell site-footer">
   <div class="footer-grid">
     <div class="footer-brand">
@@ -57,8 +71,13 @@
         <li><StxLink to="/docs">Docs</StxLink></li>
         <li><a href="https://github.com/stacksjs/status" target="_blank" rel="noopener">GitHub</a></li>
         <li><a href="https://github.com/stacksjs/status/blob/main/LICENSE.md" target="_blank" rel="noopener">License</a></li>
-        <li><a href="/login">Sign in</a></li>
-        <li><a href="/register">Get started</a></li>
+        @if (IS_SIGNED_IN)
+        <li><StxLink to="/dashboard">Dashboard</StxLink></li>
+        @endif
+        @if (!IS_SIGNED_IN)
+        <li><StxLink to="/login">Sign in</StxLink></li>
+        <li><StxLink to="/register">Get started</StxLink></li>
+        @endif
       </ul>
     </div>
   </div>

@@ -446,14 +446,14 @@ function bannerDotClass(tone) {
           <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('active_incidents') }}</h2>
           <div class="space-y-3">
             @foreach (activeIncidents as incident)
-              <a href="/status/{{ pageSlug }}/incidents/{{ incident.id }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
+              <StxLink to="/status/{{ pageSlug }}/incidents/{{ incident.id }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
                 <div class="flex items-center justify-between gap-4">
                   <p class="font-medium text-gray-900">{{ incident.monitor_name }}</p>
                   <span class="text-xs font-medium uppercase tracking-wide text-amber-600">{{ incident.status }}</span>
                 </div>
                 <p class="mt-1 text-sm text-gray-600">{{ incident.cause }}</p>
                 <p class="mt-1 text-xs text-gray-400">{{ t('started') }} {{ formatDate(incident.started_at) }}</p>
-              </a>
+              </StxLink>
             @endforeach
           </div>
         </section>
@@ -524,14 +524,14 @@ function bannerDotClass(tone) {
           <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ t('past_incidents') }}</h2>
           <div class="space-y-3">
             @foreach (resolvedIncidents as incident)
-              <a href="/status/{{ pageSlug }}/incidents/{{ incident.id }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
+              <StxLink to="/status/{{ pageSlug }}/incidents/{{ incident.id }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
                 <div class="flex items-center justify-between gap-4">
                   <p class="font-medium text-gray-900">{{ incident.monitor_name }}</p>
                   <span class="text-xs font-medium uppercase tracking-wide text-emerald-600">{{ t('resolved') }}</span>
                 </div>
                 <p class="mt-1 text-sm text-gray-600">{{ incident.cause }}</p>
                 <p class="mt-1 text-xs text-gray-400">{{ formatDate(incident.started_at) }} — {{ formatDate(incident.resolved_at) }}</p>
-              </a>
+              </StxLink>
             @endforeach
           </div>
         </section>

@@ -180,7 +180,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Monitoring makes you pick: pay a SaaS to escape maintenance, or self-host and give up the deeper checks. {{ appName }} refuses the trade.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <a class="button" href="#table">See the table</a>
           </div>
         </div>

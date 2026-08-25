@@ -243,9 +243,21 @@ injection indent).
   (`interceptAllLinks: false`): both nav partials + footer, the
   dashboard chrome and filter chips, and every same-shell in-body link.
   Cross-shell destinations (marketing → /login|/register|/dashboard,
-  anything → /status/*) stay plain full-load anchors ON PURPOSE, and
-  /api/* SSO links keep an explicit data-no-router as documentation —
-  the other 81 carpet attributes are gone.
+  anything → /status/*) stayed plain full-load anchors, and /api/* SSO
+  links keep an explicit data-no-router as documentation — the other 81
+  carpet attributes are gone.
+- **Superseded 2026-08-25: the cross-shell carve-out is withdrawn.** The
+  remaining 69 anchors were converted, leaving only the four categories
+  that must full-load (see AGENTS.md § Links). The carve-out was
+  over-cautious rather than wrong-headed: nobody had checked what the
+  router does when the layout changes. It compares layout groups
+  (`meta[name="stx-layout-group"]`, else a name derived from the layout)
+  and does a full document load when they differ — `checkLayoutChange`,
+  "Only truly different layout groups trigger a full page reload". This
+  app serves five distinct groups (`marketing`, `auth`, `status`,
+  `default`, and `app` for the layout-less homepage), so every cross-shell
+  hop already full-loaded on its own. The carve-out was hand-maintaining a
+  rule the engine enforces.
 - Engine contract (fixture-verified before adoption): StxLink SSR
   renders plain crawlable `<a href … data-stx-link>` anchors; the
   client's default is opt-in interception, and `data-stx-link` clicks

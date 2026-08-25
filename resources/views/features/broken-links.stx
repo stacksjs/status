@@ -77,7 +77,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Links rot. {{ appName }} crawls your site daily and opens an incident when it finds 404s, mixed content, or dead sitemap entries.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host it</a>
           </div>
         </div>

@@ -195,7 +195,7 @@ function statusBadgeClass(status) {
     @endif
 
     @if (incident)
-      <a href="/status/{{ pageSlug }}" class="text-sm text-gray-500 hover:text-gray-900">&larr; Back to status</a>
+      <StxLink to="/status/{{ pageSlug }}" class="text-sm text-gray-500 hover:text-gray-900">&larr; Back to status</StxLink>
 
       <header class="mt-4 mb-8">
         <p class="{{ statusBadgeClass(incident.status) }}">{{ incident.status }}</p>

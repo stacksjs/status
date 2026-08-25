@@ -77,7 +77,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             External checks tell you the site still answers. A small push agent adds CPU and memory from inside the server, so you see trouble building.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <StxLink class="button" to="/features/uptime-monitoring">See uptime monitoring</StxLink>
           </div>
         </div>

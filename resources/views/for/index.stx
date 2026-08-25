@@ -60,7 +60,7 @@ useHead({
             Agencies, SaaS teams, stores, and ops teams break in different ways. Each page below covers the setup that fits yours.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">View on GitHub</a>
           </div>
         </div>

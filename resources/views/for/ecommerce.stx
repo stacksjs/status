@@ -91,7 +91,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             Every minute the checkout is down is an order that went somewhere else. {{ appName }} watches the whole funnel and the quiet failures around it.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <StxLink class="button" to="/compare">See how it compares</StxLink>
           </div>
         </div>

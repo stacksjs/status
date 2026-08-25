@@ -145,21 +145,21 @@ useHead({
 </style>
 
 <div class="invite-card">
-  <a class="brand" href="/" data-no-router>
+  <StxLink class="brand" to="/">
     <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg></span>
     <span class="brand-name">{{ appName }}</span>
-  </a>
+  </StxLink>
 
   @if (state === 'invalid')
     <h1>Invite not found</h1>
     <p class="sub">This invite link is invalid or has already been used. Ask whoever invited you to send a fresh one.</p>
-    <a class="button" href="/login" data-no-router>Go to sign in</a>
+    <StxLink class="button" to="/login">Go to sign in</StxLink>
   @endif
 
   @if (state === 'accepted')
     <h1>You're already in</h1>
     <p class="sub">This invite to <strong>{{ teamName }}</strong> has already been accepted. Sign in to view the dashboard.</p>
-    <a class="button" href="/login" data-no-router>Sign in</a>
+    <StxLink class="button" to="/login">Sign in</StxLink>
   @endif
 
   @if (state === 'pending')
@@ -191,6 +191,6 @@ useHead({
       <button class="button" type="submit">Accept invite &amp; continue</button>
     </form>
 
-    <p class="alt">Not you? <a href="/" data-no-router>Ignore this invite</a></p>
+    <p class="alt">Not you? <StxLink to="/">Ignore this invite</StxLink></p>
   @endif
 </div>

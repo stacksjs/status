@@ -77,7 +77,7 @@ useHead({
             Everything {{ appName }} monitors, and how to wire it up. New here? Start with the four steps below — most teams have their first alert routed in a few minutes.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start free</a>
+            <StxLink class="button primary" to="/register">Start free</StxLink>
             <a class="button" href="https://github.com/stacksjs/status" target="_blank" rel="noopener">Self-host &amp; source</a>
           </div>
         </div>

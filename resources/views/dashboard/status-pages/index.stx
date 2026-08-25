@@ -70,7 +70,7 @@ useHead({ title: 'Status pages \u00b7 StatusHQ', meta: [{ name: 'robots', conten
     <div class="empty" style="margin: 3rem 0;">
       <h3>Sign in required</h3>
       <p>You need an authenticated session to view your status pages.</p>
-      <div class="actions"><a class="button primary" href="/login">Sign in</a></div>
+      <div class="actions"><StxLink class="button primary" to="/login">Sign in</StxLink></div>
     </div>
   @endif
 

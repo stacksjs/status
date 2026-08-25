@@ -76,7 +76,7 @@ useHead({ script: [{ type: 'application/ld+json', content: JSON.stringify({
             A failed check opens the incident and attaches the cause. You acknowledge, post updates, and resolve. The status page follows along the whole way.
           </p>
           <div class="page-actions">
-            <a class="button primary" href="/register">Start monitoring free</a>
+            <StxLink class="button primary" to="/register">Start monitoring free</StxLink>
             <StxLink class="button" to="/features/status-pages">See status pages</StxLink>
           </div>
         </div>
