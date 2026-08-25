@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import TeamMember from '../../Models/TeamMember'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * `POST /team-forms/{teamMemberId}/remove` — removes a team member (or
@@ -19,9 +19,9 @@ export default new Action({
   description: 'Remove a team member or revoke a pending invite',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const id = Number(request.get('id'))
     if (id) {

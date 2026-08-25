@@ -3,7 +3,7 @@ import { Action } from '@stacksjs/actions'
 import { randomUUIDv7 } from 'bun'
 import { db } from '@stacksjs/database'
 import { encryptSecret } from './cloudCrypto'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * `POST /cloud-credential-forms/aws` — dashboard settings form to store the
@@ -22,9 +22,11 @@ export default new Action({
   method: 'POST',
 
   async handle(request: RequestInstance) {
-    const teamId = await resolveOrCreateTeamId(request)
-    if (!teamId)
-      return new Response(null, { status: 302, headers: { Location: '/login' } })
+    const teamId = await requireTeamId(request)
+    if (teamId instanceof Response)
+      return teamId.status === 401
+        ? new Response(null, { status: 302, headers: { Location: '/login' } })
+        : teamId
 
     const accessKeyId = String(request.get('access_key_id') ?? '').trim()
     const secret = String(request.get('secret_access_key') ?? '').trim()

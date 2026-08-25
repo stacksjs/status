@@ -76,7 +76,12 @@ describe('Billing checkout (stacksjs/status#1 Phase 9)', () => {
       // request with no token is rejected outright even with a team_id.
       const res = await CreateCheckoutSessionAction.handle(fakeRequest({ team_id: String(realTeamId) }))
       expect(res.status).toBe(401)
-      expect(((await res.json()) as { error: string }).error).toBe('Authentication required')
+      // Body shape comes from the shared team guard now (app/lib/teamGuard),
+      // which every dashboard action funnels through. These two endpoints
+      // used to hand-roll response.json({ error }) while the other 23 used
+      // response.unauthorized(); the guard settles on the latter so a client
+      // can parse one error shape across the whole API.
+      expect(((await res.json()) as { message: string }).message).toBe('Authentication required')
     })
 
     test('403s when the posted team_id does not match the authed team', async () => {
@@ -101,7 +106,12 @@ describe('Billing checkout (stacksjs/status#1 Phase 9)', () => {
     test('401s an unauthenticated request before reading any form fields', async () => {
       const res = await CancelSubscriptionAction.handle(fakeRequest({ team_id: String(realTeamId) }))
       expect(res.status).toBe(401)
-      expect(((await res.json()) as { error: string }).error).toBe('Authentication required')
+      // Body shape comes from the shared team guard now (app/lib/teamGuard),
+      // which every dashboard action funnels through. These two endpoints
+      // used to hand-roll response.json({ error }) while the other 23 used
+      // response.unauthorized(); the guard settles on the latter so a client
+      // can parse one error shape across the whole API.
+      expect(((await res.json()) as { message: string }).message).toBe('Authentication required')
     })
 
     test('403s when the posted team_id does not match the authed team', async () => {

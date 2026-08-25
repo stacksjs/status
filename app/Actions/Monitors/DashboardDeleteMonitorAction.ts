@@ -3,7 +3,7 @@ import { response } from '@stacksjs/router'
 import { db } from '@stacksjs/database'
 import HeartbeatMonitor from '../../Models/HeartbeatMonitor'
 import Monitor from '../../Models/Monitor'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * Delete a monitor from the dashboard form, with the rows that only exist
@@ -36,9 +36,9 @@ export default new Action({
   description: 'Delete a monitor and its dependent rows from the dashboard',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const monitorId = Number(request.get('monitorId'))
     if (!Number.isInteger(monitorId) || monitorId <= 0)

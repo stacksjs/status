@@ -4,7 +4,7 @@ import { normalizeFiresOn } from '../../lib/notificationSeverity'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotificationChannel from '../../Models/NotificationChannel'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * `POST /notification-channel-forms/monitors/{monitorId}/assign` —
@@ -21,9 +21,9 @@ export default new Action({
   description: 'Attach a notification channel to a monitor from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const monitorId = Number(request.get('monitorId'))
     const channelId = Number(request.get('channel_id'))

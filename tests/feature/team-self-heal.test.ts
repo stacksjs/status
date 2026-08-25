@@ -102,6 +102,20 @@ describe('team self-heal', () => {
     expect(await resolveOrCreateTeamId(fakeRequest('not-a-real-token'))).toBeNull()
   })
 
+  test('the guard answers 401 for no session and passes a team through otherwise', async () => {
+    const { requireTeamId } = await import('../../app/lib/teamGuard')
+
+    const anonymous = await requireTeamId(fakeRequest(undefined))
+    expect(anonymous).toBeInstanceOf(Response)
+    expect((anonymous as Response).status).toBe(401)
+
+    // A signed-in user with no team must NOT get a 401 — that is the message
+    // that sent a logged-in operator back to the login page on every write.
+    const user = await makeUser('guard')
+    const healed = await requireTeamId(fakeRequest(user.token))
+    expect(typeof healed).toBe('number')
+  })
+
   test('createPersonalTeam names the team after the user, or falls back', async () => {
     const named = await makeUser('named')
     const teamId = await createPersonalTeam(named.id, 'Ada', named.email)

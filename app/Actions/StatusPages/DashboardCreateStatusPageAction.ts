@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import { planLimitsForTeam } from '../../../config/plans'
 import StatusPage from '../../Models/StatusPage'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * `POST /dashboard/status-pages/create` — a plain-POST, redirect-back
@@ -23,9 +23,9 @@ export default new Action({
   description: 'Create a status page from a dashboard form post',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.json({ error: 'Authentication required' }, { status: 401 })
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const title = String(request.get('title') ?? '')
     const slug = String(request.get('slug') ?? '')

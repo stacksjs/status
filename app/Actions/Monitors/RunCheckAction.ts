@@ -16,7 +16,7 @@ import RunPortScan from '../../Jobs/RunPortScan'
 import RunSslCheck from '../../Jobs/RunSslCheck'
 import RunTcpPortCheck from '../../Jobs/RunTcpPortCheck'
 import RunUptimeCheck from '../../Jobs/RunUptimeCheck'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 // Keyed by PolledMonitorType, so a polled type without an on-demand runner
 // (or a runner for a type nothing declares as polled) is a build error. This
@@ -49,9 +49,9 @@ export default new Action({
   description: 'Run an on-demand check for a monitor',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const id = request.get('id')
     // Scope by team: without this any authenticated user could trigger checks

@@ -29,6 +29,31 @@ import { log } from '@stacksjs/logging'
  * Returns null ONLY when there is genuinely no session. Callers can therefore
  * treat null as "not signed in" and say so honestly.
  */
+/**
+ * Why a caller has no team, for callers that need to say something honest.
+ *
+ * `no_session` is the only one that means "sign in". `team_unavailable` means
+ * the session is fine and we could not give them a workspace — a server-side
+ * problem, and emphatically not something the user can fix by logging in
+ * again, which is exactly what the old blanket 401 told them to do.
+ */
+export type TeamFailure = 'no_session' | 'team_unavailable'
+
+export async function resolveTeamOrFailure(request: unknown): Promise<number | TeamFailure> {
+  const existing = await resolveAuthenticatedTeamId(request as never)
+  if (existing)
+    return existing
+
+  const user = await resolveAuthenticatedUser(request as never)
+  if (!user?.id)
+    return 'no_session'
+
+  const named = user as { name?: unknown }
+  const created = await createPersonalTeam(Number(user.id), String(named.name ?? ''), String(user.email ?? ''))
+
+  return created ?? 'team_unavailable'
+}
+
 export async function resolveOrCreateTeamId(request: unknown): Promise<number | null> {
   const existing = await resolveAuthenticatedTeamId(request as never)
   if (existing)

@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import MaintenanceWindow from '../../Models/MaintenanceWindow'
 import MaintenanceWindowMonitor from '../../Models/MaintenanceWindowMonitor'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * `POST /api/maintenance-forms/{id}/monitors/remove` — take a monitor back
@@ -17,9 +17,9 @@ export default new Action({
   description: 'Detach a monitor from a maintenance window from a dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const windowId = Number(request.get('id'))
     const monitorId = Number(request.get('monitor_id'))

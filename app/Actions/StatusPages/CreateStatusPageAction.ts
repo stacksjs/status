@@ -3,7 +3,7 @@ import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import { limitReachedMessage, planForTeam } from '../../../config/plans'
 import StatusPage from '../../Models/StatusPage'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * Overrides the useApi-generated `POST /status-pages` (user-defined
@@ -19,9 +19,9 @@ export default new Action({
     // Bind the status page to the authenticated team, not a client-supplied
     // team_id (that trust let a cross-team caller create pages under any team
     // and consume its quota — IDOR). A body team_id must match the caller's.
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const requestedTeamId = request.get('team_id') != null ? Number(request.get('team_id')) : authTeamId
     if (requestedTeamId !== authTeamId)

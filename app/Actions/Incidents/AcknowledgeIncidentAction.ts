@@ -3,7 +3,7 @@ import { response } from '@stacksjs/router'
 import Incident from '../../Models/Incident'
 import IncidentUpdate from '../../Models/IncidentUpdate'
 import Monitor from '../../Models/Monitor'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * `POST /incidents/:id/acknowledge` — fills the one gap the auto-generated
@@ -20,9 +20,9 @@ export default new Action({
   description: 'Acknowledge an open incident',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const id = request.get('id')
     const incident = await Incident.find(Number(id))

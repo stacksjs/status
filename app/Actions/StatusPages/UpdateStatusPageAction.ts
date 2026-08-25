@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import StatusPage from '../../Models/StatusPage'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * `POST /dashboard/status-pages/{id}/update` — a plain-POST alternative
@@ -23,9 +23,9 @@ export default new Action({
   description: 'Update a status page from a dashboard form post',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const id = Number(request.get('id'))
     const statusPage = await StatusPage.where('id', id).where('team_id', authTeamId).first()

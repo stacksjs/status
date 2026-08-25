@@ -5,7 +5,7 @@ import { limitReachedMessage, planForTeam } from '../../../config/plans'
 import { parseMonitorForm } from '../../lib/monitorForm'
 import HeartbeatMonitor from '../../Models/HeartbeatMonitor'
 import Monitor from '../../Models/Monitor'
-import { resolveOrCreateTeamId } from '../../lib/teamContext'
+import { requireTeamId } from '../../lib/teamGuard'
 
 /**
  * Create a monitor from the dashboard form (the no-JS counterpart to the
@@ -23,9 +23,9 @@ export default new Action({
   description: 'Create a monitor from the dashboard form',
 
   async handle(request) {
-    const authTeamId = await resolveOrCreateTeamId(request)
-    if (!authTeamId)
-      return response.unauthorized('Authentication required')
+    const authTeamId = await requireTeamId(request)
+    if (authTeamId instanceof Response)
+      return authTeamId
 
     const back = (query: string) => new Response(null, { status: 302, headers: { Location: `/dashboard/monitors/new${query}` } })
 
