@@ -3,6 +3,7 @@
 <script server>
 import { formatDateTime } from '../../../app/lib/display'
 import { inAnyInterval, maintenanceIntervalsByMonitor } from '../../../app/lib/maintenance'
+import { computeUptime } from '../../../app/lib/uptime'
 import { isIpAllowed } from '../../../app/Actions/StatusPages/AccessControl'
 import { decrypt } from '@stacksjs/security'
 import { db } from '@stacksjs/database'
@@ -165,38 +166,23 @@ for (const m of monitors) {
     const sinceMs = Date.now() - UPTIME_DAYS * 86400000
     const sinceIso = new Date(sinceMs).toISOString()
     const mIntervals = maintenanceIntervalsByMonitorId[m.id] || []
-    const rows = (await db.selectFrom('check_results')
+    const rows = await db.selectFrom('check_results')
       .where('monitor_id', '=', m.id).where('checked_at', '>=', sinceIso)
-      .orderBy('checked_at', 'asc').execute())
-      .filter((r) => !inAnyInterval(Date.parse(r.checked_at), mIntervals))
+      .orderBy('checked_at', 'asc').execute()
 
-    // Seed one bucket per day so gaps render as "no data", not collapse.
-    const bars = []
-    const dayIndex = {}
-    for (let i = UPTIME_DAYS - 1; i >= 0; i--) {
-      const d = new Date(sinceMs + (UPTIME_DAYS - 1 - i) * 86400000)
-      const key = d.toISOString().slice(0, 10)
-      dayIndex[key] = bars.length
-      bars.push({ date: key, status: 'unknown', up: 0, total: 0 })
-    }
+    // Shared with the dashboard's monitor page and the report emails (see
+    // app/lib/uptime) so the same monitor cannot report three different
+    // uptimes depending on where you read it — which it did.
+    //
+    // The buckets this replaces ran from 90 days ago to YESTERDAY: the last
+    // one was seeded at sinceMs + 89 days, one short of today, so every check
+    // that landed today fell through `dayIndex[key] === undefined` and
+    // counted toward neither the bars nor the percentage. An outage this
+    // morning was invisible here until tomorrow.
+    const summary = computeUptime(rows, UPTIME_DAYS, mIntervals)
+    const bars = summary.days.map(d => ({ date: d.day, status: d.status, up: d.up, total: d.total }))
 
-    let upChecks = 0
-    let totalChecks = 0
-    for (const r of rows) {
-      const key = String(r.checked_at).slice(0, 10)
-      const idx = dayIndex[key]
-      if (idx === undefined) continue
-      const bar = bars[idx]
-      bar.total++
-      totalChecks++
-      if (r.status === 'up') { bar.up++; upChecks++ }
-      // Worst-status-wins for the day's color.
-      const rank = r.status === 'down' ? 3 : r.status === 'degraded' ? 2 : r.status === 'up' ? 1 : 0
-      const curRank = bar.status === 'down' ? 3 : bar.status === 'degraded' ? 2 : bar.status === 'up' ? 1 : 0
-      if (rank > curRank) bar.status = r.status
-    }
-
-    return { bars, pct: totalChecks > 0 ? (upChecks / totalChecks) * 100 : null }
+    return { bars, pct: summary.pct }
   }, UPTIME_TTL_SECONDS)
 }
 

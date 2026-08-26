@@ -19,6 +19,8 @@
 import { resolveHealedTeamContext } from '../../../../app/lib/teamContext'
 import { authRequest } from '../../../../app/lib/authRequest'
 import { channelTypeLabel } from '../../../../app/lib/channelConfig'
+import { maintenanceIntervalsByMonitor } from '../../../../app/lib/maintenance'
+import { computeUptime } from '../../../../app/lib/uptime'
 import { db } from '@stacksjs/database'
 import { scaleLinear, scaleBand, line, area, curveMonotoneX } from 'ts-charts'
 // require() destructured these under other names; `import { x as y }`
@@ -554,36 +556,27 @@ if (monitor && monitor.reports_metrics) {
   }
 }
 
-// 90-day uptime bar: one segment per day, 'up'/'degraded'/'down'/'unknown'.
-// Grouped by day in JS (portable) rather than SQLite date()/SUM(CASE).
+// 90-day uptime, via app/lib/uptime so this page, the public status page and
+// the report emails all answer the question the same way.
+//
+// This page used to weight uptime by DAY and call a day down if it held a
+// single failed check, so a monitor checked every minute reported 0.00%
+// beside a green "Up" pill after one bad minute per day. Maintenance windows
+// were not excluded either, which the other two both do.
 const since90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
-const dailyMap = {}
+let uptimeSummary = { pct: null, days: [], upChecks: 0, totalChecks: 0 }
 if (monitor) {
   const rows = await db.selectFrom('check_results').where('monitor_id', '=', monitor.id).where('checked_at', '>=', since90).execute()
-  for (const r of rows) {
-    const day = String(r.checked_at).slice(0, 10)
-    let d = dailyMap[day]
-    if (!d) { d = { day, down_count: 0, degraded_count: 0, total: 0 }; dailyMap[day] = d }
-    d.total++
-    if (r.status === 'down') d.down_count++
-    else if (r.status === 'degraded') d.degraded_count++
-  }
+  const intervals = (await maintenanceIntervalsByMonitor([monitor.id], {
+    fromMs: Date.now() - 90 * 86400000,
+    toMs: Date.now(),
+  })).get(monitor.id) ?? []
+  uptimeSummary = computeUptime(rows, 90, intervals)
 }
 
-const uptimeDays = []
-for (let i = 89; i >= 0; i--) {
-  const d = new Date()
-  d.setDate(d.getDate() - i)
-  const key = d.toISOString().slice(0, 10)
-  const row = dailyMap[key]
-  let dayStatus = 'unknown'
-  if (row) {
-    if (row.down_count > 0) dayStatus = 'down'
-    else if (row.degraded_count > 0) dayStatus = 'degraded'
-    else dayStatus = 'up'
-  }
-  uptimeDays.push({ day: key, status: dayStatus })
-}
+const uptimeDays = uptimeSummary.days
+const uptimePercent = uptimeSummary.pct === null ? null : uptimeSummary.pct.toFixed(2)
+const totalDaysWithData = uptimeDays.filter((d) => d.status !== 'unknown').length
 
 // Maps a day status onto the .uptime-bars tick classes (default tick is
 // accent = up; warn/down carry their own colors; unknown is faint).
@@ -593,10 +586,6 @@ function dayTickClass(status) {
   if (status === 'unknown') return 'unknown'
   return ''
 }
-
-const totalDaysWithData = uptimeDays.filter((d) => d.status !== 'unknown').length
-const upDays = uptimeDays.filter((d) => d.status === 'up').length
-const uptimePercent = totalDaysWithData > 0 ? ((upDays / totalDaysWithData) * 100).toFixed(2) : null
 
 // Per-type detail panel.
 const sslCertificate = monitor && monitor.type === 'ssl'
