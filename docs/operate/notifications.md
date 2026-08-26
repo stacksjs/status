@@ -24,10 +24,34 @@ StatusHQ ships ten notification channels out of the box:
 
 Each channel stores its own credentials (a Slack webhook URL, a PagerDuty routing key, an ntfy topic, and so on) and can be reused across many monitors.
 
-## Attaching channels to a monitor
+## Adding a channel
 
-1. Open the monitor in the dashboard, find the **Alert routing** card, and pick a channel to attach.
-2. For each attachment, choose which severities it fires on: `down` only, `issue` only, or `both` (the default). You can change this per attachment at any time from the same card.
+Channels live at the team level, under **Settings → Notifications**. Give the channel a name you'll recognise, pick its type, and fill in the fields that appear — the form asks for exactly what that type needs and tells you where to find it:
+
+| Channel | What to paste | Where to get it |
+| --- | --- | --- |
+| Email | Email address | — |
+| SMS | Phone number, with country code | — |
+| Slack | Incoming webhook URL | Slack → Apps → Incoming Webhooks → Add to Slack |
+| Discord | Webhook URL | Server Settings → Integrations → Webhooks → New Webhook |
+| Microsoft Teams | Incoming webhook URL | The channel's ⋯ menu → Connectors → Incoming Webhook |
+| PagerDuty | Integration key | Services → your service → Integrations → Events API v2 |
+| Opsgenie | API key | Teams → your team → Integrations → API |
+| Pushover | User key + application API token | Your Pushover dashboard, then Create an Application |
+| ntfy | Topic (and optionally a self-hosted server URL) | Any topic name you subscribe to in the app |
+| Webhook | Endpoint URL, plus optional JSON headers | Your own service |
+
+Use **Send test** on the channel afterwards. It dispatches through the same job a real incident uses, so a test that arrives proves the credentials work.
+
+## Routing alerts to a monitor
+
+Open the monitor and find the **Alert routing** card. It lists every channel your team has:
+
+1. Tick the channels this monitor should alert.
+2. For each, choose which severities it fires on: `down` only, `issue` only, or `both` (the default).
+3. **Save routing** — one submit applies the whole grid.
+
+Unticking a channel stops it alerting for that monitor; the channel itself stays available for others. A monitor with nothing ticked notifies no one, and the card says so in red.
 
 This severity filter is the core of a sane alerting setup: page the whole team on `down`, but route soft `issue` events (slow responses, SSL or domain expiring soon, DNS drift, blocklistings) to a quieter channel like email or a Slack room. A down-only channel stays silent for those issue events, and an issue-only channel stays silent for hard outages.
 

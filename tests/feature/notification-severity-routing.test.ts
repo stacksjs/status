@@ -3,7 +3,7 @@ import { Auth } from '@stacksjs/auth'
 import { awaitConfig, config } from '@stacksjs/config'
 import { db } from '@stacksjs/database'
 import { CaptureEmailDriver } from '@stacksjs/email/drivers/capture'
-import DashboardAssignChannelAction from '../../app/Actions/Notifications/DashboardAssignChannelAction'
+import DashboardSaveRoutingAction from '../../app/Actions/Notifications/DashboardSaveRoutingAction'
 import SendIncidentNotification from '../../app/Actions/Notifications/SendIncidentNotification'
 import Monitor from '../../app/Models/Monitor'
 import MonitorNotificationChannel from '../../app/Models/MonitorNotificationChannel'
@@ -108,25 +108,62 @@ describe('Per-severity notification routing (stacksjs/status#1)', () => {
     expect(to).not.toContain('down@example.com')
   })
 
-  test('the assign action persists fires_on and updates it on re-assign', async () => {
-    const monitor = await Monitor.create({ teamId: teamId, name: 'Assign', url: 'https://example.com', type: 'uptime', status: 'up' })
+  test('the routing action persists fires_on and updates it on re-save', async () => {
+    const monitor = await Monitor.create({ teamId: teamId, name: 'Routing', url: 'https://example.com', type: 'uptime', status: 'up' })
     const channel = await emailChannel('chan', 'chan@example.com')
+    const untouched = await emailChannel('untouched', 'untouched@example.com')
 
-    const res = await DashboardAssignChannelAction.handle(fakeRequest({ monitorId: String(monitor.id), channel_id: String(channel.id), fires_on: 'down' }, token))
+    const res = await DashboardSaveRoutingAction.handle(fakeRequest({
+      monitorId: String(monitor.id),
+      [`chan_${channel.id}`]: '1',
+      [`fires_${channel.id}`]: 'down',
+    }, token))
     expect(res.status).toBe(302)
     let link = await MonitorNotificationChannel.where('monitor_id', monitor.id).where('notification_channel_id', channel.id).first()
     expect(link!.fires_on).toBe('down')
 
-    // Re-assigning the same channel updates the preference rather than duplicating.
-    await DashboardAssignChannelAction.handle(fakeRequest({ monitorId: String(monitor.id), channel_id: String(channel.id), fires_on: 'issue' }, token))
+    // A channel left unchecked is a channel the operator chose not to route to,
+    // even though its fires_on select still posted a value alongside it.
+    expect(await MonitorNotificationChannel.where('monitor_id', monitor.id).where('notification_channel_id', untouched.id).get()).toHaveLength(0)
+
+    // Re-saving updates the preference rather than duplicating the row.
+    await DashboardSaveRoutingAction.handle(fakeRequest({
+      monitorId: String(monitor.id),
+      [`chan_${channel.id}`]: '1',
+      [`fires_${channel.id}`]: 'issue',
+    }, token))
     const links = await MonitorNotificationChannel.where('monitor_id', monitor.id).where('notification_channel_id', channel.id).get()
     expect(links.length).toBe(1)
     expect(links[0]!.fires_on).toBe('issue')
 
     // An omitted preference falls back to 'both'.
-    const m2 = await Monitor.create({ teamId: teamId, name: 'Assign2', url: 'https://example.com', type: 'uptime', status: 'up' })
-    await DashboardAssignChannelAction.handle(fakeRequest({ monitorId: String(m2.id), channel_id: String(channel.id) }, token))
-    link = await MonitorNotificationChannel.where('monitor_id', m2.id).where('notification_channel_id', channel.id).first()
+    await DashboardSaveRoutingAction.handle(fakeRequest({
+      monitorId: String(monitor.id),
+      [`chan_${channel.id}`]: '1',
+    }, token))
+    link = await MonitorNotificationChannel.where('monitor_id', monitor.id).where('notification_channel_id', channel.id).first()
     expect(link!.fires_on).toBe('both')
+  })
+
+  test('unchecking a channel detaches it, so a save can silence a monitor', async () => {
+    // Absence is the whole signal: an unchecked box posts nothing, so a
+    // reconcile driven by the submitted fields alone would never see it and
+    // the operator could attach channels but never remove one.
+    const monitor = await Monitor.create({ teamId: teamId, name: 'Detach', url: 'https://example.com', type: 'uptime', status: 'up' })
+    const channel = await emailChannel('detach', 'detach@example.com')
+    await attach(monitor.id, channel.id, 'both')
+
+    await DashboardSaveRoutingAction.handle(fakeRequest({ monitorId: String(monitor.id) }, token))
+
+    expect(await MonitorNotificationChannel.where('monitor_id', monitor.id).get()).toHaveLength(0)
+  })
+
+  test('another team\'s monitor is refused, not silently rerouted', async () => {
+    const monitor = await Monitor.create({ teamId: teamId + 9999, name: 'Foreign', url: 'https://example.com', type: 'uptime', status: 'up' })
+
+    const res = await DashboardSaveRoutingAction.handle(fakeRequest({ monitorId: String(monitor.id) }, token))
+
+    expect(res.status).toBe(403)
+    await monitor.delete()
   })
 })

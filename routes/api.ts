@@ -157,8 +157,10 @@ route.post('/maintenance-forms/{id}/monitors/remove', 'Actions/Maintenance/Dashb
 // having to remember which pages need the workaround).
 route.post('/notification-channel-forms/create', 'Actions/Notifications/DashboardCreateChannelAction')
 route.post('/notification-channel-forms/{id}/test-send', 'Actions/Notifications/DashboardTestSendAction')
-route.post('/notification-channel-forms/monitors/{monitorId}/assign', 'Actions/Notifications/DashboardAssignChannelAction')
-route.post('/notification-channel-forms/monitors/{monitorId}/remove', 'Actions/Notifications/DashboardRemoveChannelAction')
+// One submit saves a monitor's whole routing grid. The per-channel
+// assign/remove pair this replaces is gone rather than kept alongside:
+// two write paths to the same pivot is how fires_on drifts.
+route.post('/notification-channel-forms/monitors/{monitorId}/routing', 'Actions/Notifications/DashboardSaveRoutingAction')
 
 // Monitor create/edit/delete form posts — the no-JS counterparts to
 // POST /monitors, so the product can be set up without curl. Same

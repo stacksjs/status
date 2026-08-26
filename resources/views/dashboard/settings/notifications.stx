@@ -10,6 +10,7 @@
 <script server>
 import { resolveHealedTeamContext } from '../../../../app/lib/teamContext'
 import { authRequest } from '../../../../app/lib/authRequest'
+import { CHANNEL_TYPES, channelTypeLabel } from '../../../../app/lib/channelConfig'
 import { db } from '@stacksjs/database'
 
 // Dialect-agnostic DB access (sqlite self-hosted / networked Postgres hosted).
@@ -36,8 +37,18 @@ const NAV_ACTIVE = 'settings'
 const channels = await db.selectFrom('notification_channels').where('team_id', '=', TEAM_ID).orderBy('name', 'asc').execute()
 
 const query = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
-const invalidJson = query.get('error') === 'invalid_json'
 const sent = query.get('sent') === '1'
+const created = query.get('created') === '1'
+
+// Failure codes from DashboardCreateChannelAction (app/lib/channelConfig's
+// BuildConfigResult). Each says which field to go back and fix, since the
+// form redirects rather than re-rendering with the values still in it.
+const ERRORS = {
+  missing_config: 'That channel type needs its connection details filled in.',
+  invalid_headers: 'Extra headers must be a JSON object, like {"Authorization": "Bearer ..."}.',
+  unknown_type: 'Pick a channel type from the list.',
+}
+const errorMessage = ERRORS[query.get('error')] || ''
 
 // Display-only helpers below this line.
 const enabledCount = channels.filter((c) => c.enabled).length
@@ -64,24 +75,6 @@ function channelIcon(type) {
   return svg(ICONS[type] || ICONS.webhook)
 }
 
-// Proper-case display label per channel type. Falls back to the raw type
-// for anything unrecognized.
-function channelLabel(type) {
-  const LABELS = {
-    email: 'Email',
-    sms: 'SMS',
-    slack: 'Slack',
-    discord: 'Discord',
-    teams: 'Microsoft Teams',
-    pagerduty: 'PagerDuty',
-    opsgenie: 'Opsgenie',
-    pushover: 'Pushover',
-    ntfy: 'ntfy',
-    webhook: 'Webhook',
-  }
-  return LABELS[type] || type
-}
-
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
 // Real document title + noindex for the app surface (the serve wrapper
@@ -98,6 +91,29 @@ useHead({ title: 'Notification settings \u00b7 StatusHQ', meta: [{ name: 'robots
      inherits currentColor so it reads in light + dark. */
   .chan-ico { display: inline-flex; vertical-align: middle; margin-right: 0.4rem; color: var(--muted); }
   .chan-ico svg { width: 18px; height: 18px; }
+
+  /* Explicit, because a display rule on the field wrapper would otherwise
+     win over the hidden attribute's UA default. */
+  [data-types][hidden] { display: none; }
+
+  /* Where to find the value the fields below are asking for. */
+  .setup-note {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+  .opt {
+    margin-left: 0.4rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
 </style>
 
 <main class="app-shell">
@@ -132,8 +148,12 @@ useHead({ title: 'Notification settings \u00b7 StatusHQ', meta: [{ name: 'robots
       <div class="flash">Test notification sent.</div>
     @endif
 
-    @if (invalidJson)
-      <div class="flash error">Channel config must be valid JSON.</div>
+    @if (created)
+      <div class="flash">Channel added. Send it a test, then route it to your monitors.</div>
+    @endif
+
+    @if (errorMessage)
+      <div class="flash error">{{ errorMessage }}</div>
     @endif
 
     @if (channels.length === 0)
@@ -154,7 +174,7 @@ useHead({ title: 'Notification settings \u00b7 StatusHQ', meta: [{ name: 'robots
           </div>
           @foreach (channels as channel)
             <div class="trow" style="grid-template-columns: 130px minmax(0, 1.6fr) 130px 110px;">
-              <span class="tcell sub"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelLabel(channel.type) }}</span>
+              <span class="tcell sub"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelTypeLabel(channel.type) }}</span>
               <span class="tcell ellipsis name">{{ channel.name }}</span>
               <span class="tcell">
                 @if (channel.enabled)
@@ -181,34 +201,47 @@ useHead({ title: 'Notification settings \u00b7 StatusHQ', meta: [{ name: 'robots
         <span class="sub">Where alerts get routed</span>
       </div>
       <div class="card-body">
-        <form method="POST" action="/api/notification-channel-forms/create">
-          <input type="hidden" name="team_id" value="{{ TEAM_ID }}" />
+        {{-- Every type's fields are rendered and hidden by type, rather than
+             fetched per selection: with no JS the whole set stays visible and
+             submits fine, because buildChannelConfig reads only the selected
+             type's fields. --}}
+        <form method="POST" action="/api/notification-channel-forms/create" id="chan-form">
           <div class="form-row">
             <div class="field">
-              <label>Name</label>
-              <input type="text" name="name" required class="input" placeholder="#ops-alerts" />
+              <label for="chan-name">Name</label>
+              <input id="chan-name" type="text" name="name" required class="input" placeholder="#ops-alerts" />
+              <p class="help">Yours to recognise later — this is what you'll pick when routing a monitor's alerts.</p>
             </div>
             <div class="field">
-              <label>Type</label>
-              <select name="type" class="select">
-                <option value="email">Email</option>
-                <option value="sms">SMS</option>
-                <option value="slack">Slack</option>
-                <option value="discord">Discord</option>
-                <option value="teams">Teams</option>
-                <option value="pagerduty">PagerDuty</option>
-                <option value="opsgenie">Opsgenie</option>
-                <option value="pushover">Pushover</option>
-                <option value="ntfy">ntfy</option>
-                <option value="webhook">Webhook</option>
+              <label for="chan-type">Type</label>
+              <select id="chan-type" name="type" class="select">
+                @foreach (CHANNEL_TYPES as chanType)
+                  <option value="{{ chanType.value }}">{{ chanType.label }}</option>
+                @endforeach
               </select>
             </div>
           </div>
-          <div class="field">
-            <label>Config (JSON)</label>
-            <textarea name="config" rows="3" class="textarea" placeholder="{}"></textarea>
-            <p class="help mono">{"webhookUrl": "https://..."} for Slack, Discord, Teams, or ntfy. {"email": "you@example.com"} for email.</p>
-          </div>
+
+          @foreach (CHANNEL_TYPES as chanType)
+            <div data-types="{{ chanType.value }}">
+              <p class="setup-note">{{ chanType.setup }}</p>
+              @foreach (chanType.fields as f)
+                <div class="field">
+                  <label for="f-{{ f.name }}">{{ f.label }}@if (!f.required)<span class="opt">optional</span>@endif</label>
+                  @if (f.input === 'json')
+                    <textarea id="f-{{ f.name }}" name="{{ f.name }}" rows="2" class="textarea mono" placeholder="{{ f.placeholder || '' }}" data-req="{{ f.required ? '1' : '0' }}"></textarea>
+                  @endif
+                  @if (f.input !== 'json')
+                    <input id="f-{{ f.name }}" type="{{ f.input }}" name="{{ f.name }}" class="input" placeholder="{{ f.placeholder || '' }}" data-req="{{ f.required ? '1' : '0' }}" />
+                  @endif
+                  @if (f.help)
+                    <p class="help">{{ f.help }}</p>
+                  @endif
+                </div>
+              @endforeach
+            </div>
+          @endforeach
+
           <button type="submit" class="button primary">Add channel</button>
         </form>
       </div>
@@ -220,3 +253,36 @@ useHead({ title: 'Notification settings \u00b7 StatusHQ', meta: [{ name: 'robots
     </footer>
   @endif
 </main>
+<script>
+  (function () {
+    // Show only the selected type's fields. Hidden inputs are disabled so
+    // they submit nothing at all -- a stale value left in a field the
+    // operator scrolled past would otherwise be written into the config.
+    //
+    // Scoped by id rather than by document-wide selector: this file's server
+    // bindings are word-matched against plain script text to build the
+    // client data bridge, and a bare mention of one would serialize it --
+    // here that would put every stored webhook URL and API key into the page
+    // source. Nothing below names one.
+    var form = document.getElementById('chan-form')
+    if (!form) return
+    var picker = form.querySelector('select[name="type"]')
+    if (!picker) return
+    var groups = form.querySelectorAll('[data-types]')
+
+    function sync() {
+      var want = picker.value
+      groups.forEach(function (el) {
+        var on = el.getAttribute('data-types').split(' ').indexOf(want) !== -1
+        el.hidden = !on
+        el.querySelectorAll('input, textarea').forEach(function (node) {
+          node.disabled = !on
+          node.required = on && node.getAttribute('data-req') === '1'
+        })
+      })
+    }
+
+    picker.addEventListener('change', sync)
+    sync()
+  })();
+</script>

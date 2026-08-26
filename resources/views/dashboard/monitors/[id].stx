@@ -18,6 +18,7 @@
 <script server>
 import { resolveHealedTeamContext } from '../../../../app/lib/teamContext'
 import { authRequest } from '../../../../app/lib/authRequest'
+import { channelTypeLabel } from '../../../../app/lib/channelConfig'
 import { db } from '@stacksjs/database'
 import { scaleLinear, scaleBand, line, area, curveMonotoneX } from 'ts-charts'
 // require() destructured these under other names; `import { x as y }`
@@ -105,19 +106,28 @@ const incidents = monitor
   ? await db.selectFrom('incidents').where('monitor_id', '=', monitor.id).orderBy('started_at', 'desc').limit(20).execute()
   : []
 
-// Assigned channels: the pivot rows joined back to their channels in JS.
-let assignedChannels = []
+// Alert routing: every channel this team owns, each flagged with whether
+// this monitor routes to it. The card renders one checkbox row per channel
+// and posts the whole grid at once, so it needs the full team list —
+// showing only the attached ones is what made routing feel like a search
+// through a dropdown rather than a set of switches.
+let routableChannels = []
 if (monitor) {
   const links = await db.selectFrom('monitor_notification_channels').where('monitor_id', '=', monitor.id).execute()
-  const ids = links.map(l => l.notification_channel_id)
   const firesOnByChannel = {}
   for (const l of links) firesOnByChannel[l.notification_channel_id] = l.fires_on || 'both'
-  const chans = ids.length ? await db.selectFrom('notification_channels').whereIn('id', ids).execute() : []
-  assignedChannels = chans
-    .map(c => ({ id: c.id, name: c.name, type: c.type, firesOn: firesOnByChannel[c.id] || 'both' }))
+  const teamChans = await db.selectFrom('notification_channels').where('team_id', '=', monitor.team_id).execute()
+  routableChannels = teamChans
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      type: c.type,
+      routed: Object.prototype.hasOwnProperty.call(firesOnByChannel, c.id),
+      firesOn: firesOnByChannel[c.id] || 'both',
+    }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
 }
-const assignedChannelIds = assignedChannels.map((c) => c.id)
+const routedChannelCount = routableChannels.filter(c => c.routed).length
 
 // Response assertions for this monitor (dot-path health assertions, header /
 // status-code / response-time checks). Displayed and edited in the Assertions
@@ -157,30 +167,9 @@ function channelIcon(type) {
   return svg(ICONS[type] || ICONS.webhook)
 }
 
-function channelLabel(type) {
-  const LABELS = {
-    email: 'Email',
-    sms: 'SMS',
-    slack: 'Slack',
-    discord: 'Discord',
-    teams: 'Microsoft Teams',
-    pagerduty: 'PagerDuty',
-    opsgenie: 'Opsgenie',
-    pushover: 'Pushover',
-    ntfy: 'ntfy',
-    webhook: 'Webhook',
-  }
-  return LABELS[type] || type
-}
-let availableChannels = []
-if (monitor) {
-  const teamChans = await db.selectFrom('notification_channels').where('team_id', '=', monitor.team_id).execute()
-  const assignedSet = new Set(assignedChannelIds)
-  availableChannels = teamChans
-    .filter(c => !assignedSet.has(c.id))
-    .map(c => ({ id: c.id, name: c.name, type: c.type }))
-    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
-}
+// channelTypeLabel comes from app/lib/channelConfig, imported above — the
+// same table the settings form builds its fields from, so a type added
+// there is named consistently here without a second list to update.
 
 // Response-time sparkline: oldest -> newest, last 50 checks. `>= 0`
 // excludes NULL response times portably.
@@ -258,6 +247,7 @@ const range = query.get('range') || '24h'
 // monitor needs (its ping token is the URL the job actually calls).
 const flashCreated = query.get('created') === '1'
 const flashSaved = query.get('saved') === '1'
+const routingSaved = query.get('routing') === '1'
 const formError = query.get('error') || ''
 const planFloor = query.get('floor') || ''
 function formErrorLabel(code) {
@@ -1263,62 +1253,59 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
       @endif
     </section>
 
-    <section class="card" aria-label="Notification channels">
+    <section class="card" aria-label="Alert routing">
       <div class="card-head">
         <h3>Alert routing</h3>
-        <span class="sub" style="{{ assignedChannels.length === 0 ? 'color: var(--danger);' : '' }}">{{ assignedChannels.length }} channel{{ assignedChannels.length === 1 ? '' : 's' }} attached</span>
+        <span class="sub" style="{{ routedChannelCount === 0 ? 'color: var(--danger);' : '' }}">{{ routedChannelCount }} of {{ routableChannels.length }} channel{{ routableChannels.length === 1 ? '' : 's' }}</span>
       </div>
       <div class="card-body">
-        @if (assignedChannels.length === 0)
-          <p style="margin: 0 0 1rem; color: var(--danger); font-size: 0.88rem; font-weight: 500;">No channels attached: this monitor won't notify anyone on an incident.</p>
+        @if (routingSaved)
+          <div class="flash" style="margin-bottom: 1rem;">Alert routing saved.</div>
         @endif
 
-        @if (assignedChannels.length > 0)
-          <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.25rem;">
-            @foreach (assignedChannels as channel)
-              <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto auto;">
-                <span class="tcell"><span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span> <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelLabel(channel.type) }}</span></span>
-                <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/assign" style="display: flex; gap: 0.4rem; align-items: stretch;">
-                  <input type="hidden" name="channel_id" value="{{ channel.id }}" />
-                  <select name="fires_on" class="select sm" style="width: auto;" aria-label="Fires on">
-                    <option value="both" {{ channel.firesOn === 'both' ? 'selected' : '' }}>Down + issues</option>
-                    <option value="down" {{ channel.firesOn === 'down' ? 'selected' : '' }}>Down only</option>
-                    <option value="issue" {{ channel.firesOn === 'issue' ? 'selected' : '' }}>Issues only</option>
-                  </select>
-                  <button type="submit" class="button sm">Save</button>
-                </form>
-                <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/remove">
-                  <input type="hidden" name="channel_id" value="{{ channel.id }}" />
-                  <button type="submit" class="button danger sm">Remove</button>
-                </form>
-              </div>
-            @endforeach
-          </div>
+        @if (routableChannels.length === 0)
+          <p style="margin: 0; color: var(--muted); font-size: 0.88rem;">Your team has no notification channels yet, so this monitor can't alert anyone. <StxLink to="/dashboard/settings/notifications" style="color: var(--accent); font-weight: 600;">Add one</StxLink> and it'll appear here.</p>
         @endif
 
-        @if (availableChannels.length > 0)
-          <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/assign">
-            <div class="field" style="margin-bottom: 0;">
-              <label for="mon-attach-channel">Attach a channel</label>
-              <div style="display: flex; gap: 0.6rem; align-items: stretch;">
-                <select id="mon-attach-channel" name="channel_id" class="select" style="flex: 1 1 auto; width: auto;">
-                  @foreach (availableChannels as channel)
-                    <option value="{{ channel.id }}">{{ channel.name }} ({{ channelLabel(channel.type) }})</option>
-                  @endforeach
-                </select>
-                <select name="fires_on" class="select" style="width: auto;" aria-label="Fires on">
-                  <option value="both">Down + issues</option>
-                  <option value="down">Down only</option>
-                  <option value="issue">Issues only</option>
-                </select>
-                <button type="submit" class="button primary">Attach</button>
+        @if (routableChannels.length > 0)
+          @if (routedChannelCount === 0)
+            <p style="margin: 0 0 1rem; color: var(--danger); font-size: 0.88rem; font-weight: 500;">Nothing is routed: this monitor won't notify anyone on an incident.</p>
+          @endif
+
+          {{-- One submit for the whole grid. Unchecked rows post nothing, so
+               DashboardSaveRoutingAction reconciles against the team's channel
+               list rather than against what arrived. --}}
+          <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/routing">
+            <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
+              <div class="trow thead" style="grid-template-columns: 44px minmax(0, 1fr) 160px;">
+                <span class="tcell">Alert</span>
+                <span class="tcell">Channel</span>
+                <span class="tcell">Fires on</span>
               </div>
+              @foreach (routableChannels as channel)
+                <div class="trow" style="grid-template-columns: 44px minmax(0, 1fr) 160px;">
+                  <span class="tcell">
+                    <input type="checkbox" id="chan-{{ channel.id }}" name="chan_{{ channel.id }}" value="1" {{ channel.routed ? 'checked' : '' }} />
+                  </span>
+                  <label class="tcell ellipsis" for="chan-{{ channel.id }}" style="cursor: pointer;">
+                    <span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span>
+                    <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelTypeLabel(channel.type) }}</span>
+                  </label>
+                  <span class="tcell">
+                    <select name="fires_{{ channel.id }}" class="select sm" style="width: auto;" aria-label="Fires on for {{ channel.name }}">
+                      <option value="both" {{ channel.firesOn === 'both' ? 'selected' : '' }}>Down + issues</option>
+                      <option value="down" {{ channel.firesOn === 'down' ? 'selected' : '' }}>Down only</option>
+                      <option value="issue" {{ channel.firesOn === 'issue' ? 'selected' : '' }}>Issues only</option>
+                    </select>
+                  </span>
+                </div>
+              @endforeach
             </div>
-            <p class="help" style="margin-top: 0.5rem;">Choose which severities each channel fires on: hard outages (down), soft issues like SSL/domain expiry and blocklistings (issues), or both.</p>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+              <p class="help" style="margin: 0; flex: 1 1 20rem;">Down covers hard outages; issues covers softer events like SSL and domain expiry, DNS drift and blocklistings. <StxLink to="/dashboard/settings/notifications" style="color: var(--accent); font-weight: 600;">Manage channels</StxLink></p>
+              <button type="submit" class="button primary">Save routing</button>
+            </div>
           </form>
-        @endif
-        @if (availableChannels.length === 0 && assignedChannels.length === 0)
-          <p style="margin: 0; color: var(--muted); font-size: 0.88rem;"><StxLink to="/dashboard/settings/notifications" style="color: var(--accent); font-weight: 600;">Add a notification channel</StxLink> to attach one here.</p>
         @endif
       </div>
     </section>
