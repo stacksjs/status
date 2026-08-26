@@ -784,6 +784,14 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
   .alert-empty.is-danger { border-color: var(--danger); background: var(--danger-soft, transparent); }
   .alert-empty.is-danger strong { color: var(--danger); }
 
+  /* The note-and-button footer. The rule divides it from the channel rows
+     above, which .trow:last-child otherwise leaves borderless. */
+  .alert-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+  }
+  .alert-foot .help { margin: 0; flex: 1 1 20rem; }
+
   /* Manage-alerts dialog. Styled through the same tokens as the cards, so
      it inherits both themes rather than needing a second palette. */
   #alerts-dialog {
@@ -1317,46 +1325,62 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
         <h3>Alert routing</h3>
         <span class="sub" style="{{ routedChannelCount === 0 ? 'color: var(--danger);' : '' }}">{{ routedChannelCount }} of {{ routableChannels.length }} channel{{ routableChannels.length === 1 ? '' : 's' }}</span>
       </div>
-      <div class="card-body">
-        @if (routingSaved)
-          <div class="flash" style="margin-bottom: 1rem;">Alert routing saved.</div>
-        @endif
+      {{-- Read-only summary. Editing happens in the dialog below, so this
+           answers "who hears about this?" at a glance instead of asking the
+           reader to parse a form to find out.
 
-        {{-- Read-only summary. Editing happens in the dialog below, so this
-             answers "who hears about this?" at a glance instead of asking
-             the reader to parse a form to find out. --}}
-        @if (routableChannels.length === 0)
+           The channel list is a bare edge-to-edge .rows, the same shape the
+           incident log below uses, NOT a bordered box inside .card-body.
+           .trow carries its own 1.25rem horizontal padding on the assumption
+           that it spans the card, so nesting it in a body that already pads
+           by 1.25rem inset the channel name twice as far as the note beneath
+           it — two different left edges in one card. --}}
+      @if (routingSaved)
+        <div class="card-body" style="padding-bottom: 0;">
+          <div class="flash">Alert routing saved.</div>
+        </div>
+      @endif
+
+      @if (routableChannels.length === 0)
+        <div class="card-body">
           <div class="alert-empty">
             <p><strong>No channels to alert.</strong> Your team hasn't set any up, so this monitor can't reach anyone.</p>
             <StxLink class="button sm primary" to="/dashboard/settings/notifications">Add a channel</StxLink>
           </div>
-        @endif
+        </div>
+      @endif
 
-        @if (routableChannels.length > 0 && routedChannelCount === 0)
+      @if (routableChannels.length > 0 && routedChannelCount === 0)
+        <div class="card-body">
           <div class="alert-empty is-danger">
             <p><strong>Nothing is routed.</strong> This monitor won't notify anyone when an incident opens.</p>
-            <button type="button" class="button sm primary" id="alerts-open-empty">Manage alerts</button>
           </div>
-        @endif
+        </div>
+      @endif
 
-        @if (routedChannelCount > 0)
-          <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
-            @foreach (routedChannels as channel)
-              <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
-                <span class="tcell ellipsis">
-                  <span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span>
-                  <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelTypeLabel(channel.type) }}</span>
-                </span>
-                <span class="tcell"><data class="pill pill-up" value="{{ channel.firesOn }}"><span class="dot"></span>{{ firesOnLabel(channel.firesOn) }}</data></span>
-              </div>
-            @endforeach
-          </div>
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
-            <p class="help" style="margin: 0; flex: 1 1 20rem;">Down covers hard outages; issues covers softer events like SSL and domain expiry, DNS drift and blocklistings.</p>
-            <button type="button" class="button primary" id="alerts-open">Manage alerts</button>
-          </div>
-        @endif
-      </div>
+      @if (routedChannelCount > 0)
+        <div class="rows">
+          @foreach (routedChannels as channel)
+            <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
+              <span class="tcell ellipsis">
+                <span class="name">{{ channel.name }}</span>
+                <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelTypeLabel(channel.type) }}</span>
+              </span>
+              <span class="tcell"><data class="pill pill-up" value="{{ channel.firesOn }}"><span class="dot"></span>{{ firesOnLabel(channel.firesOn) }}</data></span>
+            </div>
+          @endforeach
+        </div>
+      @endif
+
+      {{-- One Manage alerts button, in one place, whether or not anything is
+           routed yet. The empty state used to carry its own copy, which meant
+           two ids for one action and two places to keep in step. --}}
+      @if (routableChannels.length > 0)
+        <div class="card-body alert-foot">
+          <p class="help">Down covers hard outages; issues covers softer events like SSL and domain expiry, DNS drift and blocklistings.</p>
+          <button type="button" class="button primary" id="alerts-open">Manage alerts</button>
+        </div>
+      @endif
     </section>
 
     {{-- The editor. Rendered whenever the team owns a channel, including
@@ -1767,13 +1791,8 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
           else dlg.removeAttribute('open')
         }
 
-        // Two buttons open it: the one under a populated list, and the one
-        // in the nothing-is-routed empty state. Only ever one is rendered.
-        var openIds = ['alerts-open', 'alerts-open-empty']
-        for (var i = 0; i < openIds.length; i++) {
-          var opener = document.getElementById(openIds[i])
-          if (opener) opener.addEventListener('click', show)
-        }
+        var opener = document.getElementById('alerts-open')
+        if (opener) opener.addEventListener('click', show)
 
         var closer = document.getElementById('alerts-close')
         if (closer) closer.addEventListener('click', hide)

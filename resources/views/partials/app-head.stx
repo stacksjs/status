@@ -501,7 +501,13 @@
     font-size: 0.82rem;
     font-weight: 600;
   }
-  .field .help { margin-top: 0.35rem; color: var(--muted); font-size: 0.8rem; }
+  /* Help text is muted and small wherever it appears. This used to be scoped
+     to `.field .help`, so the copy under a card — the alert-routing note, the
+     assertions explainer, the delete warning — matched body text in size and
+     contrast and shouted over the thing it was explaining. The margin stays
+     field-scoped: outside a field the surrounding layout owns the spacing. */
+  .help { color: var(--muted); font-size: 0.8rem; line-height: 1.55; }
+  .field .help { margin-top: 0.35rem; }
   .input, .select, .textarea {
     width: 100%;
     min-height: 42px;
