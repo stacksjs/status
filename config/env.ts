@@ -229,4 +229,30 @@ export default {
     validation: schema.string(),
     default: '',
   },
+
+  // Single sign-on credentials, read by config/sso.ts.
+  //
+  // These were used without ever being declared here. StacksEnv used to be
+  // permissive enough that `env.SSO_OKTA_ISSUER` typechecked against nothing,
+  // so the keys worked by accident and were never validated, defaulted or
+  // documented — the framework upgrade that tightened StacksEnv is what
+  // surfaced them. Declaring them is the fix, not casting the reads away:
+  // an SSO provider is configured or it is not, and an empty default is what
+  // config/sso.ts already treats as "this provider is off".
+  //
+  // Google and Entra also answer to the unprefixed GOOGLE_CLIENT_ID /
+  // GOOGLE_CLIENT_SECRET the framework declares; config/sso.ts prefers those
+  // and falls back to these.
+  SSO_GOOGLE_CLIENT_ID: { validation: schema.string(), default: '' },
+  SSO_GOOGLE_CLIENT_SECRET: { validation: schema.string(), default: '' },
+  SSO_ENTRA_TENANT_ID: { validation: schema.string(), default: '' },
+  SSO_ENTRA_CLIENT_ID: { validation: schema.string(), default: '' },
+  SSO_ENTRA_CLIENT_SECRET: { validation: schema.string(), default: '' },
+  SSO_OKTA_ISSUER: { validation: schema.string(), default: '' },
+  SSO_OKTA_CLIENT_ID: { validation: schema.string(), default: '' },
+  SSO_OKTA_CLIENT_SECRET: { validation: schema.string(), default: '' },
+  SSO_OIDC_ISSUER: { validation: schema.string(), default: '' },
+  SSO_OIDC_CLIENT_ID: { validation: schema.string(), default: '' },
+  SSO_OIDC_CLIENT_SECRET: { validation: schema.string(), default: '' },
+  SSO_OIDC_LABEL: { validation: schema.string(), default: '' },
 } satisfies EnvConfig

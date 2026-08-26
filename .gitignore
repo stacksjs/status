@@ -91,3 +91,14 @@ storage/framework/cache/
 
 # stx route manifest + asset copies, regenerated on every dev boot
 storage/framework/stx/
+
+# tsc's incremental build cache. Local-only and rewritten on every typecheck.
+tsconfig.tsbuildinfo
+
+# Table types `buddy generate:types` writes from the live database. Derived,
+# and nothing needs it: tsc passes without it and CI never generates it.
+database/types.d.ts
+
+# Migration scratch the ORM writes during a local `buddy migrate`. The schema
+# of record is database/migrations; this directory is derived.
+storage/framework/database/

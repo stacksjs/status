@@ -102,13 +102,19 @@ export async function maintenanceIntervalsByMonitor(
   if (monitorIds.length === 0)
     return byMonitor
 
-  const links = await db.selectFrom('maintenance_window_monitors').whereIn('monitor_id', monitorIds).execute()
+  // The query builder returns Record<string, unknown> rows, so the shapes are
+  // named here rather than reached for through `any` at each use. Same fields
+  // as before — this is the row this function has always assumed.
+  interface LinkRow { monitor_id: number, maintenance_window_id: number }
+  interface WindowRow { id: number, status: string, starts_at: string, ends_at: string, recurrence_cron?: string | null }
+
+  const links = await db.selectFrom('maintenance_window_monitors').whereIn('monitor_id', monitorIds).execute() as unknown as LinkRow[]
   if (links.length === 0)
     return byMonitor
 
-  const windowIds = [...new Set(links.map((l: any) => l.maintenance_window_id))]
-  const windows = (await db.selectFrom('maintenance_windows').whereIn('id', windowIds).execute())
-    .filter((w: any) => w.status !== 'cancelled')
+  const windowIds = [...new Set(links.map(l => l.maintenance_window_id))]
+  const windows = (await db.selectFrom('maintenance_windows').whereIn('id', windowIds).execute() as unknown as WindowRow[])
+    .filter(w => w.status !== 'cancelled')
 
   const intervalsByWindow = new Map<number, Interval[]>()
   for (const w of windows)

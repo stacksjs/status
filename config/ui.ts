@@ -116,9 +116,18 @@ export default {
     // That is why it looked intermittent and why a hard reload always
     // "fixed" it: it only happens when the link was prefetched, and a full
     // load rebuilds the document from server HTML. Prefetch is a latency
-    // optimisation; correct layout is not optional, so it stays off until
-    // the upstream fix lands (@stacksjs/stx router, both setCache call
-    // sites in the prefetch path need the container attrs).
+    // optimisation; correct layout is not optional, so it stays off.
+    //
+    // Re-checked against stx 0.2.231 (the router was rewritten between
+    // 0.2.198 and 0.2.231 — it is inlined into the page now rather than
+    // served as /_stx/router.js). Still broken, and now down to exactly one
+    // call site. `setCache(key, html, layout, group, title, cattrs)` takes
+    // six; the navigate path reads X-STX-Container-Attrs into newCAttrs and
+    // passes all six, while the prefetch path's response handler reads only
+    // X-STX-Layout / -Layout-Group / -Title / -Runtime and calls
+    //   setCache(key, result.html, result.layout, result.layoutGroup, result.title)
+    // with five, so the entry lands with cattrs undefined. Turn this on
+    // again only after that handler reads the container-attrs header.
     prefetch: false,
   },
 } satisfies UiOptions

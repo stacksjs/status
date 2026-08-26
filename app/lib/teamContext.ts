@@ -119,14 +119,17 @@ export async function resolveOrCreateTeamId(request: unknown): Promise<number | 
  * Shared with RegisterAction so signup and this repair path cannot drift into
  * producing differently-shaped teams.
  *
- * Deliberately writes ONLY the columns the app reads. An earlier version also
- * set `teams.user_id` and `teams.owner` through `forceCreate` (they sit
- * outside the model's fillable allowlist), which records ownership on the team
- * row -- but nothing resolves ownership from there. The dashboard reads the
- * `team_members` row below, and those two columns are the ones most likely to
- * differ between environments, since they are the ones the model does not
- * declare. Writing less is the safer bet while the production failure is
- * still unexplained.
+ * Shared by RegisterAction, the self-heal path and the SSO callback, so no
+ * route into the product can produce a differently-shaped team.
+ *
+ * Writes `teams.owner` and `teams.user_id` as well as the columns the model
+ * declares. An earlier revision of this comment claimed nothing resolves
+ * ownership from those two and dropped them on that basis; that was wrong.
+ * SendUptimeReports reads `teams.owner` as the recipient of last resort when
+ * a team has enabled reports without naming anyone, so a null there is a
+ * report addressed to nobody. Authority still lives in the `team_members` row
+ * below — these are a denormalised convenience, and the reason they need the
+ * query builder is that the framework's Team model does not declare them.
  */
 export async function createPersonalTeam(userId: number, name: string, email: string): Promise<number | null> {
   // `teams.name` carries a UNIQUE index (teams_name_unique), and the name is
@@ -168,7 +171,14 @@ async function insertTeam(teamName: string, userId: number, email: string): Prom
     }
 
     const now = new Date().toISOString()
-    await db.insertInto('teams').values({ name: teamName, status: 'active' }).execute()
+    // `owner` and `user_id` are real columns that the framework's Team MODEL
+    // does not declare, so they can only be written through the query builder
+    // — which is why they were dropped when this path replaced forceCreate.
+    // The note above used to say nothing resolves ownership from there. That
+    // was wrong: SendUptimeReports falls back to `teams.owner` when a team has
+    // report recipients unset, so leaving it null quietly addressed every
+    // fallback report to nobody.
+    await db.insertInto('teams').values({ name: teamName, status: 'active', owner: email, user_id: userId }).execute()
 
     // Read back rather than trusting a returned id: the dialect differs
     // between the self-hosted SQLite and the hosted Postgres, and this runs

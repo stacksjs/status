@@ -81,7 +81,10 @@ export default new Action({
       const team = await Team.find(member.team_id)
       if (team) {
         const active = await TeamMember.where('team_id', member.team_id).where('status', 'active').get()
-        await Team.forceUpdate(member.team_id, { member_count: active.length })
+        // memberCount, not member_count: the ORM validates writes against the
+        // model's declared attribute names now, and the snake_case spelling
+        // silently wrote nothing.
+        await Team.forceUpdate(member.team_id, { memberCount: active.length })
       }
     }
     catch {

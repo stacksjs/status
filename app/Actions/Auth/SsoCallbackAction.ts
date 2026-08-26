@@ -1,9 +1,10 @@
 import { Action } from '@stacksjs/actions'
 import { Auth, register } from '@stacksjs/auth'
 import { dispatch } from '@stacksjs/events'
-import { Team, User } from '@stacksjs/orm'
+import { User } from '@stacksjs/orm'
 import SsoIdentity from '../../Models/SsoIdentity'
 import TeamMember from '../../Models/TeamMember'
+import { createPersonalTeam } from '../../lib/teamContext'
 import { createSocialProvider, ssoProvider } from '../../../config/sso'
 import { buildAuthCookie } from './authCookie'
 import { clearFlowCookie, decodeJwtPayload, discover, randomToken, readFlowCookie, redirectUri } from './oidc'
@@ -253,29 +254,19 @@ export default new Action({
           return fail('sso_provisioning_failed')
         userId = created.id as number
 
-        // Give the new user a team to own, exactly like RegisterAction
-        // (best-effort there, best-effort here, same reasoning).
+        // Give the new user a team to own, through the same helper as
+        // RegisterAction and the self-heal path.
+        //
+        // This used to hand-roll the team with Team.forceCreate and its own
+        // TeamMember.create — the third copy of a shape that had already
+        // drifted. It missed the unique-name fallback that createPersonalTeam
+        // carries, so the second person to sign in through SSO with a given
+        // display name collided on teams_name_unique and landed in exactly
+        // the no-team state that broke production signups.
         try {
           const existingMembership = await TeamMember.where('user_id', userId).where('status', 'active').first()
-          if (!existingMembership) {
-            const team = await Team.forceCreate({
-              name: name ? `${name}'s Team` : 'My Team',
-              status: 'active',
-              user_id: userId,
-              owner: email,
-            })
-            // invitedEmail/invitedAt are required on the model -- see the same
-            // note in RegisterAction.
-            await TeamMember.create({
-              teamId: team.id,
-              userId: userId,
-              role: 'owner',
-              status: 'active',
-              invitedEmail: email,
-              invitedAt: new Date().toISOString(),
-              joinedAt: new Date().toISOString(),
-            })
-          }
+          if (!existingMembership)
+            await createPersonalTeam(userId, name ?? '', email)
         }
         catch (err) {
           console.error('[SsoCallbackAction] failed to create default team', err)

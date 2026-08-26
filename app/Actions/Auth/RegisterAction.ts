@@ -74,12 +74,18 @@ export default new Action({
       // — listener errors are caught by the wildcard handler so a flaky
       // welcome email doesn't fail registration. The `to` alias matches
       // the contract SendWelcomeEmail expects.
-      dispatch('user:registered', {
-        id: user?.id,
-        email: user?.email,
-        name: user?.name,
-        to: user?.email,
-      })
+      // `to` is typed as a required string on the event payload, and
+      // `user?.email` is optional — an empty string would address a welcome
+      // email to nobody, so skip the dispatch outright when there is no
+      // address to send to rather than papering over it with `?? ''`.
+      if (user?.email) {
+        dispatch('user:registered', {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          to: user.email,
+        })
+      }
 
       return response.json(
         {
