@@ -71,6 +71,16 @@ function reportFrequencyLabel(freq) {
   return 'Off'
 }
 
+// Flash markers from DashboardUpdateTeamMemberRoleAction, which redirects
+// rather than re-rendering.
+const rosterQuery = (typeof __stxServeSearch !== 'undefined' && __stxServeSearch) ? new URLSearchParams(__stxServeSearch) : new URLSearchParams()
+const roleSaved = rosterQuery.get('saved') === '1'
+const ROLE_ERRORS = {
+  last_owner: 'That is the team’s only owner. Promote someone else to owner first, or the team would be left with nobody who can administer it.',
+  bad_role: 'Pick a role from the list.',
+}
+const roleError = ROLE_ERRORS[rosterQuery.get('error')] || ''
+
 const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
 
 // Real document title + noindex for the app surface (the serve wrapper
@@ -110,6 +120,14 @@ useHead({ title: 'Team settings \u00b7 StatusHQ', meta: [{ name: 'robots', conte
       </div>
     </div>
 
+    @if (roleSaved)
+      <div class="flash">Role updated.</div>
+    @endif
+
+    @if (roleError)
+      <div class="flash error">{{ roleError }}</div>
+    @endif
+
     @if (members.length === 0)
       <div class="empty">
         <h3>No members yet</h3>
@@ -124,7 +142,7 @@ useHead({ title: 'Team settings \u00b7 StatusHQ', meta: [{ name: 'robots', conte
           <span class="sub">{{ activeCount }} active &middot; {{ pendingCount }} pending</span>
         </div>
         <div class="rows">
-          <div class="trow thead" style="grid-template-columns: minmax(0, 1.6fr) 110px 130px 110px 110px;">
+          <div class="trow thead" style="grid-template-columns: minmax(0, 1.4fr) 150px 120px 110px 110px;">
             <span class="tcell">Member</span>
             <span class="tcell">Role</span>
             <span class="tcell">Status</span>
@@ -132,9 +150,22 @@ useHead({ title: 'Team settings \u00b7 StatusHQ', meta: [{ name: 'robots', conte
             <span class="tcell num">Remove</span>
           </div>
           @foreach (members as member)
-            <div class="trow" style="grid-template-columns: minmax(0, 1.6fr) 110px 130px 110px 110px;">
+            <div class="trow" style="grid-template-columns: minmax(0, 1.4fr) 150px 120px 110px 110px;">
               <span class="tcell ellipsis name">{{ member.invited_email }}</span>
-              <span class="tcell sub">{{ member.role }}</span>
+              {{-- Saves on change: a per-row Save button next to a per-row
+                   Remove button is two submits a keystroke apart, and the
+                   wrong one is destructive. --}}
+              <span class="tcell">
+                <form method="POST" action="/api/team-forms/{{ member.id }}/role" data-role-form>
+                  <input type="hidden" name="id" value="{{ member.id }}" />
+                  <select name="role" class="select sm" style="width: auto;" aria-label="Role for {{ member.invited_email }}">
+                    <option value="member" {{ member.role === 'member' ? 'selected' : '' }}>Member</option>
+                    <option value="admin" {{ member.role === 'admin' ? 'selected' : '' }}>Admin</option>
+                    <option value="owner" {{ member.role === 'owner' ? 'selected' : '' }}>Owner</option>
+                  </select>
+                  <noscript><button type="submit" class="button sm">Save</button></noscript>
+                </form>
+              </span>
               <span class="tcell">
                 @if (member.status === 'pending')
                   <data class="pill pill-unknown" value="pending"><span class="dot"></span>Pending</data>
@@ -179,7 +210,7 @@ useHead({ title: 'Team settings \u00b7 StatusHQ', meta: [{ name: 'robots', conte
           </div>
           <button type="submit" class="button primary">Invite</button>
           <div class="field" style="margin: 0.75rem 0 0;">
-            <p class="help">Invites are emailed with their acceptance token. Accepting still happens via the API until dashboard sign-in lands.</p>
+            <p class="help">We email a link to <span class="mono">/invite/&hellip;</span>. Opening it lets them accept and sign in — creating an account first if they don't have one. Nothing here needs the API.</p>
           </div>
         </form>
       </div>
@@ -221,3 +252,21 @@ useHead({ title: 'Team settings \u00b7 StatusHQ', meta: [{ name: 'robots', conte
     </footer>
   @endif
 </main>
+<script>
+  (function () {
+    // Submit a role picker as soon as it changes, so the row has no Save
+    // button sitting a keystroke away from its Remove button. The noscript
+    // fallback in each row supplies that button when this does not run.
+    //
+    // Scoped through the data attribute and nothing else: this file's server
+    // bindings are word-matched against plain script text to build the
+    // client data bridge, so a stray mention of one would serialize the
+    // roster into the page source. Nothing below names one.
+    document.querySelectorAll('form[data-role-form] select').forEach(function (picker) {
+      picker.addEventListener('change', function () {
+        var owner = picker.form
+        if (owner) owner.submit()
+      })
+    })
+  })();
+</script>

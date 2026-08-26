@@ -180,6 +180,9 @@ route.post('/assertion-forms/monitors/{monitorId}/remove', 'Actions/Assertions/D
 // plain-POST convention.
 route.post('/team-forms/{id}/invite', 'Actions/Teams/DashboardInviteTeamMemberAction')
 route.post('/team-forms/{id}/remove', 'Actions/Teams/DashboardRemoveTeamMemberAction')
+// Promote/demote without revoking access: before this, changing a role meant
+// removing the member and re-inviting them.
+route.post('/team-forms/{id}/role', 'Actions/Teams/DashboardUpdateTeamMemberRoleAction')
 
 // Workspace switcher: pin which team the dashboard scopes to. The cookie it
 // sets is re-validated against the requester's memberships on every request

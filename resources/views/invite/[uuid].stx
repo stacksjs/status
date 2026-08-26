@@ -1,13 +1,20 @@
 <script server>
-import { Database } from 'bun:sqlite'
-import { resolve } from 'node:path'
+import { db } from '@stacksjs/database'
 
 // Browser-facing team-invite acceptance page. The invite email links here
 // (/invite/{uuid}); the form posts to /api/invite-forms/{uuid}/accept
 // (AcceptInviteFormAction), which links or creates the user, activates the
 // membership, and signs them in. Public page (the uuid is the capability),
-// so it reads SQLite directly read-only, same convention as the public
-// status pages -- no auth/team resolution here.
+// so there is no auth/team resolution here.
+//
+// Reads through @stacksjs/database like every other view. It used to open
+// `bun:sqlite` directly against DB_DATABASE_PATH, on a comment claiming that
+// was "the same convention as the public status pages" -- which it was not:
+// status/[slug].stx and index.stx both use this same `db`. The direct handle
+// hardcoded a local SQLite file, so on the networked-Postgres hosted setup
+// this page could not read anything and every invite link died on arrival.
+// It fails for the invited person, on a page the person who sent the invite
+// never loads, which is about the worst place to put a portability bug.
 //
 // Rendered as a FRAGMENT (no <!DOCTYPE>/<html>/<head>/<body>) like every
 // other dynamic view in this app: a full-document dynamic view trips a
@@ -17,20 +24,19 @@ import { resolve } from 'node:path'
 // app-head partial, which is also fragment-injected).
 const appName = process.env.APP_NAME || 'StatusHQ'
 
-const inviteDbPath = resolve(process.cwd(), process.env.DB_DATABASE_PATH || 'database/stacks.sqlite')
-const inviteDb = new Database(inviteDbPath, { readonly: true })
-
 const inviteUuid = (typeof uuid !== 'undefined' && uuid) ? String(uuid) : ''
 const member = inviteUuid
-  ? inviteDb.query(`SELECT id, team_id, invited_email, role, status FROM team_members WHERE uuid = ?1 LIMIT 1`).get(inviteUuid)
+  ? await db.selectFrom('team_members').where('uuid', '=', inviteUuid)
+    .select(['id', 'team_id', 'invited_email', 'role', 'status']).executeTakeFirst()
   : null
 
 const team = member
-  ? inviteDb.query(`SELECT name FROM teams WHERE id = ?1 LIMIT 1`).get(member.team_id)
+  ? await db.selectFrom('teams').where('id', '=', member.team_id).select(['name']).executeTakeFirst()
   : null
 
 const existingUser = member
-  ? inviteDb.query(`SELECT id FROM users WHERE email = ?1 LIMIT 1`).get(String(member.invited_email || '').toLowerCase())
+  ? await db.selectFrom('users').where('email', '=', String(member.invited_email || '').toLowerCase())
+    .select(['id']).executeTakeFirst()
   : null
 const hasAccount = !!existingUser
 
