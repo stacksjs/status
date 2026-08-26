@@ -20,6 +20,7 @@ import { resolveHealedTeamContext } from '../../../../app/lib/teamContext'
 import { authRequest } from '../../../../app/lib/authRequest'
 import { channelTypeLabel } from '../../../../app/lib/channelConfig'
 import { maintenanceIntervalsByMonitor } from '../../../../app/lib/maintenance'
+import { incidentSeverity } from '../../../../app/lib/notificationSeverity'
 import { computeUptime } from '../../../../app/lib/uptime'
 import { db } from '@stacksjs/database'
 import { scaleLinear, scaleBand, line, area, curveMonotoneX } from 'ts-charts'
@@ -94,9 +95,17 @@ const agoLabel = iso => relativeTime(iso, '--')
 
 // Incident status -> pill class: resolved reads muted, monitoring reads
 // amber, investigating/identified read danger.
+//
+// Unless the incident is a soft issue rather than an outage, in which case it
+// reads amber whatever its workflow state. An open incident is an open
+// incident, but painting "a host crossed 51% against a 50% CPU threshold" in
+// the same red as "this site is unreachable" is the over-alarming this whole
+// severity split exists to stop — and it is the same red the check row beside
+// it no longer uses.
 function incidentPillClass(incident) {
   if (incident.resolved_at || incident.status === 'resolved') return 'pill pill-unknown'
   if (incident.status === 'monitoring') return 'pill pill-degraded'
+  if (incidentSeverity(monitor ? monitor.type : '', incident.impacted_checks) === 'issue') return 'pill pill-degraded'
   return 'pill pill-down'
 }
 
@@ -857,7 +866,9 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
     <dl class="stat-grid">
       <div class="stat-card">
         <dt>90-day uptime</dt>
-        <dd class="{{ monitor.status === 'up' ? 'ok' : (monitor.status === 'down' || monitor.status === 'degraded' ? 'bad' : '') }}">{{ uptimePercent !== null ? uptimePercent + '%' : '--' }}</dd>
+        {{-- Degraded is amber, not red: it no longer costs uptime, so painting
+             the figure the same as an outage overstated it. --}}
+        <dd class="{{ monitor.status === 'up' ? 'ok' : (monitor.status === 'degraded' ? 'warn' : (monitor.status === 'down' ? 'bad' : '')) }}">{{ uptimePercent !== null ? uptimePercent + '%' : '--' }}</dd>
       </div>
       <div class="stat-card">
         <dt>Latest response</dt>

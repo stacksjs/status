@@ -65,13 +65,13 @@ describe('Server metrics (threshold alerting)', () => {
     expect(await openIncidents(id)).toHaveLength(0)
   })
 
-  test('a CPU breach marks down and opens exactly one incident; recovery resolves it', async () => {
+  test('a CPU breach marks degraded and opens exactly one incident; recovery resolves it', async () => {
     const { id, token } = await makeMetricsMonitor()
     created.push(id)
 
     // breach (default cpu threshold 90)
     await push(token, { cpuPercent: 96, ramPercent: 40, ramUsedMb: 6000, ramTotalMb: 16000 })
-    expect(await statusOf(id)).toBe('down')
+    expect(await statusOf(id)).toBe('degraded')
     expect(await openIncidents(id)).toHaveLength(1)
 
     // still breaching — no duplicate incident
@@ -91,13 +91,13 @@ describe('Server metrics (threshold alerting)', () => {
 
     // cpu 60 breaches the custom 50 threshold
     await push(token, { cpuPercent: 60, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000 })
-    expect(await statusOf(id)).toBe('down')
+    expect(await statusOf(id)).toBe('degraded')
     await push(token, { cpuPercent: 10, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000 })
     expect(await statusOf(id)).toBe('up')
 
     // disk breach only when diskPercent is sent
     await push(token, { cpuPercent: 10, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000, diskPercent: 85 })
-    expect(await statusOf(id)).toBe('down')
+    expect(await statusOf(id)).toBe('degraded')
   })
 
   // This fixture is `type: 'uptime'`, which EvaluateMonitorConsensus owns the
@@ -155,14 +155,14 @@ describe('Server metrics (threshold alerting)', () => {
     expect(await statusOf(id)).toBe('up')
   })
 
-  test('one breaching host takes the monitor down and names itself in the incident', async () => {
+  test('one breaching host degrades the monitor and names itself in the incident', async () => {
     const { id, token } = await makeMetricsMonitor({ cpuThreshold: 90 })
     created.push(id)
 
     await push(token, { cpuPercent: 10, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000, host: 'web-01' })
     await push(token, { cpuPercent: 96, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000, host: 'web-02' })
 
-    expect(await statusOf(id)).toBe('down')
+    expect(await statusOf(id)).toBe('degraded')
     const incidents = await openIncidents(id)
     expect(incidents).toHaveLength(1)
     // Without the host, "CPU 96% ≥ 90%" does not say which box to open a
@@ -178,15 +178,15 @@ describe('Server metrics (threshold alerting)', () => {
     created.push(id)
 
     await push(token, { cpuPercent: 96, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000, host: 'web-02' })
-    expect(await statusOf(id)).toBe('down')
+    expect(await statusOf(id)).toBe('degraded')
 
     const res = await push(token, { cpuPercent: 5, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000, host: 'web-01' })
 
-    expect(await statusOf(id)).toBe('down')
+    expect(await statusOf(id)).toBe('degraded')
     expect(await openIncidents(id)).toHaveLength(1)
     // ...but that host is told its own sample was fine, so an agent can tell
     // whether it is the problem.
-    expect(await res.json()).toMatchObject({ status: 'down', sampleStatus: 'up', host: 'web-01' })
+    expect(await res.json()).toMatchObject({ status: 'degraded', sampleStatus: 'up', host: 'web-01' })
   })
 
   test('the monitor recovers only when the breaching host itself recovers', async () => {
@@ -195,7 +195,7 @@ describe('Server metrics (threshold alerting)', () => {
 
     await push(token, { cpuPercent: 96, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000, host: 'web-02' })
     await push(token, { cpuPercent: 5, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000, host: 'web-01' })
-    expect(await statusOf(id)).toBe('down')
+    expect(await statusOf(id)).toBe('degraded')
 
     await push(token, { cpuPercent: 12, ramPercent: 10, ramUsedMb: 1000, ramTotalMb: 16000, host: 'web-02' })
 

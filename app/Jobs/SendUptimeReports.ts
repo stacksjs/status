@@ -307,10 +307,11 @@ export default new Job({
 
           // The check_results status CHECK only allows up/down/degraded,
           // but filter defensively so anything else never skews the
-          // denominator. Uptime is up / total known-status checks;
-          // degraded counts against uptime.
+          // denominator. Uptime is not-down / total known-status checks:
+          // degraded answered, so it does not cost uptime (see app/lib/uptime
+          // for the full argument and for why this used to say the opposite).
           const known = results.filter((r: any) => r.status === 'up' || r.status === 'down' || r.status === 'degraded')
-          const upCount = known.filter((r: any) => r.status === 'up').length
+          const upCount = known.filter((r: any) => r.status !== 'down').length
           const times = results
             .map((r: any) => r.response_time_ms)
             .filter((t: any): t is number => typeof t === 'number')

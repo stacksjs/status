@@ -25,6 +25,40 @@ export function incidentSeverityForType(monitorType: string): IncidentSeverity {
 }
 
 /**
+ * `impacted_checks[].type` values that are soft issues whatever the monitor's
+ * own type says.
+ *
+ * Classifying by monitor type alone cannot describe a `server` monitor, which
+ * has two unrelated failure modes: a CPU/RAM/disk threshold breach, where the
+ * agent pushed and the box is merely busy, and the agent going silent, where
+ * the box may be gone. Both open an incident on the same monitor of the same
+ * type. Before this, both paged as "down".
+ */
+const ISSUE_CHECK_TYPES = new Set(['server_metrics'])
+
+/**
+ * The severity an incident represents, preferring what the incident says
+ * about itself over what its monitor's type implies.
+ *
+ * Falls back to the type when `impacted_checks` is absent or unreadable,
+ * which keeps every incident opened before this existed classified exactly as
+ * it was. Malformed JSON falls back rather than throwing: mis-routing an
+ * alert is bad, dropping it is worse.
+ */
+export function incidentSeverity(monitorType: string, impactedChecks?: string | null): IncidentSeverity {
+  try {
+    const first = JSON.parse(impactedChecks || '[]')[0]
+    if (first && typeof first.type === 'string' && ISSUE_CHECK_TYPES.has(first.type))
+      return 'issue'
+  }
+  catch {
+    // fall through to the type-based answer
+  }
+
+  return incidentSeverityForType(monitorType)
+}
+
+/**
  * A channel's fires-on preference, defaulting to 'both' for anything absent or
  * invalid - so a pre-column attachment (null) keeps its old fire-on-everything
  * behavior.

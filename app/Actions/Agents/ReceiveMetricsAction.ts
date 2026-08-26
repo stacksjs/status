@@ -65,7 +65,13 @@ export default new Action({
 
     const thresholds = parseMetricsThresholds(monitor.config)
     const breaches = evaluateBreaches({ cpuPercent, ramPercent, diskPercent }, thresholds)
-    const sampleStatus: 'up' | 'down' = breaches.length > 0 ? 'down' : 'up'
+    // A breach is 'degraded', never 'down'. This sample exists because the
+    // agent pushed it, so the machine is reachable — it is busy. Writing
+    // 'down' made a 51%-against-50% CPU reading indistinguishable from the
+    // host being switched off: it cost uptime, turned the pill red, and paged
+    // the down-only channels. Genuine unreachability is CheckStaleMetrics'
+    // job, off the absence of pushes rather than their contents.
+    const sampleStatus: 'up' | 'degraded' = breaches.length > 0 ? 'degraded' : 'up'
     const checkedAt = new Date().toISOString()
 
     await CheckResult.create({
@@ -149,7 +155,7 @@ export default new Action({
     // Open on the down-transition, resolve on recovery — same shape as the
     // other monitor jobs so a metrics alert shows up in incident history and
     // notifications exactly like an uptime outage.
-    if (prev !== 'down' && status === 'down') {
+    if (prev !== 'degraded' && status === 'degraded') {
       await openIncident({
         monitor_id: monitor.id,
         started_at: checkedAt,
@@ -164,7 +170,9 @@ export default new Action({
         }]),
       })
     }
-    else if (prev === 'down' && status === 'up') {
+    // 'down' is included so a monitor left red by the pre-degraded ingest
+    // still resolves its incident on recovery instead of staying open.
+    else if ((prev === 'degraded' || prev === 'down') && status === 'up') {
       const existingIncident = await Incident.where('monitor_id', monitor.id)
         .where('status', '!=', 'resolved')
         .orderByDesc('created_at')

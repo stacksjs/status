@@ -20,16 +20,21 @@ import { inAnyInterval } from './maintenance'
  * you care most about: the more often you check, the likelier every single
  * day contains one blip, and the closer the number drives to zero.
  *
- * Degraded counts AGAINST uptime — only 'up' is up. That is what both
- * existing implementations did, and SendUptimeReports states it as a
- * decision rather than an accident ("degraded counts against uptime"), so
- * this module preserves it; unifying the math should not quietly move the
- * numbers on a customer's public status page.
+ * Degraded does NOT count against uptime. A degraded check answered — the
+ * request was served, just slowly, or a host was busy — and uptime measures
+ * whether the thing was up. This is also what the product has always promised
+ * prospects in writing: features/performance-monitoring.stx says a
+ * degradation leaves "your uptime percentage untouched". The code disagreed
+ * with that page, on both the status page and the report emails.
  *
- * Worth knowing that it contradicts what the product promises in writing.
- * resources/views/features/performance-monitoring.stx tells prospects a
- * degradation incident leaves "your uptime percentage untouched". One of the
- * two has to give, and which one is a product call, not a refactor's to make.
+ * It matters most for server monitors, whose degraded state is a CPU, RAM or
+ * disk threshold breach. Counting those against uptime meant a box at 51%
+ * against a 50% threshold cost exactly as much uptime as a box that was
+ * switched off.
+ *
+ * Anything that genuinely could not be reached is 'down' and does count:
+ * a failed probe, or an agent that stopped pushing entirely
+ * (CheckStaleMetrics).
  *
  * Maintenance windows are excluded, per docs/operate/maintenance.md: a
  * planned outage must not dent the number. Callers pass the intervals; this
@@ -48,7 +53,7 @@ export interface UptimeDay {
   day: string
   /** Worst status seen that day, or 'unknown' when no checks landed. */
   status: 'up' | 'down' | 'degraded' | 'unknown'
-  /** Checks that reported up. Degraded is not counted here — see above. */
+  /** Checks that were not down. Degraded counts as up — see above. */
   up: number
   total: number
 }
@@ -116,7 +121,7 @@ export function computeUptime(
     bucket.total++
     totalChecks++
 
-    if (row.status === 'up') {
+    if (row.status !== 'down') {
       bucket.up++
       upChecks++
     }

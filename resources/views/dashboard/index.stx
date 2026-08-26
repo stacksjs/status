@@ -213,6 +213,14 @@ useHead({ title: 'Overview · StatusHQ', meta: [{ name: 'robots', content: 'noin
         <dt>Operational</dt>
         <dd class="{{ fleetOf('up') > 0 ? 'ok' : '' }}">{{ fleetOf('up') }}</dd>
       </div>
+      {{-- Degraded needs its own card: the overview counted only up and down,
+           so a monitor breaching a CPU/RAM/disk threshold — which is degraded,
+           not down, since its agent is still pushing — appeared in neither and
+           dropped off this page entirely. --}}
+      <div class="stat-card">
+        <dt>Degraded</dt>
+        <dd class="{{ fleetOf('degraded') > 0 ? 'warn' : '' }}">{{ fleetOf('degraded') }}</dd>
+      </div>
       <div class="stat-card">
         <dt>Down</dt>
         <dd class="{{ fleetOf('down') > 0 ? 'bad' : '' }}">{{ fleetOf('down') }}</dd>

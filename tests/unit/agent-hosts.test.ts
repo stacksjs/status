@@ -66,7 +66,7 @@ describe('readingsFromRows', () => {
     const [reading] = readingsFromRows([row('web-01', 'down', 30, ['CPU 96% ≥ 90%'])])
 
     expect(reading!.host).toBe('web-01')
-    expect(reading!.status).toBe('down')
+    expect(reading!.status).toBe('degraded')
     expect(reading!.breaches).toEqual(['CPU 96% ≥ 90%'])
     expect(reading!.cpuPercent).toBe(12)
   })
@@ -76,7 +76,7 @@ describe('readingsFromRows', () => {
     // corrupt row silently clear an outage.
     const [reading] = readingsFromRows([{ status: 'down', metadata: 'not json', checked_at: new Date(NOW).toISOString() }])
 
-    expect(reading!.status).toBe('down')
+    expect(reading!.status).toBe('degraded')
     expect(reading!.host).toBe(DEFAULT_HOST)
     expect(reading!.cpuPercent).toBeNull()
   })
@@ -102,13 +102,13 @@ describe('latestPerHost', () => {
 })
 
 describe('aggregateHostStatus', () => {
-  test('one breaching host takes the whole monitor down', () => {
+  test('one breaching host degrades the whole monitor', () => {
     const fleet = aggregateHostStatus(readingsFromRows([
       row('web-01', 'up', 20),
       row('web-02', 'down', 10, ['CPU 96% ≥ 90%']),
     ]), NOW, 300)
 
-    expect(fleet.status).toBe('down')
+    expect(fleet.status).toBe('degraded')
     expect(fleet.breaching.map(r => r.host)).toEqual(['web-02'])
     expect(fleet.hosts).toHaveLength(2)
   })
@@ -122,7 +122,7 @@ describe('aggregateHostStatus', () => {
       row('web-02', 'down', 40, ['memory 97% ≥ 90%']),
     ]), NOW, 300)
 
-    expect(fleet.status).toBe('down')
+    expect(fleet.status).toBe('degraded')
   })
 
   test('a host recovers only when its own latest sample is healthy', () => {
@@ -151,7 +151,7 @@ describe('aggregateHostStatus', () => {
   test('a single anonymous agent behaves exactly as before', () => {
     const fleet = aggregateHostStatus(readingsFromRows([row(undefined, 'down', 10, ['CPU 96% ≥ 90%'])]), NOW, 300)
 
-    expect(fleet.status).toBe('down')
+    expect(fleet.status).toBe('degraded')
     expect(fleet.hosts[0]!.host).toBe(DEFAULT_HOST)
   })
 })

@@ -1,7 +1,7 @@
 import { eventAction } from '../../lib/eventAction'
 import { log } from '@stacksjs/logging'
 import { isMonitorInMaintenance } from '../../lib/maintenance'
-import { channelFiresFor, incidentSeverityForType } from '../../lib/notificationSeverity'
+import { channelFiresFor, incidentSeverity } from '../../lib/notificationSeverity'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
@@ -19,7 +19,7 @@ export default eventAction({
   name: 'SendIncidentResolvedNotification',
   description: 'Notify configured channels when an incident resolves',
 
-  async handle(incident: { id?: number, monitor_id: number, status: string, started_at?: string }) {
+  async handle(incident: { id?: number, monitor_id: number, status: string, started_at?: string, impacted_checks?: string | null }) {
     if (incident.status !== 'resolved') return
 
     const monitor = await Monitor.find(incident.monitor_id)
@@ -45,7 +45,10 @@ export default eventAction({
     // The recovery goes to exactly the channels that would have heard the open,
     // so a down-only channel gets the all-clear for a down incident and an
     // issue-only channel for an issue. Subscribers are notified regardless.
-    const severity = incidentSeverityForType(monitor.type)
+    // Resolved from the incident, exactly as the open was, or a resource
+    // breach would page the issue channels on the way in and the down
+    // channels on the way out — leaving both with half a story.
+    const severity = incidentSeverity(monitor.type, incident.impacted_checks)
     const firing = attachments.filter(attachment => channelFiresFor(attachment.fires_on, severity))
 
     for (const attachment of firing) {

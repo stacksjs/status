@@ -45,7 +45,13 @@ export function normalizeHost(raw: unknown): string {
 
 export interface HostReading {
   host: string
-  status: 'up' | 'down'
+  /**
+   * 'degraded' means this host breached a threshold. It is NOT 'down': the
+   * sample only exists because the agent pushed it, so the machine is alive
+   * and reachable — it is busy. A host that goes silent is CheckStaleMetrics'
+   * business and that is what 'down' is reserved for.
+   */
+  status: 'up' | 'degraded' | 'down'
   breaches: string[]
   checkedAtMs: number
   cpuPercent: number | null
@@ -82,7 +88,10 @@ export function readingsFromRows(rows: readonly CheckResultRow[]): HostReading[]
 
     readings.push({
       host: normalizeHost(meta.host),
-      status: row.status === 'down' ? 'down' : 'up',
+      // 'down' is still read as breaching so rows written before breaches
+      // became 'degraded' keep their meaning on the charts and in the fleet
+      // verdict, rather than silently flipping to healthy.
+      status: row.status === 'degraded' || row.status === 'down' ? 'degraded' : 'up',
       breaches: Array.isArray(meta.breaches) ? meta.breaches.filter((b): b is string => typeof b === 'string') : [],
       checkedAtMs,
       cpuPercent: numberOrNull(meta.cpuPercent),
@@ -108,7 +117,7 @@ export function latestPerHost(readings: readonly HostReading[]): HostReading[] {
 }
 
 export interface HostAggregate {
-  status: 'up' | 'down'
+  status: 'up' | 'degraded'
   /** Hosts currently breaching a threshold, newest first. */
   breaching: HostReading[]
   /** Every host considered, newest first. */
@@ -116,20 +125,27 @@ export interface HostAggregate {
 }
 
 /**
- * The monitor's status across all of its hosts: down if any fresh host is
+ * The monitor's status across all of its hosts: degraded if any fresh host is
  * breaching.
  *
+ * Never 'down'. Every reading here came from an agent that successfully
+ * pushed, so no amount of breaching proves a machine is unreachable — a box
+ * pegged at 100% CPU is a box that is still answering. This used to return
+ * 'down', which meant one sample at 51% against a 50% threshold turned the
+ * monitor red, paged the down-only channels with "is down", and cost uptime
+ * exactly as much as the host being switched off.
+ *
  * Readings older than the monitor's window are ignored rather than counted as
- * down. A node that breached and then stopped pushing — decommissioned,
- * rebuilt, renamed — would otherwise pin the monitor down forever with no way
- * to clear it. A host that goes silent is CheckStaleMetrics' business, and it
- * watches the monitor as a whole.
+ * breaching. A node that breached and then stopped pushing — decommissioned,
+ * rebuilt, renamed — would otherwise pin the monitor degraded forever with no
+ * way to clear it. A host that goes silent is CheckStaleMetrics' business, and
+ * it watches the monitor as a whole.
  */
 export function aggregateHostStatus(readings: readonly HostReading[], nowMs: number, windowSeconds: number): HostAggregate {
   const hosts = latestPerHost(readings).filter(reading => nowMs - reading.checkedAtMs <= windowSeconds * 1000)
-  const breaching = hosts.filter(reading => reading.status === 'down')
+  const breaching = hosts.filter(reading => reading.status !== 'up')
 
-  return { status: breaching.length > 0 ? 'down' : 'up', breaching, hosts }
+  return { status: breaching.length > 0 ? 'degraded' : 'up', breaching, hosts }
 }
 
 /**

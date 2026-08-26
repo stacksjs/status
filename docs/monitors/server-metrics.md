@@ -29,7 +29,7 @@ The collector does this for you on a schedule; the raw call is shown so you unde
 
 `host` is what makes a fleet legible. Send it and each machine is its own series, listed on the monitor's **Hosts** card with its own CPU, memory, disk and last-sample time; omit it and every collector is one anonymous series, which is what a single-server monitor wants.
 
-The monitor's status is then the fleet's, not the last sample's: it is **down while any host is breaching**, and recovers only when the breaching host itself recovers. A healthy push from a second machine cannot clear the first machine's alert — without that rule, two nodes taking turns would flap the monitor up and down once a minute. Incidents name the host that breached, so the page you are woken up to says which box to open a shell on.
+The monitor's status is then the fleet's, not the last sample's: it is **degraded while any host is breaching**, and recovers only when the breaching host itself recovers. Degraded rather than down, because the sample only exists because the agent pushed it — the box is reachable, it is busy. A breach therefore does not cost uptime and does not page your down-only channels; a host that stops pushing entirely does both. A healthy push from a second machine cannot clear the first machine's alert — without that rule, two nodes taking turns would flap the monitor up and down once a minute. Incidents name the host that breached, so the page you are woken up to says which box to open a shell on.
 
 A host whose samples stop is not held against the monitor forever — after the missed-push window its last reading is ignored, and silence is caught by the window rule below instead. Hostnames are lowercased and trimmed to 64 characters, so `Web-01` and `web-01` are one machine.
 
@@ -37,7 +37,7 @@ The SDKs send `host` automatically ([`@statushq/agent`](https://github.com/stack
 
 ## What triggers an alert
 
-- A metric crosses its **threshold**. Each push is evaluated against the monitor's thresholds - defaults are CPU `>= 90%`, memory `>= 90%`, and disk `>= 85%` (disk only when the collector reports it). A breach marks the host down and opens an [incident](/operate/incidents), which fans out to the monitor's [notification channels](/operate/notifications); the next healthy push resolves it. Set any threshold to `0` to disable that metric.
+- A metric crosses its **threshold**. Each push is evaluated against the monitor's thresholds - defaults are CPU `>= 90%`, memory `>= 90%`, and disk `>= 85%` (disk only when the collector reports it). A breach marks the host degraded and opens an [incident](/operate/incidents), which fans out to the monitor's [notification channels](/operate/notifications) as an **issue** rather than an outage; the next healthy push resolves it. Set any threshold to `0` to disable that metric.
 - **No metrics received** within the expected window (the collector stopped or the host is down) - a missed push works like a heartbeat. The window defaults to 300 seconds and is checked every minute.
 
 Thresholds and the missed-push window live in the monitor's config (`cpuThreshold`, `ramThreshold`, `diskThreshold`, `metricsWindowSeconds`).

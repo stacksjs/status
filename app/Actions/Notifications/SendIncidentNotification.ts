@@ -1,7 +1,7 @@
 import { eventAction } from '../../lib/eventAction'
 import { log } from '@stacksjs/logging'
 import { isMonitorInMaintenance } from '../../lib/maintenance'
-import { channelFiresFor, incidentSeverityForType } from '../../lib/notificationSeverity'
+import { channelFiresFor, incidentSeverity } from '../../lib/notificationSeverity'
 import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
@@ -24,7 +24,7 @@ export default eventAction({
   name: 'SendIncidentNotification',
   description: 'Notify configured channels when an incident opens',
 
-  async handle(incident: { id?: number, monitor_id: number, cause?: string, status: string, started_at?: string }) {
+  async handle(incident: { id?: number, monitor_id: number, cause?: string, status: string, started_at?: string, impacted_checks?: string | null }) {
     const monitor = await Monitor.find(incident.monitor_id)
     if (!monitor) return
 
@@ -42,10 +42,13 @@ export default eventAction({
     if (attachments.length === 0) return
 
     // Not every incident is an outage. Blocklist listings, broken links,
-    // slowdowns, and score drops are "issues" (degraded), so calling them
-    // "is down" with a red siren over-alarms. Match the wording and the
-    // channel severity to the check type.
-    const severity = incidentSeverityForType(monitor.type)
+    // slowdowns, score drops and host resource breaches are "issues"
+    // (degraded), so calling them "is down" with a red siren over-alarms.
+    // Read from the incident first: a `server` monitor opens issue-shaped
+    // incidents (a CPU threshold breached, agent still pushing) and
+    // outage-shaped ones (agent silent) from the same monitor type, so type
+    // alone cannot tell them apart.
+    const severity = incidentSeverity(monitor.type, incident.impacted_checks)
     const isIssue = severity === 'issue'
     const subject = isIssue ? `⚠️ ${monitor.name}: issue detected` : `🔴 ${monitor.name} is down`
     const message = incident.cause || `A ${monitor.type} check failed for ${monitor.url}.`

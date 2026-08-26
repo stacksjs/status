@@ -108,6 +108,53 @@ describe('Per-severity notification routing (stacksjs/status#1)', () => {
     expect(to).not.toContain('down@example.com')
   })
 
+  test('a host resource breach is an issue, not an outage', async () => {
+    // A metrics-reporting monitor has two failure modes and its TYPE cannot
+    // tell them apart: a CPU/RAM/disk threshold breach (the agent pushed, the box is
+    // busy) and the agent going silent (the box may be gone). Severity now
+    // comes from the incident's own impacted_checks, so a 51%-against-50%
+    // reading stops waking the down-only channels with "🔴 is down".
+    const monitor = await Monitor.create({ teamId: teamId, name: 'Box', url: 'https://box.example.com', type: 'uptime', status: 'up', reportsMetrics: true })
+    await attach(monitor.id, (await emailChannel('down', 'down@example.com')).id, 'down')
+    await attach(monitor.id, (await emailChannel('issue', 'issue@example.com')).id, 'issue')
+    await attach(monitor.id, (await emailChannel('both', 'both@example.com')).id, 'both')
+
+    await SendIncidentNotification.handle({
+      id: 10,
+      monitor_id: monitor.id,
+      cause: 'Host resource threshold breached: CPU 51% ≥ 50%',
+      status: 'investigating',
+      started_at: new Date().toISOString(),
+      impacted_checks: JSON.stringify([{ type: 'server_metrics', hosts: [{ host: 'ip-172-31-12-103', breaches: ['CPU 51% ≥ 50%'] }] }]),
+    })
+
+    const to = await recipients()
+    expect(to).toContain('issue@example.com')
+    expect(to).toContain('both@example.com')
+    expect(to).not.toContain('down@example.com')
+  })
+
+  test('a server monitor whose agent went silent is still an outage', async () => {
+    // The other half of the split: no impacted_checks marker, so severity
+    // falls back to the monitor type and pages the down channels.
+    const monitor = await Monitor.create({ teamId: teamId, name: 'Silent', url: 'https://silent.example.com', type: 'uptime', status: 'up', reportsMetrics: true })
+    await attach(monitor.id, (await emailChannel('down', 'down@example.com')).id, 'down')
+    await attach(monitor.id, (await emailChannel('issue', 'issue@example.com')).id, 'issue')
+
+    await SendIncidentNotification.handle({
+      id: 11,
+      monitor_id: monitor.id,
+      cause: 'No agent metrics received',
+      status: 'investigating',
+      started_at: new Date().toISOString(),
+      impacted_checks: JSON.stringify([{ type: 'missed_push', reason: 'missed_push' }]),
+    })
+
+    const to = await recipients()
+    expect(to).toContain('down@example.com')
+    expect(to).not.toContain('issue@example.com')
+  })
+
   test('the routing action persists fires_on and updates it on re-save', async () => {
     const monitor = await Monitor.create({ teamId: teamId, name: 'Routing', url: 'https://example.com', type: 'uptime', status: 'up' })
     const channel = await emailChannel('chan', 'chan@example.com')

@@ -91,11 +91,19 @@ describe('computeUptime', () => {
     expect(result.pct).toBe(100)
   })
 
-  test('degraded counts against uptime', () => {
-    // Preserved from SendUptimeReports, which states it as a decision. Note
-    // features/performance-monitoring.stx promises the opposite to prospects
-    // — see the module comment; that contradiction is a product call.
+  test('degraded does not cost uptime', () => {
+    // A degraded check answered. For a server monitor, degraded IS a CPU/RAM/
+    // disk threshold breach, so counting it made a box at 51% against a 50%
+    // threshold cost as much uptime as a box that was switched off. It also
+    // contradicted features/performance-monitoring.stx, which promises
+    // prospects a degradation leaves "your uptime percentage untouched".
     const result = computeUptime([...checks(0, 90, 'up'), ...checks(0, 10, 'degraded')], 90, [], NOW)
+    expect(result.pct).toBe(100)
+  })
+
+  test('down still costs uptime', () => {
+    // The distinction the whole change rests on: unreachable is not busy.
+    const result = computeUptime([...checks(0, 90, 'up'), ...checks(0, 10, 'down')], 90, [], NOW)
     expect(result.pct).toBe(90)
   })
 
