@@ -370,6 +370,16 @@ if (!statusPageForHost && faqs && faqs.length)
   }).replace(/</g, '\u003c') }] })
 </script>
 
+{{-- layouts/home.stx is a bare yield, so the document below is emitted
+     verbatim. Its only job is to give this page a layout group of its
+     own. With no layout the framework reports group 'default' -- the
+     dashboard's group -- and the client router then reads home and
+     dashboard as one shell and swaps only the routed <main>, leaving
+     whichever navbar was already on screen. See the layout file for the
+     full note. --}}
+@extends('layouts/home')
+
+@section('content')
 <!DOCTYPE html>
 <html lang="{{ docLang }}" data-theme="{{ docTheme }}">
   <head>
@@ -378,7 +388,7 @@ if (!statusPageForHost && faqs && faqs.length)
     {{-- Favicons + fonts come from config/ui.ts app.head (stx-standards 04-head). --}}
     {{-- Title/description/og/twitter/canonical come from the server
          script's useSeoMeta + useHead calls (stx-standards 04). --}}
-    @include('./partials/marketing-head.stx')
+    @include('../partials/marketing-head.stx')
     {{-- Homepage-ONLY CSS. The design system (tokens, resets, nav,
          buttons, badges, feature cards, FAQ, CTA band, footer) comes
          from partials/marketing-head.stx above — the 104 rules that
@@ -1127,7 +1137,7 @@ if (!statusPageForHost && faqs && faqs.length)
     </section>
 
     <div class="site-content">
-      @include('./partials/marketing-nav.stx')
+      @include('../partials/marketing-nav.stx')
 
       <main>
         <section class="site-shell hero">
@@ -1452,7 +1462,8 @@ if (!statusPageForHost && faqs && faqs.length)
       </footer>
     </div>
     <script src="/assets/scripts/site-mode.js" defer></script>
-    @include('./partials/theme-toggle.stx')
+    @include('../partials/theme-toggle.stx')
     @endif
   </body>
 </html>
+@endsection

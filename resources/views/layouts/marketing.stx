@@ -10,10 +10,14 @@
      renders it into this head server-side
      charset/viewport live here (a document-owning layout writes its own;
      the config app.head pair is fragment-only). Favicons + fonts come
-     from config/ui.ts app.head via injectConfigHeadTags. The index,
-     compare, docs, login and register pages are NOT on this layout yet -
-     they differ structurally and convert individually (see
-     STX-MIGRATION-PLAN.md Phase 2). --}}
+     from config/ui.ts app.head via injectConfigHeadTags. Compare, docs,
+     login and register have since converted (login/register onto
+     layouts/auth). The index page has NOT: it owns its document because
+     it also serves the coming-soon mode screen and takes lang/theme from
+     the status page matched on the request host, so it sits on
+     layouts/home.stx -- a bare yield that exists to give it a layout
+     group distinct from the dashboard's. Folding it in here for real is
+     still open (see STX-MIGRATION-PLAN.md Phase 2). --}}
 <!DOCTYPE html>
 <html lang="en" data-theme="system">
   <head>

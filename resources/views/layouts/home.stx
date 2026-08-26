@@ -1,0 +1,36 @@
+{{-- Pass-through layout for the homepage, and ONLY the homepage.
+
+     It contributes no markup on purpose: index.stx owns its whole
+     document and has to, because it is the one page that is not a
+     uniform marketing page. It renders the coming-soon mode screen as a
+     sibling of the site content, stamps data-site-mode and the bypass
+     token on <body>, and takes lang/data-theme from the status page
+     matched on the request host (a customer's custom domain resolves
+     here before it resolves to /status/*). None of that fits the shared
+     marketing layout without pushing page-specific state into a layout
+     every other marketing page also uses.
+
+     What this file DOES contribute is a name. The framework derives a
+     page's layout group from its layout file, and reports that group to
+     the client router in X-STX-Layout-Group; the router does a full page
+     load when the group changes and a fragment swap when it doesn't. A
+     page with no layout at all falls back to the group 'default' -- which
+     is what layouts/default.stx gives the entire dashboard. So the
+     homepage and /dashboard/* claimed to share a shell, and navigating
+     between them swapped only the routed <main>: the dashboard's content
+     arrived under the marketing navbar, still offering its "Dashboard"
+     button, because the navbar sits outside the swapped container and
+     nothing told the router the shells differed.
+
+     Group 'home' is deliberately its own group rather than 'marketing'.
+     The homepage's document really is structurally different from
+     layouts/marketing.stx, so a fragment swap between them would be
+     unsafe for the same reason -- a full load between them is correct,
+     not a missed optimisation. Folding index.stx onto the marketing
+     layout for real is the standing Phase 2 item; when that lands, this
+     file goes away with it.
+
+     Keep it a pure yield. Anything added here renders on the homepage
+     twice-removed from where it is written, which is exactly the kind of
+     surprise a layout this thin exists to avoid. --}}
+@yield('content')
