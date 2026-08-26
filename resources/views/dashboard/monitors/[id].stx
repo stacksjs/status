@@ -127,7 +127,16 @@ if (monitor) {
     }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
 }
-const routedChannelCount = routableChannels.filter(c => c.routed).length
+// The card shows only what this monitor actually alerts; the full team list
+// lives in the Manage alerts dialog, so an operator reading the page sees
+// the answer to "who hears about this?" rather than a form to fill in.
+const routedChannels = routableChannels.filter(c => c.routed)
+const routedChannelCount = routedChannels.length
+
+const FIRES_ON_LABELS = { both: 'Down + issues', down: 'Down only', issue: 'Issues only' }
+function firesOnLabel(value) {
+  return FIRES_ON_LABELS[value] || FIRES_ON_LABELS.both
+}
 
 // Response assertions for this monitor (dot-path health assertions, header /
 // status-code / response-time checks). Displayed and edited in the Assertions
@@ -765,6 +774,56 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
      inherits currentColor so it reads in light + dark. */
   .chan-ico { display: inline-flex; vertical-align: middle; margin-right: 0.4rem; color: var(--muted); }
   .chan-ico svg { width: 18px; height: 18px; }
+
+  /* Alert routing: the card's two empty states. */
+  .alert-empty {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    padding: 0.9rem 1rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+  .alert-empty p { margin: 0; font-size: 0.88rem; color: var(--muted); flex: 1 1 18rem; }
+  .alert-empty strong { color: var(--fg); font-weight: 600; }
+  .alert-empty.is-danger { border-color: var(--danger); background: var(--danger-soft, transparent); }
+  .alert-empty.is-danger strong { color: var(--danger); }
+
+  /* Manage-alerts dialog. Styled through the same tokens as the cards, so
+     it inherits both themes rather than needing a second palette. */
+  #alerts-dialog {
+    width: min(46rem, calc(100vw - 2rem));
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius, 14px);
+    background: var(--surface);
+    color: var(--fg);
+    box-shadow: 0 24px 60px -20px rgba(11, 15, 13, 0.4);
+  }
+  /* The UA default is a centred box with `display: block` when closed, so
+     the dialog must be hidden explicitly or it renders inline in the page. */
+  #alerts-dialog:not([open]) { display: none; }
+  #alerts-dialog::backdrop { background: rgba(11, 15, 13, 0.55); }
+  #alerts-dialog form { margin: 0; }
+  .dlg-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+    padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--border);
+  }
+  .dlg-head h3 { margin: 0; font-size: 1.05rem; }
+  .dlg-head .sub { display: block; margin-top: 0.2rem; font-size: 0.85rem; color: var(--muted); }
+  .dlg-x {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 32px; height: 32px; padding: 0; cursor: pointer;
+    border: 1px solid transparent; border-radius: 8px;
+    background: transparent; color: var(--muted);
+  }
+  .dlg-x:hover { border-color: var(--border); color: var(--fg); background: var(--surface-2); }
+  .dlg-x svg { width: 17px; height: 17px; }
+  /* Long channel lists scroll inside the dialog rather than pushing its
+     footer past the bottom of the viewport. */
+  .dlg-body { padding: 1.25rem; max-height: min(60vh, 32rem); overflow-y: auto; }
+  .dlg-foot {
+    display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem;
+    padding: 0.9rem 1.25rem; border-top: 1px solid var(--border); background: var(--surface-2);
+    border-bottom-left-radius: inherit; border-bottom-right-radius: inherit;
+  }
 </style>
 
 <main class="app-shell">
@@ -1263,19 +1322,62 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
           <div class="flash" style="margin-bottom: 1rem;">Alert routing saved.</div>
         @endif
 
+        {{-- Read-only summary. Editing happens in the dialog below, so this
+             answers "who hears about this?" at a glance instead of asking
+             the reader to parse a form to find out. --}}
         @if (routableChannels.length === 0)
-          <p style="margin: 0; color: var(--muted); font-size: 0.88rem;">Your team has no notification channels yet, so this monitor can't alert anyone. <StxLink to="/dashboard/settings/notifications" style="color: var(--accent); font-weight: 600;">Add one</StxLink> and it'll appear here.</p>
+          <div class="alert-empty">
+            <p><strong>No channels to alert.</strong> Your team hasn't set any up, so this monitor can't reach anyone.</p>
+            <StxLink class="button sm primary" to="/dashboard/settings/notifications">Add a channel</StxLink>
+          </div>
         @endif
 
-        @if (routableChannels.length > 0)
-          @if (routedChannelCount === 0)
-            <p style="margin: 0 0 1rem; color: var(--danger); font-size: 0.88rem; font-weight: 500;">Nothing is routed: this monitor won't notify anyone on an incident.</p>
-          @endif
+        @if (routableChannels.length > 0 && routedChannelCount === 0)
+          <div class="alert-empty is-danger">
+            <p><strong>Nothing is routed.</strong> This monitor won't notify anyone when an incident opens.</p>
+            <button type="button" class="button sm primary" id="alerts-open-empty">Manage alerts</button>
+          </div>
+        @endif
 
-          {{-- One submit for the whole grid. Unchecked rows post nothing, so
-               DashboardSaveRoutingAction reconciles against the team's channel
-               list rather than against what arrived. --}}
-          <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/routing">
+        @if (routedChannelCount > 0)
+          <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
+            @foreach (routedChannels as channel)
+              <div class="trow" style="grid-template-columns: minmax(0, 1fr) auto;">
+                <span class="tcell ellipsis">
+                  <span class="name" style="font-size: 0.9rem; font-weight: 600;">{{ channel.name }}</span>
+                  <span class="sub" style="margin-left: 0.5rem;"><span class="chan-ico">{!! channelIcon(channel.type) !!}</span>{{ channelTypeLabel(channel.type) }}</span>
+                </span>
+                <span class="tcell"><data class="pill pill-up" value="{{ channel.firesOn }}"><span class="dot"></span>{{ firesOnLabel(channel.firesOn) }}</data></span>
+              </div>
+            @endforeach
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+            <p class="help" style="margin: 0; flex: 1 1 20rem;">Down covers hard outages; issues covers softer events like SSL and domain expiry, DNS drift and blocklistings.</p>
+            <button type="button" class="button primary" id="alerts-open">Manage alerts</button>
+          </div>
+        @endif
+      </div>
+    </section>
+
+    {{-- The editor. Rendered whenever the team owns a channel, including
+         when none are routed yet -- both empty states open this same
+         dialog. One submit posts the whole grid; unchecked rows post
+         nothing at all, so DashboardSaveRoutingAction reconciles against
+         the team's channel list rather than against what arrived. --}}
+    @if (routableChannels.length > 0)
+      <dialog id="alerts-dialog" aria-labelledby="alerts-dialog-title">
+        <form method="POST" action="/api/notification-channel-forms/monitors/{{ monitor.id }}/routing">
+          <header class="dlg-head">
+            <div>
+              <h3 id="alerts-dialog-title">Manage alerts</h3>
+              <p class="sub">Choose which of your channels this check alerts, and when.</p>
+            </div>
+            <button type="button" class="dlg-x" id="alerts-close" aria-label="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </header>
+
+          <div class="dlg-body">
             <div class="rows" style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
               <div class="trow thead" style="grid-template-columns: 44px minmax(0, 1fr) 160px;">
                 <span class="tcell">Alert</span>
@@ -1301,14 +1403,16 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
                 </div>
               @endforeach
             </div>
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
-              <p class="help" style="margin: 0; flex: 1 1 20rem;">Down covers hard outages; issues covers softer events like SSL and domain expiry, DNS drift and blocklistings. <StxLink to="/dashboard/settings/notifications" style="color: var(--accent); font-weight: 600;">Manage channels</StxLink></p>
-              <button type="submit" class="button primary">Save routing</button>
-            </div>
-          </form>
-        @endif
-      </div>
-    </section>
+            <p class="help" style="margin: 0.85rem 0 0;">Down covers hard outages; issues covers softer events like SSL and domain expiry, DNS drift and blocklistings. Need a channel that isn't listed? <StxLink to="/dashboard/settings/notifications" style="color: var(--accent); font-weight: 600;">Manage channels</StxLink></p>
+          </div>
+
+          <footer class="dlg-foot">
+            <button type="button" class="button" id="alerts-cancel">Cancel</button>
+            <button type="submit" class="button primary">Save routing</button>
+          </footer>
+        </form>
+      </dialog>
+    @endif
 
     <section class="card" aria-label="Response assertions">
       <div class="card-head">
@@ -1641,6 +1745,50 @@ useHead({ title: (monitor ? monitor.name + ' \u00b7 StatusHQ' : 'Monitor \u00b7 
         </div>
       </details>
     </section>
+
+    <script>
+      (function () {
+        // Every element is reached by id, and the wording below is chosen
+        // around this page's server bindings on purpose: the server->client
+        // data bridge serializes any binding whose name word-matches a plain
+        // script's TEXT, prose included, and this page's scope holds the full
+        // row for the thing being viewed. See the settings-form script above
+        // for the incident that established the rule.
+        var dlg = document.getElementById('alerts-dialog')
+        if (!dlg) return
+
+        function show() {
+          if (dlg.showModal) dlg.showModal()
+          else dlg.setAttribute('open', '')
+        }
+
+        function hide() {
+          if (dlg.close) dlg.close()
+          else dlg.removeAttribute('open')
+        }
+
+        // Two buttons open it: the one under a populated list, and the one
+        // in the nothing-is-routed empty state. Only ever one is rendered.
+        var openIds = ['alerts-open', 'alerts-open-empty']
+        for (var i = 0; i < openIds.length; i++) {
+          var opener = document.getElementById(openIds[i])
+          if (opener) opener.addEventListener('click', show)
+        }
+
+        var closer = document.getElementById('alerts-close')
+        if (closer) closer.addEventListener('click', hide)
+
+        var canceller = document.getElementById('alerts-cancel')
+        if (canceller) canceller.addEventListener('click', hide)
+
+        // Clicking the backdrop dismisses. The event target is the dialog
+        // itself only when the click landed outside its content box, so a
+        // click on a row inside does not close it.
+        dlg.addEventListener('click', function (event) {
+          if (event.target === dlg) hide()
+        })
+      })()
+    </script>
 
     <footer class="app-foot">
       <span class="mono">Unit #{{ monitor.id }} &middot; {{ monitor.uuid }}</span>

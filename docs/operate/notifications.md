@@ -45,7 +45,9 @@ Use **Send test** on the channel afterwards. It dispatches through the same job 
 
 ## Routing alerts to a monitor
 
-Open the monitor and find the **Alert routing** card. It lists every channel your team has:
+Open the monitor and find the **Alert routing** card. It shows what this monitor currently alerts — each routed channel and the severities it fires on — so you can read who gets paged without opening anything.
+
+To change it, click **Manage alerts**. The dialog lists every channel your team has:
 
 1. Tick the channels this monitor should alert.
 2. For each, choose which severities it fires on: `down` only, `issue` only, or `both` (the default).
