@@ -4,6 +4,7 @@ import { log } from '@stacksjs/logging'
 import { Job } from '@stacksjs/queue'
 import Team from '../../storage/framework/defaults/app/Models/Team'
 import { inAnyInterval, maintenanceIntervalsByMonitor } from '../lib/maintenance'
+import { computeUptime, roundMsForInterval } from '../lib/uptime'
 import CheckResult from '../Models/CheckResult'
 import Crawl from '../Models/Crawl'
 import Incident from '../Models/Incident'
@@ -305,13 +306,29 @@ export default new Job({
             .get())
             .filter((r: any) => !inAnyInterval(Date.parse(r.checked_at), mIntervals))
 
-          // The check_results status CHECK only allows up/down/degraded,
-          // but filter defensively so anything else never skews the
-          // denominator. Uptime is not-down / total known-status checks:
-          // degraded answered, so it does not cost uptime (see app/lib/uptime
-          // for the full argument and for why this used to say the opposite).
-          const known = results.filter((r: any) => r.status === 'up' || r.status === 'down' || r.status === 'degraded')
-          const upCount = known.filter((r: any) => r.status !== 'down').length
+          // Uptime comes from app/lib/uptime, the same function the dashboard
+          // and the public status page call, so a client reading this email
+          // and the customer reading the status page cannot be quoted two
+          // different numbers for the same monitor and the same window. This
+          // used to be an inline copy — not-down over total known-status rows
+          // — which was right about degraded but counted every probe region's
+          // row separately, so one unreachable region cost real uptime here
+          // exactly as it did on the dashboard before roundMs existed.
+          //
+          // Maintenance is already filtered out of `results` above, hence the
+          // empty interval list. The window is the report period rather than
+          // "the last N days", so the bucket count spans start..end and the
+          // clock is pinned to the period end.
+          //
+          // `checkCount` is consensus rounds now, not raw rows — it has to
+          // share a basis with upCount, since buildHtml divides one by the
+          // other for the team-wide figure. On a single-region deployment the
+          // two are the same number.
+          const spanDays = Math.max(1, Math.ceil((end - start) / 86400000) + 1)
+          const summary = computeUptime(results as any, spanDays, [], end, {
+            roundMs: roundMsForInterval(monitor.check_interval_seconds),
+          })
+          const upCount = summary.upChecks
           const times = results
             .map((r: any) => r.response_time_ms)
             .filter((t: any): t is number => typeof t === 'number')
@@ -340,9 +357,9 @@ export default new Job({
           monitorReports.push({
             name: monitor.name || `Monitor #${monitor.id}`,
             url: monitor.url || '',
-            checkCount: known.length,
+            checkCount: summary.totalChecks,
             upCount,
-            uptimePct: known.length > 0 ? (upCount / known.length) * 100 : null,
+            uptimePct: summary.pct,
             avgMs: times.length > 0 ? times.reduce((sum: number, t: number) => sum + t, 0) / times.length : null,
             p95Ms: p95,
             trend,
