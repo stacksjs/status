@@ -117,6 +117,50 @@ describe('layout groups', () => {
     }
   })
 
+  test('every document-owning source gives the router a container', () => {
+    // Matching groups are only half of what a fragment swap needs: the
+    // router also has to find somewhere to put the incoming HTML. It
+    // resolves that as
+    //   querySelector(containerSel) || '[data-stx-content]' || 'main'
+    // and config/ui.ts sets no container override, so the default 'main'
+    // applies. When nothing matches it takes the
+    //   if (!newContent) { location.href = url }
+    // branch — a silent fall back to a full page load. Nothing errors,
+    // nothing logs; StxLink just stops being SPA, which is exactly how
+    // this shipped unnoticed on /login, /register and /status/*: those
+    // layouts wrote @yield('content') straight into <body> with no <main>
+    // around it, so every same-group link on them full-loaded.
+    //
+    // Only sources that own a document are checked. A fragment page (no
+    // <body> of its own) is wrapped by the framework's generated shell,
+    // which supplies [data-stx-content] itself — invite/[uuid].stx relies
+    // on that, and its rendered output really does carry the attribute.
+    const layoutDir = join(VIEWS, 'layouts')
+    const sources = [
+      ...walk(VIEWS),
+      ...readdirSync(layoutDir).filter(f => f.endsWith('.stx')).map(f => join(layoutDir, f)),
+    ]
+
+    for (const full of sources) {
+      // Markup only. Prose and code quote these tags without emitting
+      // them — invite/[uuid].stx documents itself as "no <!DOCTYPE>/
+      // <html>/<head>/<body>" in a server-script comment, and the note on
+      // layouts/auth.stx's own `main` rule sits inside its <style>.
+      const markup = readFileSync(full, 'utf8')
+        .replace(/\{\{--[\s\S]*?--\}\}/g, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+        .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+
+      if (!/<body\b/.test(markup)) continue
+
+      const path = full.slice(VIEWS.length + 1)
+      const ok = /<main\b/.test(markup) || /data-stx-content/.test(markup)
+      expect(`${path}: ${ok ? 'has a routed container' : 'NO ROUTED CONTAINER'}`)
+        .toBe(`${path}: has a routed container`)
+    }
+  })
+
   test('every layout a page names actually exists', () => {
     for (const page of pages) {
       if (!page.layout) continue

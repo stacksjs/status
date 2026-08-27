@@ -87,7 +87,9 @@ useHead({
       <p class="alt">Don't have an account? <StxLink to="/register">Create one</StxLink></p>
     </div>
 
-    <script src="/assets/scripts/webauthn-client.js"></script>
+    {{-- webauthn-client.js (window.stacksPasskey) is loaded by
+         layouts/auth.stx, outside the routed <main> — a <script src> in
+         here is stripped by the router on a fragment swap. --}}
     <script>
       (function () {
         var REDIRECT = '/dashboard'

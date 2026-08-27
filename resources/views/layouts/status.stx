@@ -71,6 +71,15 @@
     </style>
   </head>
   <body class="min-h-screen bg-gray-50 text-gray-900 antialiased">
-    @yield('content')
+    {{-- <main> is the stx router's swap target (see layouts/auth.stx for
+         the full note). Without it the router found no container and fell
+         back to location.href, so the StxLinks between a status page and
+         its incident detail — same layout, same 'status' group, so a
+         fragment swap is exactly what they should get — full-loaded like
+         plain anchors. A bare <main> is transparent here: <body> is not a
+         flex or grid container, so it lays out identically. --}}
+    <main>
+      @yield('content')
+    </main>
   </body>
 </html>
