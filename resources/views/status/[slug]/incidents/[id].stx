@@ -170,6 +170,15 @@ const updates = incident
 
 const pageTitle = incident ? `${incident.monitor_name} incident` : 'Incident not found'
 
+// Same soft-404 as the parent [slug].stx, and the same caveat: a missing
+// status page or a missing incident renders a 404 body, and notFound()
+// records the status correctly, but `buddy serve` does not read it back, so
+// the response still goes out 200. See the long note in [slug].stx and
+// stacksjs/stacks#2369. Kept because it is correct and inert, and starts
+// working with no change here once the host honours it.
+if (!statusPage || !incident)
+  notFound()
+
 function statusBadgeClass(status) {
   if (status === 'resolved') return 'text-xs font-medium uppercase tracking-wide text-emerald-600'
   if (status === 'monitoring') return 'text-xs font-medium uppercase tracking-wide text-sky-600'
