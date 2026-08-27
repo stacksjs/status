@@ -8,7 +8,13 @@
 -->
 <nav class="app-nav">
   <div class="app-shell app-nav-inner">
-    <StxLink class="brand" to="/" aria-label="StatusHQ home">
+    {{-- Points at /dashboard, not /. This nav only ever renders on
+         post-login dashboard pages, where the logo is the way back to the
+         overview — sending a signed-in user out to the marketing landing
+         page is a dead end they then have to click back out of. It also
+         makes the logo a same-group link (dashboard -> dashboard), so it
+         fragment-swaps instead of reloading the document. --}}
+    <StxLink class="brand" to="/dashboard" aria-label="StatusHQ dashboard">
       <span class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12h3.5l2-5 3 10 2-7 1.5 3.5h6.5"/></svg>
       </span>

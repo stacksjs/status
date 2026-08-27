@@ -680,7 +680,26 @@ export const tsCloud: TsCloudConfig = {
           root: '.',
           start: 'bun buddy queue:work --queue=checks',
           preStart: ['bun install'],
-          env: { APP_ENV: 'production', WORKER_REGION: String(env.WORKER_REGION || 'us-east') },
+          // API_URL, not PORT_API: from this box the API really is on
+          // another host. There is no `api` site in this role's site set —
+          // the primary owns it, on ITS loopback — so a PORT_API here would
+          // name a port nothing is listening on. The public origin is the
+          // honest address, and it is reachable: `main` proxies /api to the
+          // primary's loopback API (/api/health answers 200).
+          //
+          // The checks worker pulls its work off the shared Redis queue and
+          // does not currently call the API, so nothing depends on this
+          // today. It is set because buddy's apiDeploymentProblem preflight
+          // otherwise refuses the deploy outright: with no api site in the
+          // set it reports "no site serves them", classifying this headless
+          // queue worker as a page site. Same upstream misclassification
+          // noted on `worker` in the primary set — a portless, domainless
+          // site serves no `/api/**` to be 502.
+          env: {
+            APP_ENV: 'production',
+            WORKER_REGION: String(env.WORKER_REGION || 'us-east'),
+            API_URL: `https://${env.APP_DOMAIN || 'statushq.org'}/api`,
+          },
         },
       }
     : {
@@ -766,7 +785,24 @@ export const tsCloud: TsCloudConfig = {
           root: '.',
           start: 'bun buddy queue:work',
           preStart: ['bun install'],
-          env: { APP_ENV: 'production' },
+          // PORT_API here is not about proxying — this site has no `port`,
+          // no `domain` and serves no HTTP, so there is no `/api/**` on it
+          // to answer anything. It is set for two reasons.
+          //
+          // Truthfully: it is how the app resolves an API base URL at all
+          // (see the note at the top of this file — API_URL first, else
+          // http://127.0.0.1:${PORT_API}). The `api` site runs on loopback
+          // API_PORT on this same box, so that is the correct address for
+          // in-process code here that reaches for it.
+          //
+          // Practically: buddy's apiDeploymentProblem preflight refuses the
+          // whole deploy without it. That check classifies every site with a
+          // `start` string as a page site — it never looks at `port` or
+          // `domain` — so headless background processes get swept in and
+          // reported as serving a 502 `/api/**` they do not serve. Worth
+          // filing upstream; the fix is to exclude portless, domainless
+          // sites from `pages`. Until then this is both correct and required.
+          env: { APP_ENV: 'production', PORT_API: String(API_PORT) },
         },
 
         // Scheduler — drives app/Scheduler.ts's cron-style jobs (every-minute
@@ -784,7 +820,10 @@ export const tsCloud: TsCloudConfig = {
           root: '.',
           start: 'bun buddy schedule:run',
           preStart: ['bun install'],
-          env: { APP_ENV: 'production' },
+          // Same as `worker` above — see that note. Headless, so nothing
+          // proxies; PORT_API is the loopback address of the `api` site on
+          // this box, and buddy's preflight requires it regardless.
+          env: { APP_ENV: 'production', PORT_API: String(API_PORT) },
         },
       },
 }
