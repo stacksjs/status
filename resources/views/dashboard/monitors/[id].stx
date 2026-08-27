@@ -21,7 +21,7 @@ import { authRequest } from '../../../../app/lib/authRequest'
 import { channelTypeLabel } from '../../../../app/lib/channelConfig'
 import { maintenanceIntervalsByMonitor } from '../../../../app/lib/maintenance'
 import { incidentSeverity } from '../../../../app/lib/notificationSeverity'
-import { computeUptime } from '../../../../app/lib/uptime'
+import { computeUptime, roundMsForInterval } from '../../../../app/lib/uptime'
 import { db } from '@stacksjs/database'
 import { scaleLinear, scaleBand, line, area, curveMonotoneX } from 'ts-charts'
 // require() destructured these under other names; `import { x as y }`
@@ -580,7 +580,13 @@ if (monitor) {
     fromMs: Date.now() - 90 * 86400000,
     toMs: Date.now(),
   })).get(monitor.id) ?? []
-  uptimeSummary = computeUptime(rows, 90, intervals)
+  // roundMs is what folds the per-region rows into one verdict per tick.
+  // Without it every region votes as its own check, so a probe that cannot
+  // reach the target costs uptime and reddens the bars while consensus keeps
+  // the pill green — see the region note in app/lib/uptime.
+  uptimeSummary = computeUptime(rows, 90, intervals, Date.now(), {
+    roundMs: roundMsForInterval(monitor.check_interval_seconds),
+  })
 }
 
 const uptimeDays = uptimeSummary.days

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { computeUptime } from '../../app/lib/uptime'
+import { computeUptime, roundMsForInterval } from '../../app/lib/uptime'
 
 /**
  * The bug this module was extracted for: a `health` monitor checked every
@@ -48,11 +48,28 @@ describe('computeUptime', () => {
     const result = computeUptime(rows, 90, [], NOW)
 
     expect(result.pct!.toFixed(2)).toBe('99.90')
-    // The day bars still show something went wrong on each of those days —
-    // worst-status-wins is deliberate, it is the percentage that was wrong.
+    // The bars mark each of those days, but as blemished rather than out.
+    // They used to be red: worst-status-wins made a 99.9% day look identical
+    // to one that was down from midnight, so the strip contradicted the
+    // percentage printed directly above it.
     const withData = result.days.filter(d => d.status !== 'unknown')
     expect(withData).toHaveLength(3)
-    expect(withData.every(d => d.status === 'down')).toBe(true)
+    expect(withData.every(d => d.status === 'degraded')).toBe(true)
+  })
+
+  test('a day only reads as down once it loses more than 1% of its checks', () => {
+    // The threshold, from both sides. 15 bad minutes out of 1440 is a bad
+    // morning; 200 is an outage, and the bar has to be able to say which.
+    const blip = computeUptime([...checks(0, 1430, 'up'), ...checks(0, 10, 'down')], 90, [], NOW)
+    expect(blip.days[blip.days.length - 1]!.status).toBe('degraded')
+
+    const outage = computeUptime([...checks(0, 1240, 'up'), ...checks(0, 200, 'down')], 90, [], NOW)
+    expect(outage.days[outage.days.length - 1]!.status).toBe('down')
+  })
+
+  test('a clean day is up, not merely not-down', () => {
+    const result = computeUptime(checks(0, 100, 'up'), 90, [], NOW)
+    expect(result.days[result.days.length - 1]!.status).toBe('up')
   })
 
   test('a fully up window is 100% and a fully down one is 0%', () => {
@@ -141,6 +158,104 @@ describe('computeUptime', () => {
     const result = computeUptime(rows, 90, [], NOW)
     expect(result.totalChecks).toBe(1)
     expect(result.pct).toBe(100)
+  })
+
+  describe('multi-region consensus', () => {
+    /**
+     * The reported bug: a `health` monitor answering in 375ms, pill green,
+     * showing 89.68% uptime with every day that had data painted red.
+     *
+     * Every probe region writes its own check_results row. The pill goes
+     * through EvaluateMonitorConsensus, which needs `minRegionsToConfirm`
+     * regions to agree before calling a monitor down — deliberately, "so a
+     * single region's network blip can no longer open (or resolve) an
+     * incident". Uptime counted the rows flat, so the one region that could
+     * not reach the target cost real uptime and reddened the bars, and the
+     * number disagreed with the pill beside it.
+     */
+
+    /** `count` rounds, `roundMs` apart, each region voting the given status. */
+    function rounds(count: number, votes: Record<string, string>, startTs = NOW - 12 * 3600000) {
+      const rows: { checked_at: string, status: string, region: string }[] = []
+      for (let i = 0; i < count; i++) {
+        for (const [region, status] of Object.entries(votes)) {
+          // Regions start the same tick a few seconds apart, which is exactly
+          // what the greedy grouping has to tolerate.
+          const offset = region.length * 900
+          rows.push({ checked_at: new Date(startTs + i * 60_000 + offset).toISOString(), status, region })
+        }
+      }
+      return rows
+    }
+
+    const ROUND = 30_000
+
+    test('one region failing while the others are fine costs no uptime', () => {
+      const rows = rounds(100, { 'us-east': 'up', 'eu-central': 'down', 'ap-south': 'up' })
+
+      const flat = computeUptime(rows, 90, [], NOW)
+      const consensus = computeUptime(rows, 90, [], NOW, { roundMs: ROUND, minRegionsToConfirm: 2 })
+
+      // Counting every region's row flat: a third of all checks are "down".
+      expect(flat.pct!.toFixed(2)).toBe('66.67')
+      // Through consensus: 100 rounds, none of which two regions called down.
+      expect(consensus.pct).toBe(100)
+      expect(consensus.totalChecks).toBe(100)
+      expect(consensus.days[consensus.days.length - 1]!.status).toBe('up')
+    })
+
+    test('a real outage still counts when the regions agree', () => {
+      // The other half of the guarantee: consensus must not launder a genuine
+      // outage into uptime just because it collapses rows.
+      const ok = rounds(90, { 'us-east': 'up', 'eu-central': 'up' })
+      const bad = rounds(10, { 'us-east': 'down', 'eu-central': 'down' }, NOW - 6 * 3600000)
+
+      const result = computeUptime([...ok, ...bad], 90, [], NOW, { roundMs: ROUND, minRegionsToConfirm: 2 })
+
+      expect(result.totalChecks).toBe(100)
+      expect(result.pct).toBe(90)
+    })
+
+    test('single-region data is untouched by the round collapsing', () => {
+      // Every self-hosted single-box install is this case, so it has to come
+      // out byte-identical whether or not the caller passes roundMs.
+      const rows = [...checks(0, 90, 'up'), ...checks(0, 10, 'down')]
+      const withOpt = computeUptime(rows, 90, [], NOW, { roundMs: ROUND })
+      const without = computeUptime(rows, 90, [], NOW)
+
+      expect(withOpt.pct).toBe(without.pct)
+      expect(withOpt.totalChecks).toBe(without.totalChecks)
+      expect(withOpt.days.map(d => d.status)).toEqual(without.days.map(d => d.status))
+    })
+
+    test('rows with no region at all are one region, not many', () => {
+      // check_results.region defaults to 'default'; older rows predate the
+      // column entirely and arrive undefined. Both are the same region.
+      const rows = [
+        ...checks(0, 5, 'up').map(r => ({ ...r, region: 'default' })),
+        ...checks(0, 5, 'up'),
+      ]
+      const result = computeUptime(rows, 90, [], NOW, { roundMs: ROUND })
+      expect(result.totalChecks).toBe(10)
+      expect(result.pct).toBe(100)
+    })
+  })
+
+  describe('roundMsForInterval', () => {
+    test('sits between the region spread and the next tick', () => {
+      expect(roundMsForInterval(60)).toBe(30_000)
+      expect(roundMsForInterval(30)).toBe(15_000)
+      // Clamped: a 30-minute monitor must not swallow separate rounds, and a
+      // 5-second one must still leave room for regions to straggle.
+      expect(roundMsForInterval(1800)).toBe(30_000)
+      expect(roundMsForInterval(5)).toBe(5_000)
+    })
+
+    test('a missing or nonsense interval still yields a usable window', () => {
+      expect(roundMsForInterval(null)).toBe(30_000)
+      expect(roundMsForInterval(undefined)).toBe(30_000)
+      expect(roundMsForInterval(0)).toBe(30_000)
+    })
   })
 
   test('rows in any order give the same answer', () => {

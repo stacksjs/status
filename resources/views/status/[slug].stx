@@ -3,7 +3,7 @@
 <script server>
 import { formatDateTime } from '../../../app/lib/display'
 import { inAnyInterval, maintenanceIntervalsByMonitor } from '../../../app/lib/maintenance'
-import { computeUptime } from '../../../app/lib/uptime'
+import { computeUptime, roundMsForInterval } from '../../../app/lib/uptime'
 import { isIpAllowed } from '../../../app/Actions/StatusPages/AccessControl'
 import { decrypt } from '@stacksjs/security'
 import { db } from '@stacksjs/database'
@@ -97,6 +97,9 @@ if (statusPage) {
         groupId: p.status_page_component_group_id,
         _order: p.display_order,
         _realName: m.name,
+        // Needed to size a consensus round below, so multi-region probes
+        // resolve to one verdict per tick rather than voting individually.
+        _interval: m.check_interval_seconds,
       }
     })
     .filter(Boolean)
@@ -149,8 +152,10 @@ for (const m of monitors)
 
 // Uptime history charts (OhDear-style) — a strip of daily bars + an
 // uptime % per monitor, computed from check_results over the last 90
-// days. Each day bucket takes its worst observed status (down beats
-// degraded beats up); days with no check at all render as "no data".
+// days. A day bar is ratio-based: clean days are up, a day that lost more
+// than 1% of its checks is down, anything blemished in between is degraded.
+// Days with no check at all render as "no data". Multi-region rows collapse
+// to one consensus verdict per round first — see app/lib/uptime.
 const UPTIME_DAYS = 90
 // Cache the 90-day per-monitor rollup: it's the most expensive query on this
 // public (high-traffic) page and changes slowly, so a short TTL keeps it
@@ -179,7 +184,9 @@ for (const m of monitors) {
     // that landed today fell through `dayIndex[key] === undefined` and
     // counted toward neither the bars nor the percentage. An outage this
     // morning was invisible here until tomorrow.
-    const summary = computeUptime(rows, UPTIME_DAYS, mIntervals)
+    const summary = computeUptime(rows, UPTIME_DAYS, mIntervals, Date.now(), {
+      roundMs: roundMsForInterval(m._interval),
+    })
     const bars = summary.days.map(d => ({ date: d.day, status: d.status, up: d.up, total: d.total }))
 
     return { bars, pct: summary.pct }
