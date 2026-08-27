@@ -22,34 +22,6 @@ const statusPage = pageSlug
   ? (await db.selectFrom('status_pages').where('slug', '=', pageSlug).where('is_public', '=', true).limit(1).execute())[0] || null
   : null
 
-// A slug with no public status page behind it is genuinely absent, and the
-// response has to say so. The template already renders a 404 body for this
-// case; the response still goes out as HTTP 200 — a soft 404, which tells a
-// crawler the URL is a real page, lets a cache treat it as one, and gives an
-// uptime check nothing to fail on. That last one matters more here than in
-// most apps: a customer pointing a monitor at their own status page sees it
-// pass while the page is gone.
-//
-// READ THIS BEFORE TRUSTING THE LINE BELOW: it does not work yet, and the
-// fault is not here. notFound() is stx's server-script entry point for this
-// (>= 0.2.231, which this repo pins) and it records the status correctly on
-// the render context — but `buddy serve`, which is what serves this app in
-// production, never reads it back. Verified against a minimal probe page:
-// definePageMeta({ status: 404 }), setResponseHeader() and notFound() all
-// answer 200 with no header, and `readResponseStatus` appears zero times in
-// all of @stacksjs/buddy/dist. Filed as stacksjs/stacks#2369.
-//
-// The call stays because it is the correct code, it is inert rather than
-// harmful, and the page starts answering 404 the moment the host reads it
-// back. Re-test after any stacks upgrade; there is nothing to change here
-// when it lands.
-//
-// The restricted states below are deliberately NOT 404 — the page exists,
-// the viewer just cannot see it yet. 401/403 for those is a separate call
-// worth making, and blocked on the same upstream fix.
-if (!statusPage)
-  notFound()
-
 // Access control (stacksjs/status#1 Phase 12). 'public' (the default) is
 // unchanged behavior below. The IPv4 + IPv6 CIDR matcher used to be mirrored
 // inline here, ~105 lines kept in sync by hand against the canonical,
