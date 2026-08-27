@@ -67,7 +67,7 @@
   "dependencies": {
     "@stacksjs/stx": "^0.2.231",
     "bun-plugin-stx": "^0.2.231",
-    "stacks": "^0.72.77",
+    "stacks": "^0.72.92",
     "ts-charts": "github:stacksjs/ts-charts"
   },
   "devDependencies": {
