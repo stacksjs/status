@@ -170,6 +170,14 @@ const updates = incident
 
 const pageTitle = incident ? `${incident.monitor_name} incident` : 'Incident not found'
 
+// Same soft-404 reasoning as the parent [slug].stx — see the note there,
+// including the stale-build-cache gotcha. A missing status page and a
+// missing incident are both genuinely absent; an incident that exists but
+// belongs to a monitor not attached to this page is deliberately absent
+// too, since saying otherwise would confirm it exists.
+if (!statusPage || !incident)
+  notFound()
+
 function statusBadgeClass(status) {
   if (status === 'resolved') return 'text-xs font-medium uppercase tracking-wide text-emerald-600'
   if (status === 'monitoring') return 'text-xs font-medium uppercase tracking-wide text-sky-600'

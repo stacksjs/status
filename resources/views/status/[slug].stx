@@ -22,6 +22,31 @@ const statusPage = pageSlug
   ? (await db.selectFrom('status_pages').where('slug', '=', pageSlug).where('is_public', '=', true).limit(1).execute())[0] || null
   : null
 
+// A slug with no public status page behind it is genuinely absent, and the
+// response has to say so. The template renders a 404 body for this case;
+// without this call it went out under HTTP 200 — a soft 404, which tells a
+// crawler the URL is a real page, lets a cache store it as valid, and gives
+// an uptime check nothing to fail on. That last one matters more here than
+// in most apps: a customer pointing a monitor at their own status page
+// would see it pass while the page was gone.
+//
+// Needs stacks >= 0.72.92. Before that, buddy serve resolved stx by
+// preferring an untracked local checkout and then <cwd>/pantry/ over the
+// declared dependency (stacksjs/stacks#2369), so it served through
+// pantry's 0.2.76 — which predates the page-response contract — and this
+// call silently did nothing.
+//
+// If it ever appears to 404 a page that EXISTS, the cause is a stale
+// storage/framework/stx build cache holding a copy compiled against the
+// old resolution; `rm -rf storage/framework/stx` and restart. That cost
+// most of a day to work out, hence the note.
+//
+// The access-restricted states below are deliberately NOT 404 — the page
+// exists, the viewer just cannot see it yet. 401/403 for those is a
+// separate call worth making.
+if (!statusPage)
+  notFound()
+
 // Access control (stacksjs/status#1 Phase 12). 'public' (the default) is
 // unchanged behavior below. The IPv4 + IPv6 CIDR matcher used to be mirrored
 // inline here, ~105 lines kept in sync by hand against the canonical,
