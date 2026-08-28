@@ -79,6 +79,35 @@ Two monitor config keys support it:
 If the monitor has field assertions, those still win — your own contract
 outranks the generic one.
 
+## Running a Stacks app?
+
+Nothing to set up. Every Stacks app serves `/health` from the moment it is
+created — the framework registers `route.health()` in its default routes — and
+StatusHQ reads that shape too:
+
+```json
+{
+  "status": "ok",
+  "timestamp": 1756382400000,
+  "services": [
+    { "name": "API", "status": "healthy", "latency": "2ms", "uptime": "99.9%" },
+    { "name": "Database", "status": "critical", "latency": "-", "uptime": "-" }
+  ]
+}
+```
+
+Point a Health Check monitor at the app and leave the secret empty — a Stacks
+`/health` route doesn't validate one. The format is detected from the response,
+so there is no setting to pick.
+
+Service statuses map onto the same verdicts as above: `healthy` is **up**,
+`degraded` is **degraded**, and `critical` is **down**. Anything else is
+treated as down rather than assumed healthy, so a status the framework adds
+later fails closed until StatusHQ learns it.
+
+`timestamp` is read as the report time, so `healthMaxAgeSeconds` applies here
+exactly as it does to an Oh Dear report — a frozen response can't pass.
+
 ### Node and Bun apps
 
 There's no `spatie/laravel-health` equivalent in that ecosystem, so we ship

@@ -205,12 +205,12 @@ useHead({ title: 'New monitor · StatusHQ', meta: [{ name: 'robots', content: 'n
             <div class="field" data-types="health">
               <label for="path">Health path</label>
               <input id="path" type="text" name="path" class="input" placeholder="/health" />
-              <p class="help">Resolved against the URL above.</p>
+              <p class="help">Resolved against the URL above. Stacks apps and anything running <code>spatie/laravel-health</code> are both understood automatically &mdash; nothing to configure.</p>
             </div>
             <div class="field" data-types="health">
               <label for="health_secret">Health endpoint secret</label>
               <input id="health_secret" type="text" name="health_secret" class="input" placeholder="leave empty if the endpoint is open" />
-              <p class="help">Sent as the <code>oh-dear-health-check-secret</code> header &mdash; the one <code>spatie/laravel-health</code> validates.</p>
+              <p class="help">Sent as the <code>oh-dear-health-check-secret</code> header &mdash; the one <code>spatie/laravel-health</code> validates. A Stacks <code>/health</code> route does not check a secret, so leave this empty for one.</p>
             </div>
             <div class="field" data-types="health">
               <label for="health_max_age_seconds">Report freshness (seconds)</label>

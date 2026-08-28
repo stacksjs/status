@@ -70,6 +70,104 @@ export function isAppHealthReport(body: unknown): body is AppHealthReport {
 }
 
 /**
+ * The second dialect: what a Stacks app answers on /health.
+ *
+ *   {
+ *     "status": "ok",
+ *     "timestamp": 1756382400000,
+ *     "services": [{ "name": "Database", "status": "healthy",
+ *                    "latency": "12ms", "uptime": "99.9%" }]
+ *   }
+ *
+ * Every Stacks app has this the moment it is created — the framework's
+ * default routes register `route.health()` and ship a HealthAction — so a
+ * customer running one should be able to point a health monitor at it and
+ * have it work, exactly as a Laravel app running spatie/laravel-health can.
+ * Before this, `isAppHealthReport` rejected it (no `checkResults`) and the
+ * monitor fell through to the plain-endpoint branch, which reads a body like
+ * this as an opaque 200 and reports "up" no matter what the services say —
+ * a critical database would have gone unnoticed.
+ */
+export interface StacksHealthService {
+  name?: unknown
+  status?: unknown
+  latency?: unknown
+  uptime?: unknown
+}
+
+export interface StacksHealthReport {
+  status?: unknown
+  timestamp?: unknown
+  services?: unknown
+}
+
+/** Narrow, for the same reason isAppHealthReport is: only a `services` array claims it. */
+export function isStacksHealthReport(body: unknown): body is StacksHealthReport {
+  return !!body && typeof body === 'object' && Array.isArray((body as StacksHealthReport).services)
+}
+
+/**
+ * Stacks' service statuses, mapped onto the five this module already
+ * reasons about. `critical` is failed rather than crashed: the service is
+ * down, but the check itself ran and said so — crashed means the check threw.
+ *
+ * Only these three are emitted by the framework today. Anything else is left
+ * unmapped ON PURPOSE, so it lands as 'unknown' and evaluates to down: a
+ * status we cannot read must never be assumed healthy.
+ */
+const STACKS_STATUS_MAP: Record<string, AppHealthStatus> = {
+  healthy: 'ok',
+  degraded: 'warning',
+  critical: 'failed',
+}
+
+/**
+ * Convert a Stacks report into the canonical shape, so there is exactly one
+ * evaluator and the two dialects cannot drift apart in what they call down.
+ *
+ * `timestamp` becomes `finishedAt` — it is `Date.now()` in milliseconds, which
+ * parseFinishedAt already reads correctly via its >1e11 branch — so staleness
+ * works identically for both dialects.
+ */
+export function fromStacksHealthReport(body: StacksHealthReport): AppHealthReport {
+  const services = Array.isArray(body.services) ? body.services : []
+  return {
+    finishedAt: body.timestamp,
+    checkResults: services.map((entry) => {
+      const service = (entry ?? {}) as StacksHealthService
+      const name = String(service.name ?? '').trim() || 'unnamed'
+      const raw = String(service.status ?? '').trim().toLowerCase()
+      const mapped = STACKS_STATUS_MAP[raw]
+      const latency = String(service.latency ?? '').trim()
+      return {
+        name,
+        label: name,
+        // Unmapped statuses pass through untouched so normalizeStatus can
+        // reject them, rather than being silently coerced to something safe.
+        status: mapped ?? service.status,
+        shortSummary: latency,
+        notificationMessage: mapped && mapped !== 'ok'
+          ? `${name} is ${raw}${latency ? ` (${latency})` : ''}`
+          : '',
+      }
+    }),
+  }
+}
+
+/**
+ * Accept either dialect and return the canonical shape, or null when the body
+ * is neither. Oh Dear is tested first so an endpoint that somehow carries both
+ * keys keeps the meaning it had before Stacks support existed.
+ */
+export function coerceHealthReport(body: unknown): AppHealthReport | null {
+  if (isAppHealthReport(body))
+    return body
+  if (isStacksHealthReport(body))
+    return fromStacksHealthReport(body)
+  return null
+}
+
+/**
  * `finishedAt` in the wild is a unix-seconds string ("1638879833"), a number,
  * or an ISO date depending on who implemented the endpoint. Accept all three;
  * return null when it is absent or unintelligible rather than guessing.
