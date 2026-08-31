@@ -65,6 +65,7 @@
     "stx": "./buddy"
   },
   "dependencies": {
+    "@loghq/stacks": "^0.2.5",
     "@stacksjs/stx": "^0.2.231",
     "bun-plugin-stx": "^0.2.231",
     "stacks": "^0.72.92",

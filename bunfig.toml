@@ -9,6 +9,10 @@
 preload = [
   "./resources/plugins/env-preload.ts",
   "./storage/framework/defaults/resources/plugins/preloader.ts",
+  # Reports whether this app's logs are really reaching loghq. Last, so it runs
+  # after the env layer has decrypted LOGHQ_KEY and after the framework
+  # preloader; it carries its own fast-command guard.
+  "./resources/plugins/loghq-check.ts",
 ]
 
 [test]

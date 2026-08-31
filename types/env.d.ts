@@ -33,6 +33,8 @@ declare module '@stacksjs/env' {
     SSO_OIDC_CLIENT_ID: string | undefined
     SSO_OIDC_CLIENT_SECRET: string | undefined
     SSO_OIDC_LABEL: string | undefined
+    LOGHQ_KEY: string | undefined
+    LOGHQ_HOST: string | undefined
   }
 }
 
