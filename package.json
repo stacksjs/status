@@ -69,7 +69,8 @@
     "@loghq/stacks": "^0.2.6",
     "@stacksjs/stx": "^0.2.231",
     "bun-plugin-stx": "^0.2.231",
-    "stacks": "^0.72.92",
+    "@stacksjs/logging": "^0.74.0",
+    "stacks": "^0.74.0",
     "ts-charts": "github:stacksjs/ts-charts"
   },
   "devDependencies": {
