@@ -1,4 +1,5 @@
 import type { LoggingConfig } from '@stacksjs/types'
+import { bughqTransport } from '@bughq/stacks'
 import { loghqTransport } from '@loghq/stacks'
 import { env } from '@stacksjs/env'
 import { storagePath } from '@stacksjs/path'
@@ -62,6 +63,20 @@ export default {
       environment: env.APP_ENV,
       channel: 'status',
       captureStruct: true,
+    }),
+
+    // The other half of the pair, and a different job: loghq takes the whole
+    // stream, bughq takes only what failed. Records at error and above become
+    // bughq ISSUES; everything below is retained as a breadcrumb and attached
+    // to the next issue, so the lines leading up to a failure travel with it.
+    //
+    // capture.unhandled stays false by default: the built server entry installs
+    // its own process handlers and a second set would double-report. Queue
+    // workers install none, so a worker entry has to opt in.
+    bughqTransport({
+      key: env.BUGHQ_KEY,
+      host: env.BUGHQ_HOST || undefined,
+      environment: env.APP_ENV,
     }),
   ],
 } satisfies LoggingConfig

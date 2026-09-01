@@ -262,6 +262,19 @@ export default {
   // Declared in types/env.d.ts too — a key in one place but not the other
   // typechecks while going unvalidated, which is what that file exists to end.
   LOGHQ_KEY: { validation: schema.string(), default: '' },
+  // Reports this app's own errors to bughq. Empty disables capture rather than
+  // failing: the client marks itself disabled on construction, silently.
+  BUGHQ_KEY: {
+    validation: schema.string(),
+    default: '',
+  },
+
+  // Override only to point at a bughq other than the hosted one. Empty means
+  // the SDK's own default host.
+  BUGHQ_HOST: {
+    validation: schema.string(),
+    default: '',
+  },
 
   // Override only to point at a loghq other than the hosted one, e.g. a local
   // dev server. Empty means the SDK's own default host.

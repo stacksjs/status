@@ -5,6 +5,7 @@
     "": {
       "name": "status",
       "dependencies": {
+        "@bughq/stacks": "^0.2.2",
         "@loghq/stacks": "^0.2.6",
         "@stacksjs/stx": "^0.2.231",
         "bun-plugin-stx": "^0.2.231",
@@ -23,6 +24,10 @@
     "@stacksjs/bunpress": "0.1.11",
   },
   "packages": {
+    "@bughq/sdk": ["@bughq/sdk@0.2.2", "", {}, "sha512-OySn397nSGHmFv4qu8/HUhX25sb+ORKCk94yOt/OR1vymScXPJPAA5eV9WcxrnzVUPvNOgEhp4lfEDm8MVS8Kw=="],
+
+    "@bughq/stacks": ["@bughq/stacks@0.2.2", "", { "dependencies": { "@bughq/sdk": "0.2.2" }, "peerDependencies": { "@stacksjs/logging": ">=0.72.76" }, "optionalPeers": ["@stacksjs/logging"] }, "sha512-a1nZDtMQyBiah3QgRBrfOn/m3T1zraVF7REaPe4QyCDuJlqWGBOqmsI0TDy5akMCrhFcN+ksgxs5qf0XhtCUZQ=="],
+
     "@cwcss/crosswind": ["@cwcss/crosswind@0.2.16", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "bunfig": "^0.15.17" }, "bin": { "crosswind": "./dist/cli.js" } }, "sha512-QgSTpcnt1seUQF2++taD5wk/H1lE3wSaybd+i9iP/syQTB2w/v2aM2U9SzYYe2ZcHA3Uxa1Sn/YvhcmHeFfuCA=="],
 
     "@iconify-json/f7": ["@iconify-json/f7@1.2.2", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-7+RhvnncD+LRu0smuHOun4emOUu48XUGG6G0tYYbrXS7n4Io2xntx6nxa09/iI41t9hnH2oHHU3Dg7Ee60Ovow=="],
