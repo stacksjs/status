@@ -1,0 +1,141 @@
+<script client>
+type SerializedList = string | string[] | null | undefined
+
+interface ShippingMethodOption {
+  id: number
+  name: string
+}
+
+interface ShippingZoneRecord {
+  id: number
+  name: string
+  countries?: SerializedList
+  regions?: SerializedList
+  postal_codes?: SerializedList
+  shipping_method_id: number
+  status: 'active' | 'inactive' | 'draft'
+}
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'create')
+const record = useReactiveProp('record', null as ShippingZoneRecord | null)
+const methods = useReactiveProp('methods', [] as ShippingMethodOption[])
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const name = state('')
+const countries = state('')
+const regions = state('')
+const postalCodes = state('')
+const methodId = state('')
+const status = state<'active' | 'inactive' | 'draft'>('active')
+let hydrationKey = ''
+
+function listTokens(value: SerializedList): string[] {
+  if (Array.isArray(value))
+    return value.map(item => String(item).trim()).filter(Boolean)
+  if (!value)
+    return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed))
+      return parsed.map(item => String(item).trim()).filter(Boolean)
+  }
+  catch {
+    return value.split(/[\n,|;]+/).map(item => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+function serializedList(value: string): string {
+  return JSON.stringify([...new Set(listTokens(value))])
+}
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const nextKey = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === nextKey)
+    return
+  hydrationKey = nextKey
+  name.set(current?.name || '')
+  countries.set(listTokens(current?.countries).join(', '))
+  regions.set(listTokens(current?.regions).join(', '))
+  postalCodes.set(listTokens(current?.postal_codes).join(', '))
+  methodId.set(current ? String(current.shipping_method_id) : '')
+  status.set(current?.status || 'active')
+})
+
+function submit(): void {
+  const selectedMethodId = Number(methodId())
+  const serializedCountries = serializedList(countries())
+  const serializedRegions = serializedList(regions())
+  const serializedPostalCodes = serializedList(postalCodes())
+
+  if (!name().trim()) {
+    emit('invalid', 'Zone name is required.')
+    return
+  }
+  if (!Number.isInteger(selectedMethodId) || selectedMethodId < 1) {
+    emit('invalid', 'Select a shipping method.')
+    return
+  }
+  if (serializedCountries.length > 1000) {
+    emit('invalid', 'Countries exceed the 1,000 character limit.')
+    return
+  }
+  if (serializedRegions.length > 500) {
+    emit('invalid', 'Regions exceed the 500 character limit.')
+    return
+  }
+  if (serializedPostalCodes.length > 1000) {
+    emit('invalid', 'Postal codes exceed the 1,000 character limit.')
+    return
+  }
+
+  emit('submit', {
+    name: name().trim(),
+    countries: serializedCountries,
+    regions: serializedRegions,
+    postalCodes: serializedPostalCodes,
+    shippingMethodId: selectedMethodId,
+    status: status(),
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit shipping zone' : 'Add shipping zone'"
+  description="Separate list values with commas or new lines. Values are stored as normalized JSON arrays."
+  size="lg"
+  @close="emit('close')"
+>
+    <form id="shipping-zone-form" @submit.prevent="submit()">
+        <div :if="error()" class="mb-5 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+
+        <div class="space-y-4">
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Zone name</span><input x-model="name" type="text" required maxlength="100" autocomplete="off" placeholder="North America" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Shipping method</span>
+            <select x-model="methodId" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700">
+              <option value="">Select a shipping method</option>
+              <template :for="method in methods()" :key="method.id"><option :value="method.id">{{ method.name }}</option></template>
+            </select>
+          </label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Countries</span><textarea x-model="countries" rows="2" maxlength="1000" placeholder="US, CA, MX" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Regions</span><textarea x-model="regions" rows="2" maxlength="500" placeholder="CA, OR, WA" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Postal codes</span><textarea x-model="postalCodes" rows="2" maxlength="1000" placeholder="90001, 90002" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span><select x-model="status" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="active">Active</option><option value="inactive">Inactive</option><option value="draft">Draft</option></select></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button :disabled="busy()" variant="secondary" @click="emit('close')">Cancel</Button>
+      <Button type="submit" form="shipping-zone-form" :loading="busy()">{{ mode() === 'edit' ? 'Save changes' : 'Add zone' }}</Button>
+    </div>
+  </template>
+</Modal>

@@ -1,16 +1,22 @@
 import { Action } from '@stacksjs/actions'
 import { tax } from '@stacksjs/commerce'
 import { response } from '@stacksjs/router'
+import { commerceIdentifier, commerceNotFound } from './commerce-action'
 
 export default new Action({
   name: 'TaxRate Destroy',
-  description: 'TaxRate Destroy ORM Action',
+  description: 'Deletes a tax rate through the native commerce module.',
   method: 'DELETE',
   async handle(request: RequestInstance) {
-    const id = request.getParam('id')
+    const identifier = commerceIdentifier(request, 'Tax rate')
+    if (identifier.error)
+      return identifier.error
+    const { id } = identifier
 
-    await tax.destroy(id)
+    const deleted = await tax.destroy(id)
+    if (!deleted)
+      return commerceNotFound('Tax rate', id)
 
-    return response.json({ message: 'TaxRate deleted successfully' })
+    return response.noContent()
   },
 })

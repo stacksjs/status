@@ -1,5 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
+import { modelBoolean } from './kanban-model'
+import { kanbanActionError } from './kanban-response'
 
 interface BoardRow {
   id: number
@@ -9,7 +11,8 @@ interface BoardRow {
   icon: string
   color: string
   position: number
-  archived: number
+  // SQLite stores booleans as 0/1 INTEGER columns; Postgres returns real booleans.
+  archived: number | boolean
   created_at: string | null
   updated_at: string | null
   card_count?: number
@@ -27,8 +30,7 @@ interface BoardRow {
  * group (boards are a dev-mode surface per #1843). The action body
  * doesn't re-check the role; the middleware did.
  *
- * Phase 1 — read-only. Phase 2 lands store / update / destroy + the
- * reorder endpoint that moves a board's position.
+ * Mutations use the sibling store, update, destroy, and reorder actions.
  */
 export default new Action({
   name: 'Kanban Boards Index',
@@ -45,11 +47,11 @@ export default new Action({
         SELECT
           b.id, b.uuid, b.name, b.description, b.icon, b.color,
           b.position, b.archived, b.created_at, b.updated_at,
-          (SELECT COUNT(*) FROM cards c WHERE c.board_id = b.id AND c.archived = 0) AS card_count
+          (SELECT COUNT(*) FROM cards c WHERE c.board_id = b.id AND c.archived = false) AS card_count
         FROM boards b
-        WHERE b.archived = 0
+        WHERE b.archived = false
         ORDER BY b.position ASC, b.id ASC
-      `).execute() as BoardRow[]
+      `).execute() as unknown as BoardRow[]
 
       const boards = (rows ?? []).map(r => ({
         id: r.id,
@@ -59,7 +61,7 @@ export default new Action({
         icon: r.icon,
         color: r.color,
         position: r.position,
-        archived: r.archived === 1,
+        archived: modelBoolean(r, 'archived'),
         cardCount: Number(r.card_count ?? 0),
         createdAt: r.created_at,
         updatedAt: r.updated_at,
@@ -68,14 +70,7 @@ export default new Action({
       return { boards }
     }
     catch (err) {
-      console.error('[dashboard/kanban] BoardsIndexAction failed:', err)
-      // Soft-error shape — page renders an empty-state with the
-      // message instead of bubbling a 500. Missing `boards` table
-      // (migrations not run) ends up here on a fresh project.
-      return {
-        boards: [],
-        error: err instanceof Error ? err.message : 'unknown error',
-      }
+      return kanbanActionError(err, 'BoardsIndexAction')
     }
   },
 })

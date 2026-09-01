@@ -1,0 +1,25 @@
+<script client>
+import type { MarketingListRecord } from '../../../../app/Actions/Dashboard/Marketing/marketing-list-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as MarketingListRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const protectedRecord = derived(() => Boolean(record()?.subscriberCount) || Boolean(record()?.campaignCount))
+const description = derived(() => protectedRecord()
+  ? `${record()?.name || 'This email list'} has membership or campaign history. Archive it instead to preserve relationships.`
+  : `${record()?.name || 'This email list'} will be permanently removed.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete email list?"
+  :description="description()"
+  confirmLabel="Delete email list"
+  :busy="busy()"
+  :disabled="protectedRecord()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

@@ -1,23 +1,12 @@
 /**
- * Dashboard sidebar nav HTML builder.
+ * Dashboard sidebar navigation data.
  *
- * Generates the entire navigation tree (8 sections + each leaf item's
- * inline SVG icon + a dynamic row per user-defined model) as a single
- * HTML string. The layout's `<script server>` calls this and passes
- * the result to `<Sidebar :nav-html="…" />`, where it's rendered as
- * raw HTML (`{{{ navHtml }}}`).
- *
- * Why this lives in the layout-side rather than inside Sidebar.stx:
- * STX's @foreach evaluator in the Sidebar component template does NOT
- * resolve identifiers from the component's own `<script>` block, from
- * defineProps defaults, or from prop bindings reliably (it fails with
- * "not iterable" or "unexpected token" depending on the source). A
- * static HTML string passed as a prop and rendered via the triple-brace
- * raw interpolation IS reliable in every context, so we sidestep the
- * scope problem entirely by building the markup here on the server
- * side.
+ * Discovers model-provided dashboard rows and shapes every section for the
+ * native STX Sidebar component. Markup, icons, disclosure state, and
+ * persistence stay inside the component instead of being serialized as HTML.
  */
 import { existsSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 
 type ModelCategory = 'userland' | 'data' | 'commerce' | 'content' | 'marketing' | 'system'
@@ -37,7 +26,7 @@ interface DashboardModelOptionsLite {
   description?: string
 }
 
-interface DiscoveredModel {
+export interface DiscoveredModel {
   id: string
   name: string
   icon?: string
@@ -47,7 +36,7 @@ interface DiscoveredModel {
   dashboard?: DashboardModelOptionsLite
 }
 
-interface DataRowToggles {
+export interface DataRowToggles {
   dashboard: boolean
   activity: boolean
   users: boolean
@@ -56,7 +45,7 @@ interface DataRowToggles {
   allModels: boolean
 }
 
-interface DashboardSectionToggles {
+export interface DashboardSectionToggles {
   library: boolean
   content: boolean
   commerce: boolean
@@ -69,12 +58,27 @@ interface DashboardSectionToggles {
   data: DataRowToggles
 }
 
-interface DiscoveredManifest {
-  models: DiscoveredModel[]
-  sections: DashboardSectionToggles
+/** An application-defined sidebar row, from `config/dashboard.ts:nav`. */
+export interface AppNavItem {
+  label: string
+  href: string
+  icon?: string
+  roles?: string[]
 }
 
-const DEFAULT_DATA_TOGGLES: DataRowToggles = {
+export interface AppNavSection {
+  title: string
+  items: AppNavItem[]
+}
+
+export interface DiscoveredManifest {
+  models: DiscoveredModel[]
+  sections: DashboardSectionToggles
+  /** Sections this application declared. Empty for a project that declared none. */
+  nav: AppNavSection[]
+}
+
+export const DEFAULT_DATA_TOGGLES: DataRowToggles = {
   dashboard: true,
   activity: true,
   users: true,
@@ -83,7 +87,7 @@ const DEFAULT_DATA_TOGGLES: DataRowToggles = {
   allModels: true,
 }
 
-const DEFAULT_TOGGLES: DashboardSectionToggles = {
+export const DEFAULT_TOGGLES: DashboardSectionToggles = {
   library: true,
   content: true,
   commerce: true,
@@ -94,158 +98,139 @@ const DEFAULT_TOGGLES: DashboardSectionToggles = {
   data: DEFAULT_DATA_TOGGLES,
 }
 
-const SVG_OPEN = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
-const SVG_CLOSE = '</svg>'
-
-// Path data for each icon used by the sidebar. Keys are short logical
-// names; the leaf-item builder below uses these directly. All icons are
-// 20×20, stroke-based, currentColor — restyle by changing one CSS rule
-// rather than editing each path.
-const ICON_PATHS: Record<string, string> = {
-  'home': '<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1m-2 0h2"/>',
-  'puzzle': '<path d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1H3a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/>',
-  'function': '<path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>',
-  'list-number': '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
-  'package': '<path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
-  'dashboard': '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="4" rx="1"/><rect x="14" y="10" width="7" height="11" rx="1"/><rect x="3" y="13" width="7" height="8" rx="1"/>',
-  'files': '<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>',
-  'file': '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
-  'post': '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>',
-  'tags': '<path d="M7 7h.01M2 12.5l9.1 9.1a1.5 1.5 0 002.1 0l7.3-7.3a1.5 1.5 0 000-2.1L11.4 3H4a1 1 0 00-1 1v7.4a1.5 1.5 0 00.4 1z"/>',
-  'tag': '<path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
-  'comment': '<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>',
-  'user-edit': '<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 010 7.75"/>',
-  'seo': '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v6M8 11h6"/>',
-  'rocket': '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 3 0 3 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-3 0-3"/>',
-  'api': '<path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>',
-  'link': '<path d="M15 7h3a5 5 0 010 10h-3m-6 0H6A5 5 0 016 7h3"/><line x1="8" y1="12" x2="16" y2="12"/>',
-  'bolt': '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
-  'terminal': '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
-  'queue': '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
-  'briefcase': '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>',
-  'search': '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
-  'bell': '<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>',
-  'cart': '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/>',
-  'user': '<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
-  'orders': '<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>',
-  'coupon': '<path d="M2 9a3 3 0 003 3v4a2 2 0 002 2h14a2 2 0 002-2v-4a3 3 0 000-6V8a2 2 0 00-2-2H7a2 2 0 00-2 2v1a3 3 0 00-3 3z"/><path d="M13 9v2M13 13h.01"/>',
-  'gift': '<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/>',
-  'invoice': '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>',
-  'truck': '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
-  'percent': '<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
-  'activity': '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
-  'check-circle': '<circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>',
-  'users': '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
-  'group': '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
-  'mail': '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/>',
-  'table': '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>',
-  'list-settings': '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="4" cy="18" r="2"/>',
-  'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
-  'star': '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
-  'globe': '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>',
-  'document': '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>',
-  'target': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
-  'sale-tag': '<path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="10" y1="14" x2="14" y2="10"/>',
-  'megaphone': '<path d="M3 11l18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/>',
-  'cloud': '<path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>',
-  'server': '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
-  'zap': '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
-  'globe-search': '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10M12 2a15.3 15.3 0 00-4 10 15.3 15.3 0 004 10"/>',
-  'lock': '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>',
-  'mailbox': '<path d="M22 17H2a3 3 0 003 3h14a3 3 0 003-3zm0 0V9a3 3 0 00-3-3H5a3 3 0 00-3 3v8"/><path d="M6 6v11"/><path d="M2 12h4"/>',
-  'log': '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>',
-  'settings': '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>',
-}
-
-function svg(key: string): string {
-  const path = ICON_PATHS[key] ?? ICON_PATHS.file
-  return SVG_OPEN + path + SVG_CLOSE
-}
-
 interface NavItem {
   to: string
   icon: string
   text: string
-  mpa?: boolean
   /**
    * Role-gate metadata for sidebar items (stacksjs/stacks#1843).
-   * When set, the rendered `<a>` carries `data-required-roles="…"` and
-   * the client-side `useRole()` filter hides the row from viewers who
-   * don't hold a matching role. Unauthenticated viewers (dev dashboard)
-   * see all rows per the permissive default in `useRole`.
+   * The layout maps this metadata to component row IDs and hides rows from
+   * viewers who do not hold a matching role.
    */
   roles?: string[]
 }
 
-const SECTION_TOGGLE_ONCLICK = "(function(btn){var sec=btn.closest('.sidebar-section');var key=sec.getAttribute('data-section');sec.classList.toggle('collapsed');try{var c={};var s=localStorage.getItem('sidebar-collapsed');if(s)c=JSON.parse(s);c[key]=sec.classList.contains('collapsed');localStorage.setItem('sidebar-collapsed',JSON.stringify(c));}catch(e){}})(this)"
-
-/**
- * HTML-encode a string for safe insertion into element attributes (`role`
- * names, labels) or text content. Models can ship arbitrary `dashboard`
- * config, so we don't trust the values to be HTML-safe by construction.
- */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function renderItem(item: NavItem): string {
-  const mpaAttr = item.mpa ? ' data-mpa="true"' : ''
-  // Roles encoded as a comma-separated list on `data-required-roles`. The
-  // client-side filter in `useRole()` parses this and removes the row if
-  // the viewer doesn't hold any of the listed roles. Static rows omit the
-  // attribute entirely, so they're always visible.
-  const rolesAttr = item.roles && item.roles.length > 0
-    ? ` data-required-roles="${escapeHtml(item.roles.join(','))}"`
-    : ''
-  return `<li${rolesAttr ? ` data-required-roles-li="${escapeHtml((item.roles ?? []).join(','))}"` : ''}><a href="${escapeHtml(item.to)}" class="sidebar-link"${mpaAttr}${rolesAttr}><span class="sidebar-icon">${svg(item.icon)}</span><span>${escapeHtml(item.text)}</span></a></li>`
-}
-
-function renderSection(key: string, label: string, items: NavItem[]): string {
-  if (items.length === 0) return ''
-  const lis = items.map(renderItem).join('')
-  return `<div class="sidebar-section" data-section="${key}">`
-    + `<button class="sidebar-section-label" type="button" onclick="${SECTION_TOGGLE_ONCLICK}"><span>${label}</span><div class="sidebar-chevron"></div></button>`
-    + `<ul class="sidebar-section-list">${lis}</ul>`
-    + '</div>'
-}
-
 /**
  * Pull the discovered-models manifest from the framework defaults dir.
- * Handles both the modern envelope (`{ models, sections }`) and the legacy
- * bare-array form to keep dashboards working across versions while a stale
- * `.discovered-models.json` is still on disk.
- *
  * Returns the default empty payload when the file is absent (fresh project
  * before the first dashboard run regenerates it).
  */
-export function loadDiscoveredManifest(): DiscoveredManifest {
-  const manifestPath = resolve(process.cwd(), 'storage/framework/defaults/views/dashboard/.discovered-models.json')
-  if (!existsSync(manifestPath)) return { models: [], sections: DEFAULT_TOGGLES }
+export function loadDiscoveredManifest(
+  manifestPath = resolve(process.cwd(), 'storage/framework/defaults/views/dashboard/.discovered-models.json'),
+): DiscoveredManifest {
+  if (!existsSync(manifestPath))
+    return { models: [], sections: defaultToggles(), nav: [] }
+
   try {
-    const parsed = JSON.parse(readFileSync(manifestPath, 'utf8')) as DiscoveredModel[] | { models?: DiscoveredModel[], sections?: Partial<DashboardSectionToggles> }
-    if (Array.isArray(parsed)) {
-      return {
-        models: parsed.sort((a, b) => (a.name || '').localeCompare(b.name || '')),
-        sections: DEFAULT_TOGGLES,
-      }
-    }
-    const models = Array.isArray(parsed.models) ? parsed.models.sort((a, b) => (a.name || '').localeCompare(b.name || '')) : []
-    return {
-      models,
-      sections: { ...DEFAULT_TOGGLES, ...(parsed.sections ?? {}) },
-    }
+    return parseDiscoveredManifest(readFileSync(manifestPath, 'utf8'))
   }
-  catch {
-    return { models: [], sections: DEFAULT_TOGGLES }
+  catch (error) {
+    throw new Error(`Could not read dashboard model manifest: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
-/** Backward-compat: prior callers only needed the model list. */
+export function parseDiscoveredManifest(source: string): DiscoveredManifest {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(source)
+  }
+  catch (error) {
+    throw new Error(`invalid JSON: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  const envelope = objectValue(parsed, 'manifest')
+  if (!Array.isArray(envelope.models))
+    throw new TypeError('manifest models must be an array')
+
+  const models = envelope.models.map((value, index) => {
+    const model = objectValue(value, `manifest models[${index}]`)
+    if (typeof model.id !== 'string' || !model.id)
+      throw new TypeError(`manifest models[${index}].id must be a non-empty string`)
+    if (typeof model.name !== 'string' || !model.name)
+      throw new TypeError(`manifest models[${index}].name must be a non-empty string`)
+    return model as unknown as DiscoveredModel
+  }).sort((a, b) => a.name.localeCompare(b.name))
+
+  return {
+    models,
+    sections: normalizeManifestToggles(envelope.sections),
+    nav: normalizeManifestNav(envelope.nav),
+  }
+}
+
+/**
+ * App-declared sections are validated at config load; this only has to survive
+ * a manifest written by an older framework version, which has no `nav` key.
+ */
+function normalizeManifestNav(value: unknown): AppNavSection[] {
+  if (value === undefined)
+    return []
+
+  if (!Array.isArray(value))
+    throw new TypeError('manifest nav must be an array')
+
+  return value.map((entry, index) => {
+    const section = objectValue(entry, `manifest nav[${index}]`)
+    if (typeof section.title !== 'string' || !section.title)
+      throw new TypeError(`manifest nav[${index}].title must be a non-empty string`)
+    if (!Array.isArray(section.items))
+      throw new TypeError(`manifest nav[${index}].items must be an array`)
+
+    return {
+      title: section.title,
+      items: section.items as AppNavItem[],
+    }
+  })
+}
+
+function normalizeManifestToggles(value: unknown): DashboardSectionToggles {
+  const sections = objectValue(value, 'manifest sections')
+  const data = sections.data === undefined
+    ? {}
+    : objectValue(sections.data, 'manifest sections.data')
+
+  return {
+    library: booleanValue(sections.library, 'manifest sections.library', true),
+    content: booleanValue(sections.content, 'manifest sections.content', true),
+    commerce: booleanValue(sections.commerce, 'manifest sections.commerce', true),
+    marketing: booleanValue(sections.marketing, 'manifest sections.marketing', true),
+    analytics: booleanValue(sections.analytics, 'manifest sections.analytics', true),
+    management: booleanValue(sections.management, 'manifest sections.management', true),
+    utilities: booleanValue(sections.utilities, 'manifest sections.utilities', true),
+    ci: booleanValue(sections.ci, 'manifest sections.ci', false),
+    data: {
+      dashboard: booleanValue(data.dashboard, 'manifest sections.data.dashboard', true),
+      activity: booleanValue(data.activity, 'manifest sections.data.activity', true),
+      users: booleanValue(data.users, 'manifest sections.data.users', true),
+      teams: booleanValue(data.teams, 'manifest sections.data.teams', true),
+      subscribers: booleanValue(data.subscribers, 'manifest sections.data.subscribers', true),
+      allModels: booleanValue(data.allModels, 'manifest sections.data.allModels', true),
+    },
+  }
+}
+
+function objectValue(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new TypeError(`${label} must be an object`)
+  return value as Record<string, unknown>
+}
+
+function booleanValue(value: unknown, label: string, fallback: boolean): boolean {
+  if (value === undefined)
+    return fallback
+  if (typeof value !== 'boolean')
+    throw new TypeError(`${label} must be a boolean`)
+  return value
+}
+
+function defaultToggles(): DashboardSectionToggles {
+  return {
+    ...DEFAULT_TOGGLES,
+    data: { ...DEFAULT_DATA_TOGGLES },
+  }
+}
+
+/** Return only the discovered model list for callers that do not need toggles. */
 export function loadDiscoveredModels(): DiscoveredModel[] {
   return loadDiscoveredManifest().models
 }
@@ -259,8 +244,7 @@ export function loadDiscoveredModels(): DiscoveredModel[] {
  * the section already surfaces as a hand-built static row (e.g.
  * `/commerce/customers` already exists, so the Customer model row would
  * just duplicate it).
- */
-/**
+ *
  * The section a model surfaces under, after honouring the model's
  * `dashboard.section` override. When no override is set, falls back to
  * the path-derived category. Returns `undefined` when the model is
@@ -286,7 +270,6 @@ function categoryNavItems(
       to: `/models/${m.id}`,
       icon: m.dashboard?.icon ?? m.icon ?? 'table',
       text: m.dashboard?.label ?? m.name,
-      mpa: true,
       ...(m.dashboard?.roles && m.dashboard.roles.length > 0
         ? { roles: m.dashboard.roles }
         : {}),
@@ -294,29 +277,38 @@ function categoryNavItems(
 }
 
 /**
- * Build the entire sidebar nav HTML. Models are bucketed into the section
- * matching their `category`:
- *   - `userland` / `data` → Data
- *   - `commerce` → Commerce (skipped entirely if disabled in config)
- *   - `content` → Content (skipped if disabled)
- *   - `marketing` → Marketing (skipped if disabled)
- *   - `system` → App
- *
- * Models with a dedicated dashboard page never get a dynamic row.
+ * The sidebar's navigation tree as data: `[sectionKey, sectionLabel, items]`
+ * per section, with all toggle and model logic applied.
  */
-export function buildSidebarNavHtml(
+export function buildNavSections(
   discoveredModels: DiscoveredModel[] = [],
   toggles: DashboardSectionToggles = DEFAULT_TOGGLES,
-): string {
+  appNav: AppNavSection[] = [],
+): Array<[string, string, NavItem[]]> {
   const sections: Array<[string, string, NavItem[]]> = []
 
-  // Library section: views live at the project root (e.g. `/functions`,
-  // `/packages`, `/releases`). The historical `/library/*` URLs in the
-  // sidebar 404'd because no matching files exist under that prefix.
-  // `/components` is dropped — that path is taken by the STX components
-  // directory; there's no dashboard page for it.
+  // Application sections come first. An app that declares its own pages is
+  // saying those are the product; the framework's operational surfaces
+  // (queue, logs, deployments) are support and belong below them.
+  for (const [index, section] of appNav.entries()) {
+    if (section.items.length === 0)
+      continue
+
+    sections.push([`app-nav-${index}`, section.title, section.items.map(item => ({
+      to: item.href,
+      icon: item.icon ?? 'circle',
+      text: item.label,
+      ...(item.roles && item.roles.length > 0 ? { roles: item.roles } : {}),
+    }))])
+  }
+
+  // Library section: the established views live at the project root
+  // (`/functions`, `/packages`, `/releases`). Components use the explicit
+  // `/library/components` path so it does not collide with STX's component
+  // source directory.
   if (toggles.library) {
     sections.push(['library', 'library', [
+      { to: '/library/components', icon: 'layout-table-01', text: 'Components' },
       { to: '/functions', icon: 'function', text: 'Functions' },
       { to: '/releases', icon: 'list-number', text: 'Releases' },
       { to: '/packages', icon: 'package', text: 'Packages' },
@@ -327,6 +319,7 @@ export function buildSidebarNavHtml(
     sections.push(['content', 'content', [
       { to: '/content/dashboard', icon: 'dashboard', text: 'Dashboard' },
       { to: '/content/files', icon: 'files', text: 'Files' },
+      { to: '/content/blog', icon: 'post', text: 'Blog' },
       { to: '/content/pages', icon: 'file', text: 'Pages' },
       { to: '/content/posts', icon: 'post', text: 'Posts' },
       { to: '/content/categories', icon: 'tags', text: 'Categories' },
@@ -346,6 +339,7 @@ export function buildSidebarNavHtml(
   // (`/notifications/dashboard`); the bare `/notifications` redirects.
   sections.push(['app', 'app', [
     { to: '/deployments', icon: 'rocket', text: 'Deployments' },
+    { to: '/operations/scheduler', icon: 'calendar-03', text: 'Operations' },
     { to: '/requests', icon: 'api', text: 'Requests' },
     { to: '/realtime', icon: 'link', text: 'Realtime' },
     { to: '/actions', icon: 'bolt', text: 'Actions' },
@@ -360,6 +354,7 @@ export function buildSidebarNavHtml(
     { to: '/notifications/dashboard', icon: 'bell', text: 'Notifications' },
     { to: '/inbox', icon: 'mail', text: 'Inbox' },
     { to: '/inbox/activity', icon: 'activity', text: 'Mail Activity' },
+    { to: '/inbox/captured', icon: 'mail-send-02', text: 'Captured Mail' },
     { to: '/inbox/settings', icon: 'settings', text: 'Mail Settings' },
     ...categoryNavItems(discoveredModels, 'system', new Set()),
   ]])
@@ -390,7 +385,6 @@ export function buildSidebarNavHtml(
       to: `/models/${m.id}`,
       icon: m.dashboard?.icon ?? m.icon ?? 'table',
       text: m.dashboard?.label ?? m.name,
-      mpa: true,
       ...(m.dashboard?.roles && m.dashboard.roles.length > 0
         ? { roles: m.dashboard.roles }
         : {}),
@@ -423,7 +417,7 @@ export function buildSidebarNavHtml(
         'manufacturer', 'review', 'coupon', 'gift-card', 'payment', 'category',
         'cart', 'cart-item', 'order-item', 'tax-rate',
         'shipping-method', 'shipping-rate', 'shipping-zone',
-        'delivery-route', 'driver', 'license-key', 'digital-delivery',
+        'delivery-route', 'courier', 'license-key', 'digital-delivery',
         'print-device', 'receipt',
         'waitlist-product', 'waitlist-restaurant',
       ])),
@@ -437,7 +431,7 @@ export function buildSidebarNavHtml(
       { to: '/commerce/delivery/shipping-methods', icon: 'truck', text: 'Shipping Methods' },
       { to: '/commerce/delivery/shipping-rates', icon: 'percent', text: 'Shipping Rates' },
       { to: '/commerce/delivery/shipping-zones', icon: 'globe', text: 'Shipping Zones' },
-      { to: '/commerce/delivery/drivers', icon: 'user', text: 'Drivers' },
+      { to: '/commerce/delivery/couriers', icon: 'user', text: 'Couriers' },
       { to: '/commerce/delivery/delivery-routes', icon: 'globe', text: 'Routes' },
       { to: '/commerce/delivery/license-keys', icon: 'lock', text: 'License Keys' },
       { to: '/commerce/delivery/digital-delivery', icon: 'package', text: 'Digital Delivery' },
@@ -460,6 +454,7 @@ export function buildSidebarNavHtml(
   // had no view file at all and is dropped.
   if (toggles.analytics) {
     sections.push(['analytics', 'analytics', [
+      { to: '/analytics', icon: 'dashboard', text: 'Overview' },
       { to: '/analytics/web', icon: 'globe', text: 'Web' },
       { to: '/analytics/pages', icon: 'document', text: 'Top Pages' },
       { to: '/analytics/referrers', icon: 'link', text: 'Referrers' },
@@ -488,17 +483,15 @@ export function buildSidebarNavHtml(
       { to: '/logs', icon: 'log', text: 'Logs' },
       { to: '/health', icon: 'activity', text: 'Health' },
       { to: '/insights', icon: 'star', text: 'Insights' },
-      // Kanban surface (stacksjs/stacks#1846). Role-gated to admin+dev
-      // via data-required-roles; the client filter in useRole() hides
-      // the row for client-role viewers. Permissive default applies on
-      // the localhost dev dashboard.
-      { to: '/kanban', icon: 'table', text: 'Kanban', mpa: true, roles: ['admin', 'dev'] },
+      // Kanban surface (stacksjs/stacks#1846). Role-gated to admin and dev.
+      // The layout's role map hides the row from client-role viewers.
+      { to: '/kanban', icon: 'table', text: 'Kanban', roles: ['admin', 'dev'] },
     ]
-    // CI tracking (stacksjs/stacks#1844) — opt-in via `ci.enabled` in
-    // config/dashboard.ts. The page additionally checks `useRole().isDev()`
-    // (stub for #1843) before rendering.
+    // CI tracking (stacksjs/stacks#1844) - opt-in via `ci.enabled` in
+    // config/dashboard.ts. Keep the row gate aligned with the page's
+    // `useRole().isDev()` check so client-only viewers never get a dead link.
     if (toggles.ci)
-      managementItems.push({ to: '/ci', icon: 'check-circle', text: 'CI' })
+      managementItems.push({ to: '/ci', icon: 'check-circle', text: 'CI', roles: ['dev'] })
     sections.push(['management', 'management', managementItems])
   }
 
@@ -510,28 +503,184 @@ export function buildSidebarNavHtml(
       { to: '/buddy', icon: 'terminal', text: 'Buddy CLI' },
       { to: '/environment', icon: 'settings', text: 'Environment' },
       { to: '/access-tokens', icon: 'lock', text: 'Access Tokens' },
-      { to: '/settings/billing', icon: 'invoice', text: 'Billing' },
+      { to: '/settings', icon: 'settings', text: 'Settings' },
+      { to: '/settings/appearance', icon: 'paintbrush', text: 'Appearance' },
       { to: '/settings/mail', icon: 'mail', text: 'Mail Settings' },
     ]])
   }
 
-  return sections.map(([key, label, items]) => renderSection(key, label, items)).join('')
+  return sections
+}
+
+// ============================================================================
+// macOS web sidebar (@stacksjs/components' <Sidebar theme="macos">)
+// ============================================================================
+
+/**
+ * Navigation icon keys as SF-Symbol-style Iconify classes. The f7 icons
+ * mirror SF Symbols for the macOS web sidebar.
+ */
+const NAV_ICON_CLASSES: Record<string, string> = {
+  'home': 'i-f7-house',
+  'function': 'i-f7-function',
+  'list-number': 'i-f7-list-number',
+  'package': 'i-f7-cube-box',
+  'dashboard': 'i-f7-square-grid-2x2',
+  'files': 'i-f7-folder',
+  'file': 'i-f7-doc',
+  'post': 'i-f7-doc-text',
+  'tags': 'i-f7-tag',
+  'tag': 'i-f7-tag',
+  'comment': 'i-f7-chat-bubble',
+  'user-edit': 'i-f7-person',
+  'seo': 'i-f7-search',
+  'rocket': 'i-f7-rocket',
+  'api': 'i-f7-globe',
+  'link': 'i-f7-link',
+  'bolt': 'i-f7-bolt',
+  'terminal': 'i-f7-chevron-left-slash-chevron-right',
+  'queue': 'i-f7-list-bullet',
+  'briefcase': 'i-f7-briefcase',
+  'clock': 'i-f7-clock',
+  'search': 'i-f7-search',
+  'log': 'i-f7-doc-plaintext',
+  'bell': 'i-f7-bell',
+  'mail': 'i-f7-envelope',
+  'mailbox': 'i-f7-tray',
+  'activity': 'i-f7-waveform',
+  'settings': 'i-f7-gear-alt',
+  'paintbrush': 'i-f7-paintbrush',
+  'users': 'i-f7-person-2',
+  'user': 'i-f7-person',
+  'group': 'i-f7-person-3',
+  'table': 'i-f7-table',
+  'cart': 'i-f7-cart',
+  'check-circle': 'i-f7-checkmark-circle',
+  'cloud': 'i-f7-cloud',
+  'coupon': 'i-f7-ticket',
+  'document': 'i-f7-doc-text',
+  'gift': 'i-f7-gift',
+  'globe': 'i-f7-globe',
+  'globe-search': 'i-f7-globe',
+  'invoice': 'i-f7-money-dollar-circle',
+  'lock': 'i-f7-lock',
+  'list-settings': 'i-f7-list-bullet-below-rectangle',
+  'megaphone': 'i-f7-speaker-2',
+  'orders': 'i-f7-bag',
+  'percent': 'i-f7-percent',
+  'puzzle': 'i-f7-square-on-square',
+  'sale-tag': 'i-f7-tag',
+  'server': 'i-f7-rectangle-stack',
+  'star': 'i-f7-star',
+  'truck': 'i-f7-car-fill',
+  'zap': 'i-f7-bolt',
+}
+
+/** One row for `@stacksjs/components`' <Sidebar :sections>. */
+export interface WebSidebarItem {
+  id: string
+  label: string
+  icon: string
+  /** macOS system color name or CSS color for the icon tint. */
+  iconColor: string
+  href: string
+  roles?: string[]
+}
+
+export interface WebSidebarSection {
+  id: string
+  label: string
+  items: WebSidebarItem[]
+}
+
+/** Stable row id derived from the route (e.g. `/content/posts` → `content-posts`). */
+function navItemId(to: string): string {
+  return to.replace(/^\//, '').replace(/\//g, '-') || 'home'
+}
+
+function titleCase(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 /**
- * Build all three pre-rendered chunks the Sidebar component consumes,
- * in one call. Returned with intentionally-uncommon keys (`top`, `nav`,
- * `bottom`) so they don't collide with auto-imported names that STX's
- * global-scope auto-imports may surface in the component template's
- * lookup chain — that collision was the cause of the previous bug
- * where the rendered output dumped the function source text instead
- * of its return value.
+ * The dashboard navigation shaped for the macOS web sidebar. Reads the
+ * discovered-models manifest synchronously (stx server-script friendly)
+ * and applies the shared section and toggle logic.
  */
-export function buildSidebarChunks(): { top: string, nav: string, bottom: string } {
-  const manifest = loadDiscoveredManifest()
-  return {
-    top: `<a href="/" class="sidebar-link sidebar-link-home"><span class="sidebar-icon">${svg('home')}</span><span>Home</span></a>`,
-    nav: buildSidebarNavHtml(manifest.models, manifest.sections),
-    bottom: `<a href="/settings/billing" class="sidebar-link"><span class="sidebar-icon">${svg('settings')}</span><span>Settings</span></a>`,
+/**
+ * Framework sections name their icons from the map above. App-declared rows
+ * may instead give a full iconify class, which is passed through untouched -
+ * an application should not be limited to the icons the framework happened to
+ * name, and `i-hugeicons-champion` is the spelling its own templates use.
+ */
+function resolveNavIcon(icon: string): string {
+  if (icon.startsWith('i-'))
+    return icon
+
+  return NAV_ICON_CLASSES[icon] ?? NAV_ICON_CLASSES.file!
+}
+
+/**
+ * Read app-declared sections straight from `config/dashboard.ts`.
+ *
+ * The manifest is the primary source, but it is written by the dashboard dev
+ * command - so an app running a published framework older than the `nav` key
+ * would get a manifest without one, and its own pages would stay unreachable.
+ * Reading the config directly also means editing it shows up on the next
+ * reload rather than on the next manifest write.
+ *
+ * `require` rather than `import`: this module is called synchronously from STX
+ * server-script context, and Bun transpiles the TS config on the way in.
+ */
+function loadAppNavFromConfig(configPath = resolve(process.cwd(), 'config/dashboard.ts')): AppNavSection[] {
+  if (!existsSync(configPath))
+    return []
+
+  let config: unknown
+  try {
+    const requireFrom = createRequire(import.meta.url)
+    const loaded = requireFrom(configPath) as { default?: unknown }
+    config = loaded?.default ?? loaded
   }
+  catch {
+    // An unreadable config is the dashboard's problem elsewhere, not the
+    // sidebar's: fall back to the framework sections rather than blanking the
+    // whole navigation.
+    return []
+  }
+
+  // Validation deliberately outside the catch - a malformed `nav` is an
+  // authoring mistake and should say so, not silently render nothing.
+  return normalizeManifestNav((config as { nav?: unknown } | undefined)?.nav)
+}
+
+export function buildWebSidebarSections(): WebSidebarSection[] {
+  const manifest = loadDiscoveredManifest()
+  const appNav = manifest.nav.length > 0 ? manifest.nav : loadAppNavFromConfig()
+  const sections = buildNavSections(manifest.models, manifest.sections, appNav)
+
+  return [
+    {
+      id: 'top',
+      label: '',
+      items: [{ id: 'home', label: 'Home', icon: NAV_ICON_CLASSES.home, iconColor: 'blue', href: '/' }],
+    },
+    ...sections.map(([key, label, items]) => ({
+      id: key,
+      label: titleCase(label),
+      items: items.map(item => ({
+        id: navItemId(item.to),
+        label: item.text,
+        icon: resolveNavIcon(item.icon),
+        iconColor: 'blue',
+        href: item.to,
+        ...(item.roles && item.roles.length > 0 ? { roles: item.roles } : {}),
+      })),
+    })),
+    {
+      id: 'system',
+      label: '',
+      items: [{ id: 'settings', label: 'Settings', icon: NAV_ICON_CLASSES.settings, iconColor: 'blue', href: '/settings' }],
+    },
+  ]
 }

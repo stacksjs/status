@@ -1,0 +1,19 @@
+<script client>
+import type { ProductWaitlistRecord } from '../../../../app/Actions/Dashboard/Commerce/product-waitlist-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as ProductWaitlistRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `${record()?.name || 'This entry'} will be permanently removed from the WaitlistProduct model.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete waitlist entry?"
+  :description="description()"
+  confirmLabel="Delete entry"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

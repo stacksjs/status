@@ -1,0 +1,215 @@
+<script client>
+import { dashboardApi } from '../../../../functions/dashboard-api'
+import { pushToast } from '../../../../functions/toasts'
+
+interface AuthorRecord {
+  id: string
+  name: string
+  email: string
+  bio: string
+  avatar: string
+  postCount: number
+  createdAt: string
+}
+
+interface AuthorDraft {
+  name: string
+  email: string
+  bio: string
+  avatar: string
+}
+
+const authors = state<AuthorRecord[]>([])
+const assignedPostCount = state(0)
+const loading = state(true)
+const loadError = state('')
+const search = state('')
+const formOpen = state(false)
+const editingAuthor = state<AuthorRecord | null>(null)
+const saving = state(false)
+const saveError = state('')
+const deletingAuthor = state<AuthorRecord | null>(null)
+const deleting = state(false)
+const deleteError = state('')
+
+function normalize(record: any): AuthorRecord {
+  return {
+    id: String(record?.id || ''),
+    name: String(record?.name || ''),
+    email: String(record?.email || ''),
+    bio: String(record?.bio || ''),
+    avatar: String(record?.avatar || ''),
+    postCount: Number(record?.postCount || 0),
+    createdAt: String(record?.created_at || ''),
+  }
+}
+
+function visibleAuthors(): AuthorRecord[] {
+  const query = search().trim().toLowerCase()
+  return authors().filter(author => !query || [author.name, author.email, author.bio]
+    .some(value => value.toLowerCase().includes(query)))
+}
+
+function initials(value: string): string {
+  return value.split(/\s+/).filter(Boolean).slice(0, 2)
+    .map(part => part[0]?.toUpperCase() || '').join('') || '?'
+}
+
+function formatDate(value: string): string {
+  if (!value)
+    return 'Unknown'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+}
+
+async function loadAuthors(): Promise<void> {
+  loading.set(true)
+  loadError.set('')
+  try {
+    const data = await dashboardApi<{ authors?: unknown[], assignedPostCount?: number }>('/api/dashboard/authors')
+    if (!Array.isArray(data.authors))
+      throw new TypeError('Authors were not returned in the expected shape.')
+    authors.set(data.authors.map(normalize))
+    assignedPostCount.set(Number(data.assignedPostCount || 0))
+  }
+  catch (error) {
+    loadError.set(error instanceof Error ? error.message : String(error))
+    pushToast('error', 'Could not load authors', { detail: loadError() })
+  }
+  finally {
+    loading.set(false)
+  }
+}
+
+function openCreate(): void {
+  editingAuthor.set(null)
+  saveError.set('')
+  formOpen.set(true)
+}
+
+function openEdit(author: AuthorRecord): void {
+  editingAuthor.set(author)
+  saveError.set('')
+  formOpen.set(true)
+}
+
+function closeForm(): void {
+  if (!saving())
+    formOpen.set(false)
+}
+
+async function saveAuthor(draft: AuthorDraft): Promise<void> {
+  const author = editingAuthor()
+  saving.set(true)
+  saveError.set('')
+  try {
+    await dashboardApi(author ? `/api/dashboard/authors/${author.id}` : '/api/dashboard/authors', {
+      method: author ? 'PATCH' : 'POST',
+      body: draft,
+    })
+    formOpen.set(false)
+    pushToast('success', author ? 'Author updated' : 'Author created')
+    await loadAuthors()
+  }
+  catch (error) {
+    saveError.set(error instanceof Error ? error.message : String(error))
+  }
+  finally {
+    saving.set(false)
+  }
+}
+
+function openDelete(author: AuthorRecord): void {
+  deletingAuthor.set(author)
+  deleteError.set('')
+}
+
+function closeDelete(): void {
+  if (!deleting())
+    deletingAuthor.set(null)
+}
+
+function deleteDescription(): string {
+  const author = deletingAuthor()
+  return author
+    ? `${author.name} will be removed. Their posts will be kept without an assigned author.`
+    : ''
+}
+
+async function deleteAuthor(): Promise<void> {
+  const author = deletingAuthor()
+  if (!author)
+    return
+  deleting.set(true)
+  deleteError.set('')
+  try {
+    await dashboardApi(`/api/dashboard/authors/${author.id}`, { method: 'DELETE' })
+    deletingAuthor.set(null)
+    pushToast('success', 'Author deleted')
+    await loadAuthors()
+  }
+  catch (error) {
+    deleteError.set(error instanceof Error ? error.message : String(error))
+  }
+  finally {
+    deleting.set(false)
+  }
+}
+
+onMount(() => {
+  void loadAuthors()
+})
+</script>
+
+<div class="space-y-6">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <p class="font-semibold text-blue-600 text-xs tracking-wide uppercase dark:text-blue-400">CMS</p>
+      <h1 class="mt-1 font-bold text-2xl text-gray-900 dark:text-white">Authors</h1>
+      <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Manage persisted authors and their post assignments.</p>
+    </div>
+    <div class="flex gap-2">
+      <Button :loading="loading()" variant="secondary" @click="loadAuthors()"><span :if="!loading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>Refresh</Button>
+      <Button @click="openCreate()"><span aria-hidden="true" class="h-4 w-4 i-hugeicons-add-01"></span>New author</Button>
+    </div>
+  </header>
+
+  <div :if="loadError()" role="alert" class="flex gap-4 items-center justify-between p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900"><span>{{ loadError() }}</span><Button variant="secondary" size="sm" @click="loadAuthors()">Retry</Button></div>
+
+  <section aria-label="Author metrics" class="grid gap-3 sm:grid-cols-3">
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Total</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ authors().length }}</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Assigned posts</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ assignedPostCount() }}</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Newest</p><p class="mt-2 font-semibold text-gray-900 text-lg truncate dark:text-white">{{ authors()[0]?.name || 'None' }}</p></article>
+  </section>
+
+  <section class="overflow-hidden bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700">
+    <div class="p-4 border-b border-gray-200 dark:border-neutral-700"><label><span class="sr-only">Search authors</span><input x-model="search" type="search" placeholder="Search authors" class="px-3 py-2 max-w-md w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label></div>
+    <div class="overflow-x-auto"><table class="min-w-full divide-gray-200 divide-y dark:divide-neutral-700"><thead class="bg-gray-50 dark:bg-neutral-900/50"><tr><th class="px-4 py-3 font-semibold text-gray-600 text-left text-xs dark:text-neutral-300">Author</th><th class="px-4 py-3 font-semibold text-gray-600 text-left text-xs dark:text-neutral-300">Posts</th><th class="px-4 py-3 font-semibold text-gray-600 text-left text-xs dark:text-neutral-300">Created</th><th class="px-4 py-3"><span class="sr-only">Actions</span></th></tr></thead><tbody class="divide-gray-200 divide-y dark:divide-neutral-700">
+      <template :if="loading()"><tr><td colspan="4" class="px-4 py-12 text-center text-gray-500 text-sm dark:text-neutral-400"><span class="inline-block mr-2 h-4 w-4 animate-spin i-hugeicons-loading-03"></span>Loading authors</td></tr></template>
+      <template :else-if="visibleAuthors().length === 0"><tr><td colspan="4" class="px-4 py-14 text-center"><span class="inline-block h-6 w-6 text-gray-400 i-hugeicons-user-group"></span><p class="mt-2 font-medium text-gray-900 text-sm dark:text-white">No authors found</p><p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Adjust the search or create an author.</p></td></tr></template>
+      <template :else><template :for="author in visibleAuthors()"><tr><td class="px-4 py-3"><div class="flex gap-3 items-center"><div class="flex overflow-hidden flex-shrink-0 items-center justify-center h-9 w-9 font-semibold text-blue-700 text-xs dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 rounded-full"><img :if="author.avatar" :src="author.avatar" :alt="author.name" class="object-cover h-full w-full" /><span :else>{{ initials(author.name) }}</span></div><div class="min-w-0"><p class="font-medium text-gray-900 text-sm truncate dark:text-white">{{ author.name }}</p><p class="text-gray-500 text-xs truncate dark:text-neutral-400">{{ author.email }}</p></div></div></td><td class="px-4 py-3 text-gray-500 text-sm dark:text-neutral-400">{{ author.postCount }}</td><td class="px-4 py-3 text-gray-500 text-sm dark:text-neutral-400">{{ formatDate(author.createdAt) }}</td><td class="px-4 py-3"><div class="flex justify-end"><Button variant="ghost" size="sm" iconOnly :ariaLabel="'Edit author ' + author.name" @click="openEdit(author)"><span class="block h-4 w-4 text-blue-500 i-hugeicons-edit-02"></span></Button><Button variant="ghost" size="sm" iconOnly :ariaLabel="'Delete author ' + author.name" @click="openDelete(author)"><span class="block h-4 w-4 text-red-500 i-hugeicons-delete-02"></span></Button></div></td></tr></template></template>
+    </tbody></table></div>
+  </section>
+</div>
+
+<AuthorEditorDialog
+  :open="formOpen()"
+  :author="editingAuthor()"
+  :busy="saving()"
+  :error="saveError()"
+  @close="closeForm"
+  @submit="saveAuthor"
+/>
+
+<ConfirmDialog
+  :isOpen="Boolean(deletingAuthor())"
+  title="Delete author?"
+  :description="deleteDescription()"
+  confirmLabel="Delete author"
+  :busy="deleting()"
+  :error="deleteError()"
+  @close="closeDelete"
+  @confirm="deleteAuthor"
+/>

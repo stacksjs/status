@@ -2,7 +2,7 @@
   "publisher": "Stacks",
   "name": "vscode-stacks",
   "displayName": "Stacks",
-  "version": "0.70.45",
+  "version": "0.74.0",
   "description": "A modern Stacks development environment.",
   "license": "MIT",
   "funding": "https://github.com/sponsors/chrisbbreuer",
@@ -29,6 +29,9 @@
   ],
   "icon": "logo.png",
   "files": [
+    ".vscode/extensions.json",
+    ".vscode/settings.json",
+    ".vscode/stacks.code-snippets",
     "LICENSE.md",
     "logo.png"
   ],
@@ -42,6 +45,17 @@
   "galleryBanner": {
     "color": "#d7e4f5",
     "theme": "light"
+  },
+  "contributes": {
+    "configurationDefaults": {
+      "files.associations": {
+        "buddy": "typescript",
+        "*.stx": "html"
+      },
+      "npm.packageManager": "bun",
+      "typescript.preferGoToSourceDefinition": true,
+      "typescript.tsdk": "node_modules/typescript/lib"
+    }
   },
   "extensionPack": [
     "dotenv.dotenvx-vscode",
@@ -57,8 +71,7 @@
     "nhoizey.gremlins",
     "Orta.vscode-twoslash-queries",
     "oven.bun-vscode",
-    "streetsidesoftware.code-spell-checker",
-    "vue.volar"
+    "streetsidesoftware.code-spell-checker"
   ],
   "devDependencies": {
     "@vscode/vsce": "^3.7.2-12"

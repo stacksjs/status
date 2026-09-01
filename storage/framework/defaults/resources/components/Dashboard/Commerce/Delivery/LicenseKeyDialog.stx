@@ -1,0 +1,160 @@
+<script client>
+type LicenseKeyStatus = 'active' | 'inactive' | 'unassigned'
+
+interface LicenseKeyOption {
+  id: number
+  label: string
+  detail?: string
+}
+
+interface LicenseKeyOptions {
+  customers: LicenseKeyOption[]
+  products: LicenseKeyOption[]
+  orders: LicenseKeyOption[]
+}
+
+interface LicenseKeyRecord {
+  id: number
+  key: string
+  template: string
+  customer_id?: number | null
+  product_id?: number | null
+  order_id?: number | null
+  expiry_date: string
+  status: LicenseKeyStatus
+}
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'create')
+const record = useReactiveProp('record', null as LicenseKeyRecord | null)
+const options = useReactiveProp('options', {
+  customers: [],
+  products: [],
+  orders: [],
+} as LicenseKeyOptions)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const keyValue = state('')
+const templateValue = state('Standard License')
+const customerId = state('')
+const productId = state('')
+const orderId = state('')
+const expiryDate = state('')
+const status = state<LicenseKeyStatus>('unassigned')
+let hydrationKey = ''
+
+function toDateTimeLocal(value?: string): string {
+  if (!value)
+    return ''
+  const timestamp = /^\d{10,13}$/.test(value)
+    ? Number(value) * (value.length === 10 ? 1000 : 1)
+    : value.replace(' ', 'T')
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime()))
+    return ''
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
+
+function toUnixTimestamp(value: string): number {
+  return Math.floor(new Date(value).getTime() / 1000)
+}
+
+function defaultExpiry(): string {
+  const date = new Date()
+  date.setFullYear(date.getFullYear() + 1)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const nextKey = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === nextKey)
+    return
+  hydrationKey = nextKey
+  keyValue.set(current?.key || '')
+  templateValue.set(current?.template || 'Standard License')
+  customerId.set(current?.customer_id ? String(current.customer_id) : '')
+  productId.set(current?.product_id ? String(current.product_id) : '')
+  orderId.set(current?.order_id ? String(current.order_id) : '')
+  expiryDate.set(toDateTimeLocal(current?.expiry_date) || defaultExpiry())
+  status.set(current?.status || 'unassigned')
+})
+
+function relationId(value: string): number | null {
+  const id = Number(value)
+  return value && Number.isInteger(id) && id > 0 ? id : null
+}
+
+function generateKey(): void {
+  const bytes = new Uint8Array(20)
+  crypto.getRandomValues(bytes)
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const characters = Array.from(bytes, value => alphabet[value % alphabet.length])
+  keyValue.set(Array.from({ length: 5 }, (_, index) => characters.slice(index * 4, index * 4 + 4).join('')).join('-'))
+}
+
+function submit(): void {
+  const normalizedKey = keyValue().trim().toUpperCase()
+  if (!/^[A-Z0-9]{4}(?:-[A-Z0-9]{4}){4}$/.test(normalizedKey)) {
+    emit('invalid', 'License key must use five groups of four uppercase letters or numbers.')
+    return
+  }
+  if (!expiryDate()) {
+    emit('invalid', 'Expiry date is required.')
+    return
+  }
+
+  emit('submit', {
+    key: normalizedKey,
+    template: templateValue(),
+    customerId: relationId(customerId()),
+    productId: relationId(productId()),
+    orderId: relationId(orderId()),
+    expiryDate: toUnixTimestamp(expiryDate()),
+    status: status(),
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit license key' : 'Add license key'"
+  description="Generate a unique key and optionally assign its customer, product, and order relationships."
+  size="lg"
+  @close="emit('close')"
+>
+    <form id="license-key-form" @submit.prevent="submit()">
+        <div :if="error()" class="mb-5 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+
+        <div class="space-y-4">
+          <div>
+            <label for="license-key-value" class="font-medium text-gray-700 text-sm dark:text-neutral-200">License key</label>
+            <span class="flex gap-2 mt-1">
+              <input id="license-key-value" x-model="keyValue" type="text" required maxlength="24" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" class="flex-1 px-3 py-2 min-w-0 font-mono text-gray-900 text-sm uppercase dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+              <Button variant="secondary" @click="generateKey()">Generate</Button>
+            </span>
+          </div>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Template</span><select x-model="templateValue" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="Standard License">Standard License</option><option value="Premium License">Premium License</option><option value="Enterprise License">Enterprise License</option></select></label>
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Customer</span><select x-model="customerId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned</option><template :for="option in options().customers" :key="option.id"><option :value="option.id">{{ option.label }}{{ option.detail ? ' - ' + option.detail : '' }}</option></template></select></label>
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Product</span><select x-model="productId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned</option><template :for="option in options().products" :key="option.id"><option :value="option.id">{{ option.label }}</option></template></select></label>
+          </div>
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Order</span><select x-model="orderId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned</option><template :for="option in options().orders" :key="option.id"><option :value="option.id">{{ option.label }}{{ option.detail ? ' - ' + option.detail : '' }}</option></template></select></label>
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Expiry date</span><input x-model="expiryDate" type="datetime-local" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          </div>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span><select x-model="status" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="unassigned">Unassigned</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button :disabled="busy()" variant="secondary" @click="emit('close')">Cancel</Button>
+      <Button type="submit" form="license-key-form" :loading="busy()">{{ mode() === 'edit' ? 'Save changes' : 'Add key' }}</Button>
+    </div>
+  </template>
+</Modal>

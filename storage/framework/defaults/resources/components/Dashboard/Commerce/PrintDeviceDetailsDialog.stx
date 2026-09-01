@@ -1,0 +1,65 @@
+<script client>
+import type { PrintDeviceRecord } from '../../../../app/Actions/Dashboard/Commerce/print-device-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as PrintDeviceRecord | null)
+const emit = defineEmits()
+
+function formatDate(value: number | string): string {
+  if (!value)
+    return 'Not recorded'
+  const source = typeof value === 'string' && /^\d{4}-\d{2}-\d{2} \d/.test(value)
+    ? `${value.replace(' ', 'T')}Z`
+    : value
+  const date = new Date(source)
+  return Number.isNaN(date.getTime())
+    ? 'Not recorded'
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'long' }).format(date)
+}
+
+function label(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Not recorded'
+}
+
+function editRecord(): void {
+  const current = record()
+  if (!current)
+    return
+  emit('edit', current)
+  emit('close')
+}
+
+function deleteRecord(): void {
+  const current = record()
+  if (!current)
+    return
+  emit('delete', current)
+  emit('close')
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="record()?.name || 'Print device'"
+  :description="record()?.macAddress || 'No MAC address recorded'"
+  size="md"
+  @close="emit('close')"
+>
+  <template #header-trailing>
+    <span class="px-2 py-1 capitalize font-semibold text-gray-700 text-xs dark:text-neutral-200 bg-gray-100 dark:bg-neutral-700 rounded-full">{{ label(record()?.status || '') }}</span>
+  </template>
+      <dl class="grid gap-4 grid-cols-2">
+        <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Location</dt><dd class="mt-1 text-gray-900 text-sm dark:text-white">{{ record()?.location || 'Not recorded' }}</dd></div>
+        <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Terminal</dt><dd class="mt-1 font-mono text-gray-900 text-sm dark:text-white">{{ record()?.terminal || 'Not recorded' }}</dd></div>
+        <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Recorded prints</dt><dd class="mt-1 font-mono text-gray-900 text-sm dark:text-white">{{ (record()?.printCount || 0).toLocaleString() }}</dd></div>
+        <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Record ID</dt><dd class="mt-1 font-mono text-gray-900 text-sm dark:text-white">{{ record()?.id || 'Not recorded' }}</dd></div>
+        <div class="col-span-2"><dt class="text-gray-400 text-xs dark:text-neutral-500">Last heartbeat</dt><dd class="mt-1 text-gray-900 text-sm dark:text-white">{{ formatDate(record()?.lastPing || 0) }}</dd></div>
+        <div class="col-span-2"><dt class="text-gray-400 text-xs dark:text-neutral-500">Created</dt><dd class="mt-1 text-gray-900 text-sm dark:text-white">{{ formatDate(record()?.createdAt || '') }}</dd></div>
+      </dl>
+  <template #footer>
+    <div class="flex gap-2 justify-between w-full">
+      <Button variant="danger" @click="deleteRecord()">Delete</Button>
+      <div class="flex gap-2"><Button variant="secondary" @click="emit('close')">Close</Button><Button @click="editRecord()">Edit printer</Button></div>
+    </div>
+  </template>
+</Modal>

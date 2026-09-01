@@ -49,7 +49,7 @@ export default class QueryController extends Controller {
           db.fn.count('id').as('count'),
         ])
         .where('status', '=', 'slow')
-        .where('executed_at', '>=', sql`datetime("now", "-1 day")` as any)
+        .whereRaw(sql`executed_at >= datetime("now", "-1 day")`)
         .groupBy(sql`strftime("%Y-%m-%d %H:00:00", executed_at)`)
         .orderBy('hour')
         .execute()
@@ -84,8 +84,39 @@ export default class QueryController extends Controller {
     search = '',
   }) {
     try {
-      let query = db
-        .selectFrom('query_logs')
+      // The wrapped builder is mutable: every chained call rewrites the
+      // same statement text, so a count projection would clobber the
+      // data projection on a shared instance. Route both queries
+      // through one filter helper over independent builders instead.
+      const applyFilters = (q: any): any => {
+        if (connection !== 'all')
+          q = q.where('connection', '=', connection)
+
+        if (status !== 'all')
+          q = q.where('status', '=', status as any)
+
+        if (type !== 'all')
+          q = q.where('tags', 'like', `%"${type}"%`)
+
+        if (search) {
+          // Parenthesized OR-group with bound parameters.
+          q = q.whereAny(['query', 'model', 'method', 'affected_tables'], 'like', `%${search}%`)
+        }
+
+        return q
+      }
+
+      // Get total count for pagination
+      const totalResult = await applyFilters(db.selectFrom('query_logs'))
+        .select(db.fn.count('id').as('count'))
+        .executeTakeFirstOrThrow()
+      const total = Number(totalResult.count)
+
+      // Apply pagination
+      const offset = (page - 1) * perPage
+
+      // Execute paginated query
+      const results = await applyFilters(db.selectFrom('query_logs'))
         .select([
           'id',
           'query',
@@ -100,37 +131,9 @@ export default class QueryController extends Controller {
           'tags',
         ])
         .orderBy('executed_at', 'desc')
-
-      // Apply filters
-      if (connection !== 'all')
-        query = query.where('connection', '=', connection)
-
-      if (status !== 'all')
-        query = query.where('status', '=', status as any)
-
-      if (type !== 'all')
-        query = query.where('tags', 'like', `%"${type}"%`)
-
-      if (search) {
-        query = query.where(eb => eb.or([
-          eb('query', 'like', `%${search}%`),
-          eb('model', 'like', `%${search}%`),
-          eb('method', 'like', `%${search}%`),
-          eb('affected_tables', 'like', `%${search}%`),
-        ]))
-      }
-
-      // Get total count for pagination
-      const countQuery = query.$call(q => q.select(db.fn.count('id').as('count')))
-      const totalResult = await countQuery.executeTakeFirstOrThrow()
-      const total = Number(totalResult.count)
-
-      // Apply pagination
-      const offset = (page - 1) * perPage
-      query = query.limit(perPage).offset(offset)
-
-      // Execute paginated query
-      const results = await query.execute()
+        .limit(perPage)
+        .offset(offset)
+        .execute()
 
       return {
         data: results,
@@ -163,8 +166,29 @@ export default class QueryController extends Controller {
       if (slowThreshold < 0)
         slowThreshold = config.database?.queryLogging?.slowThreshold || 100
 
-      let query = db
-        .selectFrom('query_logs')
+      // Mutable builder: see getRecentQueries for why count and data
+      // queries are independent builders sharing one filter helper.
+      const applyFilters = (q: any): any => {
+        q = q.where('duration', '>=', slowThreshold)
+
+        if (connection !== 'all')
+          q = q.where('connection', '=', connection)
+
+        if (search) {
+          q = q.whereAny(['query', 'model', 'method', 'affected_tables'], 'like', `%${search}%`)
+        }
+
+        return q
+      }
+
+      const totalResult = await applyFilters(db.selectFrom('query_logs'))
+        .select(db.fn.count('id').as('count'))
+        .executeTakeFirstOrThrow()
+      const total = Number(totalResult.count)
+
+      const offset = (page - 1) * perPage
+
+      const results = await applyFilters(db.selectFrom('query_logs'))
         .select([
           'id',
           'query',
@@ -181,29 +205,10 @@ export default class QueryController extends Controller {
           'indexes_used',
           'missing_indexes',
         ])
-        .where('duration', '>=', slowThreshold)
         .orderBy('duration', 'desc')
-
-      if (connection !== 'all')
-        query = query.where('connection', '=', connection)
-
-      if (search) {
-        query = query.where(eb => eb.or([
-          eb('query', 'like', `%${search}%`),
-          eb('model', 'like', `%${search}%`),
-          eb('method', 'like', `%${search}%`),
-          eb('affected_tables', 'like', `%${search}%`),
-        ]))
-      }
-
-      const countQuery = query.$call(q => q.select(db.fn.count('id').as('count')))
-      const totalResult = await countQuery.executeTakeFirstOrThrow()
-      const total = Number(totalResult.count)
-
-      const offset = (page - 1) * perPage
-      query = query.limit(perPage).offset(offset)
-
-      const results = await query.execute()
+        .limit(perPage)
+        .offset(offset)
+        .execute()
 
       return {
         data: results,
@@ -237,8 +242,15 @@ export default class QueryController extends Controller {
         throw new Error('Query not found')
 
       // Parse JSON fields (safely — data may be corrupted)
-      const safeParse = (val: string | null | undefined, fallback: any = []) => {
-        if (!val) return fallback
+      /*
+       * The row's fields arrive `unknown` - the query builder has no schema for
+       * this table - so this takes what it is given and decides. Reading a JSON
+       * column is exactly the place a value has to be checked rather than
+       * trusted: it is text somebody else wrote.
+       */
+      const safeParse = (val: unknown, fallback: unknown = []): unknown => {
+        if (typeof val !== 'string' || !val)
+          return fallback
         try { return JSON.parse(val) }
         catch { return fallback }
       }
@@ -289,11 +301,15 @@ export default class QueryController extends Controller {
       let query = db
         .selectFrom('query_logs')
         .select([
-          sql`strftime("${interval}", executed_at)`.as('time_interval'),
+          // `interval` and `timeConstraint` are chosen from the fixed set a
+          // few lines above, never from the request, so interpolating them
+          // into the fragment is safe. `sql.literal` does not exist on this
+          // tag, which is what made this a type error.
+          sql`strftime('${interval}', executed_at)`.as('time_interval'),
           db.fn.count('id').as('count'),
           db.fn.avg('duration').as('avg_duration'),
         ])
-        .where('executed_at', '>=', sql`datetime("now", "${timeConstraint}")` as any)
+        .whereRaw(sql`executed_at >= datetime("now", '${timeConstraint}')`)
         .groupBy('time_interval')
         .orderBy('time_interval')
 
@@ -340,7 +356,33 @@ export default class QueryController extends Controller {
         .limit(10)
         .execute()
 
-      return results
+      /*
+       * An aggregate select's rows are named by its aliases rather than by the
+       * table, so they arrive unknown-valued. Read out here, once, rather than
+       * asserted: `count` really can be a string, a number or a bigint
+       * depending on the driver, which is why the return type says so.
+       */
+      /*
+       * Annotated rather than inferred.
+       *
+       * `results` comes back from an aggregate select, whose rows are named by
+       * their aliases rather than by the table, so each row is
+       * `Record<string, unknown>` - and the mapped literal collapses to the
+       * same thing rather than to the shape this method promises. Naming the
+       * element type is what makes the compiler check the mapping against the
+       * signature instead of widening past it.
+       */
+      return results.map((row): {
+        normalized_query: string
+        count: string | number | bigint
+        avg_duration: string | number
+        max_duration: number | undefined
+      } => ({
+        normalized_query: String(row.normalized_query ?? ''),
+        count: (typeof row.count === 'number' || typeof row.count === 'bigint' ? row.count : String(row.count ?? '0')),
+        avg_duration: (typeof row.avg_duration === 'number' ? row.avg_duration : String(row.avg_duration ?? '0')),
+        max_duration: typeof row.max_duration === 'number' ? row.max_duration : undefined,
+      }))
     }
     catch (error: unknown) {
       const err = error as Error
@@ -355,13 +397,16 @@ export default class QueryController extends Controller {
     try {
       const retentionDays = config.database?.queryLogging?.retention || 7
 
-      const result = await db
-        .deleteFrom('query_logs')
-        .where('executed_at', '<', sql`datetime("now", "-${retentionDays} day")` as any)
-        .executeTakeFirst()
+      // Parameterized via db.unsafe: the delete builder can neither
+      // bind a datetime() expression nor render raw WHERE fragments.
+      const statement = await (db as any).unsafe(
+        `DELETE FROM query_logs WHERE executed_at < datetime("now", ?)`,
+        [`-${retentionDays} day`],
+      )
+      const result = typeof statement?.execute === 'function' ? await statement.execute() : statement
 
       return {
-        pruned: result.numDeletedRows,
+        pruned: Number(result?.changes ?? result?.numDeletedRows ?? 0),
         retentionDays,
       }
     }

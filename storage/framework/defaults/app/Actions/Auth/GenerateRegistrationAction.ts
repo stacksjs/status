@@ -1,5 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { generateRegistrationOptions, getUserPasskeys, storeWebAuthnChallenge } from '@stacksjs/auth'
+import { generateRegistrationOptions, getUserPasskeys, passkeyDescriptors, storeWebAuthnChallenge } from '@stacksjs/auth'
 import { config } from '@stacksjs/config'
 
 export default new Action({
@@ -30,12 +30,17 @@ export default new Action({
     const options = await generateRegistrationOptions({
       rpName,
       rpID,
+      // The WebAuthn user handle. It was omitted entirely, and the generator
+      // does `new TextEncoder().encode(options.userID)` - so every passkey was
+      // registered against the handle "undefined", the same one for every
+      // user. `storePasskey` records the email as `webauthn_user_id`, so the
+      // email is the handle the two halves have to agree on.
+      userID: userEmail,
       userName: userEmail,
       attestationType: 'none',
-      excludeCredentials: userPasskeys.map(passkey => ({
-        id: passkey.id,
-        transports: ['internal'],
-      })),
+      // See `passkeyDescriptors` for the JSON-vs-ArrayBuffer boundary; since
+      // ts-auth 0.4.4 the descriptor type accepts the base64url id directly.
+      excludeCredentials: passkeyDescriptors(userPasskeys),
       authenticatorSelection: {
         residentKey: 'preferred',
         userVerification: 'preferred',

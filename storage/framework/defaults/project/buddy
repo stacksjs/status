@@ -1,0 +1,209 @@
+#!/bin/sh
+set -e
+
+ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+PANTRY_LOCAL_BIN="${ROOT_DIR}/pantry/.bin"
+PANTRY_DIR="${ROOT_DIR}/pantry"
+USER_LOCAL_BIN="${HOME}/.local/bin"
+PANTRY_INSTALLER="${ROOT_DIR}/storage/framework/scripts/pantry-install"
+PANTRY_BOOTSTRAP_TIMEOUT_SECONDS="${PANTRY_BOOTSTRAP_TIMEOUT_SECONDS:-600}"
+PANTRY_DEPENDENCIES_TIMEOUT_SECONDS="${PANTRY_DEPENDENCIES_TIMEOUT_SECONDS:-1200}"
+
+# Resolve which CLI entrypoint to invoke. Resolution order matches the
+# action-runner fallback chain in `@stacksjs/actions`:
+#
+#   1. `storage/framework/core/buddy/src/cli.ts`  — userland override (legacy
+#      "framework lives in the project" layout). Kept FIRST so projects that
+#      have published buddy via `buddy publish:core buddy` still win.
+#   2. `<deps>/@stacksjs/buddy/src/cli.ts`  — installed package, TS source
+#      (workspace symlink or a real npm install with `src/` shipped).
+#   3. `<deps>/@stacksjs/buddy/dist/cli.js` — published JS-only build.
+#
+# `<deps>` is node_modules or pantry: an app installed with pantry has no
+# node_modules at all, so a node_modules-only list finds nothing and the shim
+# refuses to run the CLI that is sitting right there in ./pantry.
+#
+# If none of these are present the script bails with a clear message instead
+# of `bun` exploding on a missing file.
+resolve_buddy_entry() {
+  for candidate in \
+    "${ROOT_DIR}/storage/framework/core/buddy/src/cli.ts" \
+    "${ROOT_DIR}/node_modules/@stacksjs/buddy/src/cli.ts" \
+    "${ROOT_DIR}/node_modules/@stacksjs/buddy/dist/cli.js" \
+    "${PANTRY_DIR}/@stacksjs/buddy/src/cli.ts" \
+    "${PANTRY_DIR}/@stacksjs/buddy/dist/cli.js" \
+  ; do
+    if [ -f "${candidate}" ]; then
+      echo "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if ! BUDDY_ENTRY=$(resolve_buddy_entry); then
+  echo "buddy: could not locate CLI entrypoint." >&2
+  echo "  Tried: storage/framework/core/buddy/src/cli.ts, {node_modules,pantry}/@stacksjs/buddy/{src/cli.ts,dist/cli.js}." >&2
+  echo "  Run \`bun install\` (or \`pantry install\`), or \`buddy publish:core buddy\`, to make the CLI available." >&2
+  exit 1
+fi
+
+run_with_timeout() {
+  timeout_seconds="$1"
+  shift
+  timeout_flag="${TMPDIR:-/tmp}/buddy-timeout-$$"
+  rm -f "${timeout_flag}"
+
+  "$@" &
+  cmd_pid=$!
+
+  (
+    # Do not let the timer inherit the deployment lock or a caller's
+    # stdout/stderr pipe. If the
+    # watchdog shell is terminated after the command finishes, its sleep may
+    # briefly remain orphaned; inherited deploy descriptors would otherwise
+    # keep the release locked until the full timeout elapsed.
+    exec 9>&-
+    sleep "${timeout_seconds}" </dev/null >/dev/null 2>&1
+
+    if kill -0 "${cmd_pid}" 2>/dev/null; then
+      echo "Command timed out after ${timeout_seconds}s: $*" >&2
+      : > "${timeout_flag}"
+      kill "${cmd_pid}" 2>/dev/null || true
+      sleep 2
+      kill -9 "${cmd_pid}" 2>/dev/null || true
+    fi
+  ) &
+  watchdog_pid=$!
+
+  wait "${cmd_pid}"
+  status=$?
+
+  kill "${watchdog_pid}" 2>/dev/null || true
+  wait "${watchdog_pid}" 2>/dev/null || true
+
+  if [ -f "${timeout_flag}" ]; then
+    rm -f "${timeout_flag}"
+    return 124
+  fi
+
+  rm -f "${timeout_flag}"
+  return "${status}"
+}
+
+is_usable_bun() {
+  [ -x "$1" ] && sh -c '"$1" --version >/dev/null 2>&1' sh "$1" 2>/dev/null
+}
+
+# Run buddy with the correct PATH and NODE_PATH for pantry resolution.
+run_buddy() {
+  BUN_CMD="$1"
+  shift
+
+  # When the framework SOURCE is vendored here (storage/framework/core) AND the
+  # installed @stacksjs/* packages actually ship src (a workspace/source-linked
+  # checkout), resolve them from src via the `development` export condition so the
+  # monorepo runs build-free (a fresh checkout has no dist yet).
+  #
+  # Guard on a representative package having src: an app that vendors the core but
+  # installs the PUBLISHED (dist-only) packages has no src, so the `development`
+  # condition would resolve to ./src/* files that were never shipped (`error:
+  # preload not found "@stacksjs/env/plugin.js"`, then Cannot-find-module for
+  # every other import). In that case omit the flag and let bun/import/default
+  # resolve the dist.
+  # The probe has to look wherever this project actually installs: pantry-only
+  # apps have no node_modules, so a node_modules-only probe reports "no src"
+  # for a vendored checkout and drops the flag — and then every import resolves
+  # to a ./dist the vendored source has never built.
+  CONDITIONS=""
+  if [ -d "${ROOT_DIR}/storage/framework/core" ] \
+    && { [ -f "${ROOT_DIR}/node_modules/@stacksjs/env/src/index.ts" ] || [ -f "${PANTRY_DIR}/@stacksjs/env/src/index.ts" ]; }; then
+    CONDITIONS="--conditions development"
+  fi
+
+  # Installed dependencies are authoritative; Pantry is a fallback for tools
+  # the app does not install. Keeping node_modules first prevents a stale local
+  # Pantry snapshot from changing migrations, builds, or production commands.
+  #
+  # Add Pantry only once it holds packages. An empty (or absent) directory on
+  # NODE_PATH is what a half-finished bootstrap leaves behind, and pointing at
+  # it buys nothing; a directory with packages in it is the whole module root
+  # for a pantry-installed app, and leaving it off is what makes `buddy` die on
+  # `Cannot find module '@stacksjs/env'` from a preload.
+  if [ -d "${PANTRY_DIR}" ] && [ -n "$(ls -A "${PANTRY_DIR}" 2>/dev/null)" ]; then
+    exec env PATH="${PANTRY_LOCAL_BIN}:${USER_LOCAL_BIN}:${PATH}" NODE_PATH="${ROOT_DIR}/node_modules:${PANTRY_DIR}${NODE_PATH:+:${NODE_PATH}}" "${BUN_CMD}" ${CONDITIONS} "${BUDDY_ENTRY}" "$@"
+  fi
+  exec env PATH="${PANTRY_LOCAL_BIN}:${USER_LOCAL_BIN}:${PATH}" "${BUN_CMD}" ${CONDITIONS} "${BUDDY_ENTRY}" "$@"
+}
+
+# Fast path: if pantry is already set up, run immediately. We deliberately
+# DO NOT run `pantry install` here — re-installing on every invocation
+# burned ~1s of `buddy --help` startup time (and made shell completion
+# unusable). Once the pantry directory exists and a bun is on PATH, we
+# trust that state until the user explicitly runs `bun install` or
+# `buddy install`. To force a refresh, set STACKS_FORCE_PANTRY=1.
+if is_usable_bun "${PANTRY_LOCAL_BIN}/bun" && [ "${STACKS_FORCE_PANTRY:-}" != "1" ]; then
+  run_buddy "${PANTRY_LOCAL_BIN}/bun" "$@"
+fi
+
+if [ -d "${PANTRY_DIR}" ] && command -v bun >/dev/null 2>&1 && [ "${STACKS_FORCE_PANTRY:-}" != "1" ]; then
+  run_buddy "$(command -v bun)" "$@"
+fi
+
+# A bun on PATH is enough. Pantry exists to PROVIDE a runtime and system
+# dependencies where none are installed; when the machine already has bun, there
+# is nothing for it to do here and bootstrapping one costs a great deal.
+#
+# This used to also require the pantry installer to be absent, which made the
+# check "is this a node_modules app" rather than "can we already run". Any
+# project shipping storage/framework/scripts/ therefore bootstrapped a
+# per-project pantry on first `./buddy` — including on a production box during
+# deploy, where it installed its own PostgreSQL into the release and prepended
+# that bin directory to PATH. Those binaries shadowed the box's working
+# wrappers and could not load libpq, so `db:backup` and `migrate` both died with
+# `error while loading shared libraries: libpq.so.5` on a machine whose psql had
+# been working the whole time.
+#
+# Provisioning system dependencies stays an explicit act: `pantry install`, or
+# `buddy install`.
+if command -v bun >/dev/null 2>&1 && [ "${STACKS_FORCE_PANTRY:-}" != "1" ]; then
+  run_buddy "$(command -v bun)" "$@"
+fi
+
+# Pantry not set up (or an earlier bootstrap died halfway) - bootstrap it.
+# Every step is failure-tolerant on purpose: a pantry download/install hiccup
+# (a registry outage, or an unpublished release winning the race against CI)
+# must not abort this script under `set -e` before the bun fallbacks below
+# run. With a bun on PATH and node_modules present, the CLI runs identically
+# without pantry.
+pantry_bootstrap_failed=0
+if ! command -v pantry >/dev/null 2>&1; then
+  if [ -x "${PANTRY_INSTALLER}" ]; then
+    run_with_timeout "${PANTRY_BOOTSTRAP_TIMEOUT_SECONDS}" "${PANTRY_INSTALLER}" || pantry_bootstrap_failed=1
+    export PATH="${USER_LOCAL_BIN}:${PATH}"
+  else
+    echo "Pantry installer not found at ${PANTRY_INSTALLER}" >&2
+    pantry_bootstrap_failed=1
+  fi
+fi
+
+if command -v pantry >/dev/null 2>&1; then
+  run_with_timeout "${PANTRY_DEPENDENCIES_TIMEOUT_SECONDS}" pantry install || pantry_bootstrap_failed=1
+else
+  pantry_bootstrap_failed=1
+fi
+
+# After install, try again
+if is_usable_bun "${PANTRY_LOCAL_BIN}/bun"; then
+  run_buddy "${PANTRY_LOCAL_BIN}/bun" "$@"
+fi
+
+if command -v bun >/dev/null 2>&1; then
+  if [ "${pantry_bootstrap_failed}" = "1" ]; then
+    echo "buddy: pantry bootstrap incomplete; falling back to the bun on PATH." >&2
+  fi
+  run_buddy "$(command -v bun)" "$@"
+fi
+
+echo "Pantry did not provide a local bun runtime." >&2
+exit 1

@@ -1,0 +1,112 @@
+<script client>
+type DigitalDeliveryStatus = 'active' | 'inactive'
+
+interface DigitalDeliveryRecord {
+  id: number
+  name: string
+  description: string
+  download_limit?: number | null
+  expiry_days: number
+  requires_login: boolean
+  automatic_delivery: boolean
+  status: DigitalDeliveryStatus
+}
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'create')
+const record = useReactiveProp('record', null as DigitalDeliveryRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const name = state('')
+const description = state('')
+const downloadLimit = state('')
+const expiryDays = state('30')
+const requiresLogin = state(false)
+const automaticDelivery = state(true)
+const status = state<DigitalDeliveryStatus>('active')
+let hydrationKey = ''
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const nextKey = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === nextKey)
+    return
+  hydrationKey = nextKey
+  name.set(current?.name || '')
+  description.set(current?.description || '')
+  downloadLimit.set(current?.download_limit === null || current?.download_limit === undefined ? '' : String(current.download_limit))
+  expiryDays.set(String(current?.expiry_days ?? 30))
+  requiresLogin.set(Boolean(current?.requires_login))
+  automaticDelivery.set(current ? Boolean(current.automatic_delivery) : true)
+  status.set(current?.status || 'active')
+})
+
+function submit(): void {
+  const parsedDownloadLimit = downloadLimit() === '' ? null : Number(downloadLimit())
+  const parsedExpiryDays = Number(expiryDays())
+
+  if (!name().trim()) {
+    emit('invalid', 'Method name is required.')
+    return
+  }
+  if (!description().trim()) {
+    emit('invalid', 'Description is required.')
+    return
+  }
+  if (parsedDownloadLimit !== null && (!Number.isInteger(parsedDownloadLimit) || parsedDownloadLimit < 0)) {
+    emit('invalid', 'Download limit must be a whole number of zero or more.')
+    return
+  }
+  if (!Number.isInteger(parsedExpiryDays) || parsedExpiryDays < 0) {
+    emit('invalid', 'Expiry must be a whole number of days.')
+    return
+  }
+
+  emit('submit', {
+    name: name().trim(),
+    description: description().trim(),
+    downloadLimit: parsedDownloadLimit,
+    expiryDays: parsedExpiryDays,
+    requiresLogin: requiresLogin(),
+    automaticDelivery: automaticDelivery(),
+    status: status(),
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit digital delivery' : 'Add digital delivery'"
+  description="Configure access, expiry, download limits, and fulfillment behavior."
+  size="lg"
+  @close="emit('close')"
+>
+    <form id="digital-delivery-form" @submit.prevent="submit()">
+        <div :if="error()" class="mb-5 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+
+        <div class="space-y-4">
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Method name</span><input x-model="name" type="text" required maxlength="255" autocomplete="off" placeholder="Secure download" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Description</span><textarea x-model="description" required rows="3" placeholder="Explain how customers receive and access files." class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700 resize-y"></textarea></label>
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Download limit</span><input x-model="downloadLimit" type="number" min="0" step="1" inputmode="numeric" placeholder="Unlimited" class="mt-1 px-3 py-2 w-full tabular-nums text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /><span class="block mt-1 text-gray-400 text-xs dark:text-neutral-500">Leave blank for unlimited downloads.</span></label>
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Expiry days</span><input x-model="expiryDays" type="number" required min="0" step="1" inputmode="numeric" class="mt-1 px-3 py-2 w-full tabular-nums text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /><span class="block mt-1 text-gray-400 text-xs dark:text-neutral-500">Use 0 for access without expiry.</span></label>
+          </div>
+          <div class="grid gap-3 grid-cols-1 sm:grid-cols-2">
+            <label class="flex gap-3 items-start p-3 border border-gray-200 rounded-lg dark:border-neutral-700"><input x-model="requiresLogin" type="checkbox" class="mt-0.5 h-4 w-4 text-blue-600 bg-white dark:bg-neutral-900 border-gray-300 rounded dark:border-neutral-600" /><span><strong class="block text-gray-900 text-sm dark:text-white">Require login</strong><span class="block mt-0.5 text-gray-500 text-xs dark:text-neutral-400">Only authenticated customers can download.</span></span></label>
+            <label class="flex gap-3 items-start p-3 border border-gray-200 rounded-lg dark:border-neutral-700"><input x-model="automaticDelivery" type="checkbox" class="mt-0.5 h-4 w-4 text-blue-600 bg-white dark:bg-neutral-900 border-gray-300 rounded dark:border-neutral-600" /><span><strong class="block text-gray-900 text-sm dark:text-white">Automatic delivery</strong><span class="block mt-0.5 text-gray-500 text-xs dark:text-neutral-400">Fulfill automatically after payment.</span></span></label>
+          </div>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span><select x-model="status" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button :disabled="busy()" variant="secondary" @click="emit('close')">Cancel</Button>
+      <Button type="submit" form="digital-delivery-form" :loading="busy()">{{ mode() === 'edit' ? 'Save changes' : 'Add method' }}</Button>
+    </div>
+  </template>
+</Modal>

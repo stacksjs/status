@@ -1,0 +1,24 @@
+<script client>
+interface ShippingZoneRecord {
+  id: number
+  name: string
+}
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as ShippingZoneRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const description = derived(() => `Delete ${record()?.name || 'the selected shipping zone'} permanently. Zones referenced by shipping rates may be protected by the database.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open() && Boolean(record())"
+  title="Delete shipping zone?"
+  :description="description()"
+  confirmLabel="Delete zone"
+  :busy="busy()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

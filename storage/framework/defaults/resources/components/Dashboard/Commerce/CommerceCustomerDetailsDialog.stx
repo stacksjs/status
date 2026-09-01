@@ -1,0 +1,72 @@
+<script client>
+import type { CommerceCustomerRecord } from '../../../../app/Actions/Dashboard/Commerce/commerce-customer-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as CommerceCustomerRecord | null)
+const currency = useReactiveProp('currency', 'USD')
+const emit = defineEmits()
+
+function formatMoney(value: number): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency() }).format(value)
+  }
+  catch {
+    return `${value.toFixed(2)} ${currency()}`
+  }
+}
+
+function formatDate(value: string): string {
+  if (!value)
+    return 'Not recorded'
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value}T00:00:00`
+    : /^\d{4}-\d{2}-\d{2} \d/.test(value)
+      ? `${value.replace(' ', 'T')}Z`
+      : value
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(date)
+}
+
+function editRecord(): void {
+  const current = record()
+  if (!current)
+    return
+  emit('edit', current)
+  emit('close')
+}
+
+function deleteRecord(): void {
+  const current = record()
+  if (!current)
+    return
+  emit('delete', current)
+  emit('close')
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="record()?.name || 'Customer'"
+  :description="record()?.email || 'No email recorded'"
+  size="lg"
+  @close="emit('close')"
+>
+  <template #header-leading>
+    <span class="flex items-center justify-center h-11 w-11 font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 rounded-lg">{{ (record()?.name || '?').slice(0, 1).toUpperCase() }}</span>
+  </template>
+  <template #header-trailing>
+    <span class="px-2 py-1 font-semibold text-gray-700 text-xs dark:text-neutral-200 bg-gray-100 dark:bg-neutral-700 rounded-full">{{ record()?.status || 'Unknown' }}</span>
+  </template>
+  <dl class="grid gap-4 grid-cols-2">
+    <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Phone</dt><dd class="mt-1 text-gray-900 text-sm dark:text-white">{{ record()?.phone || 'Not recorded' }}</dd></div>
+    <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Recorded spend</dt><dd class="mt-1 font-medium text-gray-900 text-sm dark:text-white">{{ formatMoney(record()?.totalSpent || 0) }}</dd></div>
+    <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Last order</dt><dd class="mt-1 text-gray-900 text-sm dark:text-white">{{ formatDate(record()?.lastOrder || '') }}</dd></div>
+    <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Record ID</dt><dd class="mt-1 font-mono text-gray-900 text-sm dark:text-white">{{ record()?.id || 'Not recorded' }}</dd></div>
+    <div class="col-span-2"><dt class="text-gray-400 text-xs dark:text-neutral-500">Avatar URL</dt><dd class="mt-1 break-all text-gray-900 text-sm dark:text-white">{{ record()?.avatar || 'Not configured' }}</dd></div>
+  </dl>
+  <template #footer>
+    <div class="flex gap-2 justify-between w-full"><Button variant="danger" @click="deleteRecord()">Delete</Button><div class="flex gap-2"><Button variant="secondary" @click="emit('close')">Close</Button><Button @click="editRecord()">Edit customer</Button></div></div>
+  </template>
+</Modal>

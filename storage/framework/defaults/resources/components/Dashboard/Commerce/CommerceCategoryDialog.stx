@@ -1,0 +1,147 @@
+<script client>
+import type { CommerceCategoryRecord } from '../../../../app/Actions/Dashboard/Commerce/commerce-category-records'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'add')
+const record = useReactiveProp('record', null as CommerceCategoryRecord | null)
+const records = useReactiveProp('records', [] as CommerceCategoryRecord[])
+const busy = useReactiveProp('busy', false)
+const errors = useReactiveProp('errors', {} as Record<string, string>)
+const emit = defineEmits()
+const name = state('')
+const description = state('')
+const slug = state('')
+const imageUrl = state('')
+const isActive = state(true)
+const parentCategoryId = state('')
+const displayOrder = state('0')
+let hydrationKey = ''
+let slugTouched = false
+
+function slugify(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036F]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const key = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === key)
+    return
+  hydrationKey = key
+  name.set(current?.name || '')
+  description.set(current?.description || '')
+  slug.set(current?.slug || '')
+  imageUrl.set(current?.imageUrl || '')
+  isActive.set(current?.isActive ?? true)
+  parentCategoryId.set(current?.parentCategoryId || '')
+  displayOrder.set(String(current?.displayOrder ?? 0))
+  slugTouched = Boolean(current?.slug)
+})
+
+effect(() => {
+  if (!open() || slugTouched)
+    return
+  slug.set(slugify(name()))
+})
+
+function markSlugTouched(): void {
+  slugTouched = true
+}
+
+function normalizeSlug(): void {
+  const normalized = slugify(slug())
+  if (normalized !== slug())
+    slug.set(normalized)
+}
+
+function forbiddenParentIds(): Set<string> {
+  const currentId = record()?.id
+  if (!currentId)
+    return new Set()
+  const forbidden = new Set([currentId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const candidate of records()) {
+      if (candidate.parentCategoryId && forbidden.has(candidate.parentCategoryId) && !forbidden.has(candidate.id)) {
+        forbidden.add(candidate.id)
+        changed = true
+      }
+    }
+  }
+  return forbidden
+}
+
+function parentOptions(): CommerceCategoryRecord[] {
+  const forbidden = forbiddenParentIds()
+  return records()
+    .filter(candidate => !forbidden.has(candidate.id))
+    .sort((left, right) => left.name.localeCompare(right.name))
+}
+
+function valid(): boolean {
+  return Boolean(
+    name().trim()
+    && slug().trim()
+    && Number.isFinite(Number(displayOrder()))
+    && Number(displayOrder()) >= 0
+  )
+}
+
+function submit(): void {
+  if (!valid())
+    return
+  emit('submit', {
+    name: name().trim(),
+    description: description().trim(),
+    slug: slugify(slug()),
+    imageUrl: imageUrl().trim(),
+    isActive: isActive(),
+    parentCategoryId: parentCategoryId(),
+    displayOrder: Number(displayOrder()),
+  })
+}
+
+function errorMessages(): string[] {
+  return Object.entries(errors()).map(([field, message]) => {
+    const label = field.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${message}`
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit category' : 'Add category'"
+  description="Store hierarchy fields declared by the Category model."
+  size="lg"
+  @close="emit('close')"
+>
+    <form id="category-form" @submit.prevent="submit">
+        <ul :if="errorMessages().length > 0" class="mb-5 p-3 space-y-1 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">
+          <template :for="message in errorMessages()" :key="message"><li>{{ message }}</li></template>
+        </ul>
+        <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Name</span><input x-model="name" type="text" maxlength="50" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Slug</span><input x-model="slug" type="text" required spellcheck="false" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" @input="markSlugTouched" @blur="normalizeSlug" /></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Description</span><textarea x-model="description" rows="3" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Image URL</span><input x-model="imageUrl" type="text" placeholder="Optional persisted asset URL" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /><span class="block mt-1 text-gray-400 text-xs dark:text-neutral-500">Use a stored asset URL. File uploads belong to the native storage workflow.</span></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Parent category</span><select x-model="parentCategoryId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Root category</option><template :for="option in parentOptions()" :key="option.id"><option :value="option.id">{{ option.name }}</option></template></select></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Display order</span><input x-model="displayOrder" type="number" min="0" step="1" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="flex gap-3 items-center sm:col-span-2 p-3 border border-gray-200 rounded-lg dark:border-neutral-700"><input x-model="isActive" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" /><span><span class="block font-medium text-gray-700 text-sm dark:text-neutral-200">Active in the storefront</span><span class="block mt-0.5 text-gray-400 text-xs dark:text-neutral-500">Availability is independent from the hierarchy.</span></span></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full"><Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button><Button type="submit" form="category-form" :loading="busy()" :disabled="!valid()">{{ mode() === 'edit' ? 'Save category' : 'Add category' }}</Button></div>
+  </template>
+</Modal>

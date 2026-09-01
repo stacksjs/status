@@ -1,20 +1,21 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { log } from '@stacksjs/logging'
+import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
 
-interface Request {
-  message: string
-  level: 'info' | 'warn' | 'error'
-}
+type LogLevel = 'info' | 'warn' | 'error'
 
 export default new Action({
   name: 'Dummy Logger',
   description: 'This action is used to demo how to POST to a server and upon success, log a message.',
+  method: 'POST',
+  apiResponse: true,
 
   // the request object is optional, but if it is provided, it will be used for validation
   validations: {
     message: {
-      rule: schema.string().min(3).max(255),
+      rule: schema.string().min(3).max(255).required(),
       message: 'The message must be between 3 and 255 characters long.',
     },
 
@@ -22,21 +23,20 @@ export default new Action({
       // `schema.string().in([...])` was a renamed/removed method
       // (stacksjs/stacks#1853) — the validator throws "schema.string().in
       // is not a function" at module evaluation. Use `schema.enum([...])`
-      // — that's the working enum primitive used elsewhere in defaults
-      // (Settings/UpdateAiConfig.ts) and in the typical project's models.
-      rule: schema.enum(['info', 'warn', 'error']),
+      // — that's the working enum primitive used throughout the framework
+      // defaults and in the typical project's models.
+      rule: schema.enum(['info', 'warn', 'error']).required(),
       message: 'The log level must be one of "info", "warn", or "error".',
     },
   },
 
-  // handle(request: { message: string, level: 'info' | 'warn' | 'error' }) {
-  handle(request?: Request) {
-    if (!request)
-      return 'No request was provided.'
+  async handle(request: RequestInstance) {
+    await request.validate()
 
-    // TODO: need to validate with ts-validation
-    log[request.level](request.message)
+    const message = String(request.get('message') || '').trim()
+    const level = String(request.get('level')) as LogLevel
+    log[level](message)
 
-    return `Logged "${request.message}" at "${request.level}" level`
+    return response.json({ level, message: `Logged at ${level} level.` })
   },
 })

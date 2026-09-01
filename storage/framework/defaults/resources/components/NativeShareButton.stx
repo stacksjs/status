@@ -1,0 +1,35 @@
+<script client>
+import { haptics, share } from '@stacksjs/mobile'
+
+const title = useReactiveProp<string | undefined>('title', undefined)
+const text = useReactiveProp<string | undefined>('text', undefined)
+const url = useReactiveProp<string | undefined>('url', undefined)
+const className = useReactiveProp<string>('class', 'inline-flex gap-2 items-center justify-center min-h-11 px-4 font-semibold text-sm rounded-xl')
+const label = useReactiveProp<string>('label', 'Share')
+const status = state<'idle' | 'sharing' | 'shared' | 'error'>('idle')
+
+async function openShareSheet(): Promise<void> {
+  if (status() === 'sharing') return
+  status.set('sharing')
+  await haptics.impact('light')
+  try {
+    await share.share({ title: title(), text: text(), url: url() })
+    status.set('shared')
+    await haptics.notification('success')
+  }
+  catch {
+    status.set('error')
+    await haptics.notification('error')
+  }
+}
+</script>
+
+<button
+  type="button"
+  :class="className()"
+  :aria-busy="status() === 'sharing' ? 'true' : 'false'"
+  @click="openShareSheet()"
+>
+  <i aria-hidden="true" class="h-5 w-5 i-hugeicons-share-08"></i>
+  <span>{{ status() === 'sharing' ? 'Sharing' : label() }}</span>
+</button>

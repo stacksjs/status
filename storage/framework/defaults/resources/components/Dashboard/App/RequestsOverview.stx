@@ -1,0 +1,233 @@
+<script client>
+import { dashboardApi } from '../../../../functions/dashboard-api'
+
+interface RequestRow {
+  id: number
+  method: string
+  path: string
+  status: number
+  durationMs: number
+  ipAddress: string
+  memoryUsageMb: number
+  userAgent: string
+  errorMessage: string
+  createdAt: string
+}
+
+interface RequestStats {
+  total: number
+  errorCount: number
+  averageDurationMs: number
+  successRate: number
+  requestsLastHour: number
+  requestsPerMinute: number
+}
+
+interface RequestsResponse {
+  requests: RequestRow[]
+  stats: RequestStats
+}
+
+const requests = state<RequestRow[]>([])
+const stats = state<RequestStats>({
+  total: 0,
+  errorCount: 0,
+  averageDurationMs: 0,
+  successRate: 0,
+  requestsLastHour: 0,
+  requestsPerMinute: 0,
+})
+const search = state('')
+const methodFilter = state('all')
+const statusFilter = state('all')
+const selectedRequest = state<RequestRow | null>(null)
+const loading = state(true)
+const loadError = state('')
+
+const methods = derived(() => [...new Set(requests().map(request => request.method))].sort())
+const filteredRequests = derived(() => {
+  const query = search().trim().toLowerCase()
+  return requests().filter((request) => {
+    if (methodFilter() !== 'all' && request.method !== methodFilter())
+      return false
+    if (statusFilter() === 'success' && request.status >= 400)
+      return false
+    if (statusFilter() === 'error' && request.status < 400)
+      return false
+    if (!query)
+      return true
+    return [
+      request.method,
+      request.path,
+      request.status,
+      request.ipAddress,
+      request.userAgent,
+      request.errorMessage,
+    ].join(' ').toLowerCase().includes(query)
+  })
+})
+
+function formatDate(value: string): string {
+  if (!value)
+    return 'Unknown'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString()
+}
+
+function statusClass(status: number): string {
+  if (status >= 500)
+    return 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40'
+  if (status >= 400)
+    return 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40'
+  if (status >= 300)
+    return 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40'
+  return 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/40'
+}
+
+function methodClass(method: string): string {
+  if (method === 'GET')
+    return 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40'
+  if (method === 'DELETE')
+    return 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40'
+  return 'text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40'
+}
+
+function inspectRequest(request: RequestRow): void {
+  selectedRequest.set(request)
+}
+
+function closeInspector(): void {
+  selectedRequest.set(null)
+}
+
+async function loadRequests(): Promise<void> {
+  loading.set(true)
+  loadError.set('')
+  try {
+    const response = await dashboardApi<RequestsResponse>('/api/dashboard/requests')
+    requests.set(response.requests || [])
+    stats.set(response.stats)
+  }
+  catch (error) {
+    requests.set([])
+    loadError.set(error instanceof Error ? error.message : 'Request records could not be loaded.')
+  }
+  finally {
+    loading.set(false)
+  }
+}
+
+onMount(() => {
+  void loadRequests()
+})
+</script>
+
+<div class="space-y-6">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h1 class="font-semibold text-2xl text-neutral-900 tracking-tight dark:text-white">Requests</h1>
+      <p class="mt-1 text-neutral-500 text-sm dark:text-neutral-400">Inspect HTTP activity persisted by the Request model.</p>
+    </div>
+    <Button variant="secondary" :loading="loading()" @click="loadRequests">
+      <span :if="!loading()" class="h-4 w-4 i-hugeicons-refresh"></span>
+      Refresh
+    </Button>
+  </header>
+
+  <div :if="loadError()" role="alert" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 rounded-lg dark:border-red-900">
+    <span>{{ loadError() }}</span>
+    <Button variant="secondary" size="sm" @click="loadRequests">Try again</Button>
+  </div>
+
+  <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+    <StatsCard title="Recorded Requests" icon="i-hugeicons-global" iconBg="primary">
+      <template #value>{{ stats().total }}</template>
+    </StatsCard>
+    <StatsCard title="Success Rate" icon="i-hugeicons-checkmark-circle-02" iconBg="success">
+      <template #value>{{ stats().successRate.toFixed(1) }}%</template>
+    </StatsCard>
+    <StatsCard title="Average Duration" icon="i-hugeicons-clock-01" iconBg="info">
+      <template #value>{{ stats().averageDurationMs.toFixed(1) }} ms</template>
+    </StatsCard>
+    <StatsCard title="Requests Last Hour" icon="i-hugeicons-activity-03" iconBg="warning">
+      <template #value>{{ stats().requestsLastHour }}</template>
+    </StatsCard>
+  </div>
+
+  <Card padding="none">
+    <div class="flex flex-col gap-4 p-5 border-b border-neutral-200 dark:border-neutral-700">
+      <div>
+        <h2 class="font-semibold text-neutral-900 dark:text-white">Recent request records</h2>
+        <p class="mt-1 text-neutral-500 text-xs dark:text-neutral-400">Showing up to 100 persisted records. Last-hour rate: {{ stats().requestsPerMinute.toFixed(2) }} per minute.</p>
+      </div>
+      <div class="grid gap-3 grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <label class="block relative">
+          <span class="sr-only">Search requests</span>
+          <span class="absolute left-3 top-2.5 h-4 w-4 text-neutral-400 i-hugeicons-search-01"></span>
+          <input x-model="search" type="search" placeholder="Search path, client, status, or error" class="block pl-9 pr-3 py-2 w-full text-neutral-900 text-sm dark:text-white bg-white dark:bg-neutral-950 border border-neutral-300 rounded-lg dark:border-neutral-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+        </label>
+        <label>
+          <span class="sr-only">Method</span>
+          <select x-model="methodFilter" class="px-3 py-2 w-full text-neutral-900 text-sm dark:text-white bg-white dark:bg-neutral-950 border border-neutral-300 rounded-lg dark:border-neutral-700">
+            <option value="all">All methods</option>
+            <option :for="method in methods()" :value="method">{{ method }}</option>
+          </select>
+        </label>
+        <label>
+          <span class="sr-only">Status</span>
+          <select x-model="statusFilter" class="px-3 py-2 w-full text-neutral-900 text-sm dark:text-white bg-white dark:bg-neutral-950 border border-neutral-300 rounded-lg dark:border-neutral-700">
+            <option value="all">All statuses</option>
+            <option value="success">Below 400</option>
+            <option value="error">400 and above</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div :if="loading()" class="flex items-center justify-center py-16 text-neutral-500 text-sm dark:text-neutral-400">
+      <span class="mr-2 h-5 w-5 animate-spin i-hugeicons-loading-03"></span>
+      Loading request records...
+    </div>
+
+    <EmptyState
+      :if="!loading() && !loadError() && filteredRequests().length === 0"
+      icon="i-hugeicons-global"
+      :title="search() || methodFilter() !== 'all' || statusFilter() !== 'all' ? 'No matching requests' : 'No requests recorded'"
+      description="Request records appear after the application writes to the Request model."
+    />
+
+    <div :if="!loading() && filteredRequests().length > 0" class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-neutral-50 dark:bg-neutral-800/50">
+          <tr>
+            <th class="pl-5 pr-4 py-3 font-semibold text-left text-neutral-500 text-xs tracking-wider uppercase dark:text-neutral-400">Request</th>
+            <th class="px-4 py-3 font-semibold text-left text-neutral-500 text-xs tracking-wider uppercase dark:text-neutral-400">Status</th>
+            <th class="px-4 py-3 font-semibold text-neutral-500 text-right text-xs tracking-wider uppercase dark:text-neutral-400">Duration</th>
+            <th class="px-4 py-3 font-semibold text-left text-neutral-500 text-xs tracking-wider uppercase dark:text-neutral-400">Client</th>
+            <th class="px-4 py-3 font-semibold text-neutral-500 text-right text-xs tracking-wider uppercase dark:text-neutral-400">Recorded</th>
+            <th class="pr-5 py-3 font-semibold text-neutral-500 text-right text-xs tracking-wider uppercase dark:text-neutral-400">Details</th>
+          </tr>
+        </thead>
+        <tbody class="divide-neutral-100 divide-y dark:divide-neutral-700">
+          <tr :for="request in filteredRequests()">
+            <td class="pl-5 pr-4 py-3.5">
+              <div class="flex gap-2 items-center">
+                <span :class="'inline-flex px-2 py-0.5 font-medium text-xs rounded ' + methodClass(request.method)">{{ request.method }}</span>
+                <code class="max-w-md text-neutral-800 text-xs truncate dark:text-neutral-200">{{ request.path }}</code>
+              </div>
+            </td>
+            <td class="px-4 py-3.5"><span :class="'inline-flex px-2 py-0.5 font-medium text-xs rounded ' + statusClass(request.status)">{{ request.status }}</span></td>
+            <td class="px-4 py-3.5 font-mono text-neutral-600 text-right text-xs whitespace-nowrap dark:text-neutral-300">{{ request.durationMs.toFixed(1) }} ms</td>
+            <td class="px-4 py-3.5 text-neutral-500 text-xs dark:text-neutral-400">{{ request.ipAddress || 'Not recorded' }}</td>
+            <td class="px-4 py-3.5 text-neutral-500 text-right text-xs whitespace-nowrap dark:text-neutral-400">{{ formatDate(request.createdAt) }}</td>
+            <td class="pr-5 py-3.5 text-right">
+              <Button variant="ghost" size="sm" @click="inspectRequest(request)">Inspect</Button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </Card>
+
+  <RequestDetailsDialog :request="selectedRequest()" @close="closeInspector" />
+</div>

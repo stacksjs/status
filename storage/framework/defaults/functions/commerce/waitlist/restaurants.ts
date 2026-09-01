@@ -1,11 +1,12 @@
+import { resolveApiBaseUrl } from '../../api-url'
 import type { WaitlistRestaurant } from '../../../types/defaults'
-import { useStorage } from '@stacksjs/browser'
+import { useStorage } from '@stacksjs/browser/composables/useStorage'
 import { pushToast } from '../../toasts'
 
-// Create a persistent waitlist restaurants array using VueUse's useStorage
+// Create a persistent waitlist restaurants array using STX useStorage
 const waitlistRestaurants = useStorage<WaitlistRestaurant[]>('waitlist_restaurants', [])
 
-const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+const baseURL = resolveApiBaseUrl()
 
 // Basic fetch function to get all waitlist restaurants
 async function fetchWaitlistRestaurants() {

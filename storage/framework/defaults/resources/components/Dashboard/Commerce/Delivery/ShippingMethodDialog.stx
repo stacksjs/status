@@ -1,0 +1,94 @@
+<script client>
+interface ShippingMethodRecord {
+  id: number
+  name: string
+  description: string
+  base_rate: number
+  free_shipping: number | null
+  status: 'active' | 'inactive' | 'draft'
+}
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'create')
+const record = useReactiveProp('record', null as ShippingMethodRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const name = state('')
+const description = state('')
+const baseRate = state('')
+const freeShipping = state('')
+const status = state<'active' | 'inactive' | 'draft'>('active')
+let hydrationKey = ''
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const nextKey = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === nextKey)
+    return
+  hydrationKey = nextKey
+  name.set(current?.name || '')
+  description.set(current?.description || '')
+  baseRate.set(current ? (current.base_rate / 100).toFixed(2) : '')
+  freeShipping.set(current?.free_shipping === null || current?.free_shipping === undefined
+    ? ''
+    : (current.free_shipping / 100).toFixed(2))
+  status.set(current?.status || 'active')
+})
+
+function submit(): void {
+  const baseRateValue = Number(baseRate())
+  const freeShippingValue = freeShipping().trim() === '' ? null : Number(freeShipping())
+  if (!name().trim()) {
+    emit('invalid', 'Method name is required.')
+    return
+  }
+  if (!Number.isFinite(baseRateValue) || baseRateValue < 0) {
+    emit('invalid', 'Base rate must be a non-negative amount.')
+    return
+  }
+  if (freeShippingValue !== null && (!Number.isFinite(freeShippingValue) || freeShippingValue < 0)) {
+    emit('invalid', 'Free shipping threshold must be empty or a non-negative amount.')
+    return
+  }
+  emit('submit', {
+    name: name().trim(),
+    description: description().trim(),
+    baseRate: Math.round(baseRateValue * 100),
+    freeShipping: freeShippingValue === null ? null : Math.round(freeShippingValue * 100),
+    status: status(),
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit shipping method' : 'Add shipping method'"
+  description="Rates are stored as integer minor units to keep pricing exact."
+  size="md"
+  @close="emit('close')"
+>
+    <form id="shipping-method-form" @submit.prevent="submit">
+        <div :if="error()" class="mb-5 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+
+        <div class="space-y-4">
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Method name</span><input x-model="name" type="text" required maxlength="100" autocomplete="off" placeholder="Ground shipping" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Description</span><textarea x-model="description" rows="3" maxlength="500" placeholder="How and when this method is used" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Base rate</span><input x-model="baseRate" type="number" required min="0" step="0.01" inputmode="decimal" placeholder="0.00" class="mt-1 px-3 py-2 w-full tabular-nums text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Free shipping threshold</span><input x-model="freeShipping" type="number" min="0" step="0.01" inputmode="decimal" placeholder="No threshold" class="mt-1 px-3 py-2 w-full tabular-nums text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          </div>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span><select x-model="status" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="active">Active</option><option value="inactive">Inactive</option><option value="draft">Draft</option></select></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button :disabled="busy()" variant="secondary" @click="emit('close')">Cancel</Button>
+      <Button type="submit" form="shipping-method-form" :loading="busy()">{{ mode() === 'edit' ? 'Save changes' : 'Add method' }}</Button>
+    </div>
+  </template>
+</Modal>

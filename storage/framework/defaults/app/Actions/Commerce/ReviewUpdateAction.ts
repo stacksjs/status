@@ -1,27 +1,25 @@
 import { Action } from '@stacksjs/actions'
 import { products } from '@stacksjs/commerce'
+import { toSnakeCaseKeys } from '@stacksjs/orm'
 import { response } from '@stacksjs/router'
+import { commerceIdentifier, commerceNotFound } from './commerce-action'
 
 export default new Action({
   name: 'Review Update',
-  description: 'Review Update ORM Action',
+  description: 'Updates a product review through the native commerce module.',
   method: 'PATCH',
+  model: Review,
   async handle(request: RequestInstance) {
+    const identifier = commerceIdentifier(request, 'Review')
+    if (identifier.error)
+      return identifier.error
+    const { id } = identifier
+
     await request.validate()
-
-    const id = request.getParam('id')
-
-    const data = {
-      product_id: request.get<number>('product_id'),
-      customer_id: request.get<number>('customer_id'),
-      rating: request.get<number>('rating'),
-      title: request.get('title'),
-      content: request.get('content'),
-      is_verified_purchase: request.get<boolean>('is_verified_purchase'),
-      is_approved: request.get<boolean>('is_approved'),
-    }
-
+    const data = toSnakeCaseKeys(request.all())
     const model = await products.reviews.update(id, data)
+    if (!model)
+      return commerceNotFound('Review', id)
 
     return response.json(model)
   },

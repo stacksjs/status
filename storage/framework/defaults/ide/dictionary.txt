@@ -252,7 +252,6 @@ pflannery
 phpcs
 phpunit
 picocolors
-pinia
 pkgjson
 pkgx
 plivo
@@ -375,7 +374,7 @@ vinejs
 vite
 vitebook
 vitejs
-vitepress
+bunpress
 vitesse
 vitest
 vmodel
@@ -384,8 +383,6 @@ vsix
 vslot
 vsrc
 vstyle
-vueform
-vueuse
 wafv
 Waitlist
 webfont

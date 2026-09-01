@@ -1,0 +1,24 @@
+<script client>
+interface DigitalDeliveryRecord {
+  id: number
+  name: string
+}
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as DigitalDeliveryRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const description = derived(() => `Delete ${record()?.name || 'the selected digital delivery'} permanently.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open() && Boolean(record())"
+  title="Delete digital delivery?"
+  :description="description()"
+  confirmLabel="Delete delivery"
+  :busy="busy()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

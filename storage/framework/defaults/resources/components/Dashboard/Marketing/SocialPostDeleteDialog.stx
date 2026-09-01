@@ -1,0 +1,21 @@
+<script client>
+import type { SocialPostRecord } from '../../../../app/Actions/Dashboard/Marketing/social-post-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as SocialPostRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const description = derived(() => `The persisted ${record()?.platform || 'social'} post will be permanently removed. This does not remove a post already published on the external platform.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete social post?"
+  :description="description()"
+  confirmLabel="Delete social post"
+  :busy="busy()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

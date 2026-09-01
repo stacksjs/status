@@ -1,5 +1,8 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { dashboard as dashboardConfig } from '@stacksjs/config'
+import { response } from '@stacksjs/router'
+import { dashboardRequestValue } from '../dashboard-request'
 import { fetchRunnerHistory } from './runner-pressure-monitor'
 
 /**
@@ -12,33 +15,31 @@ import { fetchRunnerHistory } from './runner-pressure-monitor'
  * configured retention window — older samples aren't available
  * because they've been pruned.
  *
- * Soft-errors to an empty samples array on any failure so the
- * sparkline gracefully degrades to "no history yet" instead of
- * yelling at the user.
+ * Operational failures use a real 503 response so the client can
+ * distinguish unavailable history from a valid empty sample set.
  */
 export default new Action({
   name: 'Dashboard CI Runner History',
   description: 'Recent runner-sample history for one org (sparkline data).',
   method: 'GET',
   apiResponse: true,
-  async handle(request) {
+  async handle(request: RequestInstance) {
     const ci = dashboardConfig?.ci
     if (!ci?.enabled || !ci.alerts?.enabled) {
       return { org: null, samples: [], disabled: true }
     }
 
-    const url = new URL(request.url ?? 'http://localhost/')
-    const org = String(url.searchParams.get('org') ?? '').trim()
+    const org = dashboardRequestValue(request, 'org')
     if (!org) {
-      return { error: '`org` query param is required.', status: 400 }
+      return response.json({ message: 'The org query parameter is required.' }, 400)
     }
 
     const allowedOrgs = ci.orgs ?? []
     if (allowedOrgs.length > 0 && !allowedOrgs.includes(org)) {
-      return { error: 'Org not in `config.dashboard.ci.orgs`.', status: 403 }
+      return response.json({ message: 'This organization is not configured for CI tracking.' }, 403)
     }
 
-    const rawLimit = Number(url.searchParams.get('limit') ?? '60')
+    const rawLimit = Number(dashboardRequestValue(request, 'limit', '60'))
     const limit = Number.isFinite(rawLimit) && rawLimit > 0
       ? Math.min(Math.floor(rawLimit), 500)
       : 60
@@ -52,7 +53,7 @@ export default new Action({
     }
     catch (err) {
       console.error('[dashboard/ci] RunnerHistoryAction failed:', err)
-      return { org, samples: [], error: err instanceof Error ? err.message : 'unknown error' }
+      return response.json({ message: 'Runner history could not be loaded.' }, 503)
     }
   },
 })

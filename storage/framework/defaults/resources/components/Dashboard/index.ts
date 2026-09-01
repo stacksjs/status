@@ -4,27 +4,23 @@
  * Export all custom dashboard components for easy importing.
  *
  * Usage:
- * import { Widget, Card, Table, Chart } from '@/components/Dashboard'
+ * import { StatsCard, Card, Table, ChartCard } from '@/components/Dashboard'
  */
-
-export { default as Widget } from './Widget.stx'
-export { default as Card } from './Card.stx'
-export { default as Table } from './Table.stx'
-export { default as Chart } from './Chart.stx'
 
 // UI Components
 export { default as Badge } from './UI/Badge.stx'
 export { default as Button } from './UI/Button.stx'
+export { default as Card } from './UI/Card.stx'
 export { default as Input } from './UI/Input.stx'
 export { default as Select } from './UI/Select.stx'
 export { default as Modal } from './UI/Modal.stx'
 export { default as Tabs } from './UI/Tabs.stx'
+export { default as Table } from './UI/Table.stx'
 export { default as Pagination } from './UI/Pagination.stx'
 export { default as StatsCard } from './UI/StatsCard.stx'
 export { default as PageHeader } from './UI/PageHeader.stx'
 export { default as EmptyState } from './UI/EmptyState.stx'
 export { default as FilterBar } from './UI/FilterBar.stx'
-export { default as DataTable } from './UI/DataTable.stx'
 export { default as ChartCard } from './UI/ChartCard.stx'
 export { default as ConfirmDialog } from './UI/ConfirmDialog.stx'
 export { default as ActivityTable } from './UI/ActivityTable.stx'
@@ -32,19 +28,14 @@ export { default as ServiceHealth } from './UI/ServiceHealth.stx'
 export { default as QuickLinks } from './UI/QuickLinks.stx'
 
 // Re-export types
-export interface WidgetProps {
-  title: string
-  value: string
-  description?: string
-  trend?: string
-  icon?: string
-}
-
 export interface CardProps {
   title?: string
   subtitle?: string
-  actions?: Array<{ label: string, onClick: () => void }>
-  padding?: boolean
+  variant?: 'default' | 'elevated' | 'outline' | 'ghost' | 'vibrancy'
+  padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl'
+  rounded?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl'
+  hoverable?: boolean
+  clickable?: boolean
 }
 
 export interface TableColumn {
@@ -59,13 +50,6 @@ export interface TableProps {
   data: any[]
   striped?: boolean
   hoverable?: boolean
-}
-
-export interface ChartProps {
-  type: 'line' | 'bar' | 'pie' | 'doughnut' | 'area'
-  data: object
-  options?: object
-  height?: string
 }
 
 export interface StatsCardProps {

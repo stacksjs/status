@@ -11,24 +11,59 @@ export default defineModel({
     useUuid: true,
     useTimestamps: true,
     useSearch: {
-      displayable: ['id', 'title', 'author', 'views', 'status', 'poster'],
-      searchable: ['title', 'author', 'body', 'excerpt'],
-      sortable: ['published_at', 'views', 'comments'],
+      displayable: ['id', 'title', 'slug', 'author', 'views', 'status', 'poster', 'focusKeyword', 'metaDescription', 'canonicalUrl'],
+      // `content`, not `body` - the column is `content`, and the old spelling
+      // silently indexed nothing. `comments` likewise was never a column.
+      searchable: ['title', 'slug', 'author', 'content', 'excerpt', 'focusKeyword', 'metaDescription'],
+      sortable: ['published_at', 'views'],
       filterable: ['status'],
     },
 
     // No faker seeding. The public blog is markdown-based (content/blog/*.md)
     // rendered by BunPress; this model backs the CMS dashboard only.
-    categorizable: true,
-    taggable: true,
-    commentables: true,
+    // `commentable`, not `commentables`: define-model checks the singular key,
+    // so the plural spelling left the trait inert. Now that the commentable
+    // trait targets the real `commentables` table, activating it is correct.
+    commentable: true,
     useApi: {
+      // Admin surface now: the table carries drafts, and a public read route
+      // is how drafts leak. Public visitors get published posts through the
+      // site's own routes/pages, which filter by status themselves.
+      middleware: ['auth'],
       uri: 'posts',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
     },
   },
 
-  belongsTo: ['Author'],
+  belongsTo: ['Author', 'Site'],
+  belongsToMany: {
+    categories: {
+      model: 'Category',
+      table: 'categorizable_models',
+      foreignKey: 'categorizable_id',
+      relatedKey: 'category_id',
+      pivot: {
+        columns: {
+          categorizable_type: { default: 'posts' },
+        },
+        timestamps: true,
+        uniques: [['category_id', 'categorizable_id', 'categorizable_type']],
+      },
+    },
+    tags: {
+      model: 'Tag',
+      table: 'taggable_models',
+      foreignKey: 'taggable_id',
+      relatedKey: 'tag_id',
+      pivot: {
+        columns: {
+          taggable_type: { default: 'posts' },
+        },
+        timestamps: true,
+        uniques: [['tag_id', 'taggable_id', 'taggable_type']],
+      },
+    },
+  },
 
   attributes: {
     title: {
@@ -43,6 +78,20 @@ export default defineModel({
         },
       },
       factory: faker => faker.lorem.sentence(),
+    },
+
+    /**
+     * URL identity: `/news/{slug}` beats `/blog/{id}` for a public site.
+     * Nullable for pre-slug rows; the RSS/sitemap actions fall back to id.
+     */
+    slug: {
+      required: false,
+      order: 2,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(255),
+      },
+      factory: faker => faker.lorem.slug(),
     },
     poster: {
       required: false,
@@ -62,9 +111,10 @@ export default defineModel({
       order: 5,
       fillable: true,
       validation: {
-        rule: schema.string().min(10).max(1000),
+        rule: schema.string().min(10).max(100000),
         message: {
           min: 'Post body must have a minimum of 10 characters',
+          max: 'Post body must have a maximum of 100000 characters',
         },
       },
       factory: faker => faker.lorem.paragraphs(1),
@@ -84,9 +134,45 @@ export default defineModel({
       factory: faker => faker.lorem.paragraph(),
     },
 
-    views: {
+    focusKeyword: {
       required: false,
       order: 7,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(100),
+        message: {
+          max: 'Focus keyword must have a maximum of 100 characters',
+        },
+      },
+    },
+
+    metaDescription: {
+      required: false,
+      order: 8,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(160),
+        message: {
+          max: 'Meta description must have a maximum of 160 characters',
+        },
+      },
+    },
+
+    canonicalUrl: {
+      required: false,
+      order: 9,
+      fillable: true,
+      validation: {
+        rule: schema.string().url(),
+        message: {
+          url: 'Canonical URL must be a valid URL',
+        },
+      },
+    },
+
+    views: {
+      required: false,
+      order: 10,
       fillable: true,
       default: 0,
       validation: {
@@ -100,7 +186,7 @@ export default defineModel({
 
     publishedAt: {
       required: false,
-      order: 8,
+      order: 11,
       fillable: true,
       validation: {
         rule: schema.timestamp(),
@@ -116,7 +202,7 @@ export default defineModel({
 
     status: {
       required: true,
-      order: 9,
+      order: 12,
       fillable: true,
       default: 'draft',
       validation: {
@@ -130,7 +216,7 @@ export default defineModel({
 
     isFeatured: {
       required: false,
-      order: 10,
+      order: 13,
       fillable: true,
       validation: {
         rule: schema.number(),

@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { FailedJob, Job } from '@stacksjs/orm'
-import { getGlobalMetrics } from '@stacksjs/queue'
+import { getGlobalMetrics, queuedJobState } from '@stacksjs/queue'
+import { dashboardOperationalError } from '../dashboard-response'
 
 interface QueueBucket {
   pending: number
@@ -10,9 +11,11 @@ interface QueueBucket {
   total: number
 }
 
-const isPending = (status: string) => status === 'pending' || status === 'waiting' || status === 'queued'
-const isActive = (status: string) => status === 'processing' || status === 'active'
-const isCompleted = (status: string) => status === 'completed' || status === 'done'
+// A queued job has no `status` column - `queuedJobState` in @stacksjs/queue
+// holds the rule (reserved_at means a worker has it; available_at in the
+// future means it is not eligible yet), and the queue's own health check reads
+// the same one. A row that finished is deleted by the worker, so 'completed'
+// is not a state the jobs table can be in; failures live in `failed_jobs`.
 
 export default new Action({
   name: 'QueueStatsAction',
@@ -20,19 +23,29 @@ export default new Action({
   method: 'GET',
   async handle() {
     try {
-      const [totalJobs, failedJobCount, allJobs] = await Promise.all([
+      const [totalJobs, failedJobCount, allJobs, allFailedJobs] = await Promise.all([
         Job.count(),
         FailedJob.count(),
         Job.all(),
+        FailedJob.all(),
       ])
 
       const queueMap: Record<string, QueueBucket> = {}
+
+      // Per-queue failure counts come from failed_jobs, which is where a
+      // failure actually lands. This column read `status === 'failed'` off the
+      // jobs table before, and so was always zero.
+      const failedByQueue = new Map<string, number>()
+      for (const f of allFailedJobs) {
+        const queueName = String(f.get('queue') || 'default')
+        failedByQueue.set(queueName, (failedByQueue.get(queueName) ?? 0) + 1)
+      }
       let active = 0
-      let completed = 0
+      const completed = 0
 
       for (const j of allJobs) {
         const queueName = String(j.get('queue') || 'default')
-        const status = String(j.get('status') || 'pending')
+        const status = queuedJobState({ reserved_at: j.get('reserved_at'), available_at: j.get('available_at') })
 
         if (!queueMap[queueName]) {
           queueMap[queueName] = { pending: 0, active: 0, completed: 0, failed: 0, total: 0 }
@@ -40,16 +53,13 @@ export default new Action({
         const bucket = queueMap[queueName]
         bucket.total++
 
-        if (isPending(status)) bucket.pending++
-        else if (isActive(status)) {
+        if (status === 'processing') {
           bucket.active++
           active++
         }
-        else if (isCompleted(status)) {
-          bucket.completed++
-          completed++
+        else {
+          bucket.pending++
         }
-        else if (status === 'failed') bucket.failed++
       }
 
       const queues = Object.entries(queueMap).map(([name, data]) => ({
@@ -58,7 +68,7 @@ export default new Action({
         pending: data.pending,
         active: data.active,
         completed: data.completed,
-        failed: data.failed,
+        failed: failedByQueue.get(name) ?? data.failed,
         total: data.total,
       }))
 
@@ -79,20 +89,8 @@ export default new Action({
 
       return { queues, stats, queueConnected: true }
     }
-    catch {
-      return {
-        queues: [],
-        stats: {
-          totalQueues: 0,
-          totalJobs: 0,
-          activeJobs: 0,
-          completedJobs: 0,
-          failedJobs: 0,
-          throughputPerMinute: 0,
-          averageProcessingTimeMs: 0,
-        },
-        queueConnected: false,
-      }
+    catch (error) {
+      return dashboardOperationalError(error, 'Queue statistics could not be loaded.', 'QueueStatsAction')
     }
   },
 })

@@ -1,0 +1,71 @@
+<script client>
+import type { PaymentRecord } from '../../../../app/Actions/Dashboard/Commerce/payment-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as PaymentRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const amount = state('')
+let hydrationKey = ''
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const payment = record()
+  const key = payment?.id || ''
+  if (!payment || hydrationKey === key)
+    return
+  hydrationKey = key
+  amount.set(((payment.amount - payment.refundAmount) / 100).toFixed(2))
+})
+
+function remaining(): number {
+  const payment = record()
+  return payment ? Math.max(0, payment.amount - payment.refundAmount) : 0
+}
+
+function amountCents(): number {
+  const parsed = Number(amount())
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0
+}
+
+function valid(): boolean {
+  const cents = amountCents()
+  return cents > 0 && cents <= remaining()
+}
+
+function money(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value / 100)
+  }
+  catch {
+    return `${currency} ${(value / 100).toFixed(2)}`
+  }
+}
+
+function submit(): void {
+  if (valid())
+    emit('submit', amountCents())
+}
+</script>
+
+<Modal
+  :isOpen="open() && Boolean(record())"
+  title="Record confirmed refund"
+  :description="`Payment #${record()?.id || 'not recorded'} has ${money(remaining(), record()?.currency || 'USD')} remaining.`"
+  size="sm"
+  @close="emit('close')"
+>
+    <form id="payment-refund-form" @submit.prevent="submit">
+        <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Refund amount</span><input x-model="amount" type="number" min="0.01" :max="remaining() / 100" step="0.01" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+        <p class="mt-2 text-amber-700 text-xs dark:text-amber-300">This records an already confirmed processor refund. It does not initiate money movement.</p>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+        <Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button>
+        <Button type="submit" form="payment-refund-form" :loading="busy()" :disabled="!valid()">Record refund</Button>
+    </div>
+  </template>
+</Modal>

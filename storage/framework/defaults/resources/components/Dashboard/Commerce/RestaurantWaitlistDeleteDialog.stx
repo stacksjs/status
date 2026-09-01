@@ -1,0 +1,19 @@
+<script client>
+import type { RestaurantWaitlistRecord } from '../../../../app/Actions/Dashboard/Commerce/restaurant-waitlist-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as RestaurantWaitlistRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `${record()?.name || 'This party'} will be permanently removed from the WaitlistRestaurant model.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete waitlist party?"
+  :description="description()"
+  confirmLabel="Delete party"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

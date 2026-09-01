@@ -1,0 +1,90 @@
+<script client>
+import type { CommercePosCustomer } from '../../../../app/Actions/Dashboard/Commerce/commerce-pos'
+
+interface PosPaymentMethod {
+  id: string
+  label: string
+}
+
+const open = useReactiveProp('open', false)
+const customers = useReactiveProp('customers', [] as CommercePosCustomer[])
+const paymentMethods = useReactiveProp('paymentMethods', [] as PosPaymentMethod[])
+const currency = useReactiveProp('currency', 'USD')
+const subtotal = useReactiveProp('subtotal', 0)
+const taxAmount = useReactiveProp('taxAmount', 0)
+const totalAmount = useReactiveProp('totalAmount', 0)
+const unitCount = useReactiveProp('unitCount', 0)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const customerId = state('')
+const orderType = state('TAKEOUT')
+const paymentMethod = state('cash')
+const specialInstructions = state('')
+let hydrated = false
+
+effect(() => {
+  if (!open()) {
+    hydrated = false
+    return
+  }
+  if (hydrated)
+    return
+  hydrated = true
+  customerId.set('')
+  orderType.set('TAKEOUT')
+  paymentMethod.set(paymentMethods()[0]?.id || 'cash')
+  specialInstructions.set('')
+})
+
+function formatMoney(value: number): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency() }).format(value)
+  }
+  catch {
+    return `${value.toFixed(2)} ${currency()}`
+  }
+}
+
+function submit(): void {
+  emit('submit', {
+    customerId: customerId() ? Number(customerId()) : null,
+    orderType: orderType(),
+    paymentMethod: paymentMethod(),
+    specialInstructions: specialInstructions().trim(),
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  title="Review cash sale"
+  description="The server will recompute prices and tax before the atomic write."
+  :closable="!busy()"
+  @close="emit('close')"
+>
+  <form id="pos-checkout-form" @submit.prevent="submit">
+    <div :if="error()" class="mb-4 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+
+    <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Customer</span><select x-model="customerId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Guest sale</option><template :for="customer in customers()" :key="customer.id"><option :value="customer.id">{{ customer.label }}{{ customer.email ? ' · ' + customer.email : '' }}</option></template></select></label>
+      <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Order type</span><select x-model="orderType" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="TAKEOUT">Takeout</option><option value="DINE_IN">Dine in</option></select></label>
+      <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Payment</span><select x-model="paymentMethod" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><template :for="method in paymentMethods()" :key="method.id"><option :value="method.id">{{ method.label }}</option></template></select></label>
+      <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Order instructions</span><textarea x-model="specialInstructions" rows="3" maxlength="1000" placeholder="Optional instructions for the whole sale" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+    </div>
+
+    <dl class="mt-5 p-4 space-y-2 bg-gray-50 dark:bg-neutral-900/60 rounded-lg">
+      <div class="flex items-center justify-between text-gray-500 text-sm dark:text-neutral-400"><dt>Units</dt><dd>{{ unitCount() }}</dd></div>
+      <div class="flex items-center justify-between text-gray-500 text-sm dark:text-neutral-400"><dt>Subtotal</dt><dd>{{ formatMoney(subtotal()) }}</dd></div>
+      <div class="flex items-center justify-between text-gray-500 text-sm dark:text-neutral-400"><dt>Tax</dt><dd>{{ formatMoney(taxAmount()) }}</dd></div>
+      <div class="flex items-center justify-between pt-2 font-semibold text-gray-900 dark:text-white border-gray-200 border-t dark:border-neutral-700"><dt>Cash due</dt><dd>{{ formatMoney(totalAmount()) }}</dd></div>
+    </dl>
+  </form>
+
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button>
+      <Button type="submit" form="pos-checkout-form" :loading="busy()">Complete sale</Button>
+    </div>
+  </template>
+</Modal>

@@ -1,0 +1,124 @@
+<script client>
+interface ShippingResourceOption {
+  id: number
+  name: string
+}
+
+interface ShippingRateRecord {
+  id: number
+  shipping_method_id: number
+  shipping_zone_id: number
+  weight_from: number
+  weight_to: number
+  rate: number
+}
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'create')
+const record = useReactiveProp('record', null as ShippingRateRecord | null)
+const methods = useReactiveProp('methods', [] as ShippingResourceOption[])
+const zones = useReactiveProp('zones', [] as ShippingResourceOption[])
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const methodId = state('')
+const zoneId = state('')
+const weightFrom = state('')
+const weightTo = state('')
+const amount = state('')
+let hydrationKey = ''
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const nextKey = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === nextKey)
+    return
+  hydrationKey = nextKey
+  methodId.set(current ? String(current.shipping_method_id) : '')
+  zoneId.set(current ? String(current.shipping_zone_id) : '')
+  weightFrom.set(current ? String(current.weight_from) : '')
+  weightTo.set(current ? String(current.weight_to) : '')
+  amount.set(current ? (current.rate / 100).toFixed(2) : '')
+})
+
+function submit(): void {
+  const selectedMethodId = Number(methodId())
+  const selectedZoneId = Number(zoneId())
+  const from = Number(weightFrom())
+  const to = Number(weightTo())
+  const rate = Number(amount())
+
+  if (!Number.isInteger(selectedMethodId) || selectedMethodId < 1) {
+    emit('invalid', 'Select a shipping method.')
+    return
+  }
+  if (!Number.isInteger(selectedZoneId) || selectedZoneId < 1) {
+    emit('invalid', 'Select a shipping zone.')
+    return
+  }
+  if (!Number.isFinite(from) || from < 0) {
+    emit('invalid', 'Starting weight must be a non-negative number.')
+    return
+  }
+  if (!Number.isFinite(to) || to < from) {
+    emit('invalid', 'Ending weight must be greater than or equal to the starting weight.')
+    return
+  }
+  if (!Number.isFinite(rate) || rate < 0) {
+    emit('invalid', 'Rate must be a non-negative amount.')
+    return
+  }
+
+  emit('submit', {
+    shippingMethodId: selectedMethodId,
+    shippingZoneId: selectedZoneId,
+    weightFrom: from,
+    weightTo: to,
+    rate: Math.round(rate * 100),
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit shipping rate' : 'Add shipping rate'"
+  description="Connect a persisted method and zone to an exact weight band."
+  size="md"
+  @close="emit('close')"
+>
+    <form id="shipping-rate-form" @submit.prevent="submit()">
+        <div :if="error()" class="mb-5 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+
+        <div class="space-y-4">
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Shipping method</span>
+            <select x-model="methodId" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700">
+              <option value="">Select a shipping method</option>
+              <template :for="method in methods()" :key="method.id"><option :value="method.id">{{ method.name }}</option></template>
+            </select>
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Shipping zone</span>
+            <select x-model="zoneId" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700">
+              <option value="">Select a shipping zone</option>
+              <template :for="zone in zones()" :key="zone.id"><option :value="zone.id">{{ zone.name }}</option></template>
+            </select>
+          </label>
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Weight from (kg)</span><input x-model="weightFrom" type="number" required min="0" step="0.01" inputmode="decimal" placeholder="0.00" class="mt-1 px-3 py-2 w-full tabular-nums text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Weight to (kg)</span><input x-model="weightTo" type="number" required min="0" step="0.01" inputmode="decimal" placeholder="10.00" class="mt-1 px-3 py-2 w-full tabular-nums text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          </div>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Rate</span><input x-model="amount" type="number" required min="0" step="0.01" inputmode="decimal" placeholder="5.99" class="mt-1 px-3 py-2 w-full tabular-nums text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button :disabled="busy()" variant="secondary" @click="emit('close')">Cancel</Button>
+      <Button type="submit" form="shipping-rate-form" :loading="busy()">{{ mode() === 'edit' ? 'Save changes' : 'Add rate' }}</Button>
+    </div>
+  </template>
+</Modal>

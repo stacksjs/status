@@ -1,5 +1,8 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
-import { db } from '@stacksjs/database'
+import { Board } from '@stacksjs/orm'
+import { modelBoolean, modelNullableString, modelNumber, modelString, refreshModel } from './kanban-model'
+import { kanbanActionError, kanbanError } from './kanban-response'
 
 interface BoardInput {
   name?: unknown
@@ -10,7 +13,7 @@ interface BoardInput {
 }
 
 /**
- * `PATCH /api/dashboard/kanban/boards/:id` (stacksjs/stacks#1846 Phase 2).
+ * `PATCH /api/dashboard/kanban/boards/:id`.
  *
  * Partial update — only the fields present in the body are written.
  * Omitting `archived` does NOT change the archive flag; passing
@@ -28,20 +31,19 @@ export default new Action({
   description: 'Partial update of a kanban board.',
   method: 'PATCH',
   apiResponse: true,
-  async handle(request) {
-    const rawId = (request as any)?.params?.id ?? (request as any)?.param?.('id') ?? null
-    const id = Number(rawId)
+  async handle(request: RequestInstance<BoardInput>) {
+    const id = Number(request.getParam('id'))
     if (!Number.isFinite(id) || id <= 0) {
-      return { error: 'Invalid board id', status: 400 }
+      return kanbanError('Invalid board id', 400)
     }
 
-    const body = (request as any).jsonBody as BoardInput | undefined ?? {}
+    const body = request.all()
     const set: Record<string, unknown> = {}
 
     if (typeof body.name === 'string') {
       const name = body.name.trim()
       if (!name || name.length > 120) {
-        return { error: 'Name must be 1-120 characters.', status: 400 }
+        return kanbanError('Name must be 1-120 characters.', 400)
       }
       set.name = name
     }
@@ -53,44 +55,35 @@ export default new Action({
     if (typeof body.color === 'string' && body.color)
       set.color = body.color
     if (typeof body.archived === 'boolean')
-      set.archived = body.archived ? 1 : 0
+      set.archived = body.archived
 
     if (Object.keys(set).length === 0) {
-      return { error: 'No updatable fields provided.', status: 400 }
+      return kanbanError('No updatable fields provided.', 400)
     }
 
     try {
-      // The `db.updateTable` chain works across dialects; we accumulate
-      // the partial set above and apply it in one statement.
-      await db.updateTable('boards').set(set as any).where('id', '=', id).execute()
+      const board = await Board.find(id)
+      if (!board)
+        return kanbanError('Board not found', 404)
+      const updated = await refreshModel(await board.update(set))
 
-      const rows = await db.unsafe(
-        `SELECT id, uuid, name, description, icon, color, position, archived, created_at, updated_at
-        FROM boards WHERE id = ? LIMIT 1`,
-        [id],
-      ).execute() as Array<Record<string, unknown>>
-      const r = rows?.[0]
-      if (!r) {
-        return { error: 'Board not found', status: 404 }
-      }
       return {
         board: {
-          id: Number(r.id),
-          uuid: r.uuid == null ? null : String(r.uuid),
-          name: String(r.name),
-          description: r.description == null ? null : String(r.description),
-          icon: String(r.icon),
-          color: String(r.color),
-          position: Number(r.position),
-          archived: Number(r.archived) === 1,
-          createdAt: r.created_at == null ? null : String(r.created_at),
-          updatedAt: r.updated_at == null ? null : String(r.updated_at),
+          id: modelNumber(updated, 'id'),
+          uuid: modelNullableString(updated, 'uuid'),
+          name: modelString(updated, 'name'),
+          description: modelNullableString(updated, 'description'),
+          icon: modelString(updated, 'icon'),
+          color: modelString(updated, 'color'),
+          position: modelNumber(updated, 'position'),
+          archived: modelBoolean(updated, 'archived'),
+          createdAt: modelNullableString(updated, 'createdAt', 'created_at'),
+          updatedAt: modelNullableString(updated, 'updatedAt', 'updated_at'),
         },
       }
     }
     catch (err) {
-      console.error('[dashboard/kanban] BoardUpdateAction failed:', err)
-      return { error: err instanceof Error ? err.message : 'unknown error', status: 500 }
+      return kanbanActionError(err, 'BoardUpdateAction')
     }
   },
 })

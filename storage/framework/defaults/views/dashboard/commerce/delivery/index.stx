@@ -1,18 +1,12 @@
 @extends('layouts/default')
 
 @section('content')
-@title('Dashboard - Commerce Delivery')
-<PageLayout>
-  <PageHeader title="Delivery" />
-  <!-- Default landing inside delivery; the child routes mount via the layout. -->
-  <p class="text-gray-500 dark:text-neutral-400">Redirecting…</p>
-</PageLayout>
 
-<script client>
-// Redirect to shipping methods by default. `navigate` is auto-imported.
-onMount(() => {
-  navigate('/commerce/delivery/shipping-methods')
-})
-</script>
+@title('Dashboard - Commerce Delivery')
+<div class="py-6">
+  <div class="mx-auto px-4 sm:px-6 md:px-8 max-w-7xl">
+    <DeliveryOverviewDashboard />
+  </div>
+</div>
 
 @endsection

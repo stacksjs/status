@@ -1,52 +1,50 @@
+import process from 'node:process'
 import { Action } from '@stacksjs/actions'
+import { checkApplicationHealth } from '@stacksjs/router'
+import { dashboardOperationalError, dashboardOperationalIssue } from './dashboard-response'
 
 export default new Action({
-  name: 'Dashboard Health',
-  description: 'Fetch system health status for dashboard',
+  name: 'DashboardHealthAction',
+  description: 'Runs the native application dependency probes and returns runtime telemetry.',
   method: 'GET',
+  apiResponse: true,
 
   async handle() {
-    // Mock data for development - replace with actual service checks when fully configured
-    const services = [
-      {
-        name: 'API',
-        status: 'healthy',
-        latency: '12ms',
-        uptime: '99.9%',
-      },
-      {
-        name: 'Database',
-        status: 'healthy',
-        latency: '8ms',
-        uptime: '99.9%',
-      },
-      {
-        name: 'Storage',
-        status: 'healthy',
-        latency: '5ms',
-        uptime: '99.9%',
-      },
-      {
-        name: 'Cache',
-        status: 'healthy',
-        latency: '2ms',
-        uptime: '99.9%',
-      },
-      {
-        name: 'Queue',
-        status: 'healthy',
-        latency: '5ms',
-        uptime: '99.9%',
-      },
-      {
-        name: 'Notifications',
-        status: 'healthy',
-        latency: '15ms',
-        uptime: '99.8%',
-      },
-    ]
+    const startedAt = performance.now()
+    try {
+      const health = await checkApplicationHealth()
+      const memory = process.memoryUsage()
+      const checks = Object.fromEntries(Object.entries(health.checks).map(([name, check]) => {
+        if (!check.ok) {
+          dashboardOperationalIssue(
+            check.message,
+            'Dependency probe failed.',
+            `DashboardHealthAction.${name}`,
+          )
+        }
+        return [name, {
+          ...check,
+          message: check.ok ? undefined : 'Dependency probe failed.',
+        }]
+      }))
 
-    // Return the services directly - the router will handle JSON serialization
-    return { services }
+      return {
+        ...health,
+        checks,
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+        runtime: {
+          bunVersion: process.versions.bun || '',
+          nodeVersion: process.versions.node || '',
+          platform: process.platform,
+          architecture: process.arch,
+          uptimeSeconds: Math.max(0, Math.floor(process.uptime())),
+          residentMemoryBytes: memory.rss,
+          heapUsedBytes: memory.heapUsed,
+        },
+      }
+    }
+    catch (error) {
+      return dashboardOperationalError(error, 'System health could not be loaded.', 'DashboardHealthAction')
+    }
   },
 })

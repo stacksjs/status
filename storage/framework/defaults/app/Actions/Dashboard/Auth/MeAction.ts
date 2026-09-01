@@ -1,5 +1,7 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { getUserRoles } from '@stacksjs/auth'
+import { dashboardOperationalError } from '../dashboard-response'
 
 interface MeResponse {
   user: {
@@ -32,7 +34,7 @@ interface MeResponse {
  * a 401 in the network tab. Instead:
  *
  *   - If the request carries a valid bearer token, the framework's auth
- *     middleware already populated `request.user` — we return that user
+ *     middleware already populated `request.user()` - we return that user
  *     plus their roles.
  *   - If not, we return `{ user: null, roles: [], unauthenticated: true }`.
  *     The composable's "no auth → assume dev" default kicks in client-side,
@@ -48,34 +50,30 @@ export default new Action({
   description: 'Returns the authenticated user + their RBAC roles for dashboard role gating.',
   method: 'GET',
   apiResponse: true,
-  async handle(request) {
-    const user = (request as any)?.user ?? (request as any)?._authenticatedUser ?? null
+  async handle(request: RequestInstance) {
+    const user = await request.user()
 
-    if (!user || typeof user !== 'object' || typeof (user as { id?: unknown }).id !== 'number') {
+    if (!user || !Number.isInteger(Number(user.id))) {
       const res: MeResponse = { user: null, roles: [], unauthenticated: true }
       return res
     }
 
-    const userId = (user as { id: number }).id
+    const userId = Number(user.id)
 
-    let roles: string[] = []
+    let roles: string[]
     try {
       const records = await getUserRoles(userId)
       roles = records.map(r => r.name)
     }
-    catch (err) {
-      // RBAC store not configured, migrations not run, or DB unreachable.
-      // Empty roles → useRole will fall back to its dev default. We don't
-      // want to 500 the dashboard just because the role tables haven't
-      // been migrated yet on a fresh project.
-      console.warn('[dashboard/auth/me] getUserRoles failed:', err instanceof Error ? err.message : err)
+    catch (error) {
+      return dashboardOperationalError(error, 'Dashboard identity could not be loaded.', 'MeAction')
     }
 
     const res: MeResponse = {
       user: {
         id: userId,
-        name: (user as { name?: string | null }).name ?? null,
-        email: (user as { email?: string | null }).email ?? null,
+        name: user.name ?? null,
+        email: user.email ?? null,
       },
       roles,
     }

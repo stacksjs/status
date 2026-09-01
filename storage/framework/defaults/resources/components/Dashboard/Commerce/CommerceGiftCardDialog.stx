@@ -1,0 +1,194 @@
+<script client>
+import type { GiftCardRecord, GiftCardStatus } from '../../../../app/Actions/Dashboard/Commerce/gift-card-records'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'add')
+const record = useReactiveProp('record', null as GiftCardRecord | null)
+const busy = useReactiveProp('busy', false)
+const errors = useReactiveProp('errors', {} as Record<string, string>)
+const emit = defineEmits()
+const code = state('')
+const initialBalance = state('50')
+const currentBalance = state('50')
+const currency = state('USD')
+const status = state<GiftCardStatus>('ACTIVE')
+const purchaserId = state('')
+const recipientEmail = state('')
+const recipientName = state('')
+const personalMessage = state('')
+const isDigital = state(true)
+const isReloadable = state(false)
+const isActive = state(true)
+const expiryDate = state('')
+const lastUsedDate = state('')
+const templateId = state('')
+const customerId = state('')
+let hydrationKey = ''
+let previousInitialBalance = '50'
+
+function generatedCode(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint8Array(12)
+  crypto.getRandomValues(bytes)
+  return `GIFT-${[...bytes].map(value => alphabet[value % alphabet.length]).join('')}`
+}
+
+function defaultExpiry(): string {
+  const date = new Date()
+  date.setFullYear(date.getFullYear() + 1)
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
+  return date.toISOString().slice(0, 16)
+}
+
+function inputDateTime(value: string): string {
+  if (!value)
+    return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime()))
+    return ''
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const key = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === key)
+    return
+  hydrationKey = key
+  code.set(current?.code || generatedCode())
+  const hydratedInitialBalance = String(current?.initialBalance || 50)
+  initialBalance.set(hydratedInitialBalance)
+  currentBalance.set(String(current?.currentBalance ?? current?.initialBalance ?? 50))
+  previousInitialBalance = hydratedInitialBalance
+  currency.set(current?.currency || 'USD')
+  status.set(current?.status || 'ACTIVE')
+  purchaserId.set(current?.purchaserId || '')
+  recipientEmail.set(current?.recipientEmail || '')
+  recipientName.set(current?.recipientName || '')
+  personalMessage.set(current?.personalMessage || '')
+  isDigital.set(current?.isDigital ?? true)
+  isReloadable.set(current?.isReloadable ?? false)
+  isActive.set(current?.isActive ?? true)
+  expiryDate.set(current?.expiryDate ? inputDateTime(current.expiryDate) : defaultExpiry())
+  lastUsedDate.set(current?.lastUsedDate ? inputDateTime(current.lastUsedDate) : '')
+  templateId.set(current?.templateId || '')
+  customerId.set(current?.customerId || '')
+})
+
+function syncCurrentBalance(event: Event): void {
+  const next = (event.target as HTMLInputElement).value
+  if (currentBalance() === previousInitialBalance)
+    currentBalance.set(next)
+  previousInitialBalance = next
+}
+
+function optionalTimestamp(value: string): number | undefined {
+  if (!value)
+    return undefined
+  const milliseconds = new Date(value).getTime()
+  return Number.isNaN(milliseconds) ? undefined : Math.floor(milliseconds / 1000)
+}
+
+function optionalCustomerId(): number | undefined {
+  if (!customerId().trim())
+    return undefined
+  const result = Number(customerId())
+  return Number.isInteger(result) && result > 0 ? result : undefined
+}
+
+function balanceError(): string {
+  const initial = Number(initialBalance())
+  const current = Number(currentBalance())
+  if (!Number.isFinite(initial) || initial < 1)
+    return 'Initial balance must be at least 1.'
+  if (!Number.isFinite(current) || current < 0)
+    return 'Current balance cannot be negative.'
+  if (current > initial)
+    return 'Current balance cannot exceed the initial balance.'
+  return ''
+}
+
+function valid(): boolean {
+  return Boolean(
+    code().trim()
+    && /^[A-Z]{3}$/.test(currency().trim().toUpperCase())
+    && !balanceError()
+  )
+}
+
+function submit(): void {
+  if (!valid())
+    return
+  emit('submit', {
+    code: code().trim().toUpperCase(),
+    initialBalance: Number(initialBalance()),
+    currentBalance: Number(currentBalance()),
+    currency: currency().trim().toUpperCase(),
+    status: status(),
+    purchaser_id: purchaserId().trim() || undefined,
+    recipient_email: recipientEmail().trim() || undefined,
+    recipientName: recipientName().trim() || undefined,
+    personalMessage: personalMessage().trim() || undefined,
+    isDigital: isDigital(),
+    isReloadable: isReloadable(),
+    isActive: isActive(),
+    expiryDate: optionalTimestamp(expiryDate()),
+    lastUsedDate: optionalTimestamp(lastUsedDate()),
+    templateId: templateId().trim() || undefined,
+    customerId: optionalCustomerId(),
+  })
+}
+
+function errorMessages(): string[] {
+  return Object.entries(errors()).map(([field, message]) => {
+    const label = field.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${message}`
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit gift card' : 'Add gift card'"
+  description="Store fields declared by the GiftCard model."
+  size="xl"
+  @close="emit('close')"
+>
+    <form id="gift-card-form" @submit.prevent="submit">
+        <ul :if="errorMessages().length > 0" class="mb-5 p-3 space-y-1 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">
+          <template :for="message in errorMessages()" :key="message"><li>{{ message }}</li></template>
+        </ul>
+        <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Code</span><input x-model="code" type="text" maxlength="50" required spellcheck="false" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm uppercase dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Initial balance</span><input x-model="initialBalance" type="number" min="1" step="0.01" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" @input="syncCurrentBalance($event)" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Current balance</span><input x-model="currentBalance" :max="initialBalance()" type="number" min="0" step="0.01" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <p :if="balanceError()" class="sm:col-span-2 -mt-2 text-red-600 text-xs dark:text-red-400">{{ balanceError() }}</p>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Currency</span><input x-model="currency" type="text" minlength="3" maxlength="3" required spellcheck="false" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm uppercase dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span><select x-model="status" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="ACTIVE">Active</option><option value="USED">Used</option><option value="EXPIRED">Expired</option><option value="DEACTIVATED">Deactivated</option></select></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Recipient name</span><input x-model="recipientName" type="text" placeholder="Optional" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Recipient email</span><input x-model="recipientEmail" type="email" placeholder="Optional" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Personal message</span><textarea x-model="personalMessage" rows="3" placeholder="Optional" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Expiry date</span><input x-model="expiryDate" type="datetime-local" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Last used date</span><input x-model="lastUsedDate" type="datetime-local" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Purchaser ID</span><input x-model="purchaserId" type="text" placeholder="Optional" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Customer ID</span><input x-model="customerId" type="number" min="1" step="1" placeholder="Optional" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Template ID</span><input x-model="templateId" type="text" placeholder="Optional" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <div class="grid gap-3 grid-cols-1 sm:col-span-2 sm:grid-cols-3">
+            <label class="flex gap-3 items-center p-3 border border-gray-200 rounded-lg dark:border-neutral-700"><input x-model="isActive" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" /><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Enabled</span></label>
+            <label class="flex gap-3 items-center p-3 border border-gray-200 rounded-lg dark:border-neutral-700"><input x-model="isDigital" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" /><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Digital delivery</span></label>
+            <label class="flex gap-3 items-center p-3 border border-gray-200 rounded-lg dark:border-neutral-700"><input x-model="isReloadable" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" /><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Reloadable</span></label>
+          </div>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+        <Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button>
+        <Button type="submit" form="gift-card-form" :loading="busy()" :disabled="!valid()">{{ mode() === 'edit' ? 'Save gift card' : 'Add gift card' }}</Button>
+    </div>
+  </template>
+</Modal>

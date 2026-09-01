@@ -1,0 +1,24 @@
+<script client>
+interface LicenseKeyRecord {
+  id: number
+  key: string
+}
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as LicenseKeyRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const description = derived(() => `Delete ${record()?.key || 'the selected license key'} permanently.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open() && Boolean(record())"
+  title="Delete license key?"
+  :description="description()"
+  confirmLabel="Delete key"
+  :busy="busy()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

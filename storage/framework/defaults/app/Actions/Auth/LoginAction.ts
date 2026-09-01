@@ -1,5 +1,9 @@
-import { createTwoFactorChallenge, getTwoFactorState } from '@stacksjs/auth'
+import { Action } from '@stacksjs/actions'
+import { Auth, authCookie, createTwoFactorChallenge, getTwoFactorState } from '@stacksjs/auth'
 import { User } from '@stacksjs/orm'
+import { response } from '@stacksjs/router'
+import { schema } from '@stacksjs/validation'
+import { PASSWORD_MAX_LENGTH, PASSWORD_PRESENCE_MESSAGE } from '../../password-policy'
 
 export default new Action({
   name: 'LoginAction',
@@ -8,12 +12,17 @@ export default new Action({
 
   validations: {
     email: {
-      rule: schema.string().email(),
+      rule: schema.string().email().required(),
       message: 'Email must be a valid email address.',
     },
+    // Presence only, NOT the creation policy. Enforcing a minimum length on
+    // sign-in locks out every account created under a shorter one: the user is
+    // told their own password is too short, with a 422 raised before the
+    // credentials are ever checked. The policy belongs on the paths that SET a
+    // password (#2226).
     password: {
-      rule: schema.string().min(6).max(255),
-      message: 'Password must be between 6 and 255 characters.',
+      rule: schema.string().min(1).max(PASSWORD_MAX_LENGTH).required(),
+      message: PASSWORD_PRESENCE_MESSAGE,
     },
   },
 
@@ -57,6 +66,15 @@ export default new Action({
     // The legacy `token` field is kept for backward compatibility
     // with clients that haven't been updated yet — it shadows
     // `access_token` and will be removed in a future major.
+    //
+    // The same token also goes out as an httpOnly cookie, matching
+    // SocialCallbackAction. Without it, how a browser ends up signed in
+    // depended on which way it signed in: OAuth left a cookie, email+password
+    // left only JSON, and a server-rendered page cannot read JSON — it posts a
+    // form, follows a redirect, and comes back carrying nothing but cookies.
+    // So the first authenticated document render had no way to identify the
+    // user (#2306). The body is unchanged, so an API client that ignores the
+    // cookie behaves exactly as before.
     return response.json({
       access_token: result.token,
       refresh_token: result.refreshToken,
@@ -68,6 +86,6 @@ export default new Action({
         email: user?.email,
         name: user?.name,
       },
-    })
+    }, { headers: { 'Set-Cookie': authCookie(result.token) } })
   },
 })

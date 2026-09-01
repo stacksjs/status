@@ -1,0 +1,55 @@
+<script client>
+interface DropdownNavigationElement {
+  label: string
+  to: string
+}
+
+const label = useReactiveProp('label', '')
+const requestedOpen = useReactiveProp('open', false)
+const elements = useReactiveProp('elements', [] as DropdownNavigationElement[])
+const disabled = useReactiveProp('disabled', false)
+const isOpen = state(requestedOpen())
+const emit = defineEmits()
+
+effect(() => {
+  isOpen.set(requestedOpen())
+})
+
+function setOpen(next: boolean): void {
+  if (disabled() && next)
+    return
+  isOpen.set(next)
+  emit('update:open', next)
+  emit(next ? 'open' : 'close')
+}
+
+function toggle(): void {
+  setOpen(!isOpen())
+}
+</script>
+
+<nav class="flex overflow-hidden flex-col gap-y-2" :aria-label="label() || 'Dropdown navigation'" @keydown.escape="setOpen(false)">
+  <button
+    type="button"
+    class="flex gap-x-2 items-center justify-between w-full text-left disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+    :aria-expanded="String(isOpen())"
+    :disabled="disabled()"
+    @click="toggle"
+  >
+    <span class="font-medium text-dark text-sm dark:text-white">
+      {{ label() }}
+    </span>
+
+    <span :class="isOpen() ? 'h-4 w-4 i-hugeicons-minus-sign' : 'h-4 w-4 i-hugeicons-arrow-down-01'"></span>
+  </button>
+
+  <ul :if="isOpen()" class="space-y-1">
+    <template :for="element in elements()">
+      <li>
+        <StxLink :to="element.to" class="block px-2 py-1.5 text-neutral-600 text-sm dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-white/10 rounded-md" @click="setOpen(false)">
+          {{ element.label }}
+        </StxLink>
+      </li>
+    </template>
+  </ul>
+</nav>

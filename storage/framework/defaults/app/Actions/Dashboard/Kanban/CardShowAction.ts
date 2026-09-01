@@ -1,5 +1,8 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
+import { modelBoolean } from './kanban-model'
+import { kanbanActionError, kanbanError } from './kanban-response'
 
 interface CardRow {
   id: number
@@ -11,13 +14,14 @@ interface CardRow {
   position: number
   created_by_user_id: number | null
   due_date: string | null
-  archived: number
+  // SQLite stores booleans as 0/1 INTEGER columns; Postgres returns real booleans.
+  archived: number | boolean
   created_at: string | null
   updated_at: string | null
 }
 
 /**
- * `GET /api/dashboard/kanban/cards/:id` (stacksjs/stacks#1846 Phase 3).
+ * `GET /api/dashboard/kanban/cards/:id`.
  *
  * Fetches a single card with everything the detail modal needs in one
  * round-trip: labels, assignees, comments. The board view's cards
@@ -36,21 +40,20 @@ export default new Action({
   description: 'Returns a single card with its labels, assignees, and comments thread.',
   method: 'GET',
   apiResponse: true,
-  async handle(request) {
-    const rawId = (request as any)?.params?.id ?? (request as any)?.param?.('id') ?? null
-    const id = Number(rawId)
+  async handle(request: RequestInstance) {
+    const id = Number(request.getParam('id'))
     if (!Number.isFinite(id) || id <= 0) {
-      return { error: 'Invalid card id', status: 400 }
+      return kanbanError('Invalid card id', 400)
     }
 
     try {
       const cardRows = await db.unsafe(
         'SELECT * FROM cards WHERE id = ? LIMIT 1',
         [id],
-      ).execute() as CardRow[]
+      ).execute() as unknown as CardRow[]
       const card = cardRows?.[0]
       if (!card) {
-        return { error: 'Card not found', status: 404 }
+        return kanbanError('Card not found', 404)
       }
 
       const [labels, assignees, comments] = await Promise.all([
@@ -90,7 +93,7 @@ export default new Action({
           position: card.position,
           createdByUserId: card.created_by_user_id,
           dueDate: card.due_date,
-          archived: card.archived === 1,
+          archived: modelBoolean(card, 'archived'),
           createdAt: card.created_at,
           updatedAt: card.updated_at,
         },
@@ -115,8 +118,7 @@ export default new Action({
       }
     }
     catch (err) {
-      console.error('[dashboard/kanban] CardShowAction failed:', err)
-      return { error: err instanceof Error ? err.message : 'unknown error', status: 500 }
+      return kanbanActionError(err, 'CardShowAction')
     }
   },
 })

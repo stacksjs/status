@@ -3,11 +3,29 @@ interface ModalProps {
   isOpen?: boolean
   title?: string
   description?: string
+  ariaLabel?: string
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
+  position?: 'center' | 'top'
+  panelClassName?: string
+  contentClassName?: string
+  showCloseButton?: boolean
   closable?: boolean
+  role?: 'dialog' | 'alertdialog'
 }
 
-const { isOpen = false, title = '', description = '', size = 'md', closable = true } = defineProps<ModalProps>()
+const {
+  isOpen = false,
+  title = '',
+  description = '',
+  ariaLabel = '',
+  size = 'md',
+  position = 'center',
+  panelClassName = '',
+  contentClassName = 'p-6',
+  showCloseButton = true,
+  closable = true,
+  role = 'dialog',
+} = defineProps<ModalProps>()
 
 const sizeClasses = {
   sm: 'max-w-sm',
@@ -16,60 +34,138 @@ const sizeClasses = {
   xl: 'max-w-4xl',
   full: 'max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)]'
 }
+
+const positionClasses = {
+  center: 'items-center justify-center p-4',
+  top: 'items-start justify-center px-4 pb-4 pt-[15vh]',
+}
 </script>
-@if(isOpen)
-  <div ref="pageRoot" class="fixed inset-0 overflow-y-auto z-50">
-    <!-- Overlay -->
-    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" data-modal-overlay></div>
+<script client>
+const open = useReactiveProp('isOpen', false)
+const liveClosable = useReactiveProp('closable', true)
+const liveTitle = useReactiveProp('title', '')
+const liveDescription = useReactiveProp('description', '')
+const liveAriaLabel = useReactiveProp('ariaLabel', '')
+const liveRole = useReactiveProp('role', 'dialog')
+const liveShowCloseButton = useReactiveProp('showCloseButton', true)
+const dialog = useRef<HTMLDialogElement>('dashboardModalDialog')
+const activeElement = useActiveElement()
+const scrollLocked = useScrollLock()
+const emit = defineEmits()
+let restoreFocus: HTMLElement | null = null
 
+type ModalCloseReason = 'backdrop' | 'button' | 'escape'
+
+function closeModal(reason: ModalCloseReason): void {
+  if (!liveClosable()) return
+  emit('close', reason)
+}
+
+function handleCancel(event: Event): void {
+  event.preventDefault()
+  closeModal('escape')
+}
+
+function handleBackdropClick(event: MouseEvent): void {
+  if (event.target === event.currentTarget)
+    closeModal('backdrop')
+}
+
+effect(() => {
+  const isOpen = open()
+  scrollLocked.value = isOpen
+
+  if (isOpen) {
+    const focused = peek(() => activeElement.value)
+    if (focused instanceof HTMLElement)
+      restoreFocus = focused
+    void nextTick(() => {
+      const element = dialog.current
+      if (!element) return
+      if (!element.open)
+        element.showModal()
+      const autofocusTarget = element.querySelector<HTMLElement>('[autofocus]:not([disabled])')
+      if (autofocusTarget)
+        autofocusTarget.focus()
+      else {
+        const currentFocus = peek(() => activeElement.value)
+        if (!(currentFocus instanceof HTMLElement && element.contains(currentFocus)))
+          element.focus()
+      }
+    })
+    return
+  }
+
+  if (dialog.current?.open)
+    dialog.current.close()
+  const target = restoreFocus
+  restoreFocus = null
+  if (target)
+    void nextTick(() => target.focus())
+})
+</script>
+  <dialog
+    :if="open()"
+    ref="dashboardModalDialog"
+    :role="liveRole()"
+    aria-modal="true"
+    :aria-label="liveAriaLabel() || liveTitle() || 'Dialog'"
+    class="fixed inset-0 overflow-y-auto z-[55] m-0 p-0 h-dvh max-h-none max-w-none w-screen bg-transparent dashboard-modal-dialog dashboard-modal-layer"
+    @cancel="handleCancel"
+  >
     <!-- Modal container -->
-    <div class="flex items-center justify-center p-4 min-h-full">
-      <div class="relative w-full rounded-xl bg-white dark:bg-neutral-900 shadow-2xl {{ sizeClasses[size] }}">
+    <div class="flex min-h-full {{ positionClasses[position] }}" @click="handleBackdropClick">
+      <div
+        class="relative w-full rounded-xl bg-white dark:bg-neutral-900 shadow-2xl {{ sizeClasses[size] }} {{ panelClassName }}"
+      >
         <!-- Header -->
-        @if(title || closable)
-          <div class="flex gap-4 items-start justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
+        <div :if="liveTitle() || (liveClosable() && liveShowCloseButton())" class="flex gap-4 items-start justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
+          <div class="flex gap-3 items-start min-w-0">
+            <slot name="header-leading" />
             <div class="min-w-0">
-              @if(title)
-                <h3 class="font-semibold text-lg text-neutral-900 dark:text-white">
-                  {{ title }}
+                <h3 :if="liveTitle()" class="font-semibold text-lg text-neutral-900 dark:text-white">
+                  {{ liveTitle() }}
                 </h3>
-              @endif
-              @if(description)
-                <p class="mt-1 text-neutral-500 text-sm dark:text-neutral-400">
-                  {{ description }}
+                <p :if="liveDescription()" class="mt-1 text-neutral-500 text-sm dark:text-neutral-400">
+                  {{ liveDescription() }}
                 </p>
-              @endif
             </div>
+          </div>
 
-            @if(closable)
-              <button
-                type="button"
-                class="-m-2 p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
-                data-modal-close
-              >
-                <div class="h-5 w-5 i-hugeicons-cancel-01"></div>
-              </button>
-            @endif
+          <div class="flex flex-shrink-0 gap-2 items-center">
+            <slot name="header-trailing" />
+            <Button
+              :if="liveClosable() && liveShowCloseButton()"
+              variant="ghost"
+              size="sm"
+              iconOnly
+              ariaLabel="Close modal"
+              @click="closeModal('button')"
+            >
+              <div class="h-5 w-5 i-hugeicons-cancel-01"></div>
+            </Button>
+          </div>
+        </div>
+
+        <!-- Body -->
+        @if($slots.default)
+          <div class="{{ contentClassName }}">
+            <slot />
           </div>
         @endif
 
-        <!-- Body -->
-        <div class="p-6">
-          <slot />
-        </div>
+        @if($slots.footer)
+          <div class="flex items-center justify-end px-6 py-4 border-neutral-200 border-t dark:border-neutral-700">
+            <slot name="footer" />
+          </div>
+        @endif
       </div>
     </div>
-  </div>
-  @endif
-<script client>
-var _root = useRef('pageRoot')
-onMount(function() {
-  var el = _root.current;
-  if (!el) return;
-  el.querySelectorAll('[data-modal-overlay], [data-modal-close]').forEach(item => {
-    item.addEventListener('click', () => {
-      item.closest('.fixed.inset-0')?.remove();
-    });
-  });
-});
-</script>
+  </dialog>
+
+<style>
+.dashboard-modal-dialog::backdrop {
+  background: rgb(0 0 0 / 50%);
+  backdrop-filter: blur(4px);
+}
+</style>

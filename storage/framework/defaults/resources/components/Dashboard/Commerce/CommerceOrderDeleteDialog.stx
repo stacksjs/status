@@ -1,0 +1,19 @@
+<script client>
+import type { CommerceOrderRecord } from '../../../../app/Actions/Dashboard/Commerce/commerce-order-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as CommerceOrderRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete order ${record()?.id || 'not recorded'} permanently? Linked items, payments, and license keys may prevent deletion.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete order"
+  :description="description()"
+  confirmLabel="Delete order"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

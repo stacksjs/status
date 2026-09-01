@@ -1,5 +1,8 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { createPermission, findPermission } from '@stacksjs/auth'
+import { response } from '@stacksjs/router'
+import { rbacActionError } from './rbac-response'
 
 interface PermissionInput {
   name?: unknown
@@ -19,20 +22,26 @@ export default new Action({
   description: 'Create a new permission.',
   method: 'POST',
   apiResponse: true,
-  async handle(request) {
-    const body = (request as any).jsonBody as PermissionInput | undefined ?? {}
+  async handle(request: RequestInstance<PermissionInput>) {
+    const body = request.all()
 
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     if (!name || name.length > 100) {
-      return { error: '`name` is required and must be 1-100 characters.', status: 400 }
+      return response.json({ error: '`name` is required and must be 1-100 characters.' }, 400)
     }
     const guardName = typeof body.guardName === 'string' && body.guardName ? body.guardName.trim() : 'web'
     const description = typeof body.description === 'string' ? body.description.trim() : undefined
+    if (!guardName || guardName.length > 60) {
+      return response.json({ error: '`guardName` must be 1-60 characters.' }, 400)
+    }
+    if (description && description.length > 255) {
+      return response.json({ error: '`description` must be at most 255 characters.' }, 400)
+    }
 
     try {
       const existing = await findPermission(name, guardName)
       if (existing) {
-        return { error: 'A permission with that name and guard already exists.', status: 409 }
+        return response.json({ error: 'A permission with that name and guard already exists.' }, 409)
       }
       const permission = await createPermission(name, guardName, description)
       return {
@@ -46,8 +55,7 @@ export default new Action({
       }
     }
     catch (err) {
-      console.error('[dashboard/rbac] PermissionStoreAction failed:', err)
-      return { error: err instanceof Error ? err.message : 'unknown error', status: 500 }
+      return rbacActionError(err, 'The permission could not be created.', 'PermissionStoreAction')
     }
   },
 })

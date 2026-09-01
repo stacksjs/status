@@ -1,0 +1,22 @@
+<script client>
+import type { DashboardDnsRecord } from '../../../../app/Actions/Dashboard/Infrastructure/dns-overview'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as DashboardDnsRecord | null)
+const emit = defineEmits()
+
+function ttlLabel(): string {
+  return record()?.ttl === null ? 'Provider default' : `${record()?.ttl} seconds`
+}
+</script>
+
+<Modal :isOpen="open() && Boolean(record())" :title="`${record()?.type || 'DNS'} · ${record()?.name || 'record'}`" description="Configured DNS record" size="md" @close="emit('close')">
+    <dl class="grid gap-5 sm:grid-cols-2 text-sm">
+      <div><dt class="text-neutral-500 dark:text-neutral-400">Type</dt><dd class="mt-1 font-semibold text-neutral-900 dark:text-white">{{ record()?.type }}</dd></div>
+      <div><dt class="text-neutral-500 dark:text-neutral-400">Name</dt><dd class="mt-1 break-all font-mono text-neutral-900 dark:text-white">{{ record()?.name }}</dd></div>
+      <div class="sm:col-span-2"><dt class="text-neutral-500 dark:text-neutral-400">Value</dt><dd class="mt-1 break-all font-mono text-neutral-900 dark:text-white">{{ record()?.value || 'Not set' }}</dd></div>
+      <div><dt class="text-neutral-500 dark:text-neutral-400">TTL</dt><dd class="mt-1 font-medium text-neutral-900 dark:text-white">{{ ttlLabel() }}</dd></div>
+      <div :if="record()?.priority !== null"><dt class="text-neutral-500 dark:text-neutral-400">Priority</dt><dd class="mt-1 font-medium text-neutral-900 dark:text-white">{{ record()?.priority }}</dd></div>
+    </dl>
+    <p class="mt-5 p-3 text-neutral-500 text-xs dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-800 rounded-lg">Source: config/dns.ts</p>
+</Modal>

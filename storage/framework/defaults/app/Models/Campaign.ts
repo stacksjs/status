@@ -6,8 +6,8 @@ export default defineModel({
   table: 'campaigns',
   primaryKey: 'id',
   autoIncrement: true,
-  belongsTo: ['EmailList'],
-  hasMany: ['CampaignSend'],
+  belongsTo: ['Team', 'EmailList'],
+  hasMany: ['CampaignSend', 'CampaignVariant'],
 
   traits: {
     useUuid: true,
@@ -18,7 +18,15 @@ export default defineModel({
     useApi: {
       uri: 'campaigns',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
+      middleware: ['auth', 'team'],
     },
+    useSearch: {
+      displayable: ['id', 'name', 'type', 'status', 'subject', 'scheduledAt', 'sentAt'],
+      searchable: ['name', 'description', 'subject'],
+      sortable: ['name', 'type', 'status', 'scheduledAt', 'sentAt', 'createdAt', 'updatedAt'],
+      filterable: ['teamId', 'type', 'status', 'emailListId', 'currency'],
+    },
+    observe: true,
   },
 
   attributes: {
@@ -87,7 +95,7 @@ export default defineModel({
       required: false,
       fillable: true,
       validation: {
-        rule: schema.string().max(255),
+        rule: schema.string(),
       },
       factory: faker => faker.helpers.arrayElement(['newsletter-default', 'product-update', 'promo']),
     },
@@ -99,6 +107,33 @@ export default defineModel({
         rule: schema.string(),
       },
       factory: faker => faker.lorem.paragraphs(2),
+    },
+
+    content: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.json(),
+      },
+      factory: () => JSON.stringify([]),
+    },
+
+    channelSettings: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.json(),
+      },
+      factory: () => JSON.stringify({}),
+    },
+
+    segmentDefinition: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.json(),
+      },
+      factory: () => JSON.stringify({ operator: 'and', rules: [] }),
     },
 
     fromName: {
@@ -117,6 +152,43 @@ export default defineModel({
         rule: schema.string().email().max(255),
       },
       factory: faker => faker.internet.email(),
+    },
+
+    replyTo: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.string().email().max(255),
+      },
+      factory: faker => faker.internet.email(),
+    },
+
+    timezone: {
+      required: true,
+      fillable: true,
+      default: 'UTC',
+      validation: {
+        rule: schema.string().max(100),
+      },
+      factory: () => 'UTC',
+    },
+
+    recurrence: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(255),
+      },
+      factory: () => null,
+    },
+
+    experimentMetric: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.enum(['open_rate', 'click_rate', 'conversion_rate']),
+      },
+      factory: () => null,
     },
 
     emailListId: {
@@ -212,6 +284,16 @@ export default defineModel({
         rule: schema.number().min(0),
       },
       factory: faker => faker.number.float({ min: 0, max: 5000, fractionDigits: 2 }),
+    },
+
+    currency: {
+      required: true,
+      fillable: true,
+      default: 'USD',
+      validation: {
+        rule: schema.string().required().max(3),
+      },
+      factory: faker => faker.helpers.arrayElement(['USD', 'EUR', 'GBP', 'CAD', 'AUD']),
     },
 
     startDate: {

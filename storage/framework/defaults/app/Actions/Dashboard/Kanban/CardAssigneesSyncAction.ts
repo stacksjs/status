@@ -1,12 +1,14 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
+import { kanbanActionError, kanbanError } from './kanban-response'
 
 interface SyncInput {
   userIds?: unknown
 }
 
 /**
- * `POST /api/dashboard/kanban/cards/:id/assignees` (stacksjs/stacks#1846 Phase 3).
+ * `POST /api/dashboard/kanban/cards/:id/assignees`.
  *
  * Replaces the set of users assigned to a card. Sync semantics —
  * pass the new full list of user ids, the action diffs against
@@ -19,29 +21,28 @@ interface SyncInput {
  *
  * Cross-validation: each user id must exist. Doesn't validate
  * board-scoped membership — kanban users aren't (currently) team-
- * scoped; any platform user can be assigned to any card. Phase 4
- * could tighten this if board-membership becomes a concept.
+ * scoped; any platform user can be assigned to any card. A future
+ * board-membership feature can tighten this contract.
  */
 export default new Action({
   name: 'Kanban Card Assignees Sync',
   description: 'Replaces the set of users assigned to a card.',
   method: 'POST',
   apiResponse: true,
-  async handle(request) {
-    const rawId = (request as any)?.params?.id ?? (request as any)?.param?.('id') ?? null
-    const cardId = Number(rawId)
+  async handle(request: RequestInstance<SyncInput>) {
+    const cardId = Number(request.getParam('id'))
     if (!Number.isFinite(cardId) || cardId <= 0)
-      return { error: 'Invalid card id', status: 400 }
+      return kanbanError('Invalid card id', 400)
 
-    const body = (request as any).jsonBody as SyncInput | undefined ?? {}
+    const body = request.all()
     if (!Array.isArray(body.userIds))
-      return { error: '`userIds` must be an array of user ids (possibly empty).', status: 400 }
+      return kanbanError('`userIds` must be an array of user ids (possibly empty).', 400)
 
     const userIds: number[] = []
     for (const v of body.userIds) {
       const n = Number(v)
       if (!Number.isFinite(n) || n <= 0)
-        return { error: '`userIds` contains an invalid id.', status: 400 }
+        return kanbanError('`userIds` contains an invalid id.', 400)
       userIds.push(n)
     }
     const uniqueUserIds = Array.from(new Set(userIds))
@@ -49,7 +50,7 @@ export default new Action({
     try {
       const cardRows = await db.unsafe('SELECT id FROM cards WHERE id = ? LIMIT 1', [cardId]).execute() as Array<{ id: number }>
       if (!cardRows?.length)
-        return { error: 'Card not found.', status: 404 }
+        return kanbanError('Card not found.', 404)
 
       // Validate user ids exist.
       if (uniqueUserIds.length > 0) {
@@ -59,13 +60,16 @@ export default new Action({
           uniqueUserIds,
         ).execute() as Array<{ id: number }>
         if (userRows.length !== uniqueUserIds.length)
-          return { error: 'One or more user ids do not exist.', status: 400 }
+          return kanbanError('One or more user ids do not exist.', 400)
       }
 
-      const requester = (request as any).user ?? (request as any)._authenticatedUser ?? null
-      const assignedByUserId = requester && typeof requester.id === 'number' ? requester.id : null
+      const requester = await request.user()
+      const assignedByUserId = requester && Number.isInteger(Number(requester.id))
+        ? Number(requester.id)
+        : null
 
-      const txOps = async (qb: any) => {
+      await db.transaction(async (rawTrx) => {
+        const qb = rawTrx as unknown as typeof db
         await qb.deleteFrom('card_assignees').where('card_id', '=', cardId).execute()
         if (uniqueUserIds.length > 0) {
           const rows = uniqueUserIds.map(userId => ({
@@ -75,13 +79,7 @@ export default new Action({
           }))
           await qb.insertInto('card_assignees').values(rows).execute()
         }
-      }
-      try {
-        await (db as any).transaction(txOps)
-      }
-      catch {
-        await txOps(db)
-      }
+      })
 
       // Return the resolved user rows for the optimistic UI to confirm.
       let assignees: Array<{ userId: number, name: string | null, email: string | null }> = []
@@ -96,8 +94,7 @@ export default new Action({
       return { cardId, assignees }
     }
     catch (err) {
-      console.error('[dashboard/kanban] CardAssigneesSyncAction failed:', err)
-      return { error: err instanceof Error ? err.message : 'unknown error', status: 500 }
+      return kanbanActionError(err, 'CardAssigneesSyncAction')
     }
   },
 })

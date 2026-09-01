@@ -1,0 +1,19 @@
+<script client>
+import type { CommerceCustomerRecord } from '../../../../app/Actions/Dashboard/Commerce/commerce-customer-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as CommerceCustomerRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete "${record()?.name || 'Unnamed customer'}" permanently? Linked orders, reviews, payments, and gift cards may prevent deletion.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete customer"
+  :description="description()"
+  confirmLabel="Delete customer"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

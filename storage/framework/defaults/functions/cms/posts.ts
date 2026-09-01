@@ -1,10 +1,12 @@
+import { resolveApiBaseUrl } from '../api-url'
 import type { Posts, StorePost } from '../../types/defaults'
-import { useFetch, useStorage } from '@stacksjs/browser'
+import { useFetch } from '@stacksjs/browser/composables/useFetch'
+import { useStorage } from '@stacksjs/browser/composables/useStorage'
 
-// Create a persistent posts array using VueUse's useStorage
+// Create a persistent posts array using STX useStorage
 const posts = useStorage<Posts[]>('posts', [])
 
-const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+const baseURL = resolveApiBaseUrl()
 
 // Basic fetch function to get all posts
 async function fetchPosts() {

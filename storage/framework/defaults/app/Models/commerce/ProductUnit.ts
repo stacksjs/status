@@ -22,6 +22,11 @@ export default defineModel({
     },
 
     useApi: {
+      // Public catalog: anyone may browse, only authenticated callers may
+      // write. Declared explicitly because the trait now defaults BOTH sides to
+      // `auth` — an undeclared read route is how a customer list leaks
+      // (stacksjs/stacks#2224). Behaviour here is unchanged.
+      middleware: { read: [], write: ['auth'] },
       uri: 'product-units',
     },
 
@@ -89,6 +94,7 @@ export default defineModel({
     },
 
     isDefault: {
+      default: false,
       order: 5,
       fillable: true,
       validation: {
@@ -97,7 +103,7 @@ export default defineModel({
           boolean: 'Default status must be a boolean',
         },
       },
-      factory: faker => faker.datatype.boolean(0.2), // 20% chance of being default
+      factory: () => false,
     },
   },
 

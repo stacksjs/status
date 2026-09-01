@@ -23,6 +23,7 @@ export default defineModel({
 
     useApi: {
       uri: 'digital-deliveries',
+      middleware: ['auth'],
     },
 
     observe: true,
@@ -54,7 +55,7 @@ export default defineModel({
       order: 4,
       fillable: true,
       validation: {
-        rule: schema.number(),
+        rule: schema.number().min(0),
       },
       factory: faker => faker.number.int({ min: 1, max: 100 }),
     },
@@ -63,7 +64,7 @@ export default defineModel({
       order: 5,
       fillable: true,
       validation: {
-        rule: schema.number().required(),
+        rule: schema.number().required().min(0),
       },
       factory: faker => faker.number.int({ min: 1, max: 365 }),
     },

@@ -1,0 +1,23 @@
+<script client>
+import type { TaxRateRecord } from '../../../../app/Actions/Dashboard/Commerce/tax-rate-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as TaxRateRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `${record()?.name || 'This tax rate'} will be permanently removed.`)
+const warning = derived(() => record()?.isDefault
+  ? 'This rate is marked as default. No replacement is selected automatically.'
+  : '')
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete tax rate?"
+  :description="description()"
+  :warning="warning()"
+  confirmLabel="Delete tax rate"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

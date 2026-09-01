@@ -1,4 +1,5 @@
 import { defineStore, derived, registerStoresClient, state } from '@stacksjs/stx'
+import { dashboardApi } from '../../../functions/dashboard-api'
 
 interface FailedJob {
   name: string
@@ -23,8 +24,8 @@ interface RepoStatus {
   updatedAt: string | null
   runUrl: string | null
   failedJobs: FailedJob[]
-  renovatePRs: number
-  renovatePRsUrl: string | null
+  buddyBotPRs: number
+  buddyBotPRsUrl: string | null
   actionsPRs: number
   actionsPRsUrl: string | null
 }
@@ -114,6 +115,7 @@ export const ciStore = defineStore('ci', () => {
   // Lazy-loaded on first view of an org's tab.
   const runnerHistoryByOrg = state<Record<string, Array<{ queued: number, sampledAt: string }>>>({})
   const loadingRunnerHistory = state<Record<string, boolean>>({})
+  const runnerHistoryErrors = state<Record<string, string>>({})
 
   const reposForTab = derived(() => {
     const tab = activeTab()
@@ -145,16 +147,13 @@ export const ciStore = defineStore('ci', () => {
     loading.set(true)
     error.set('')
     try {
-      const res = await fetch('/api/dashboard/ci/status', { headers: { accept: 'application/json' } })
-      if (!res.ok)
-        throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as {
+      const data = await dashboardApi<{
         repos: RepoStatus[]
         runners: Record<string, OrgRunnerUsage>
         fetchedAt: string
         disabled?: boolean
         error?: string
-      }
+      }>('/api/dashboard/ci/status')
 
       if (data.disabled) {
         disabled.set(true)
@@ -177,8 +176,9 @@ export const ciStore = defineStore('ci', () => {
       // if it's still valid after a refresh.
       const nextOrgs = Object.keys(data.runners ?? {})
       orgs.set(nextOrgs)
-      if (!nextOrgs.includes(activeTab()) && nextOrgs.length > 0)
-        activeTab.set(nextOrgs[0])
+      const firstOrg = nextOrgs.at(0)
+      if (!nextOrgs.includes(activeTab()) && firstOrg)
+        activeTab.set(firstOrg)
     }
     catch (e) {
       error.set(e instanceof Error ? e.message : String(e))
@@ -205,9 +205,9 @@ export const ciStore = defineStore('ci', () => {
     drilldownError.set(null)
     loadingDrilldown.set(true)
     try {
-      const res = await fetch(`/api/dashboard/ci/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/runs?limit=20`, { headers: { accept: 'application/json' } })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as { runs?: WorkflowRun[], error?: string, disabled?: boolean }
+      const data = await dashboardApi<{ runs?: WorkflowRun[], error?: string, disabled?: boolean }>(
+        `/api/dashboard/ci/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/runs?limit=20`,
+      )
       if (data.error)
         throw new Error(data.error)
       drilldownRuns.set(data.runs ?? [])
@@ -228,33 +228,37 @@ export const ciStore = defineStore('ci', () => {
     drilldownError.set(null)
   }
 
-  async function loadRunnerHistory(org: string): Promise<void> {
+  async function loadRunnerHistory(org: string, force = false): Promise<void> {
     // Already loaded? Don't re-fetch — runner samples have a 30s
     // refresh cadence anyway. If the user wants a fresh view they
     // can reload the page.
-    if (runnerHistoryByOrg()[org] !== undefined) return
+    if (!force && runnerHistoryByOrg()[org] !== undefined) return
     if (loadingRunnerHistory()[org]) return
 
     loadingRunnerHistory.set({ ...loadingRunnerHistory(), [org]: true })
+    runnerHistoryErrors.set({ ...runnerHistoryErrors(), [org]: '' })
     try {
-      const res = await fetch(`/api/dashboard/ci/runner-history?org=${encodeURIComponent(org)}`, {
-        headers: { accept: 'application/json' },
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as { samples?: Array<{ queued: number, sampledAt: string }>, error?: string, disabled?: boolean }
-      if (data.disabled || data.error) {
+      const data = await dashboardApi<{
+        samples?: Array<{ queued: number, sampledAt: string }>
+        error?: string
+        disabled?: boolean
+      }>(`/api/dashboard/ci/runner-history?org=${encodeURIComponent(org)}`)
+      if (data.disabled) {
         runnerHistoryByOrg.set({ ...runnerHistoryByOrg(), [org]: [] })
         return
       }
+      if (data.error)
+        throw new Error(data.error)
       runnerHistoryByOrg.set({
         ...runnerHistoryByOrg(),
         [org]: (data.samples ?? []).map(s => ({ queued: s.queued, sampledAt: s.sampledAt })),
       })
     }
-    catch {
-      // Soft-fail — sparkline renders nothing, no need to surface
-      // the error in the main CI page.
-      runnerHistoryByOrg.set({ ...runnerHistoryByOrg(), [org]: [] })
+    catch (e) {
+      runnerHistoryErrors.set({
+        ...runnerHistoryErrors(),
+        [org]: e instanceof Error ? e.message : 'Runner history could not be loaded.',
+      })
     }
     finally {
       loadingRunnerHistory.set({ ...loadingRunnerHistory(), [org]: false })
@@ -278,9 +282,9 @@ export const ciStore = defineStore('ci', () => {
 
     loadingJobsForRunId.set(runId)
     try {
-      const res = await fetch(`/api/dashboard/ci/repos/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.name)}/runs/${runId}/jobs`, { headers: { accept: 'application/json' } })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as { jobs?: WorkflowJob[], error?: string }
+      const data = await dashboardApi<{ jobs?: WorkflowJob[], error?: string }>(
+        `/api/dashboard/ci/repos/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.name)}/runs/${runId}/jobs`,
+      )
       if (data.error)
         throw new Error(data.error)
       drilldownJobsByRunId.set({ ...drilldownJobsByRunId(), [runId]: data.jobs ?? [] })
@@ -328,6 +332,7 @@ export const ciStore = defineStore('ci', () => {
     // Runner-pressure history (#1850)
     runnerHistoryByOrg,
     loadingRunnerHistory,
+    runnerHistoryErrors,
     loadRunnerHistory,
   }
 }, {

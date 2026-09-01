@@ -1,0 +1,25 @@
+<script client>
+interface ShippingRateRecord {
+  id: number
+  shipping_method?: { name: string }
+  shipping_zone?: { name: string }
+}
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as ShippingRateRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const description = derived(() => `Delete the ${record()?.shipping_method?.name || 'selected method'} rate for ${record()?.shipping_zone?.name || 'the selected zone'} permanently.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open() && Boolean(record())"
+  title="Delete shipping rate?"
+  :description="description()"
+  confirmLabel="Delete rate"
+  :busy="busy()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

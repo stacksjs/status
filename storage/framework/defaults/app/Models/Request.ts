@@ -7,13 +7,32 @@ export default defineModel({
   primaryKey: 'id',
   autoIncrement: true,
 
+  indexes: [
+    {
+      name: 'requests_created_at_index',
+      columns: ['created_at'],
+    },
+    {
+      name: 'requests_duration_ms_index',
+      columns: ['duration_ms'],
+    },
+    {
+      name: 'requests_status_code_index',
+      columns: ['status_code'],
+    },
+  ],
+
   traits: {
     useTimestamps: true,
     useSoftDeletes: true,
     useSeeder: {
       count: 50,
     },
-    useApi: true,
+    useApi: {
+      uri: 'requests',
+      routes: ['index', 'store', 'show', 'update', 'destroy'],
+      middleware: ['auth'],
+    },
   },
 
   attributes: {

@@ -1,0 +1,19 @@
+<script client>
+import type { CommerceCategoryRecord } from '../../../../app/Actions/Dashboard/Commerce/commerce-category-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as CommerceCategoryRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete "${record()?.name || 'Unnamed category'}" permanently? Linked products and child categories may prevent deletion.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete category"
+  :description="description()"
+  confirmLabel="Delete category"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

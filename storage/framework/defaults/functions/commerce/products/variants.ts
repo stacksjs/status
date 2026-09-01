@@ -1,11 +1,12 @@
+import { resolveApiBaseUrl } from '../../api-url'
 import type { ProductVariants } from '../../../types/defaults'
-import { useStorage } from '@stacksjs/browser'
+import { useStorage } from '@stacksjs/browser/composables/useStorage'
 import { pushToast } from '../../toasts'
 
-// Create a persistent variants array using VueUse's useStorage
+// Create a persistent variants array using STX useStorage
 const variants = useStorage<ProductVariants[]>('variants', [])
 
-const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+const baseURL = resolveApiBaseUrl()
 
 // Basic fetch function to get all variants
 async function fetchVariants() {

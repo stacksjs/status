@@ -1,0 +1,87 @@
+<script client>
+import type { ProductVariantOption, ProductVariantRecord } from '../../../../app/Actions/Dashboard/Commerce/product-variant-records'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'add')
+const record = useReactiveProp('record', null as ProductVariantRecord | null)
+const products = useReactiveProp('products', [] as ProductVariantOption[])
+const types = useReactiveProp('types', [] as string[])
+const busy = useReactiveProp('busy', false)
+const errors = useReactiveProp('errors', {} as Record<string, string>)
+const emit = defineEmits()
+const variant = state('')
+const type = state('')
+const description = state('')
+const options = state('')
+const status = state<'active' | 'inactive' | 'draft'>('active')
+const productId = state('')
+let hydrationKey = ''
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const key = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === key)
+    return
+  hydrationKey = key
+  variant.set(current?.variant || '')
+  type.set(current?.type || '')
+  description.set(current?.description || '')
+  options.set(current?.options.join(', ') || '')
+  status.set(current?.status || 'active')
+  productId.set(current?.productId || '')
+})
+
+function submit(): void {
+  if (!variant().trim() || !type().trim())
+    return
+  emit('submit', {
+    variant: variant().trim(),
+    type: type().trim(),
+    description: description().trim(),
+    options: options().split(/[,\n]/).map(option => option.trim()).filter(Boolean),
+    status: status(),
+    productId: productId() ? Number(productId()) : null,
+  })
+}
+
+function errorMessages(): string[] {
+  return Object.entries(errors()).map(([field, message]) => {
+    const label = field.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${message}`
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit product variant' : 'Add product variant'"
+  description="Fields and product assignment follow the ProductVariant model."
+  size="md"
+  @close="emit('close')"
+>
+    <form id="product-variant-form" @submit.prevent="submit">
+        <ul :if="errorMessages().length > 0" class="mb-5 p-3 space-y-1 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">
+          <template :for="message in errorMessages()" :key="message"><li>{{ message }}</li></template>
+        </ul>
+        <div class="space-y-4">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Variant</span><input x-model="variant" type="text" maxlength="100" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Type</span><input x-model="type" type="text" list="product-variant-types" maxlength="50" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /><datalist id="product-variant-types"><template :for="variantType in types()" :key="variantType"><option :value="variantType"></option></template></datalist></label>
+          </div>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Product</span><select x-model="productId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned</option><template :for="product in products()" :key="product.id"><option :value="product.id">{{ product.name }}</option></template></select></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Description</span><textarea x-model="description" rows="3" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Options</span><textarea x-model="options" rows="3" placeholder="Small, Medium, Large" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea><span class="block mt-1 text-gray-500 text-xs dark:text-neutral-400">Separate options with commas or new lines.</span></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span><select x-model="status" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="active">Active</option><option value="inactive">Inactive</option><option value="draft">Draft</option></select></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+        <Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button>
+        <Button type="submit" form="product-variant-form" :loading="busy()" :disabled="!variant().trim() || !type().trim()">{{ mode() === 'edit' ? 'Save product variant' : 'Add product variant' }}</Button>
+    </div>
+  </template>
+</Modal>

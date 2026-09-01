@@ -1,0 +1,138 @@
+<script client>
+import type {
+  CommerceProductRecord,
+  ProductOption,
+} from '../../../../app/Actions/Dashboard/Commerce/commerce-product-records'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'add')
+const record = useReactiveProp('record', null as CommerceProductRecord | null)
+const categories = useReactiveProp('categories', [] as ProductOption[])
+const manufacturers = useReactiveProp('manufacturers', [] as ProductOption[])
+const currency = useReactiveProp('currency', 'USD')
+const busy = useReactiveProp('busy', false)
+const errors = useReactiveProp('errors', {} as Record<string, string>)
+const emit = defineEmits()
+const name = state('')
+const description = state('')
+const price = state('1')
+const imageUrl = state('')
+const isAvailable = state(true)
+const inventoryCount = state('0')
+const preparationTime = state('1')
+const categoryId = state('')
+const manufacturerId = state('')
+const allergens = state('')
+const nutritionalInfo = state('{}')
+let hydrationKey = ''
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const key = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === key)
+    return
+  hydrationKey = key
+  name.set(current?.name || '')
+  description.set(current?.description || '')
+  price.set(String(current?.price ?? 1))
+  imageUrl.set(current?.imageUrl || '')
+  isAvailable.set(current?.isAvailable ?? true)
+  inventoryCount.set(String(current?.inventoryCount ?? 0))
+  preparationTime.set(String(current?.preparationTime ?? 1))
+  categoryId.set(current?.categoryId || '')
+  manufacturerId.set(current?.manufacturerId || '')
+  allergens.set(current?.allergens.join(', ') || '')
+  nutritionalInfo.set(current?.nutritionalInfoRaw || '{}')
+})
+
+function nutritionValid(): boolean {
+  const raw = nutritionalInfo().trim()
+  if (!raw)
+    return true
+  try {
+    const parsed = JSON.parse(raw)
+    return Boolean(parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+  }
+  catch {
+    return false
+  }
+}
+
+function valid(): boolean {
+  const parsedPrice = Number(price())
+  const parsedInventory = Number(inventoryCount())
+  const parsedPreparation = Number(preparationTime())
+  return Boolean(
+    name().trim()
+    && Number.isFinite(parsedPrice)
+    && parsedPrice >= 1
+    && Number.isFinite(parsedInventory)
+    && parsedInventory >= 0
+    && Number.isInteger(parsedInventory)
+    && Number.isFinite(parsedPreparation)
+    && parsedPreparation >= 1
+    && Number.isInteger(parsedPreparation)
+    && nutritionValid()
+  )
+}
+
+function submit(): void {
+  if (!valid())
+    return
+  const allergenValues = allergens().split(',').map(value => value.trim()).filter(Boolean)
+  emit('submit', {
+    name: name().trim(),
+    description: description().trim(),
+    price: Number(price()),
+    imageUrl: imageUrl().trim(),
+    isAvailable: isAvailable(),
+    inventoryCount: Number(inventoryCount()),
+    preparationTime: Number(preparationTime()),
+    allergens: JSON.stringify(allergenValues),
+    nutritionalInfo: nutritionalInfo().trim() || '{}',
+    categoryId: categoryId() ? Number(categoryId()) : null,
+    manufacturerId: manufacturerId() ? Number(manufacturerId()) : null,
+  })
+}
+
+function errorMessages(): string[] {
+  return Object.entries(errors()).map(([field, message]) => {
+    const fieldLabel = field.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+    return `${fieldLabel.charAt(0).toUpperCase()}${fieldLabel.slice(1)}: ${message}`
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit product' : 'Add product'"
+  description="Store fields and belongs-to relationships declared by the native Product model."
+  size="xl"
+  @close="emit('close')"
+>
+    <form id="product-form" @submit.prevent="submit">
+        <ul :if="errorMessages().length > 0" class="mb-5 p-3 space-y-1 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">
+          <template :for="message in errorMessages()" :key="message"><li>{{ message }}</li></template>
+        </ul>
+        <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Name</span><input x-model="name" type="text" maxlength="100" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Description</span><textarea x-model="description" rows="3" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Price ({{ currency() }})</span><input x-model="price" type="number" min="1" step="0.01" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Inventory count</span><input x-model="inventoryCount" type="number" min="0" step="1" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Preparation time (minutes)</span><input x-model="preparationTime" type="number" min="1" step="1" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="flex gap-3 items-center self-end px-3 py-2 min-h-10 bg-gray-50 dark:bg-neutral-900/60 border border-gray-200 rounded-md dark:border-neutral-700"><input x-model="isAvailable" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" /><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Available for commerce</span></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Category</span><select x-model="categoryId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned category</option><template :for="option in categories()" :key="option.id"><option :value="option.id">{{ option.label }}</option></template></select></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Manufacturer</span><select x-model="manufacturerId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned manufacturer</option><template :for="option in manufacturers()" :key="option.id"><option :value="option.id">{{ option.label }}</option></template></select></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Image URL</span><input x-model="imageUrl" type="url" placeholder="Optional persisted asset URL" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Allergens</span><input x-model="allergens" type="text" placeholder="Comma-separated, for example: Gluten, Soy" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Nutritional information (JSON object)</span><textarea x-model="nutritionalInfo" rows="4" spellcheck="false" :aria-invalid="!nutritionValid()" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea><span :if="!nutritionValid()" class="block mt-1 text-red-600 text-xs dark:text-red-400">Enter a valid JSON object.</span></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full"><Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button><Button type="submit" form="product-form" :loading="busy()" :disabled="!valid()">{{ mode() === 'edit' ? 'Save product' : 'Add product' }}</Button></div>
+  </template>
+</Modal>

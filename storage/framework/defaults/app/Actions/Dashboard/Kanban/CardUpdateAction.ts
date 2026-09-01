@@ -1,5 +1,8 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
-import { db } from '@stacksjs/database'
+import { Card } from '@stacksjs/orm'
+import { modelBoolean, modelNullableString, modelNumber, modelString, modelValue, refreshModel } from './kanban-model'
+import { kanbanActionError, kanbanError } from './kanban-response'
 
 interface CardInput {
   title?: unknown
@@ -9,7 +12,7 @@ interface CardInput {
 }
 
 /**
- * `PATCH /api/dashboard/kanban/cards/:id` (stacksjs/stacks#1846 Phase 2).
+ * `PATCH /api/dashboard/kanban/cards/:id`.
  *
  * Partial update for the card body: title, description, due date,
  * archive flag. `position` and `columnId` are NOT updatable here —
@@ -23,20 +26,19 @@ export default new Action({
   description: 'Partial update of a card body (title, description, due date, archive).',
   method: 'PATCH',
   apiResponse: true,
-  async handle(request) {
-    const rawId = (request as any)?.params?.id ?? (request as any)?.param?.('id') ?? null
-    const id = Number(rawId)
+  async handle(request: RequestInstance<CardInput>) {
+    const id = Number(request.getParam('id'))
     if (!Number.isFinite(id) || id <= 0) {
-      return { error: 'Invalid card id', status: 400 }
+      return kanbanError('Invalid card id', 400)
     }
 
-    const body = (request as any).jsonBody as CardInput | undefined ?? {}
+    const body = request.all()
     const set: Record<string, unknown> = {}
 
     if (typeof body.title === 'string') {
       const title = body.title.trim()
       if (!title || title.length > 300) {
-        return { error: '`title` must be 1-300 characters.', status: 400 }
+        return kanbanError('`title` must be 1-300 characters.', 400)
       }
       set.title = title
     }
@@ -44,48 +46,42 @@ export default new Action({
       set.description = typeof body.description === 'string' ? body.description.trim() : null
     }
     if (typeof body.dueDate === 'string' || body.dueDate === null) {
-      set.due_date = typeof body.dueDate === 'string' && body.dueDate ? body.dueDate : null
+      set.dueDate = typeof body.dueDate === 'string' && body.dueDate ? body.dueDate : null
     }
     if (typeof body.archived === 'boolean')
-      set.archived = body.archived ? 1 : 0
+      set.archived = body.archived
 
     if (Object.keys(set).length === 0) {
-      return { error: 'No updatable fields provided.', status: 400 }
+      return kanbanError('No updatable fields provided.', 400)
     }
 
     try {
-      await db.updateTable('cards').set(set as any).where('id', '=', id).execute()
+      const card = await Card.find(id)
+      if (!card)
+        return kanbanError('Card not found', 404)
+      const updated = await refreshModel(await card.update(set))
 
-      const rows = await db.unsafe(
-        `SELECT id, uuid, column_id, board_id, title, description, position,
-                created_by_user_id, due_date, archived, created_at, updated_at
-        FROM cards WHERE id = ? LIMIT 1`,
-        [id],
-      ).execute() as Array<Record<string, unknown>>
-      const r = rows?.[0]
-      if (!r) {
-        return { error: 'Card not found', status: 404 }
-      }
       return {
         card: {
-          id: Number(r.id),
-          uuid: r.uuid == null ? null : String(r.uuid),
-          columnId: Number(r.column_id),
-          boardId: Number(r.board_id),
-          title: String(r.title),
-          description: r.description == null ? null : String(r.description),
-          position: Number(r.position),
-          createdByUserId: r.created_by_user_id == null ? null : Number(r.created_by_user_id),
-          dueDate: r.due_date == null ? null : String(r.due_date),
-          archived: Number(r.archived) === 1,
-          createdAt: r.created_at == null ? null : String(r.created_at),
-          updatedAt: r.updated_at == null ? null : String(r.updated_at),
+          id: modelNumber(updated, 'id'),
+          uuid: modelNullableString(updated, 'uuid'),
+          columnId: modelNumber(updated, 'columnId', 'column_id'),
+          boardId: modelNumber(updated, 'boardId', 'board_id'),
+          title: modelString(updated, 'title'),
+          description: modelNullableString(updated, 'description'),
+          position: modelNumber(updated, 'position'),
+          createdByUserId: modelValue(updated, 'createdByUserId', 'created_by_user_id') == null
+            ? null
+            : modelNumber(updated, 'createdByUserId', 'created_by_user_id'),
+          dueDate: modelNullableString(updated, 'dueDate', 'due_date'),
+          archived: modelBoolean(updated, 'archived'),
+          createdAt: modelNullableString(updated, 'createdAt', 'created_at'),
+          updatedAt: modelNullableString(updated, 'updatedAt', 'updated_at'),
         },
       }
     }
     catch (err) {
-      console.error('[dashboard/kanban] CardUpdateAction failed:', err)
-      return { error: err instanceof Error ? err.message : 'unknown error', status: 500 }
+      return kanbanActionError(err, 'CardUpdateAction')
     }
   },
 })

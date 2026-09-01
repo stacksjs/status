@@ -9,6 +9,9 @@ on:
     branches:
       - main
 
+  # So a maintainer can ship without pushing an empty commit.
+  workflow_dispatch:
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -26,8 +29,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@c1417d98f5613290bc3b1f96d35086b834684659 # v0.10.47 + the socket-hang-up retry fix
+        with:
+          install: 'false'
 
       - name: Use cached node_modules
         uses: actions/cache@v4
@@ -55,8 +60,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@c1417d98f5613290bc3b1f96d35086b834684659 # v0.10.47 + the socket-hang-up retry fix
+        with:
+          install: 'false'
 
       - name: Use cached node_modules
         uses: actions/cache@v4
@@ -87,8 +94,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@c1417d98f5613290bc3b1f96d35086b834684659 # v0.10.47 + the socket-hang-up retry fix
+        with:
+          install: 'false'
 
       - name: Use cached node_modules
         uses: actions/cache@v4
@@ -103,6 +112,13 @@ jobs:
 
       - name: Set Application Key
         run: bun buddy key:generate
+
+      # Feature tests query real tables, and a fresh checkout has no database
+      # file at all: it is gitignored, being machine-local state. Without this
+      # the suite fails in beforeAll with "no such table", which reads like a
+      # broken test rather than a missing schema.
+      - name: Migrate the database
+        run: bun buddy migrate
 
       - name: Test Suite
         run: bun run test

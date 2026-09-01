@@ -1,0 +1,24 @@
+<script client>
+interface DeliveryRouteRecord {
+  id: number
+  courier: string
+}
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as DeliveryRouteRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const description = derived(() => `Delete route #${record()?.id} for ${record()?.courier || 'the selected courier'} permanently.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open() && Boolean(record())"
+  title="Delete delivery route?"
+  :description="description()"
+  confirmLabel="Delete route"
+  :busy="busy()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

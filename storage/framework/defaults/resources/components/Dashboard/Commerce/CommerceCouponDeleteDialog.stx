@@ -1,0 +1,19 @@
+<script client>
+import type { CouponRecord } from '../../../../app/Actions/Dashboard/Commerce/coupon-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as CouponRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete "${record()?.code || 'Unnamed coupon'}" permanently? Recorded order relationships may prevent deletion.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete coupon"
+  :description="description()"
+  confirmLabel="Delete coupon"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

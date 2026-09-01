@@ -1,0 +1,22 @@
+<script client>
+import type { DashboardCloudResource } from '../../../../app/Actions/Dashboard/Cloud/cloud-overview'
+
+const open = useReactiveProp('open', false)
+const item = useReactiveProp('item', null as DashboardCloudResource | null)
+const emit = defineEmits()
+</script>
+
+<Modal :isOpen="open() && Boolean(item())" :title="item()?.name || 'Cloud resource'" :description="`${item()?.category || 'Cloud'} resource`" size="md" @close="emit('close')">
+      <div class="flex gap-3 items-center">
+        <CloudStatusBadge :status="item()?.status || 'inactive'" />
+        <span class="capitalize text-neutral-500 text-sm dark:text-neutral-400">{{ item()?.type }}</span>
+      </div>
+      <p class="mt-4 leading-6 text-neutral-700 text-sm dark:text-neutral-300">{{ item()?.description }}</p>
+      <dl :if="(item()?.details || []).length > 0" class="grid gap-4 sm:grid-cols-2 mt-5">
+        <div :for="detail in item()?.details || []">
+          <dt class="text-neutral-500 text-xs dark:text-neutral-400">{{ detail.label }}</dt>
+          <dd class="mt-1 break-all font-medium text-neutral-900 text-sm dark:text-white">{{ detail.value }}</dd>
+        </div>
+      </dl>
+      <p :if="(item()?.details || []).length === 0" class="mt-5 p-3 text-neutral-500 text-sm dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-800 rounded-lg">No additional configuration fields are recorded for this resource.</p>
+</Modal>

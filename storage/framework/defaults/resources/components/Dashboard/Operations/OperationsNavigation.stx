@@ -1,0 +1,32 @@
+<script client>
+const active = useReactiveProp('active', 'scheduler')
+
+function linkClass(name: string): string {
+  return active() === name
+    ? 'bg-white text-gray-900 shadow-sm dark:bg-neutral-700 dark:text-white'
+    : 'text-gray-600 hover:text-gray-900 dark:text-neutral-400 dark:hover:text-white'
+}
+</script>
+
+<nav aria-label="Operations sections" class="overflow-x-auto">
+  <div class="inline-flex gap-1 p-1 min-w-max bg-gray-100 dark:bg-neutral-900 rounded-lg">
+    <StxLink to="/operations/changes" :class="'px-3 py-1.5 font-medium text-sm rounded-md transition-colors ' + linkClass('changes')">
+      Changes
+    </StxLink>
+    <StxLink to="/operations/scheduler" :class="'px-3 py-1.5 font-medium text-sm rounded-md transition-colors ' + linkClass('scheduler')">
+      Scheduler
+    </StxLink>
+    <StxLink to="/operations/recovery" :class="'px-3 py-1.5 font-medium text-sm rounded-md transition-colors ' + linkClass('recovery')">
+      Recovery
+    </StxLink>
+    <StxLink to="/operations/migrations" :class="'px-3 py-1.5 font-medium text-sm rounded-md transition-colors ' + linkClass('migrations')">
+      Migrations
+    </StxLink>
+    <StxLink to="/operations/incidents" :class="'px-3 py-1.5 font-medium text-sm rounded-md transition-colors ' + linkClass('incidents')">
+      Incidents
+    </StxLink>
+    <StxLink to="/operations/audit" :class="'px-3 py-1.5 font-medium text-sm rounded-md transition-colors ' + linkClass('audit')">
+      Audit
+    </StxLink>
+  </div>
+</nav>

@@ -1,0 +1,327 @@
+<script client>
+import { DashboardApiError, dashboardApi } from '../../../../functions/dashboard-api'
+import { authStore } from '../../../../views/dashboard/stores/auth'
+
+interface AccessTokenRow {
+  id: number
+  name: string
+  scopes: string[]
+  expires_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface TokenListResponse {
+  tokens: AccessTokenRow[]
+  count: number
+}
+
+interface CreatedTokenResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+  token: {
+    id: number
+    name: string
+    scopes: string[]
+    expires_at: string | null
+  }
+}
+
+interface TokenDraft {
+  name: string
+  scopes: string[]
+  expiresInMinutes: number
+}
+
+const tokens = state<AccessTokenRow[]>([])
+const loading = state(true)
+const authenticationRequired = state(false)
+const loadError = state('')
+const actionError = state('')
+const actionMessage = state('')
+const showCreate = state(false)
+const creating = state(false)
+const createdToken = state('')
+const confirmingRevoke = state<number | null>(null)
+const revoking = state<number | null>(null)
+
+const activeCount = derived(() => tokens().filter(token => tokenStatus(token) === 'active').length)
+const expiredCount = derived(() => tokens().filter(token => tokenStatus(token) === 'expired').length)
+const tokenToRevoke = derived(() => tokens().find(token => token.id === confirmingRevoke()) ?? null)
+const revokeDescription = derived(() => tokenToRevoke()
+  ? `${tokenToRevoke()?.name} will immediately stop authorizing API requests.`
+  : 'This access token will immediately stop authorizing API requests.')
+
+function tokenStatus(token: AccessTokenRow): 'active' | 'expired' {
+  if (!token.expires_at)
+    return 'active'
+  return new Date(token.expires_at).getTime() <= Date.now() ? 'expired' : 'active'
+}
+
+function statusClass(token: AccessTokenRow): string {
+  return tokenStatus(token) === 'active'
+    ? 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/40'
+    : 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40'
+}
+
+function formatDate(value: string | null): string {
+  if (!value)
+    return 'Never'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString()
+}
+
+function openCreate(): void {
+  if (authenticationRequired())
+    return
+
+  createdToken.set('')
+  actionError.set('')
+  showCreate.set(true)
+}
+
+function closeCreate(): void {
+  showCreate.set(false)
+  createdToken.set('')
+}
+
+async function loadTokens(): Promise<void> {
+  loading.set(true)
+  loadError.set('')
+  try {
+    await authStore.load()
+
+    if (authStore.error()) {
+      tokens.set([])
+      loadError.set(authStore.error() || 'The signed-in account could not be verified.')
+      return
+    }
+
+    if (authStore.unauthenticated()) {
+      tokens.set([])
+      authenticationRequired.set(true)
+      return
+    }
+
+    const response = await dashboardApi<TokenListResponse>('/auth/tokens')
+    tokens.set(response.tokens || [])
+    authenticationRequired.set(false)
+  }
+  catch (error) {
+    tokens.set([])
+    if (error instanceof DashboardApiError && error.status === 401) {
+      authenticationRequired.set(true)
+    }
+    else {
+      loadError.set(error instanceof Error ? error.message : 'Access tokens could not be loaded.')
+    }
+  }
+  finally {
+    loading.set(false)
+  }
+}
+
+async function createAccessToken(draft: TokenDraft): Promise<void> {
+  actionError.set('')
+  actionMessage.set('')
+
+  creating.set(true)
+  try {
+    const response = await dashboardApi<CreatedTokenResponse>('/auth/token', {
+      method: 'POST',
+      body: {
+        name: draft.name,
+        scopes: draft.scopes,
+        expires_in_minutes: draft.expiresInMinutes,
+        with_refresh_token: false,
+      },
+    })
+    createdToken.set(response.access_token)
+    actionMessage.set('Token created. Copy it now because it will not be shown again.')
+    await loadTokens()
+  }
+  catch (error) {
+    if (error instanceof DashboardApiError && error.status === 401) {
+      authenticationRequired.set(true)
+      showCreate.set(false)
+      actionError.set('')
+    }
+    else {
+      actionError.set(error instanceof Error ? error.message : 'The access token could not be created.')
+    }
+  }
+  finally {
+    creating.set(false)
+  }
+}
+
+async function revokeToken(): Promise<void> {
+  const id = confirmingRevoke()
+  if (id === null)
+    return
+
+  actionError.set('')
+  actionMessage.set('')
+  revoking.set(id)
+  try {
+    await dashboardApi(`/auth/tokens/${id}`, { method: 'DELETE' })
+    confirmingRevoke.set(null)
+    actionMessage.set('Access token revoked.')
+    await loadTokens()
+  }
+  catch (error) {
+    if (error instanceof DashboardApiError && error.status === 401) {
+      authenticationRequired.set(true)
+      actionError.set('')
+    }
+    else {
+      actionError.set(error instanceof Error ? error.message : 'The access token could not be revoked.')
+    }
+  }
+  finally {
+    revoking.set(null)
+  }
+}
+
+onMount(() => {
+  void loadTokens()
+})
+</script>
+
+<div class="space-y-6">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h1 class="font-semibold text-2xl text-neutral-900 tracking-tight dark:text-white">Access Tokens</h1>
+      <p class="mt-1 text-neutral-500 text-sm dark:text-neutral-400">Create and revoke personal API credentials for the signed-in account.</p>
+    </div>
+    <Button :if="!loading() && !authenticationRequired()" @click="openCreate">
+      <span class="h-4 w-4 i-hugeicons-key-02"></span>
+      Create Token
+    </Button>
+    <Button :if="!loading() && authenticationRequired()" tag="a" href="/login">
+      <span class="h-4 w-4 i-hugeicons-login-03"></span>
+      Sign in
+    </Button>
+  </header>
+
+  <div :if="!loading() && !authenticationRequired()" class="grid gap-4 grid-cols-1 sm:grid-cols-3">
+    <StatsCard title="Total Tokens" icon="i-hugeicons-key-01" iconBg="primary">
+      <template #value>{{ tokens().length }}</template>
+    </StatsCard>
+    <StatsCard title="Active" icon="i-hugeicons-checkmark-circle-02" iconBg="success">
+      <template #value>{{ activeCount() }}</template>
+    </StatsCard>
+    <StatsCard title="Expired" icon="i-hugeicons-clock-01" iconBg="warning">
+      <template #value>{{ expiredCount() }}</template>
+    </StatsCard>
+  </div>
+
+  <div :if="loadError()" role="alert" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 rounded-lg dark:border-red-900">
+    <span>{{ loadError() }}</span>
+    <Button variant="secondary" size="sm" @click="loadTokens">Try again</Button>
+  </div>
+
+  <div :if="actionError() && !showCreate()" role="alert" class="px-4 py-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 rounded-lg dark:border-red-900">{{ actionError() }}</div>
+  <div :if="actionMessage() && !showCreate()" role="status" class="px-4 py-3 text-green-700 text-sm dark:text-green-300 bg-green-50 dark:bg-green-950/40 border border-green-200 rounded-lg dark:border-green-900">{{ actionMessage() }}</div>
+
+  <Card padding="none">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-200 dark:border-neutral-700">
+      <div>
+        <h2 class="font-semibold text-neutral-900 dark:text-white">Personal Access Tokens</h2>
+        <p class="mt-1 text-neutral-500 text-xs dark:text-neutral-400">Existing token values are hashed and cannot be retrieved.</p>
+      </div>
+      <Button :if="!authenticationRequired()" variant="secondary" :loading="loading()" @click="loadTokens">
+        <span :if="!loading()" class="h-4 w-4 i-hugeicons-refresh"></span>
+        Refresh
+      </Button>
+    </div>
+
+    <div :if="loading()" class="flex items-center justify-center py-16 text-neutral-500 text-sm dark:text-neutral-400">
+      <span class="mr-2 h-5 w-5 animate-spin i-hugeicons-loading-03"></span>
+      Loading access tokens...
+    </div>
+
+    <EmptyState
+      :if="!loading() && authenticationRequired()"
+      icon="i-hugeicons-user-lock-01"
+      title="Sign in to manage access tokens"
+      description="Personal access tokens belong to an authenticated account. Sign in to create, inspect, or revoke them."
+    >
+      <template #action>
+        <Button tag="a" href="/login">
+          <span class="h-4 w-4 i-hugeicons-login-03"></span>
+          Sign in
+        </Button>
+      </template>
+    </EmptyState>
+
+    <EmptyState
+      :if="!loading() && !authenticationRequired() && !loadError() && tokens().length === 0"
+      icon="i-hugeicons-key-01"
+      title="No access tokens"
+      description="Create a scoped token when an integration needs API access."
+    >
+      <template #action>
+        <Button @click="openCreate">
+          <span class="h-4 w-4 i-hugeicons-add-01"></span>
+          Create Token
+        </Button>
+      </template>
+    </EmptyState>
+
+    <div :if="!loading() && !authenticationRequired() && tokens().length > 0" class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-neutral-50 dark:bg-neutral-800/50">
+          <tr>
+            <th class="pl-5 pr-4 py-3 font-semibold text-left text-neutral-500 text-xs tracking-wider uppercase dark:text-neutral-400">Token</th>
+            <th class="px-4 py-3 font-semibold text-left text-neutral-500 text-xs tracking-wider uppercase dark:text-neutral-400">Scopes</th>
+            <th class="px-4 py-3 font-semibold text-left text-neutral-500 text-xs tracking-wider uppercase dark:text-neutral-400">Status</th>
+            <th class="px-4 py-3 font-semibold text-neutral-500 text-right text-xs tracking-wider uppercase dark:text-neutral-400">Expires</th>
+            <th class="pr-5 py-3 font-semibold text-neutral-500 text-right text-xs tracking-wider uppercase dark:text-neutral-400">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-neutral-100 divide-y dark:divide-neutral-700">
+          <tr :for="token in tokens()">
+            <td class="pl-5 pr-4 py-3.5">
+              <p class="font-medium text-neutral-900 text-sm dark:text-white">{{ token.name }}</p>
+              <p class="mt-0.5 text-neutral-500 text-xs dark:text-neutral-400">Created {{ formatDate(token.created_at) }}</p>
+            </td>
+            <td class="px-4 py-3.5">
+              <div class="flex flex-wrap gap-1">
+                <span :for="scope in token.scopes" class="inline-flex px-2 py-0.5 font-medium text-blue-700 text-xs dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 rounded">{{ scope }}</span>
+              </div>
+            </td>
+            <td class="px-4 py-3.5"><span :class="'inline-flex px-2 py-0.5 font-medium text-xs capitalize rounded ' + statusClass(token)">{{ tokenStatus(token) }}</span></td>
+            <td class="px-4 py-3.5 text-neutral-500 text-right text-xs whitespace-nowrap dark:text-neutral-400">{{ formatDate(token.expires_at) }}</td>
+            <td class="pr-5 py-3.5 text-right whitespace-nowrap">
+              <Button variant="danger" size="sm" :loading="revoking() === token.id" @click="confirmingRevoke.set(token.id)">
+                {{ revoking() === token.id ? 'Revoking...' : 'Revoke' }}
+              </Button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </Card>
+
+  <AccessTokenCreateDialog
+    :open="showCreate()"
+    :busy="creating()"
+    :createdToken="createdToken()"
+    :message="actionMessage()"
+    :error="actionError()"
+    @close="closeCreate"
+    @submit="createAccessToken($event)"
+  />
+
+  <ConfirmDialog
+    :isOpen="confirmingRevoke() !== null"
+    title="Revoke this access token?"
+    :description="revokeDescription()"
+    :busy="revoking() !== null"
+    confirmLabel="Revoke"
+    @close="confirmingRevoke.set(null)"
+    @confirm="revokeToken"
+  />
+</div>

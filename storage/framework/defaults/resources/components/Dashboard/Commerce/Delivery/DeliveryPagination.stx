@@ -1,0 +1,128 @@
+<script client>
+const currentPage = useReactiveProp('current-page', 1)
+const totalItems = useReactiveProp('total-items', 0)
+const itemsPerPage = useReactiveProp('items-per-page', 10)
+const maxDisplayedPages = useReactiveProp('max-displayed-pages', 5)
+const emit = defineEmits()
+
+const totalPages = derived(() => Math.ceil(totalItems() / Math.max(1, itemsPerPage())))
+const startItem = derived(() => totalItems() === 0 ? 0 : ((currentPage() - 1) * itemsPerPage()) + 1)
+const endItem = derived(() => Math.min(currentPage() * itemsPerPage(), totalItems()))
+const displayedPages = derived<(number | string)[]>(() => {
+  const count = totalPages()
+  const limit = Math.max(3, maxDisplayedPages())
+  if (count <= limit)
+    return Array.from({ length: count }, (_, index) => index + 1)
+
+  const pages: (number | string)[] = [1]
+  const half = Math.floor(limit / 2)
+  if (currentPage() - half > 2)
+    pages.push('...')
+
+  const start = Math.max(2, currentPage() - half)
+  const end = Math.min(count - 1, currentPage() + half)
+  for (let page = start; page <= end; page++)
+    pages.push(page)
+
+  if (currentPage() + half < count - 1)
+    pages.push('...')
+  pages.push(count)
+  return pages
+})
+
+function isCurrent(page: number | string): boolean {
+  return typeof page === 'number' && page === currentPage()
+}
+
+function emitPrevious(): void {
+  emit('select', Math.max(1, currentPage() - 1))
+  emit('prev')
+}
+
+function emitNext(): void {
+  emit('select', Math.min(totalPages(), currentPage() + 1))
+  emit('next')
+}
+
+function emitPage(page: number | string): void {
+  if (typeof page === 'number') {
+    emit('select', page)
+    emit('page', page)
+  }
+}
+</script>
+
+<div class="flex items-center justify-between">
+  <div class="flex sm:hidden flex-1 justify-between">
+    <Button
+      variant="secondary"
+      @click="emitPrevious()"
+      :disabled="currentPage() <= 1"
+    >
+      Previous
+    </Button>
+    <Button
+      variant="secondary"
+      @click="emitNext()"
+      :disabled="currentPage() >= totalPages()"
+    >
+      Next
+    </Button>
+  </div>
+
+  <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+    <p class="text-gray-700 text-sm dark:text-neutral-300">
+      Showing
+      <span class="font-medium tabular-nums">{{ startItem() }}</span>
+      to
+      <span class="font-medium tabular-nums">{{ endItem() }}</span>
+      of
+      <span class="font-medium tabular-nums">{{ totalItems() }}</span>
+      results
+    </p>
+
+    <nav class="inline-flex -space-x-px rounded-md shadow-sm isolate" aria-label="Pagination">
+      <Button
+        variant="secondary"
+        iconOnly
+        @click="emitPrevious()"
+        :disabled="currentPage() <= 1"
+        ariaLabel="Previous page"
+      >
+        <span class="h-5 w-5 i-hugeicons-arrow-left-01"></span>
+      </Button>
+
+      <template :for="page in displayedPages">
+        <Button
+          :if="page !== '...' && isCurrent(page)"
+          @click="emitPage(page)"
+        >
+          <span aria-current="page">{{ page }}</span>
+        </Button>
+        <Button
+          :if="page !== '...' && !isCurrent(page)"
+          variant="secondary"
+          @click="emitPage(page)"
+        >
+          {{ page }}
+        </Button>
+        <span
+          :if="page === '...'"
+          class="inline-flex relative items-center px-4 py-2 font-semibold text-gray-500 text-sm dark:text-neutral-400 bg-white dark:bg-neutral-800 ring-1 ring-gray-300 ring-inset dark:ring-neutral-700"
+        >
+          ...
+        </span>
+      </template>
+
+      <Button
+        variant="secondary"
+        iconOnly
+        @click="emitNext()"
+        :disabled="currentPage() >= totalPages()"
+        ariaLabel="Next page"
+      >
+        <span class="h-5 w-5 i-hugeicons-arrow-right-01"></span>
+      </Button>
+    </nav>
+  </div>
+</div>

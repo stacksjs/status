@@ -6,8 +6,10 @@ export default new Action({
   name: 'ShippingMethod Store',
   description: 'ShippingMethod Store ORM Action',
   method: 'POST',
+  model: ShippingMethod,
   async handle(request: RequestInstance) {
-    const data = request.all()
+    await request.validate()
+    const data = await request.all()
 
     const model = await shippings.methods.store(data)
 

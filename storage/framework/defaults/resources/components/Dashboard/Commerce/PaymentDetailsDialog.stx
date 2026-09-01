@@ -1,0 +1,69 @@
+<script client>
+import type { PaymentRecord } from '../../../../app/Actions/Dashboard/Commerce/payment-records'
+import { isRefundablePayment } from '../../../../app/Actions/Dashboard/Commerce/payment-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as PaymentRecord | null)
+const emit = defineEmits()
+
+function label(value: string): string {
+  return value.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+}
+
+function money(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value / 100)
+  }
+  catch {
+    return `${currency} ${(value / 100).toFixed(2)}`
+  }
+}
+
+function detailRows(): Array<{ label: string, value: string }> {
+  const payment = record()
+  if (!payment)
+    return []
+  return [
+    { label: 'Reference', value: payment.referenceNumber || 'Not recorded' },
+    { label: 'Transaction ID', value: payment.transactionId || 'Not recorded' },
+    { label: 'Provider', value: payment.paymentProvider || 'Not recorded' },
+    { label: 'Billing email', value: payment.billingEmail || 'Not recorded' },
+    { label: 'Order ID', value: payment.orderId || 'Not linked' },
+    { label: 'Customer ID', value: payment.customerId || 'Not linked' },
+    { label: 'Card', value: payment.cardBrand || payment.cardLastFour ? `${payment.cardBrand} ${payment.cardLastFour}`.trim() : 'Not recorded' },
+  ]
+}
+
+function refundable(): boolean {
+  const payment = record()
+  return payment ? isRefundablePayment(payment) : false
+}
+</script>
+
+<Modal
+  :isOpen="open() && Boolean(record())"
+  :title="money(record()?.amount || 0, record()?.currency || 'USD')"
+  :description="`Payment #${record()?.id || 'not recorded'}`"
+  size="lg"
+  @close="emit('close')"
+>
+  <template #header-trailing>
+    <span class="px-2 py-1 capitalize font-medium text-gray-700 text-xs dark:text-neutral-200 bg-gray-100 dark:bg-neutral-700 rounded-full">{{ label(record()?.status || '') }}</span>
+  </template>
+      <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+        <template :for="item in detailRows()" :key="item.label">
+          <div><dt class="text-gray-400 text-xs dark:text-neutral-500">{{ item.label }}</dt><dd class="mt-1 break-all text-gray-800 text-sm dark:text-neutral-100">{{ item.value }}</dd></div>
+        </template>
+        <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Method</dt><dd class="mt-1 capitalize text-gray-800 text-sm dark:text-neutral-100">{{ label(record()?.method || '') }}</dd></div>
+        <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Refund recorded</dt><dd class="mt-1 text-gray-800 text-sm dark:text-neutral-100">{{ record()?.refundAmount ? money(record()?.refundAmount || 0, record()?.currency || 'USD') : record()?.status === 'refunded' && !record()?.refundRecorded ? 'Amount missing' : money(0, record()?.currency || 'USD') }}</dd></div>
+      </dl>
+
+      <div :if="record()?.notes" class="mt-5 p-3 text-gray-600 text-sm dark:text-neutral-300 bg-gray-50 dark:bg-neutral-900/60 rounded-lg">{{ record()?.notes }}</div>
+      <div :if="refundable()" class="mt-5 p-3 text-amber-800 text-xs dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-lg dark:border-amber-900">Only record a refund after the payment processor confirms it. This updates the local ledger and does not contact the processor.</div>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button variant="secondary" @click="emit('close')">Close</Button>
+      <Button :if="refundable()" @click="emit('request-refund')">Record refund</Button>
+    </div>
+  </template>
+</Modal>

@@ -1,0 +1,141 @@
+<script client>
+import type {
+  CommerceOrderRecord,
+  OrderCustomerOption,
+} from '../../../../app/Actions/Dashboard/Commerce/commerce-order-records'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'add')
+const record = useReactiveProp('record', null as CommerceOrderRecord | null)
+const customers = useReactiveProp('customers', [] as OrderCustomerOption[])
+const statuses = useReactiveProp('statuses', [] as string[])
+const orderTypes = useReactiveProp('orderTypes', [] as string[])
+const defaultCurrency = useReactiveProp('defaultCurrency', 'USD')
+const busy = useReactiveProp('busy', false)
+const errors = useReactiveProp('errors', {} as Record<string, string>)
+const emit = defineEmits()
+const customerId = state('')
+const couponId = state('')
+const status = state('PENDING')
+const totalAmount = state('0')
+const currency = state('USD')
+const taxAmount = state('0')
+const discountAmount = state('0')
+const deliveryFee = state('0')
+const tipAmount = state('0')
+const orderType = state('DELIVERY')
+const deliveryAddress = state('')
+const specialInstructions = state('')
+const estimatedDeliveryTime = state('')
+const appliedCouponId = state('')
+let hydrationKey = ''
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const key = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === key)
+    return
+  hydrationKey = key
+  customerId.set(current?.customerId || '')
+  couponId.set(current?.couponId || '')
+  status.set(current?.status || statuses()[0] || 'PENDING')
+  totalAmount.set(String(current?.totalAmount ?? 0))
+  currency.set(current?.currency || defaultCurrency())
+  taxAmount.set(String(current?.taxAmount ?? 0))
+  discountAmount.set(String(current?.discountAmount ?? 0))
+  deliveryFee.set(String(current?.deliveryFee ?? 0))
+  tipAmount.set(String(current?.tipAmount ?? 0))
+  orderType.set(current?.orderType || orderTypes()[0] || 'DELIVERY')
+  deliveryAddress.set(current?.deliveryAddress || '')
+  specialInstructions.set(current?.specialInstructions || '')
+  estimatedDeliveryTime.set(current?.estimatedDeliveryTime.slice(0, 16) || '')
+  appliedCouponId.set(current?.appliedCouponId || '')
+})
+
+function label(value: string): string {
+  return value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase())
+}
+
+function validNumber(value: string): boolean {
+  const result = Number(value)
+  return Number.isFinite(result) && result >= 0
+}
+
+function valid(): boolean {
+  return Boolean(
+    status().trim()
+    && orderType().trim()
+    && currency().trim().length === 3
+    && validNumber(totalAmount())
+    && validNumber(taxAmount())
+    && validNumber(discountAmount())
+    && validNumber(deliveryFee())
+    && validNumber(tipAmount())
+  )
+}
+
+function submit(): void {
+  if (!valid())
+    return
+  emit('submit', {
+    customerId: customerId() ? Number(customerId()) : undefined,
+    couponId: couponId() ? Number(couponId()) : undefined,
+    status: status().trim(),
+    totalAmount: Number(totalAmount()),
+    currency: currency().trim().toUpperCase(),
+    taxAmount: Number(taxAmount()),
+    discountAmount: Number(discountAmount()),
+    deliveryFee: Number(deliveryFee()),
+    tipAmount: Number(tipAmount()),
+    orderType: orderType().trim(),
+    deliveryAddress: deliveryAddress().trim() || undefined,
+    specialInstructions: specialInstructions().trim() || undefined,
+    estimatedDeliveryTime: estimatedDeliveryTime() || undefined,
+    appliedCouponId: appliedCouponId().trim() || undefined,
+  })
+}
+
+function errorMessages(): string[] {
+  return Object.entries(errors()).map(([field, message]) => {
+    const fieldLabel = field.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+    return `${fieldLabel.charAt(0).toUpperCase()}${fieldLabel.slice(1)}: ${message}`
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit order' : 'Add order'"
+  description="Store fields and relationships declared by the native Order model."
+  size="xl"
+  @close="emit('close')"
+>
+    <form id="order-form" @submit.prevent="submit">
+        <ul :if="errorMessages().length > 0" class="mb-5 p-3 space-y-1 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">
+          <template :for="message in errorMessages()" :key="message"><li>{{ message }}</li></template>
+        </ul>
+        <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Customer</span><select x-model="customerId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned customer</option><template :for="option in customers()" :key="option.id"><option :value="option.id">{{ option.label }}</option></template></select></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span><select x-model="status" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><template :for="option in statuses()" :key="option"><option :value="option">{{ label(option) }}</option></template></select></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Order type</span><select x-model="orderType" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><template :for="option in orderTypes()" :key="option"><option :value="option">{{ label(option) }}</option></template></select></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Currency</span><input x-model="currency" type="text" minlength="3" maxlength="3" required spellcheck="false" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm uppercase dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Total amount</span><input x-model="totalAmount" type="number" min="0" step="0.01" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Tax amount</span><input x-model="taxAmount" type="number" min="0" step="0.01" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Discount amount</span><input x-model="discountAmount" type="number" min="0" step="0.01" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Delivery fee</span><input x-model="deliveryFee" type="number" min="0" step="0.01" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Tip amount</span><input x-model="tipAmount" type="number" min="0" step="0.01" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Estimated delivery time</span><input x-model="estimatedDeliveryTime" type="datetime-local" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Coupon relation ID</span><input x-model="couponId" type="number" min="1" step="1" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Applied coupon reference</span><input x-model="appliedCouponId" type="text" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Delivery address</span><textarea x-model="deliveryAddress" rows="3" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+          <label class="block sm:col-span-2"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Special instructions</span><textarea x-model="specialInstructions" rows="3" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea></label>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full"><Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button><Button type="submit" form="order-form" :loading="busy()" :disabled="!valid()">{{ mode() === 'edit' ? 'Save order' : 'Add order' }}</Button></div>
+  </template>
+</Modal>

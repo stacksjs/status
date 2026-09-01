@@ -1,0 +1,21 @@
+<script client>
+import type { CampaignRecord } from '../../../../app/Actions/Dashboard/Marketing/campaign-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as CampaignRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const description = derived(() => `The persisted campaign ${record()?.name || ''} will be permanently removed. Campaigns with delivery history are retained.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete campaign?"
+  :description="description()"
+  confirmLabel="Delete campaign"
+  :busy="busy()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

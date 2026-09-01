@@ -3,16 +3,22 @@ import { Action } from '@stacksjs/actions'
 import { products } from '@stacksjs/commerce'
 
 import { response } from '@stacksjs/router'
+import { commerceIdentifier, commerceNotFound } from '../commerce-action'
 
 export default new Action({
   name: 'ProductVariant Destroy',
-  description: 'ProductVariant Destroy ORM Action',
+  description: 'Deletes a product variant through the native commerce module.',
   method: 'DELETE',
   async handle(request: RequestInstance) {
-    const id = request.getParam('id')
+    const identifier = commerceIdentifier(request, 'Product variant')
+    if (identifier.error)
+      return identifier.error
+    const { id } = identifier
 
-    await products.variants.destroy(id)
+    const deleted = await products.variants.destroy(id)
+    if (!deleted)
+      return commerceNotFound('Product variant', id)
 
-    return response.json({ message: 'Variant deleted successfully' })
+    return response.noContent()
   },
 })

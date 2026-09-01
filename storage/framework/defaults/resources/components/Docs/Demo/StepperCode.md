@@ -1,5 +1,5 @@
-```vue
-<script setup>
+```html
+<script client>
 import { ref, computed } from '@stacksjs/stx'
 import { Stepper } from '@stacksjs/stepper'
 

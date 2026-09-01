@@ -1,0 +1,205 @@
+<script client>
+import type { RestaurantWaitlistOptions, RestaurantWaitlistRecord, RestaurantWaitlistWritePayload } from '../../../../app/Actions/Dashboard/Commerce/restaurant-waitlist-records'
+import { restaurantWaitlistDateTimeLocal, restaurantWaitlistTimestamp } from '../../../../app/Actions/Dashboard/Commerce/restaurant-waitlist-records'
+
+type DialogMode = 'add' | 'edit'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'add' as DialogMode)
+const record = useReactiveProp('record', null as RestaurantWaitlistRecord | null)
+const options = useReactiveProp('options', { customers: [] } as RestaurantWaitlistOptions)
+const busy = useReactiveProp('busy', false)
+const errors = useReactiveProp('errors', {} as Record<string, string>)
+const emit = defineEmits()
+
+const customerId = state<number | string>('')
+const name = state('')
+const email = state('')
+const phone = state('')
+const partySize = state(2)
+const checkInTime = state('')
+const tablePreference = state<RestaurantWaitlistWritePayload['tablePreference']>('no_preference')
+const status = state<RestaurantWaitlistWritePayload['status']>('waiting')
+const quotedWaitTime = state(15)
+const actualWaitTime = state<number | string>('')
+const queuePosition = state<number | string>('')
+let lastSync = ''
+
+function relationId(value: number | string): number | null {
+  if (value === '')
+    return null
+  const id = Number(value)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+function optionalPositiveInteger(value: number | string): number | undefined {
+  if (value === '')
+    return undefined
+  const result = Math.trunc(Number(value))
+  return Number.isInteger(result) && result >= 0 ? result : undefined
+}
+
+function reset(entry: RestaurantWaitlistRecord | null): void {
+  customerId.set(entry?.customerId || '')
+  name.set(entry?.name || '')
+  email.set(entry?.email || '')
+  phone.set(entry?.phone || '')
+  partySize.set(entry?.partySize || 2)
+  checkInTime.set(restaurantWaitlistDateTimeLocal(entry?.checkInTime || ''))
+  tablePreference.set((entry?.tablePreference as RestaurantWaitlistWritePayload['tablePreference']) || 'no_preference')
+  status.set((entry?.status as RestaurantWaitlistWritePayload['status']) || 'waiting')
+  quotedWaitTime.set(entry?.quotedWaitTime ?? 15)
+  actualWaitTime.set(entry?.actualWaitTime ?? '')
+  queuePosition.set(entry?.queuePosition ?? '')
+}
+
+effect(() => {
+  const entry = record()
+  if (!open()) {
+    lastSync = ''
+    return
+  }
+
+  const signature = `${mode()}:${entry?.id || 'new'}`
+  if (signature === lastSync)
+    return
+
+  lastSync = signature
+  reset(entry)
+})
+
+function hydrateCustomer(event: Event): void {
+  const selectedId = (event.target as HTMLSelectElement).value
+  const customer = options().customers.find(option => option.id === selectedId)
+  if (!customer)
+    return
+  if (!name().trim())
+    name.set(customer.label)
+  if (!email().trim())
+    email.set(customer.email)
+  if (!phone().trim())
+    phone.set(customer.phone)
+}
+
+function submitForm(): void {
+  const payload: RestaurantWaitlistWritePayload = {
+    customerId: relationId(customerId()),
+    name: name().trim(),
+    email: email().trim(),
+    phone: phone().trim(),
+    partySize: Math.max(1, Math.trunc(Number(partySize()) || 1)),
+    checkInTime: restaurantWaitlistTimestamp(checkInTime()),
+    tablePreference: tablePreference(),
+    status: status(),
+    quoted_wait_time: Math.max(0, Math.trunc(Number(quotedWaitTime()) || 0)),
+  }
+  const actual = optionalPositiveInteger(actualWaitTime())
+  const position = optionalPositiveInteger(queuePosition())
+  if (actual !== undefined)
+    payload.actual_wait_time = actual
+  if (position !== undefined && position > 0)
+    payload.queue_position = position
+
+  emit('submit', payload)
+}
+
+function errorMessages(): string[] {
+  return Object.entries(errors()).map(([field, message]) => {
+    const label = field.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${message}`
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit waitlist party' : 'Add waitlist party'"
+  description="Save this party through the WaitlistRestaurant model API."
+  size="lg"
+  :closable="!busy()"
+  @close="emit('close')"
+>
+  <form id="restaurant-waitlist-entry-form" @submit.prevent="submitForm()">
+    <ul :if="errorMessages().length > 0" class="p-3 space-y-1 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">
+      <template :for="message in errorMessages()" :key="message"><li>{{ message }}</li></template>
+    </ul>
+
+    <div class="grid gap-4 sm:grid-cols-2 mt-6">
+      <label class="block sm:col-span-2">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Existing customer</span>
+        <select x-model="customerId" class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" @change="hydrateCustomer($event)">
+          <option value="">No linked customer</option>
+          <option :for="option in options().customers" :value="option.id">{{ option.label }}{{ option.detail ? ' · ' + option.detail : '' }}</option>
+        </select>
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Name</span>
+        <input type="text" x-model.trim="name" required maxlength="255" autocomplete="name" class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" />
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Email</span>
+        <input type="email" x-model.trim="email" required maxlength="255" autocomplete="email" class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" />
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Phone</span>
+        <input type="tel" x-model.trim="phone" maxlength="100" autocomplete="tel" class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" />
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Party size</span>
+        <input type="number" x-model.number="partySize" required min="1" step="1" class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" />
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Check in time</span>
+        <input type="datetime-local" x-model="checkInTime" required class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" />
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Quoted wait in minutes</span>
+        <input type="number" x-model.number="quotedWaitTime" required min="0" step="1" class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" />
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Table preference</span>
+        <select x-model="tablePreference" required class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600">
+          <option value="no_preference">No preference</option>
+          <option value="indoor">Indoor</option>
+          <option value="bar">Bar</option>
+          <option value="booth">Booth</option>
+        </select>
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Status</span>
+        <select x-model="status" required class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600">
+          <option value="waiting">Waiting</option>
+          <option value="seated">Seated</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="no_show">No show</option>
+        </select>
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Actual wait in minutes</span>
+        <input type="number" x-model.number="actualWaitTime" min="0" step="1" placeholder="Not recorded" class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" />
+      </label>
+
+      <label class="block">
+        <span class="block font-medium text-gray-900 text-sm dark:text-neutral-200">Queue position</span>
+        <input type="number" x-model.number="queuePosition" min="1" step="1" placeholder="Not assigned" class="block mt-2 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600" />
+      </label>
+    </div>
+
+  </form>
+
+  <template #footer>
+    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end w-full">
+      <Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button>
+      <Button type="submit" form="restaurant-waitlist-entry-form" :loading="busy()">{{ mode() === 'edit' ? 'Save changes' : 'Add party' }}</Button>
+    </div>
+  </template>
+</Modal>

@@ -1,0 +1,64 @@
+<script client>
+import type { NotificationDelivery } from '../../../../functions/notifications/deliveries'
+
+const open = useReactiveProp('open', false)
+const delivery = useReactiveProp('delivery', null as NotificationDelivery | null)
+const emit = defineEmits()
+
+function formatDate(value?: string): string {
+  if (!value)
+    return 'Not recorded'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+  }).format(date)
+}
+
+function metadataText(): string {
+  const value = delivery()?.metadata
+  return value && Object.keys(value).length > 0 ? JSON.stringify(value, null, 2) : 'No provider metadata was recorded.'
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="`Delivery attempt #${delivery()?.id || 'not recorded'}`"
+  :description="delivery()?.channel || 'Notification'"
+  size="lg"
+  @close="emit('close')"
+>
+  <dl class="grid gap-x-6 gap-y-4 grid-cols-1 sm:grid-cols-2">
+    <div>
+      <dt class="font-medium text-gray-500 text-xs uppercase dark:text-neutral-400">Recipient</dt>
+      <dd class="mt-1 break-all text-gray-900 text-sm dark:text-neutral-100">{{ delivery()?.recipient || 'Not recorded' }}</dd>
+    </div>
+    <div>
+      <dt class="font-medium text-gray-500 text-xs uppercase dark:text-neutral-400">Attempted</dt>
+      <dd class="mt-1 text-gray-900 text-sm dark:text-neutral-100">{{ formatDate(delivery()?.sent_at) }}</dd>
+    </div>
+    <div class="sm:col-span-2">
+      <dt class="font-medium text-gray-500 text-xs uppercase dark:text-neutral-400">Subject</dt>
+      <dd class="mt-1 text-gray-900 text-sm dark:text-neutral-100">{{ delivery()?.subject || 'No subject' }}</dd>
+    </div>
+    <div class="sm:col-span-2">
+      <dt class="font-medium text-gray-500 text-xs uppercase dark:text-neutral-400">Body</dt>
+      <dd class="mt-1 p-3 text-gray-800 text-sm whitespace-pre-wrap dark:text-neutral-200 bg-gray-50 dark:bg-neutral-900 rounded-md">{{ delivery()?.body || 'No body was recorded.' }}</dd>
+    </div>
+    <div :if="delivery()?.error" class="sm:col-span-2">
+      <dt class="font-medium text-red-600 text-xs uppercase dark:text-red-400">Error</dt>
+      <dd class="mt-1 p-3 text-red-800 text-sm whitespace-pre-wrap dark:text-red-200 bg-red-50 dark:bg-red-950/40 rounded-md">{{ delivery()?.error }}</dd>
+    </div>
+    <div class="sm:col-span-2">
+      <dt class="font-medium text-gray-500 text-xs uppercase dark:text-neutral-400">Metadata</dt>
+      <dd class="overflow-x-auto mt-1 p-3 font-mono text-gray-700 text-xs whitespace-pre dark:text-neutral-300 bg-gray-50 dark:bg-neutral-900 rounded-md">{{ metadataText() }}</dd>
+    </div>
+  </dl>
+  <template #footer>
+    <div class="flex justify-end w-full">
+      <Button variant="secondary" @click="emit('close')">
+        Close
+      </Button>
+    </div>
+  </template>
+</Modal>

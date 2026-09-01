@@ -3,6 +3,7 @@ import { defineModel } from '@stacksjs/orm'
 import { makeHash } from '@stacksjs/security'
 // soon, these will be auto-imported
 import { schema } from '@stacksjs/validation'
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../password-policy'
 
 export default defineModel({
   name: 'User', // defaults to the sanitized file name
@@ -50,14 +51,19 @@ export default defineModel({
       uri: 'users', // your-url.com/api/users
 
       routes: ['index', 'store', 'show'],
+      // Registration is handled by the dedicated, rate-limited
+      // `/register` action. The generated User CRUD surface exposes PII
+      // and must only be available to authenticated operators.
+      middleware: ['auth'],
     },
   },
 
-  hasOne: ['Subscriber', 'Driver', 'Author'],
+  hasOne: ['Subscriber', 'Courier', 'Author'],
 
   hasMany: [
     'PersonalAccessToken',
     'Customer',
+    'TeamMember',
   ],
   attributes: {
     name: {
@@ -93,15 +99,17 @@ export default defineModel({
       hidden: true,
       fillable: true,
       validation: {
-        rule: schema.string().required().min(6).max(255),
+        rule: schema.string().required().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
         message: {
           required: 'Password is required',
-          min: 'Password must have a minimum of 6 characters',
-          max: 'Password must have a maximum of 255 characters',
+          min: `Password must have a minimum of ${PASSWORD_MIN_LENGTH} characters`,
+          max: `Password must have a maximum of ${PASSWORD_MAX_LENGTH} characters`,
         },
       },
 
-      factory: () => '123456',
+      // Must satisfy the rule above, or seeded users fail their own model's
+      // validation. `123456` did once the minimum moved to 8 (#2226).
+      factory: () => 'password1234',
     },
 
     avatar: {

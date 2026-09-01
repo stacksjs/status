@@ -1,0 +1,129 @@
+<script client>
+import type { MarketingListRecord } from '../../../../app/Actions/Dashboard/Marketing/marketing-list-records'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'add')
+const record = useReactiveProp('record', null as MarketingListRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const name = state('')
+const slug = state('')
+const description = state('')
+const status = state('active')
+const isPublic = state(true)
+const doubleOptIn = state(true)
+let hydrationKey = ''
+let slugIsManual = false
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]+/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const key = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === key)
+    return
+  hydrationKey = key
+  slugIsManual = Boolean(current?.slug)
+  name.set(current?.name || '')
+  slug.set(current?.slug || '')
+  description.set(current?.description || '')
+  status.set(current?.status || 'active')
+  isPublic.set(current?.isPublic ?? true)
+  doubleOptIn.set(current?.doubleOptIn ?? true)
+})
+
+effect(() => {
+  const currentName = name()
+  if (!slugIsManual)
+    slug.set(slugify(currentName))
+})
+
+function markSlugManual(event: Event): void {
+  slugIsManual = (event.target as HTMLInputElement).value.trim() !== ''
+}
+
+function submit(): void {
+  if (!name().trim() || !slug().trim())
+    return
+  emit('submit', {
+    name: name().trim(),
+    slug: slugify(slug()),
+    description: description().trim(),
+    status: status(),
+    isPublic: isPublic(),
+    doubleOptIn: doubleOptIn(),
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit email list' : 'Add email list'"
+  description="Settings persist through the EmailList model and its generated API contract."
+  size="lg"
+  @close="emit('close')"
+>
+    <form id="marketing-list-form" @submit.prevent="submit">
+        <div :if="error()" role="alert" class="mb-5 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+
+        <div class="space-y-4">
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Name</span>
+            <input x-model="name" type="text" maxlength="100" required autocomplete="off" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Slug</span>
+            <input x-model="slug" type="text" maxlength="120" required autocomplete="off" class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" @input="markSlugManual($event)" />
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Description</span>
+            <textarea x-model="description" rows="3" maxlength="500" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea>
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span>
+            <select x-model="status" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="archived">Archived</option>
+            </select>
+          </label>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="flex gap-3 items-start p-3 border border-gray-200 rounded-lg dark:border-neutral-700">
+              <input x-model="isPublic" type="checkbox" class="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded" />
+              <span>
+                <span class="block font-medium text-gray-700 text-sm dark:text-neutral-200">Public signup</span>
+                <span class="block mt-0.5 text-gray-500 text-xs dark:text-neutral-400">Allow signup forms to target this list.</span>
+              </span>
+            </label>
+            <label class="flex gap-3 items-start p-3 border border-gray-200 rounded-lg dark:border-neutral-700">
+              <input x-model="doubleOptIn" type="checkbox" class="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded" />
+              <span>
+                <span class="block font-medium text-gray-700 text-sm dark:text-neutral-200">Double opt-in</span>
+                <span class="block mt-0.5 text-gray-500 text-xs dark:text-neutral-400">Require confirmation before activation.</span>
+              </span>
+            </label>
+          </div>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+        <Button :disabled="busy()" variant="secondary" @click="emit('close')">Cancel</Button>
+        <Button type="submit" form="marketing-list-form" :disabled="busy() || !name().trim() || !slug().trim()" :loading="busy()">
+          {{ mode() === 'edit' ? 'Save email list' : 'Add email list' }}
+        </Button>
+    </div>
+  </template>
+</Modal>

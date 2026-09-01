@@ -1,0 +1,545 @@
+<script client>
+  // Kanban board view.
+  //
+  // Optimistic-update pattern:
+  //   1. The DnD handler mutates the store immediately (so the card
+  //      visually settles in its new position before the network
+  //      round-trip).
+  //   2. The store fires the reorder API call.
+  //   3. On failure, the store restores its snapshot and surfaces an
+  //      error message; the UI re-renders from the restored state.
+  //
+  // Both column reorder (drag the column header) and card reorder
+  // (drag the card body) share the same /cards/reorder + /columns/reorder
+  // mutations on the store.
+  import { useNavigation } from '~/storage/framework/defaults/views/dashboard/composables/useNavigation'
+  import { useRole } from '~/storage/framework/defaults/views/dashboard/composables/useRole'
+  import { kanbanStore } from '~/storage/framework/defaults/views/dashboard/stores/kanban'
+
+  // The component owns its store dependency. Importing the definition creates
+  // and registers the singleton before this component controller executes,
+  // including on direct loads where the layout setup mounts later in the page.
+  const kanban = kanbanStore
+  const { isDev } = useRole()
+  const canView = derived(() => isDev())
+
+  const loading = derived(() => kanban.loadingBoard())
+  const error = derived(() => kanban.errorBoard())
+  const board = derived(() => kanban.currentBoard())
+  const columns = derived(() => kanban.currentColumns())
+  // Inline composer state. Each column has its own (independent) "add
+  // card" composer; the boolean tracks whether the input is open.
+  const composingCardForColumnId = state<number | null>(null)
+  const draftCardTitle = state('')
+  const composingNewColumn = state(false)
+  const draftColumnName = state('')
+
+  type DeleteKind = 'card' | 'column'
+  interface PendingDelete {
+    kind: DeleteKind
+    id: number
+    hasCards?: boolean
+  }
+  const pendingDelete = state<PendingDelete | null>(null)
+  const deleting = state(false)
+
+  interface CardDrag {
+    cardId: number
+    fromColumnId: number
+  }
+  interface CardDropTarget {
+    columnId: number
+    beforeCardId: number | null
+  }
+  const draggingCard = state<CardDrag | null>(null)
+  const draggingColumnId = state<number | null>(null)
+  const cardDropTarget = state<CardDropTarget | null>(null)
+  const columnDropBeforeId = state<number | null>(null)
+
+  function requestDelete(kind: DeleteKind, id: number, hasCards = false): void {
+    pendingDelete.set({ kind, id, hasCards })
+  }
+
+  function closeDelete(): void {
+    if (!deleting())
+      pendingDelete.set(null)
+  }
+
+  const deleteTitle = derived(() => {
+    const pending = pendingDelete()
+    if (!pending)
+      return 'Delete item?'
+    return {
+      card: 'Delete this card?',
+      column: 'Delete this column?',
+    }[pending.kind]
+  })
+
+  const deleteDescription = derived(() => {
+    const pending = pendingDelete()
+    if (!pending)
+      return ''
+    if (pending.kind === 'column' && pending.hasCards)
+      return 'Every card in this column will also be permanently deleted.'
+    return 'This action cannot be undone.'
+  })
+
+  async function confirmDelete(): Promise<void> {
+    const pending = pendingDelete()
+    if (!pending || deleting())
+      return
+    deleting.set(true)
+    try {
+      const ok = pending.kind === 'card'
+        ? await kanban.deleteCard(pending.id)
+        : await kanban.deleteColumn(pending.id)
+      if (ok)
+        pendingDelete.set(null)
+    }
+    finally {
+      deleting.set(false)
+    }
+  }
+
+  function totalCards() {
+    const cols = columns()
+    let n = 0
+    for (const col of cols) n += (col.cards ? col.cards.length : 0)
+    return n
+  }
+
+  // Column color → header accent class. Free-form string in the
+  // model, mapped here so a new hue without an explicit mapping
+  // falls back to slate.
+  function columnAccentClass(color: string) {
+    const swatches: Record<string, string> = {
+      slate: 'bg-slate-100 dark:bg-slate-800',
+      amber: 'bg-amber-100 dark:bg-amber-900/40',
+      blue: 'bg-blue-100 dark:bg-blue-900/40',
+      emerald: 'bg-emerald-100 dark:bg-emerald-900/40',
+      red: 'bg-red-100 dark:bg-red-900/40',
+      violet: 'bg-violet-100 dark:bg-violet-900/40',
+    }
+    return swatches[color] || 'bg-slate-100 dark:bg-slate-800'
+  }
+
+  // Pull the id from the URL through the navigation composable.
+  // (stacksjs/stacks#1838 - no vanilla DOM in dashboard pages).
+  const id = useNavigation().urlIdParam()
+  if (id !== null)
+    kanban.loadBoard(id)
+
+  // ─── Composer handlers ────────────────────────────────────────────
+
+  function openCardComposer(columnId: number) {
+    composingCardForColumnId.set(columnId)
+    draftCardTitle.set('')
+  }
+  function closeCardComposer() {
+    composingCardForColumnId.set(null)
+    draftCardTitle.set('')
+  }
+  async function submitCard(columnId: number) {
+    const title = draftCardTitle().trim()
+    if (!title) {
+      closeCardComposer()
+      return
+    }
+    await kanban.createCard({ columnId, title })
+    closeCardComposer()
+  }
+  function isComposingFor(columnId: number) {
+    return composingCardForColumnId() === columnId
+  }
+
+  function openColumnComposer() {
+    composingNewColumn.set(true)
+    draftColumnName.set('')
+  }
+  function closeColumnComposer() {
+    composingNewColumn.set(false)
+    draftColumnName.set('')
+  }
+  async function submitColumn() {
+    const name = draftColumnName().trim()
+    if (!name) {
+      closeColumnComposer()
+      return
+    }
+    const current = board()
+    if (!current) return
+    await kanban.createColumn({ boardId: current.id, name })
+    closeColumnComposer()
+  }
+
+  // ─── Card detail launcher ─────────────────────────────────────────
+
+  function openDetail(cardId: number) {
+    kanban.loadUsers() // background-fetch for assignee picker
+    kanban.openCardDetail(cardId)
+  }
+
+  // Label color → tailwind hue. Mirrors the column-accent map but
+  // returns a more saturated chip class.
+  function labelChipClass(color: string) {
+    return ({
+      slate:   'bg-slate-100   text-slate-700   dark:bg-slate-800/60  dark:text-slate-200',
+      amber:   'bg-amber-100   text-amber-700   dark:bg-amber-900/40  dark:text-amber-200',
+      blue:    'bg-blue-100    text-blue-700    dark:bg-blue-900/40   dark:text-blue-200',
+      emerald: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200',
+      red:     'bg-red-100     text-red-700     dark:bg-red-900/40    dark:text-red-200',
+      violet:  'bg-violet-100  text-violet-700  dark:bg-violet-900/40 dark:text-violet-200',
+      rose:    'bg-rose-100    text-rose-700    dark:bg-rose-900/40   dark:text-rose-200',
+    })[color] || 'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200'
+  }
+
+  function initialsOf(name: string | null | undefined, email: string | null | undefined) {
+    const source = (name || email || '?').trim()
+    const parts = source.split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return '?'
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+
+  function formatDueDate(iso: string | null | undefined) {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  }
+
+  // ─── Native drag and drop ─────────────────────────────────────────
+
+  function setDragTransfer(event: DragEvent, kind: 'card' | 'column', id: number): void {
+    if (!event.dataTransfer)
+      return
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData(`application/x-stacks-kanban-${kind}`, String(id))
+  }
+
+  function beginCardDrag(cardId: number, fromColumnId: number, event: DragEvent): void {
+    draggingColumnId.set(null)
+    draggingCard.set({ cardId, fromColumnId })
+    setDragTransfer(event, 'card', cardId)
+  }
+
+  function beginColumnDrag(columnId: number, event: DragEvent): void {
+    draggingCard.set(null)
+    draggingColumnId.set(columnId)
+    setDragTransfer(event, 'column', columnId)
+  }
+
+  function finishDrag(): void {
+    draggingCard.set(null)
+    draggingColumnId.set(null)
+    cardDropTarget.set(null)
+    columnDropBeforeId.set(null)
+  }
+
+  function nextCardId(columnId: number, cardId: number): number | null {
+    const column = columns().find(item => item.id === columnId)
+    if (!column)
+      return null
+    const index = column.cards.findIndex(card => card.id === cardId)
+    return index >= 0 ? column.cards[index + 1]?.id ?? null : null
+  }
+
+  function previewCardDrop(columnId: number, overCardId: number, event: DragEvent): void {
+    if (!draggingCard())
+      return
+    const target = event.currentTarget as HTMLElement
+    const bounds = target.getBoundingClientRect()
+    const beforeCardId = event.clientY < bounds.top + bounds.height / 2
+      ? overCardId
+      : nextCardId(columnId, overCardId)
+    cardDropTarget.set({ columnId, beforeCardId })
+    if (event.dataTransfer)
+      event.dataTransfer.dropEffect = 'move'
+  }
+
+  function previewColumnDrop(columnId: number, event: DragEvent): void {
+    if (draggingCard()) {
+      cardDropTarget.set({ columnId, beforeCardId: null })
+      return
+    }
+    if (!draggingColumnId())
+      return
+    const target = event.currentTarget as HTMLElement
+    const bounds = target.getBoundingClientRect()
+    if (event.clientX < bounds.left + bounds.width / 2) {
+      columnDropBeforeId.set(columnId)
+      return
+    }
+    const ordered = columns()
+    const index = ordered.findIndex(column => column.id === columnId)
+    columnDropBeforeId.set(index >= 0 ? ordered[index + 1]?.id ?? null : null)
+  }
+
+  async function moveCard(toColumnId: number, beforeCardId: number | null): Promise<void> {
+    const dragging = draggingCard()
+    if (!dragging || dragging.cardId === beforeCardId)
+      return
+    const fromColumn = columns().find(column => column.id === dragging.fromColumnId)
+    const toColumn = columns().find(column => column.id === toColumnId)
+    if (!fromColumn || !toColumn)
+      return
+
+    const fromOrder = fromColumn.cards.map(card => card.id).filter(id => id !== dragging.cardId)
+    const targetOrder = toColumn.cards.map(card => card.id).filter(id => id !== dragging.cardId)
+    const targetIndex = beforeCardId === null ? targetOrder.length : targetOrder.indexOf(beforeCardId)
+    const insertAt = targetIndex < 0 ? targetOrder.length : targetIndex
+    const toOrder = [
+      ...targetOrder.slice(0, insertAt),
+      dragging.cardId,
+      ...targetOrder.slice(insertAt),
+    ]
+    const payload = dragging.fromColumnId === toColumnId
+      ? [{ columnId: toColumnId, order: toOrder }]
+      : [
+          { columnId: dragging.fromColumnId, order: fromOrder },
+          { columnId: toColumnId, order: toOrder },
+        ]
+    finishDrag()
+    await kanban.reorderCards(payload)
+  }
+
+  async function dropCard(columnId: number, overCardId: number, event: DragEvent): Promise<void> {
+    previewCardDrop(columnId, overCardId, event)
+    const target = cardDropTarget()
+    if (target)
+      await moveCard(target.columnId, target.beforeCardId)
+  }
+
+  async function dropOnColumn(columnId: number): Promise<void> {
+    if (draggingCard()) {
+      await moveCard(columnId, null)
+      return
+    }
+    const movingColumnId = draggingColumnId()
+    const currentBoard = board()
+    if (!movingColumnId || !currentBoard)
+      return
+    const order = columns().map(column => column.id).filter(id => id !== movingColumnId)
+    const beforeId = columnDropBeforeId()
+    const targetIndex = beforeId === null ? order.length : order.indexOf(beforeId)
+    const insertAt = targetIndex < 0 ? order.length : targetIndex
+    order.splice(insertAt, 0, movingColumnId)
+    finishDrag()
+    await kanban.reorderColumns(currentBoard.id, order)
+  }
+
+  function cardDragClass(cardId: number, columnId: number): string {
+    const dragging = draggingCard()
+    const target = cardDropTarget()
+    if (dragging?.cardId === cardId)
+      return 'opacity-45'
+    if (target?.columnId === columnId && target.beforeCardId === cardId)
+      return 'ring-2 ring-violet-500 ring-offset-1 dark:ring-offset-zinc-950'
+    return ''
+  }
+
+  function columnDragClass(columnId: number): string {
+    if (draggingColumnId() === columnId)
+      return 'opacity-50'
+    if (columnDropBeforeId() === columnId)
+      return 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-neutral-950'
+    return ''
+  }
+</script>
+
+<template>
+<div class="mx-auto px-6 py-6 max-w-full">
+  <div :if="!canView" class="mx-auto px-5 py-8 max-w-2xl text-center bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 rounded-lg dark:border-zinc-800">
+    <p class="text-sm text-zinc-600 dark:text-zinc-400">Kanban boards require the dev role.</p>
+  </div>
+
+  <div :if="canView">
+    <StxLink to="/kanban" prefetch class="inline-flex gap-1 items-center mb-4 no-underline text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+      <span class="h-3 w-3 i-hugeicons-arrow-left-02"></span>
+      All boards
+    </StxLink>
+
+    <!-- Loading -->
+    <div :if="loading" class="flex items-center justify-center min-h-[40vh]">
+      <span class="h-7 w-7 text-violet-500 animate-spin i-hugeicons-loading-03"></span>
+    </div>
+
+    <!-- Error -->
+    <div :if="error && !loading" class="px-5 py-4 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900/40">
+      <p class="font-medium text-red-700 text-sm dark:text-red-300">Board operation failed</p>
+      <p class="mt-1 text-red-600 text-xs dark:text-red-400" :text="error"></p>
+    </div>
+
+    <!-- Loaded -->
+    <div :if="board && !loading">
+      <header class="flex items-start justify-between mb-6">
+        <div>
+          <h1 class="font-semibold text-2xl text-zinc-900 dark:text-zinc-100" :text="board.name"></h1>
+          <p :if="board.description" class="mt-1 text-sm text-zinc-500" :text="board.description"></p>
+          <p class="mt-2 text-xs text-zinc-400">
+            <span :text="columns.length + ' columns'"></span>
+            <span> · </span>
+            <span :text="totalCards() + ' cards'"></span>
+          </p>
+        </div>
+      </header>
+
+      <!-- The board itself. Horizontal scroll for wide boards;
+          each column is a vertical card stack. -->
+      <div data-kanban-root class="flex overflow-x-auto gap-3 pb-4 min-h-[60vh]">
+        <div
+          :for="col in columns"
+          :data-column-id="col.id"
+          @dragover.prevent="previewColumnDrop(col.id, $event)"
+          @drop.prevent="dropOnColumn(col.id)"
+          class="flex flex-col flex-shrink-0 max-h-[calc(100vh-220px)] w-72 bg-white dark:bg-zinc-950 border border-zinc-200 rounded-lg dark:border-zinc-800"
+          :class="columnDragClass(col.id)"
+        >
+          <!-- Column header -->
+          <div
+            draggable="true"
+            @dragstart.stop="beginColumnDrag(col.id, $event)"
+            @dragend="finishDrag"
+            :class="`px-3 py-2 border-b border-zinc-100 dark:border-zinc-900 cursor-grab active:cursor-grabbing ${columnAccentClass(col.color)}`"
+          >
+            <div class="flex gap-2 items-center justify-between">
+              <p class="font-medium text-sm text-zinc-700 truncate dark:text-zinc-200" :text="col.name"></p>
+              <div class="flex gap-1 items-center">
+                <span class="font-mono text-xs text-zinc-500" :text="col.cards.length"></span>
+                <Button variant="ghost" size="xs" iconOnly :ariaLabel="'Delete column ' + col.name" @click="requestDelete('column', col.id, col.cards.length > 0)">
+                  <span class="block h-3 w-3 text-red-500 i-hugeicons-delete-02"></span>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cards (scrollable) -->
+          <div class="overflow-y-auto flex-1 p-2 space-y-1" style="min-height: 40px">
+            <div
+              :for="card in col.cards"
+              :data-card-id="card.id"
+              :data-card-column-id="col.id"
+              draggable="true"
+              @dragstart.stop="beginCardDrag(card.id, col.id, $event)"
+              @dragend="finishDrag"
+              @dragover.prevent.stop="previewCardDrop(col.id, card.id, $event)"
+              @drop.prevent.stop="dropCard(col.id, card.id, $event)"
+              class="relative bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 rounded dark:border-zinc-800 hover:border-violet-300 dark:hover:border-violet-700 transition-colors cursor-grab group"
+              :class="cardDragClass(card.id, col.id)"
+            >
+              <button type="button" class="block pr-8 px-3 py-2 w-full text-left" :aria-label="'Open ' + card.title" @click="openDetail(card.id)">
+                <!-- Label chips strip -->
+                <span :if="card.labels && card.labels.length > 0" class="flex flex-wrap gap-1 mb-1">
+                  <span
+                    :for="lbl in card.labels"
+                    :class="`px-1.5 py-0.5 text-[10px] font-medium rounded ${labelChipClass(lbl.color)}`"
+                    :text="lbl.name"
+                  ></span>
+                </span>
+
+                <span class="block leading-snug text-xs text-zinc-800 dark:text-zinc-200" :text="card.title"></span>
+
+                <!-- Footer: due date + assignee avatars -->
+                <span :if="card.dueDate || (card.assignees && card.assignees.length > 0)" class="flex gap-2 items-center justify-between mt-1.5 pt-1.5 border-t border-zinc-200/50 dark:border-zinc-800/50">
+                  <span :if="card.dueDate" class="flex gap-1 items-center text-[10px] text-zinc-500">
+                    <span class="h-2.5 w-2.5 i-hugeicons-calendar-03"></span>
+                    <span :text="formatDueDate(card.dueDate)"></span>
+                  </span>
+                  <span :if="!card.dueDate"></span>
+                  <span :if="card.assignees && card.assignees.length > 0" class="flex -space-x-1">
+                    <span
+                      :for="asg in card.assignees"
+                      class="inline-flex items-center justify-center h-5 w-5 font-medium text-[9px] text-white bg-violet-500 ring-1 ring-white rounded-full dark:ring-zinc-950"
+                      :title="asg.name || asg.email || 'Assignee'"
+                      :text="initialsOf(asg.name, asg.email)"
+                    ></span>
+                  </span>
+                </span>
+              </button>
+              <span class="absolute right-1.5 top-1.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="xs" iconOnly :ariaLabel="'Delete ' + card.title" @click="requestDelete('card', card.id)">
+                  <span class="block h-3 w-3 text-red-500 i-hugeicons-cancel-01"></span>
+                </Button>
+              </span>
+            </div>
+          </div>
+
+          <!-- Add card composer -->
+          <div class="p-2 border-t border-zinc-100 dark:border-zinc-900">
+            <div :if="isComposingFor(col.id)" class="space-y-2">
+              <textarea
+                x-model="draftCardTitle"
+                @keydown.enter.prevent="submitCard(col.id)"
+                @keydown.escape="closeCardComposer()"
+                placeholder="Card title…"
+                rows="2"
+                class="px-2 py-1 w-full text-xs text-zinc-800 dark:text-zinc-100 bg-white dark:bg-zinc-900 border border-zinc-300 rounded dark:border-zinc-700 focus:border-violet-500 focus:outline-none resize-none"
+              ></textarea>
+              <div class="flex gap-1">
+                <Button size="xs" @click="submitCard(col.id)">
+                  Add
+                </Button>
+                <Button variant="ghost" size="xs" @click="closeCardComposer()">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+            <Button
+              :if="!isComposingFor(col.id)"
+              variant="ghost"
+              size="sm"
+              fullWidth
+              @click="openCardComposer(col.id)"
+            >
+              + Add card
+            </Button>
+          </div>
+        </div>
+
+        <!-- Add column trailing slot -->
+        <div class="flex-shrink-0 w-72">
+          <div :if="composingNewColumn()" class="p-3 space-y-2 bg-white dark:bg-zinc-950 border border-zinc-300 rounded-lg dark:border-zinc-700">
+            <input
+              x-model="draftColumnName"
+              @keydown.enter="submitColumn()"
+              @keydown.escape="closeColumnComposer()"
+              placeholder="Column name…"
+              class="px-2 py-1 w-full text-sm text-zinc-800 dark:text-zinc-100 bg-white dark:bg-zinc-900 border border-zinc-300 rounded dark:border-zinc-700 focus:border-violet-500 focus:outline-none"
+              autofocus
+            />
+            <div class="flex gap-1">
+              <Button size="xs" @click="submitColumn()">
+                Add column
+              </Button>
+              <Button variant="ghost" size="xs" @click="closeColumnComposer()">
+                Cancel
+              </Button>
+            </div>
+          </div>
+          <Button
+            :if="!composingNewColumn()"
+            variant="outline"
+            fullWidth
+            @click="openColumnComposer()"
+          >
+            + Add column
+          </Button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <KanbanCardDialog />
+
+  <ConfirmDialog
+    :isOpen="Boolean(pendingDelete())"
+    :title="deleteTitle()"
+    :description="deleteDescription()"
+    :busy="deleting()"
+    :error="error() || ''"
+    :confirmLabel="deleting() ? 'Deleting' : 'Delete'"
+    @close="closeDelete"
+    @confirm="confirmDelete"
+  />
+</div>
+</template>

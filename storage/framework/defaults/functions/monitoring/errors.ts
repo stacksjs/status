@@ -1,4 +1,5 @@
-import { useStorage } from '@stacksjs/browser'
+import { resolveApiBaseUrl } from '../api-url'
+import { useStorage } from '@stacksjs/browser/composables/useStorage'
 
 export interface GroupedError {
   id: number
@@ -42,14 +43,18 @@ const groupedErrors = useStorage<GroupedError[]>('grouped-errors', [])
 const errorStats = useStorage<ErrorStats | null>('error-stats', null)
 const errorTimeline = useStorage<ErrorTimelinePoint[]>('error-timeline', [])
 
-const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+const baseURL = `${resolveApiBaseUrl()}/dashboard/monitoring`
+
+export function errorGroupParams(type: string, message: string): URLSearchParams {
+  return new URLSearchParams({ type, message })
+}
 
 /**
  * Fetch all grouped errors
  */
 async function fetchGroupedErrors(): Promise<GroupedError[]> {
   try {
-    const response = await fetch(`${baseURL}/monitoring/errors`)
+    const response = await fetch(`${baseURL}/errors`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -75,7 +80,7 @@ async function fetchGroupedErrors(): Promise<GroupedError[]> {
  */
 async function fetchErrorById(id: number): Promise<ErrorRecord | null> {
   try {
-    const response = await fetch(`${baseURL}/monitoring/errors/${id}`)
+    const response = await fetch(`${baseURL}/errors/${id}`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -93,11 +98,7 @@ async function fetchErrorById(id: number): Promise<ErrorRecord | null> {
  */
 async function fetchErrorGroup(type: string, message: string): Promise<ErrorRecord[]> {
   try {
-    const params = new URLSearchParams({
-      type: encodeURIComponent(type),
-      message: encodeURIComponent(message),
-    })
-    const response = await fetch(`${baseURL}/monitoring/errors/group?${params}`)
+    const response = await fetch(`${baseURL}/errors/group?${errorGroupParams(type, message)}`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -115,7 +116,7 @@ async function fetchErrorGroup(type: string, message: string): Promise<ErrorReco
  */
 async function fetchErrorStats(): Promise<ErrorStats | null> {
   try {
-    const response = await fetch(`${baseURL}/monitoring/errors/stats`)
+    const response = await fetch(`${baseURL}/errors/stats`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -134,7 +135,7 @@ async function fetchErrorStats(): Promise<ErrorStats | null> {
  */
 async function fetchErrorTimeline(): Promise<ErrorTimelinePoint[]> {
   try {
-    const response = await fetch(`${baseURL}/monitoring/errors/timeline`)
+    const response = await fetch(`${baseURL}/errors/timeline`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -153,7 +154,7 @@ async function fetchErrorTimeline(): Promise<ErrorTimelinePoint[]> {
  */
 async function resolveErrorGroup(type: string, message: string): Promise<boolean> {
   try {
-    const response = await fetch(`${baseURL}/monitoring/errors/resolve`, {
+    const response = await fetch(`${baseURL}/errors/resolve`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -166,12 +167,11 @@ async function resolveErrorGroup(type: string, message: string): Promise<boolean
     }
 
     // Update local state
-    const index = groupedErrors.value.findIndex(
+    const group = groupedErrors.value.find(
       e => e.type === type && e.message === message,
     )
-    if (index !== -1) {
-      groupedErrors.value[index].status = 'resolved'
-    }
+    if (group)
+      group.status = 'resolved'
 
     return true
   }
@@ -186,7 +186,7 @@ async function resolveErrorGroup(type: string, message: string): Promise<boolean
  */
 async function ignoreErrorGroup(type: string, message: string): Promise<boolean> {
   try {
-    const response = await fetch(`${baseURL}/monitoring/errors/ignore`, {
+    const response = await fetch(`${baseURL}/errors/ignore`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -199,12 +199,11 @@ async function ignoreErrorGroup(type: string, message: string): Promise<boolean>
     }
 
     // Update local state
-    const index = groupedErrors.value.findIndex(
+    const group = groupedErrors.value.find(
       e => e.type === type && e.message === message,
     )
-    if (index !== -1) {
-      groupedErrors.value[index].status = 'ignored'
-    }
+    if (group)
+      group.status = 'ignored'
 
     return true
   }
@@ -219,7 +218,7 @@ async function ignoreErrorGroup(type: string, message: string): Promise<boolean>
  */
 async function unresolveErrorGroup(type: string, message: string): Promise<boolean> {
   try {
-    const response = await fetch(`${baseURL}/monitoring/errors/unresolve`, {
+    const response = await fetch(`${baseURL}/errors/unresolve`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -232,12 +231,11 @@ async function unresolveErrorGroup(type: string, message: string): Promise<boole
     }
 
     // Update local state
-    const index = groupedErrors.value.findIndex(
+    const group = groupedErrors.value.find(
       e => e.type === type && e.message === message,
     )
-    if (index !== -1) {
-      groupedErrors.value[index].status = 'unresolved'
-    }
+    if (group)
+      group.status = 'unresolved'
 
     return true
   }
@@ -252,11 +250,7 @@ async function unresolveErrorGroup(type: string, message: string): Promise<boole
  */
 async function deleteErrorGroup(type: string, message: string): Promise<boolean> {
   try {
-    const params = new URLSearchParams({
-      type: encodeURIComponent(type),
-      message: encodeURIComponent(message),
-    })
-    const response = await fetch(`${baseURL}/monitoring/errors?${params}`, {
+    const response = await fetch(`${baseURL}/errors?${errorGroupParams(type, message)}`, {
       method: 'DELETE',
     })
 

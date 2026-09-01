@@ -1,7 +1,7 @@
 import { config } from '@stacksjs/config'
 import { mail, template } from '@stacksjs/email'
 import { log } from '@stacksjs/logging'
-import { buildUnsubscribeHeaders } from '@stacksjs/newsletter'
+import { buildUnsubscribeHeaders, shouldRunScheduledCampaign } from '@stacksjs/newsletter'
 import { Campaign, CampaignSend, EmailList, EmailListSubscriber, Subscriber } from '@stacksjs/orm'
 import { Job } from '@stacksjs/queue'
 import { url } from '@stacksjs/router'
@@ -27,6 +27,7 @@ interface SendCampaignPayload {
   campaignId: number
   chunkSize?: number
   dryRun?: boolean
+  scheduledAt?: string
 }
 
 export default new Job({
@@ -51,12 +52,19 @@ export default new Job({
       return { sent: 0, skipped: true }
     }
 
+    if (!shouldRunScheduledCampaign(campaign, payload.scheduledAt)) {
+      log.warn(`[SendCampaign] Skipping obsolete schedule for campaign ${campaign.id}`)
+      return { sent: 0, skipped: true }
+    }
+
     if (!campaign.email_list_id)
       throw new Error(`[SendCampaign] Campaign ${campaign.id} has no email_list_id`)
 
     const list = await (EmailList as any).find(campaign.email_list_id)
     if (!list)
       throw new Error(`[SendCampaign] EmailList ${campaign.email_list_id} not found`)
+    if (list.status !== 'active')
+      throw new Error(`[SendCampaign] EmailList ${campaign.email_list_id} is not active`)
 
     await campaign.update({ status: 'sending' })
 
@@ -79,6 +87,12 @@ export default new Job({
     // crash safety: if the worker dies mid-send we can resume from the
     // first subscriber without a CampaignSend row for this campaign.
     while (true) {
+      const currentCampaign = await (Campaign as any).find(campaign.id)
+      if (!currentCampaign || ['cancelled', 'sent'].includes(currentCampaign.status)) {
+        log.warn(`[SendCampaign] Stopping campaign ${campaign.id} in status '${currentCampaign?.status || 'missing'}'`)
+        return { sent, failed, stopped: true }
+      }
+
       const pivots = await (EmailListSubscriber as any)
         .where('email_list_id', campaign.email_list_id)
         .where('status', 'subscribed')
@@ -189,7 +203,13 @@ export default new Job({
       offset += pivots.length
     }
 
-    await campaign.update({
+    const completedCampaign = await (Campaign as any).find(campaign.id)
+    if (!completedCampaign || completedCampaign.status === 'cancelled') {
+      log.warn(`[SendCampaign] Not completing cancelled campaign ${campaign.id}`)
+      return { sent, failed, stopped: true }
+    }
+
+    await completedCampaign.update({
       status: 'sent',
       sent_at: new Date().toISOString(),
       sent_count: sent,

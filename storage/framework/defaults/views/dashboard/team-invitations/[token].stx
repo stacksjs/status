@@ -1,0 +1,7 @@
+@extends('layouts/guest')
+
+@section('content')
+@title('Team Invitation')
+
+<TeamInvitationDashboard />
+@endsection

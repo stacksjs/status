@@ -1,6 +1,24 @@
 import { defineModel } from '@stacksjs/orm'
 import { schema } from '@stacksjs/validation'
 
+const tagNames = [
+  'javascript',
+  'typescript',
+  'stx',
+  'react',
+  'nodejs',
+  'database',
+  'performance',
+  'security',
+  'api',
+  'testing',
+  'devops',
+  'cloud',
+  'frontend',
+  'backend',
+  'mobile',
+]
+
 export default defineModel({
   name: 'Tag',
   table: 'tags',
@@ -11,11 +29,33 @@ export default defineModel({
     useUuid: true,
     useTimestamps: true,
     useSeeder: {
-      count: 15,
+      count: tagNames.length,
+      fixtures: tagNames.map(name => ({ name, slug: name })),
     },
     useApi: {
+      // Public catalog: anyone may browse, only authenticated callers may
+      // write. Declared explicitly because the trait now defaults BOTH sides to
+      // `auth` — an undeclared read route is how a customer list leaks
+      // (stacksjs/stacks#2224). Behaviour here is unchanged.
+      middleware: { read: [], write: ['auth'] },
       uri: 'tags',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
+    },
+  },
+
+  belongsToMany: {
+    posts: {
+      model: 'Post',
+      table: 'taggable_models',
+      foreignKey: 'tag_id',
+      relatedKey: 'taggable_id',
+      pivot: {
+        columns: {
+          taggable_type: { default: 'posts' },
+        },
+        timestamps: true,
+        uniques: [['tag_id', 'taggable_id', 'taggable_type']],
+      },
     },
   },
 
@@ -31,11 +71,7 @@ export default defineModel({
           max: 'Tag name must have at most 50 characters',
         },
       },
-      factory: faker => faker.helpers.arrayElement([
-        'javascript', 'typescript', 'vue', 'react', 'nodejs',
-        'database', 'performance', 'security', 'api', 'testing',
-        'devops', 'cloud', 'frontend', 'backend', 'mobile',
-      ]),
+      factory: faker => `tag-${faker.string.alphanumeric(12).toLowerCase()}`,
     },
 
     slug: {
@@ -45,10 +81,7 @@ export default defineModel({
       validation: {
         rule: schema.string().min(2).max(50),
       },
-      factory: (faker) => {
-        const name = faker.lorem.word()
-        return name.toLowerCase().replace(/\s+/g, '-')
-      },
+      factory: faker => `tag-${faker.string.alphanumeric(12).toLowerCase()}`,
     },
 
     description: {
@@ -58,16 +91,6 @@ export default defineModel({
         rule: schema.string().max(255),
       },
       factory: faker => faker.lorem.sentence(),
-    },
-
-    postCount: {
-      required: false,
-      fillable: true,
-      default: 0,
-      validation: {
-        rule: schema.number().min(0),
-      },
-      factory: faker => faker.number.int({ min: 0, max: 100 }),
     },
 
     color: {

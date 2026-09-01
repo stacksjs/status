@@ -1,11 +1,12 @@
+import { resolveApiBaseUrl } from '../api-url'
 import type { TaxRates } from '../../types/defaults'
-import { useStorage } from '@stacksjs/browser'
+import { useStorage } from '@stacksjs/browser/composables/useStorage'
 import { pushToast } from '../toasts'
 
-// Create a persistent tax rates array using VueUse's useStorage
+// Create a persistent tax rates array using STX useStorage
 const taxRates = useStorage<TaxRates[]>('taxRates', [])
 
-const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+const baseURL = resolveApiBaseUrl()
 
 async function fetchTaxRates() {
   try {

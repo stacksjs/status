@@ -1,0 +1,101 @@
+<script client>
+import type { ReviewRecord } from '../../../../app/Actions/Dashboard/Commerce/review-records'
+
+const open = useReactiveProp('open', false)
+const review = useReactiveProp('review', null as ReviewRecord | null)
+const busy = useReactiveProp('busy', false)
+const errors = useReactiveProp('errors', {} as Record<string, string>)
+const emit = defineEmits()
+const title = state('')
+const content = state('')
+const rating = state(5)
+const approved = state(false)
+const featured = state(false)
+let hydratedId = ''
+
+effect(() => {
+  const current = review()
+  if (!open() || !current) {
+    hydratedId = ''
+    return
+  }
+  if (hydratedId === current.id)
+    return
+  hydratedId = current.id
+  title.set(current.title)
+  content.set(current.content)
+  rating.set(current.rating)
+  approved.set(current.approved)
+  featured.set(current.featured)
+})
+
+function submit(): void {
+  if (!title().trim() || !content().trim())
+    return
+  emit('submit', {
+    title: title().trim(),
+    content: content().trim(),
+    rating: rating(),
+    isApproved: approved(),
+    isFeatured: featured(),
+  })
+}
+
+function errorMessages(): string[] {
+  return Object.entries(errors()).map(([field, message]) => {
+    const label = field.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${message}`
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  title="Edit review"
+  :description="`${review()?.customerName || 'Unknown customer'} on ${review()?.productName || 'Unknown product'}`"
+  size="lg"
+  @close="emit('close')"
+>
+    <form id="review-form" @submit.prevent="submit">
+        <ul :if="errorMessages().length > 0" class="mb-5 p-3 space-y-1 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">
+          <template :for="message in errorMessages()" :key="message"><li>{{ message }}</li></template>
+        </ul>
+
+        <div class="space-y-4">
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Title</span>
+            <input x-model="title" type="text" maxlength="100" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Review</span>
+            <textarea x-model="content" rows="6" maxlength="2000" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea>
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Rating</span>
+            <select x-model.number="rating" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700">
+              <option value="5">5 stars</option>
+              <option value="4">4 stars</option>
+              <option value="3">3 stars</option>
+              <option value="2">2 stars</option>
+              <option value="1">1 star</option>
+            </select>
+          </label>
+          <div class="grid gap-3 grid-cols-1 sm:grid-cols-2">
+            <label class="flex gap-3 items-center p-3 border border-gray-200 rounded-lg dark:border-neutral-700">
+              <input x-model="approved" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Approved</span>
+            </label>
+            <label class="flex gap-3 items-center p-3 border border-gray-200 rounded-lg dark:border-neutral-700">
+              <input x-model="featured" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Featured</span>
+            </label>
+          </div>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+        <Button variant="secondary" :disabled="busy()" @click="emit('close')">Cancel</Button>
+        <Button type="submit" form="review-form" :loading="busy()" :disabled="!title().trim() || !content().trim()">Save review</Button>
+    </div>
+  </template>
+</Modal>

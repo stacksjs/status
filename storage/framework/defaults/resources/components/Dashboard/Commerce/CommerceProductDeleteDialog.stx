@@ -1,0 +1,23 @@
+<script client>
+import type { CommerceProductRecord } from '../../../../app/Actions/Dashboard/Commerce/commerce-product-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as CommerceProductRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete "${record()?.name || 'Unnamed product'}" permanently?`)
+const warning = derived(() => record()?.variantCount || record()?.unitCount || record()?.reviewCount
+  ? 'Related variants, units, or reviews may cause deletion to be rejected.'
+  : '')
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete product"
+  :description="description()"
+  :warning="warning()"
+  confirmLabel="Delete product"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

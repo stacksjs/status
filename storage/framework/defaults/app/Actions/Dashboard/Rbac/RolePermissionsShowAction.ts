@@ -1,5 +1,8 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { findRole, getRolePermissions } from '@stacksjs/auth'
+import { response } from '@stacksjs/router'
+import { rbacActionError } from './rbac-response'
 
 /**
  * `GET /api/dashboard/rbac/roles/:name/permissions` (stacksjs/stacks#1845).
@@ -14,20 +17,22 @@ export default new Action({
   description: 'List permissions attached to one role.',
   method: 'GET',
   apiResponse: true,
-  async handle(request) {
-    const name = String((request as any)?.params?.name ?? '').trim()
+  async handle(request: RequestInstance) {
+    const name = request.getParam('name').trim()
     if (!name) {
-      return { error: '`name` route param is required.', status: 400 }
+      return response.json({ error: '`name` route param is required.' }, 400)
     }
-    const url = new URL(request.url ?? 'http://localhost/')
-    const guardName = url.searchParams.get('guard') || 'web'
+    const guardName = String(request.get('guard', 'web')).trim()
+    if (!guardName || guardName.length > 60) {
+      return response.json({ error: 'Invalid guard name.' }, 400)
+    }
 
     try {
       const role = await findRole(name, guardName)
       if (!role) {
-        return { error: 'Role not found.', status: 404 }
+        return response.json({ error: 'Role not found.' }, 404)
       }
-      const permissions = await getRolePermissions(role.id)
+      const permissions = (await getRolePermissions(role.id)).filter(permission => permission.guard_name === guardName)
       return {
         role: { id: role.id, name: role.name, guardName: role.guard_name },
         permissions: permissions.map(p => ({
@@ -38,8 +43,7 @@ export default new Action({
       }
     }
     catch (err) {
-      console.error('[dashboard/rbac] RolePermissionsShowAction failed:', err)
-      return { permissions: [], error: err instanceof Error ? err.message : 'unknown error' }
+      return rbacActionError(err, 'Role permissions could not be loaded.', 'RolePermissionsShowAction')
     }
   },
 })

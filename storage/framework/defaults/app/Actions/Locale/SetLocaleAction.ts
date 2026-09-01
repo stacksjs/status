@@ -1,9 +1,9 @@
 import { createLocaleSwitchResponse } from '@stacksjs/i18n'
 import { existsSync } from 'node:fs'
-import { projectPath } from '@stacksjs/path'
+import { siteConfigPath } from '@stacksjs/path'
 
 async function loadSiteI18n(): Promise<{ locales: string[], defaultLocale: string } | null> {
-  const sitePath = projectPath('site.config.ts')
+  const sitePath = siteConfigPath()
   if (!existsSync(sitePath))
     return null
 
@@ -45,7 +45,9 @@ export default new Action({
 
     return createLocaleSwitchResponse(request as unknown as Request, String(request.param('locale') ?? ''), {
       locales,
-      defaultLocale: app?.locale ?? locales[0],
+      // `locales[0]` is `string | undefined` under noUncheckedIndexedAccess,
+      // and this list is never empty by construction - but say so.
+      defaultLocale: app?.locale ?? locales[0] ?? 'en',
     })
   },
 })

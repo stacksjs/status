@@ -1,16 +1,18 @@
-import type { Taggables } from '../../types/defaults'
-import { useFetch, useStorage } from '@stacksjs/browser'
+import { resolveApiBaseUrl } from '../api-url'
+import type { TaggableTable } from '@stacksjs/orm'
+import { useFetch } from '@stacksjs/browser/composables/useFetch'
+import { useStorage } from '@stacksjs/browser/composables/useStorage'
 
-// Create a persistent tags array using VueUse's useStorage
-const taggables = useStorage<Taggables[]>('taggables', [])
+// Create a persistent tags array using STX useStorage
+const taggables = useStorage<TaggableTable[]>('taggables', [])
 
-const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+const baseURL = resolveApiBaseUrl()
 
 // Basic fetch function to get all tags
-async function fetchTaggables(): Promise<Taggables[]> {
+async function fetchTaggables(): Promise<TaggableTable[]> {
   const { error, data } = await useFetch(`${baseURL}/cms/tags`).get().json()
 
-  const taggablesJson = data.value as Taggables[]
+  const taggablesJson = data.value as TaggableTable[]
   if (error.value) {
     console.error('Error fetching taggables:', error.value)
     return []
@@ -28,7 +30,7 @@ async function fetchTaggables(): Promise<Taggables[]> {
   }
 }
 
-async function createTaggable(taggable: Partial<Taggables>) {
+async function createTaggable(taggable: Partial<TaggableTable>) {
   const taggableData = {
     ...taggable,
     taggable_type: 'posts',
@@ -43,7 +45,7 @@ async function createTaggable(taggable: Partial<Taggables>) {
     return null
   }
 
-  const newTaggable = data.value as Taggables
+  const newTaggable = data.value as TaggableTable
   if (newTaggable) {
     taggables.value.push(newTaggable)
     return newTaggable
@@ -51,7 +53,7 @@ async function createTaggable(taggable: Partial<Taggables>) {
   return null
 }
 
-async function updateTaggable(id: number, taggable: Partial<Taggables>) {
+async function updateTaggable(id: number, taggable: Partial<TaggableTable>) {
   const { error, data } = await useFetch(`${baseURL}/cms/tags/${id}`)
     .patch(JSON.stringify(taggable))
     .json()
@@ -61,7 +63,7 @@ async function updateTaggable(id: number, taggable: Partial<Taggables>) {
     return null
   }
 
-  const updatedTaggable = data.value as Taggables
+  const updatedTaggable = data.value as TaggableTable
   if (updatedTaggable) {
     const index = taggables.value.findIndex(t => t.id === id)
     if (index !== -1) {

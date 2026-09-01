@@ -1,0 +1,91 @@
+<script client>
+import type { CampaignRecord } from '../../../../app/Actions/Dashboard/Marketing/campaign-records'
+import type { CampaignDeliveryOperation } from '../../../../app/Actions/Dashboard/Marketing/campaign-delivery'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'send' as CampaignDeliveryOperation)
+const record = useReactiveProp('record', null as CampaignRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const scheduledAt = state('')
+let hydrationKey = ''
+
+function localDateTime(value: string): string {
+  if (!value)
+    return ''
+  const date = new Date(value.includes('T') ? value : value.replace(' ', 'T'))
+  if (!Number.isFinite(date.getTime()))
+    return ''
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16)
+}
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const key = `${mode()}:${record()?.id || 'none'}`
+  if (hydrationKey === key)
+    return
+  hydrationKey = key
+  scheduledAt.set(localDateTime(record()?.scheduledAt || ''))
+})
+
+function heading(): string {
+  if (mode() === 'schedule')
+    return record()?.status === 'scheduled' ? 'Reschedule campaign' : 'Schedule campaign'
+  return mode() === 'cancel' ? 'Cancel delivery?' : 'Send campaign now?'
+}
+
+function description(): string {
+  if (mode() === 'schedule')
+    return 'The campaign will enter the delivery queue at the selected local time.'
+  if (mode() === 'cancel')
+    return 'Queued delivery will stop. A worker already processing recipients stops at its next chunk boundary.'
+  return 'The campaign will enter the delivery queue immediately. This action can email every active list member.'
+}
+
+function confirmLabel(): string {
+  if (mode() === 'schedule')
+    return record()?.status === 'scheduled' ? 'Reschedule' : 'Schedule'
+  return mode() === 'cancel' ? 'Cancel delivery' : 'Send now'
+}
+
+function submit(): void {
+  if (mode() === 'schedule') {
+    const date = new Date(scheduledAt())
+    if (!Number.isFinite(date.getTime()))
+      return
+    emit('confirm', { scheduledAt: date.toISOString() })
+    return
+  }
+  emit('confirm', {})
+}
+</script>
+
+<Modal :isOpen="open()" :title="heading()" :description="description()" size="md" @close="emit('close')">
+    <div class="mt-4 p-3 bg-gray-50 dark:bg-neutral-900/50 border border-gray-200 rounded-lg dark:border-neutral-700">
+      <p class="font-medium text-gray-900 text-sm dark:text-white">{{ record()?.name || '' }}</p>
+      <p class="mt-1 text-gray-500 text-xs dark:text-neutral-400">{{ record()?.emailListName || 'Not assigned' }} · {{ record()?.audienceSize.toLocaleString() || '0' }} active recipients</p>
+    </div>
+    <label :if="mode() === 'schedule'" class="block mt-4">
+      <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Delivery time</span>
+      <input x-model="scheduledAt" type="datetime-local" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+      <span class="block mt-1 text-gray-500 text-xs dark:text-neutral-400">Uses your browser’s local time.</span>
+    </label>
+    <div :if="error()" role="alert" class="mt-4 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button :disabled="busy()" variant="secondary" @click="emit('close')">Close</Button>
+      <template :if="mode() === 'cancel'">
+        <Button :disabled="busy() || (mode() === 'schedule' && !scheduledAt())" :loading="busy()" variant="danger" @click="submit()">{{ confirmLabel() }}</Button>
+      </template>
+      <template :else>
+        <Button :disabled="busy() || (mode() === 'schedule' && !scheduledAt())" :loading="busy()" @click="submit()">{{ confirmLabel() }}</Button>
+      </template>
+    </div>
+  </template>
+</Modal>

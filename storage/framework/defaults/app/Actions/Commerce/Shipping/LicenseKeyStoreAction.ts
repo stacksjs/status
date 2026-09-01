@@ -8,11 +8,21 @@ export default new Action({
   name: 'LicenseKey Store',
   description: 'LicenseKey Store ORM Action',
   method: 'POST',
+  model: LicenseKey,
   async handle(request: RequestInstance) {
+    await request.validate()
+
     const data = await request.all()
 
-    const results = await shippings.licenses.store(data)
+    try {
+      const results = await shippings.licenses.store(data)
 
-    return response.json(results)
+      return response.json(results)
+    }
+    catch (error) {
+      if (error instanceof shippings.licenses.LicenseKeyInputError)
+        return response.json({ message: error.message }, 422)
+      throw error
+    }
   },
 })

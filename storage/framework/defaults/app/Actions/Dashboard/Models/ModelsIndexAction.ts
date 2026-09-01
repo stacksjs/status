@@ -1,8 +1,10 @@
 import { Action } from '@stacksjs/actions'
-import { readdirSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
-import { loadModel, safeCount } from '../../../../resources/functions/dashboard/data'
+import { countRows } from '../../../../resources/functions/dashboard/data'
+import { dashboardOperationalError, dashboardOperationalIssue } from '../dashboard-response'
+import { modelApiConfiguration } from './model-api'
 
 /**
  * `GET /api/dashboard/models` (stacksjs/stacks#1838).
@@ -24,9 +26,13 @@ interface ModelRow {
   name: string
   table: string
   href: string
-  count: number
+  count: number | null
+  attributeCount: number
   category: string
   source: 'userland' | 'framework'
+  apiUri: string
+  apiRoutes: string[]
+  error: string | null
 }
 
 interface ModelGroup {
@@ -34,6 +40,12 @@ interface ModelGroup {
   label: string
   models: ModelRow[]
   countLabel: string
+}
+
+interface DiscoveredModel {
+  name: string
+  file: string
+  source: 'userland' | 'framework'
 }
 
 function pascalToSnake(s: string): string {
@@ -52,21 +64,19 @@ function pluralize(word: string): string {
 
 function walkModels(dir: string, recursive: boolean): Array<{ name: string, file: string }> {
   const out: Array<{ name: string, file: string }> = []
-  try {
-    const entries = readdirSync(dir, { withFileTypes: true })
-    for (const ent of entries) {
-      const full = join(dir, ent.name)
-      if (ent.isDirectory()) {
-        if (recursive) out.push(...walkModels(full, true))
-        continue
-      }
-      if (!ent.name.endsWith('.ts')) continue
-      if (ent.name.startsWith('_') || ent.name === 'index.ts' || ent.name === 'README.ts') continue
-      out.push({ name: ent.name.replace('.ts', ''), file: full })
+  if (!existsSync(dir))
+    return out
+
+  const entries = readdirSync(dir, { withFileTypes: true })
+  for (const ent of entries) {
+    const full = join(dir, ent.name)
+    if (ent.isDirectory()) {
+      if (recursive) out.push(...walkModels(full, true))
+      continue
     }
-  }
-  catch {
-    // Missing directory — return what we have.
+    if (!ent.name.endsWith('.ts')) continue
+    if (ent.name.startsWith('_') || ent.name === 'index.ts' || ent.name === 'README.ts') continue
+    out.push({ name: ent.name.replace('.ts', ''), file: full })
   }
   return out
 }
@@ -74,7 +84,7 @@ function walkModels(dir: string, recursive: boolean): Array<{ name: string, file
 function categorize(model: { source: 'userland' | 'framework', file: string }): string {
   if (model.source === 'userland') return 'userland'
   const segs = model.file.split('/Models/')[1]?.split('/') ?? []
-  if (segs.length > 1) return segs[0].toLowerCase()
+  if (segs.length > 1 && segs[0]) return segs[0].toLowerCase()
   return 'framework'
 }
 
@@ -89,6 +99,21 @@ function categoryLabel(k: string): string {
   return k === 'userland' ? 'Your Models' : k.charAt(0).toUpperCase() + k.slice(1)
 }
 
+function unavailableModelRow(model: DiscoveredModel, error: string): ModelRow {
+  return {
+    name: model.name,
+    table: pluralize(pascalToSnake(model.name)),
+    href: `/models/${pascalToKebab(model.name)}`,
+    count: null,
+    attributeCount: 0,
+    category: categorize(model),
+    source: model.source,
+    apiUri: '',
+    apiRoutes: [],
+    error,
+  }
+}
+
 export default new Action({
   name: 'Dashboard Models Index',
   description: 'List every model + live record count for the dashboard models overview.',
@@ -99,11 +124,18 @@ export default new Action({
     const userlandDir = join(cwd, 'app', 'Models')
     const defaultsDir = join(cwd, 'storage/framework/defaults/app/Models')
 
-    const userland = walkModels(userlandDir, false)
-    const defaults = walkModels(defaultsDir, true)
+    let userland: Array<Omit<DiscoveredModel, 'source'>>
+    let defaults: Array<Omit<DiscoveredModel, 'source'>>
+    try {
+      userland = walkModels(userlandDir, false)
+      defaults = walkModels(defaultsDir, true)
+    }
+    catch (error) {
+      return dashboardOperationalError(error, 'Model catalog could not be loaded.', 'ModelsIndexAction.catalog')
+    }
 
     const seen = new Set<string>()
-    const merged: Array<{ name: string, file: string, source: 'userland' | 'framework' }> = []
+    const merged: DiscoveredModel[] = []
     for (const list of [userland, defaults]) {
       for (const m of list) {
         if (seen.has(m.name)) continue
@@ -112,57 +144,82 @@ export default new Action({
       }
     }
 
-    const enriched: ModelRow[] = []
-    for (const m of merged) {
+    const enriched = await Promise.all(merged.map(async (m): Promise<ModelRow> => {
+      let Model: any
       try {
-        const Model = await loadModel(m.name)
-        const count = await safeCount(Model)
-        enriched.push({
-          name: m.name,
-          table: pluralize(pascalToSnake(m.name)),
-          href: `/models/${pascalToKebab(m.name)}`,
-          count,
-          category: categorize(m),
-          source: m.source,
-        })
+        const module = await import(m.file)
+        Model = module.default ?? module
       }
-      catch {
-        enriched.push({
-          name: m.name,
-          table: pluralize(pascalToSnake(m.name)),
-          href: `/models/${pascalToKebab(m.name)}`,
-          count: 0,
-          category: categorize(m),
-          source: m.source,
-        })
+      catch (error) {
+        return unavailableModelRow(
+          m,
+          dashboardOperationalIssue(error, 'Model definition could not be loaded.', `ModelsIndexAction.import.${m.name}`),
+        )
       }
-    }
+
+      let api: ReturnType<typeof modelApiConfiguration>
+      try {
+        api = modelApiConfiguration(Model)
+      }
+      catch (error) {
+        return unavailableModelRow(
+          m,
+          dashboardOperationalIssue(error, 'Model metadata could not be loaded.', `ModelsIndexAction.metadata.${m.name}`),
+        )
+      }
+      let count: number | null = null
+      let error: string | null = null
+      try {
+        count = await countRows(Model)
+      }
+      catch (cause) {
+        error = dashboardOperationalIssue(cause, 'Model count could not be loaded.', `ModelsIndexAction.count.${m.name}`)
+      }
+
+      return {
+        name: m.name,
+        table: String(Model.table || pluralize(pascalToSnake(m.name))),
+        href: `/models/${pascalToKebab(m.name)}`,
+        count,
+        attributeCount: Object.keys(Model.attributes || {}).length,
+        category: categorize(m),
+        source: m.source,
+        apiUri: api.uri ? `/api/${api.uri}` : '',
+        apiRoutes: api.routes,
+        error,
+      }
+    }))
 
     enriched.sort((a, b) => a.name.localeCompare(b.name))
 
     const totalModels = enriched.length
-    const totalRecords = enriched.reduce((sum, m) => sum + m.count, 0)
+    const totalRecords = enriched.reduce((sum, m) => sum + (m.count ?? 0), 0)
     const userlandCount = enriched.filter(m => m.source === 'userland').length
+    const unavailableModels = enriched.filter(m => m.error !== null).length
 
-    const groupMap: Record<string, ModelRow[]> = {}
+    const groupMap = new Map<string, ModelRow[]>()
     for (const m of enriched) {
-      if (!groupMap[m.category]) groupMap[m.category] = []
-      groupMap[m.category].push(m)
+      const bucket = groupMap.get(m.category) ?? []
+      bucket.push(m)
+      groupMap.set(m.category, bucket)
     }
 
-    const categoryGroups: ModelGroup[] = Object.keys(groupMap)
-      .sort((a, b) => categoryOrder(a) - categoryOrder(b))
-      .map(key => ({
+    // A Map rather than a plain object: every read here is by a key that was
+    // just written, and an index signature makes the compiler doubt all four.
+    const categoryGroups: ModelGroup[] = [...groupMap.entries()]
+      .sort(([a], [b]) => categoryOrder(a) - categoryOrder(b))
+      .map(([key, models]) => ({
         key,
         label: categoryLabel(key),
-        models: groupMap[key],
-        countLabel: `${groupMap[key].length} model${groupMap[key].length === 1 ? '' : 's'}`,
+        models,
+        countLabel: `${models.length} model${models.length === 1 ? '' : 's'}`,
       }))
 
     return {
       totalModels,
       totalRecords,
       userlandCount,
+      unavailableModels,
       categoryGroups,
     }
   },

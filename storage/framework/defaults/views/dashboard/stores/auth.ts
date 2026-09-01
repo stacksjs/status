@@ -1,4 +1,5 @@
 import { defineStore, derived, registerStoresClient, state } from '@stacksjs/stx'
+import { dashboardApi } from '../../../functions/dashboard-api'
 
 /**
  * Dashboard auth/identity store — single source of truth for "who is
@@ -20,48 +21,45 @@ import { defineStore, derived, registerStoresClient, state } from '@stacksjs/stx
  *      RBAC role names from the `user_roles` pivot. The role-derived
  *      flags (`isAdmin`, `isDev`, `isClient`) reflect that membership.
  *   3. **Fetch failed** — network down, route 404, server error.
- *      `error` is set, but the role flags still default to "permissive
- *      dev" so a broken endpoint doesn't lock the dashboard.
+ *      `error` is set and role flags fail closed until a later successful
+ *      refresh resolves the viewer's identity.
  */
 export const authStore = defineStore('auth', () => {
   const userId = state<number | null>(null)
   const userName = state<string | null>(null)
   const userEmail = state<string | null>(null)
   const roles = state<string[]>([])
-  const unauthenticated = state(true)
+  const unauthenticated = state(false)
   const loading = state(false)
   const error = state<string | null>(null)
   const loaded = state(false)
+  let pendingLoad: Promise<void> | null = null
 
-  // Permissive-dev defaults: when nobody is signed in (or the endpoint
-  // failed), assume the viewer is a dev. The alternative — hiding every
-  // gated surface until auth is wired — would make the dashboard look
-  // broken on a fresh project.
   const isAdmin = derived(() => {
+    if (!loaded()) return false
     if (unauthenticated()) return true
     return roles().includes('admin')
   })
   const isDev = derived(() => {
+    if (!loaded()) return false
     if (unauthenticated()) return true
     return roles().includes('admin') || roles().includes('dev')
   })
   const isClient = derived(() => {
+    if (!loaded()) return false
     if (unauthenticated()) return false
     return roles().includes('client')
   })
 
-  async function load(): Promise<void> {
-    if (loading() || loaded()) return
+  async function resolveIdentity(): Promise<void> {
     loading.set(true)
     error.set(null)
     try {
-      const res = await fetch('/api/dashboard/auth/me', { headers: { accept: 'application/json' } })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as {
+      const data = await dashboardApi<{
         user: { id: number, name: string | null, email: string | null } | null
         roles: string[]
         unauthenticated?: true
-      }
+      }>('/api/dashboard/auth/me')
       if (data.user) {
         userId.set(data.user.id)
         userName.set(data.user.name)
@@ -78,15 +76,35 @@ export const authStore = defineStore('auth', () => {
     }
     catch (e) {
       error.set(e instanceof Error ? e.message : String(e))
-      // Keep the permissive defaults: don't mark `loaded` so a later
-      // explicit `refresh()` can retry.
+      userId.set(null)
+      userName.set(null)
+      userEmail.set(null)
+      roles.set([])
+      unauthenticated.set(false)
+      // Do not mark `loaded`, so a later explicit `refresh()` can retry.
     }
     finally {
       loading.set(false)
     }
   }
 
+  function load(): Promise<void> {
+    if (loaded())
+      return Promise.resolve()
+
+    if (pendingLoad)
+      return pendingLoad
+
+    pendingLoad = resolveIdentity().finally(() => {
+      pendingLoad = null
+    })
+    return pendingLoad
+  }
+
   async function refresh(): Promise<void> {
+    if (pendingLoad)
+      await pendingLoad
+
     loaded.set(false)
     await load()
   }
@@ -110,12 +128,10 @@ export const authStore = defineStore('auth', () => {
   persist: {
     storage: 'sessionStorage',
     key: 'stacks-dashboard-auth',
-    // Don't persist `loaded` — every fresh tab should re-fetch identity
+    // Don't persist authorization state. Every fresh tab re-fetches identity
     // (the user may have been assigned a new role, or signed out, since
-    // the last visit). Roles + user info ride along as a soft cache so
-    // the dashboard renders against last-known state before the
-    // round-trip resolves.
-    pick: ['userId', 'userName', 'userEmail', 'roles', 'unauthenticated'],
+    // the last visit). User info remains a display-only soft cache.
+    pick: ['userId', 'userName', 'userEmail'],
   },
 })
 

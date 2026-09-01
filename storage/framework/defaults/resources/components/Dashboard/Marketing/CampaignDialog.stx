@@ -1,0 +1,225 @@
+<script client>
+import type {
+  CampaignListOption,
+  CampaignRecord,
+  CampaignStatus,
+  CampaignType,
+} from '../../../../app/Actions/Dashboard/Marketing/campaign-records'
+
+const open = useReactiveProp('open', false)
+const mode = useReactiveProp('mode', 'add')
+const record = useReactiveProp('record', null as CampaignRecord | null)
+const lists = useReactiveProp('lists', [] as CampaignListOption[])
+const defaultCurrency = useReactiveProp('defaultCurrency', 'USD')
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const name = state('')
+const description = state('')
+const type = state<CampaignType>('email')
+const status = state<CampaignStatus>('draft')
+const subject = state('')
+const template = state('')
+const text = state('')
+const fromName = state('')
+const fromAddress = state('')
+const emailListId = state('')
+const scheduledAt = state('')
+const budget = state('')
+const spent = state('0')
+const currency = state('USD')
+const startDate = state('')
+const endDate = state('')
+const canSubmit = derived(() => {
+  if (!name().trim())
+    return false
+  return type() !== 'email'
+    || Boolean(subject().trim() && template().trim() && emailListId())
+})
+let hydrationKey = ''
+
+function localDateTime(value: string): string {
+  return value ? value.replace(' ', 'T').slice(0, 16) : ''
+}
+
+function databaseDateTime(value: string): string {
+  return value ? `${value.replace('T', ' ')}:00` : ''
+}
+
+effect(() => {
+  if (!open()) {
+    hydrationKey = ''
+    return
+  }
+  const current = record()
+  const key = `${mode()}:${current?.id || 'new'}`
+  if (hydrationKey === key)
+    return
+  hydrationKey = key
+  name.set(current?.name || '')
+  description.set(current?.description || '')
+  type.set(current?.type || 'email')
+  status.set(current?.status || 'draft')
+  subject.set(current?.subject || '')
+  template.set(current?.template || '')
+  text.set(current?.text || '')
+  fromName.set(current?.fromName || '')
+  fromAddress.set(current?.fromAddress || '')
+  emailListId.set(current?.emailListId || '')
+  scheduledAt.set(localDateTime(current?.scheduledAt || ''))
+  budget.set(current?.budget ? String(current.budget) : '')
+  spent.set(String(current?.spent || 0))
+  currency.set(current?.currency || defaultCurrency())
+  startDate.set(localDateTime(current?.startDate || ''))
+  endDate.set(localDateTime(current?.endDate || ''))
+})
+
+function normalizeType(event: Event): void {
+  const nextType = (event.target as HTMLSelectElement).value as CampaignType
+  if (nextType === 'email')
+    status.set('draft')
+  else if (['sending', 'sent'].includes(status()))
+    status.set('draft')
+}
+
+function submit(): void {
+  if (!canSubmit())
+    return
+  emit('submit', {
+    name: name().trim(),
+    description: description().trim(),
+    type: type(),
+    status: type() === 'email' && mode() === 'add' ? 'draft' : status(),
+    subject: subject().trim(),
+    template: template().trim(),
+    text: text().trim(),
+    fromName: fromName().trim(),
+    fromAddress: fromAddress().trim(),
+    emailListId: emailListId() || null,
+    scheduledAt: databaseDateTime(scheduledAt()) || null,
+    budget: budget(),
+    spent: spent(),
+    currency: currency().trim().toUpperCase(),
+    startDate: databaseDateTime(startDate()),
+    endDate: databaseDateTime(endDate()),
+  })
+}
+</script>
+
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit campaign' : 'Add campaign'"
+  description="Persist campaign metadata through the Campaign model. Email delivery is started separately after review."
+  size="xl"
+  @close="emit('close')"
+>
+    <form id="campaign-form" @submit.prevent="submit">
+        <div :if="error()" role="alert" class="mb-5 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block sm:col-span-2">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Name</span>
+            <input x-model="name" type="text" minlength="3" maxlength="255" required autocomplete="off" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+          </label>
+          <label class="block sm:col-span-2">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Description</span>
+            <textarea x-model="description" rows="2" maxlength="1000" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea>
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Type</span>
+            <select x-model="type" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" @change="normalizeType($event)">
+              <option value="email">Email</option>
+              <option value="sms">SMS</option>
+              <option value="push">Push</option>
+              <option value="social">Social</option>
+              <option value="multi-channel">Multi-channel</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span>
+            <select x-model="status" :disabled="type() === 'email' && (mode() === 'add' || ['scheduled', 'sending', 'sent'].includes(status()))" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-60">
+              <option value="draft">Draft</option>
+              <option :if="type() !== 'email'" value="scheduled">Scheduled</option>
+              <option :if="type() !== 'email'" value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="failed">Failed</option>
+              <option :if="type() !== 'email'" value="completed">Completed</option>
+              <option :if="type() !== 'email'" value="archived">Archived</option>
+              <option :if="type() === 'email' && status() === 'scheduled'" value="scheduled">Scheduled</option>
+              <option :if="type() === 'email' && status() === 'sending'" value="sending">Sending</option>
+              <option :if="type() === 'email' && status() === 'sent'" value="sent">Sent</option>
+            </select>
+          </label>
+
+          <div :if="type() === 'email'" class="grid gap-4 sm:col-span-2 sm:grid-cols-2 p-4 bg-gray-50 dark:bg-neutral-900/50 border border-gray-200 rounded-lg dark:border-neutral-700">
+            <label class="block sm:col-span-2">
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Email list</span>
+              <select x-model="emailListId" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700">
+                <option value="">Select a list</option>
+                <template :for="list in lists">
+                  <option :value="list.id">{{ list.name }} - {{ list.activeMembers.toLocaleString() }} active</option>
+                </template>
+              </select>
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Subject</span>
+              <input x-model="subject" type="text" maxlength="255" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Template name or raw HTML</span>
+              <textarea x-model="template" rows="3" required class="mt-1 px-3 py-2 w-full font-mono text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea>
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Plain-text fallback</span>
+              <textarea x-model="text" rows="3" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"></textarea>
+            </label>
+            <label class="block">
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">From name</span>
+              <input x-model="fromName" type="text" maxlength="100" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+            </label>
+            <label class="block">
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">From address</span>
+              <input x-model="fromAddress" type="email" maxlength="255" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+            </label>
+          </div>
+
+          <label :if="status() === 'scheduled'" class="block sm:col-span-2">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Scheduled for</span>
+            <input x-model="scheduledAt" type="datetime-local" required :disabled="type() === 'email'" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-60" />
+            <span :if="type() === 'email'" class="block mt-1 text-gray-500 text-xs dark:text-neutral-400">Email scheduling is managed by the delivery pipeline.</span>
+          </label>
+
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Starts</span>
+            <input x-model="startDate" type="datetime-local" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Ends</span>
+            <input x-model="endDate" type="datetime-local" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+          </label>
+          <label class="block">
+            <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Budget</span>
+            <input x-model="budget" type="number" min="0" step="0.01" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+          </label>
+          <div class="grid gap-3 grid-cols-[1fr_7rem]">
+            <label class="block">
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Spent</span>
+              <input x-model="spent" type="number" min="0" step="0.01" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+            </label>
+            <label class="block">
+              <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Currency</span>
+              <input x-model="currency" type="text" minlength="3" maxlength="3" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm uppercase dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+            </label>
+          </div>
+        </div>
+    </form>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+        <Button :disabled="busy()" variant="secondary" @click="emit('close')">Cancel</Button>
+        <Button type="submit" form="campaign-form" :disabled="busy() || !canSubmit()" :loading="busy()">
+          {{ mode() === 'edit' ? 'Save campaign' : 'Add campaign' }}
+        </Button>
+    </div>
+  </template>
+</Modal>

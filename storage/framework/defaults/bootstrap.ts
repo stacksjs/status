@@ -34,7 +34,6 @@ import MaintenanceMiddleware from './app/Middleware/Maintenance'
 // Registered unconditionally because the auth middleware + Role middleware
 // both reach for the helpers at request time regardless of which feature
 // the project opts into.
-//
 // DEFERRED, non-blocking wiring on purpose. This file is dynamically
 // imported by the route loader while other entrypoints (a test file, the
 // API server) may still be mid-way through evaluating the @stacksjs/auth
@@ -77,30 +76,85 @@ route.use(MaintenanceMiddleware.toRouterHandler() as any)
 // Overridable by registering the same path in app routes first.
 await route.register(frameworkPath('defaults/routes/core.ts'))
 
-// Feature-gated route registration. The dashboard.ts file currently bundles
-// ~687 lines covering auth, password reset, email subscribe, storefront
-// cart/checkout, reviews, sitemap, AI, voice, and the admin dashboard's
-// REST surface. Until that file is split per-feature (auth.ts, marketing.ts,
-// commerce.ts, monitoring.ts), the whole thing loads when `dashboard` is
-// activated and stays inert otherwise.
+// Which default route bundles this app mounts. The route loader resolves the
+// selection (STACKS_DEFAULT_ROUTES, or the legacy STACKS_SKIP_DEFAULT_ROUTES)
+// and leaves it here; see `resolveDefaultRouteBundles` in
+// `core/router/src/route-loader.ts`. Absent when bootstrap is imported by
+// something other than the loader, in which case every bundle is eligible and
+// the feature gates below decide, exactly as before.
+const selection = (globalThis as Record<string, unknown>).__stacksDefaultRouteBundles as
+  { bundles: Set<string>, explicit: boolean } | undefined
+
+/**
+ * Whether a bundle mounts.
+ *
+ * An app that NAMED its bundles has already answered the question, so the
+ * feature flag does not get a second veto - otherwise `STACKS_DEFAULT_ROUTES=auth`
+ * would still be withheld from an app running with `dashboard` off, which is
+ * the exact case this exists for. When nothing was named, the flags gate
+ * precisely as they did before.
+ */
+function mounts(bundle: string, featureEnabled: boolean): boolean {
+  if (selection && !selection.bundles.has(bundle))
+    return false
+  return selection?.explicit ? true : featureEnabled
+}
+
+// Auth: login, registration, logout, refresh/revoke, passkeys, TOTP 2FA and
+// password reset. Split out of dashboard.ts so it can be mounted on its own
+// (stacksjs/stacks#2229) — previously the only way to get `/login` was to
+// activate `dashboard` and take the storefront, reviews, AI and voice surface
+// with it.
 //
-// Apps that need only a slice — e.g. a marketing site that wants
-// `/api/email/subscribe` and `/api/contact` but not the rest — can either
-//   1. Activate `dashboard` and live with the over-broad register; the
-//      action handlers for routes you don't hit never fire, and their
-//      models stay un-loaded as long as the corresponding feature flag
-//      (`commerce`, `cms`, `monitoring`) is off, so there's no hidden
-//      cost beyond the bun-router route-table entries.
-//   2. Define the routes they want directly in `routes/api.ts` —
-//      first-registration-wins means the user version takes priority.
+// Registered BEFORE dashboard.ts, which is where these lived, so the
+// first-registration-wins order among framework routes is unchanged.
 //
-// Once the per-feature route split lands, each `if (feature('X'))` block
-// below registers just the X-specific routes file.
-if (feature('dashboard')) {
+// Deliberately NOT gated on `feature('auth')`, despite the issue asking for
+// it: `config/auth.ts` ships in every app with `enabled: true`, so that gate
+// is true everywhere and would mount the auth surface — including
+// `/generate-two-factor-secret`, `/logout-all` and `/auth/tokens` — in apps
+// currently running with `dashboard` off. Widening an app's public surface on
+// upgrade is not something a refactor gets to do silently.
+if (mounts('auth', feature('dashboard')))
+  await route.register(frameworkPath('defaults/routes/auth.ts'))
+
+// The rest of dashboard.ts: email subscribe, storefront cart/checkout,
+// reviews, sitemap, AI, voice, and the admin dashboard's REST surface. Still
+// one file and still one gate — splitting auth out was the case with a
+// reporter behind it; marketing.ts / commerce.ts / monitoring.ts remain the
+// obvious next cuts.
+//
+// Apps that need only a slice can also define the routes they want directly
+// in `routes/api.ts` — first-registration-wins means the user version takes
+// priority.
+if (mounts('dashboard', feature('dashboard'))) {
   await route.register(frameworkPath('defaults/routes/dashboard.ts'))
   // JSON endpoints for the dev dashboard UI. Kept separate from the view
   // routes above so the data layer is one obvious file to grep.
   await route.register(frameworkPath('defaults/routes/dashboard-api.ts'))
+  // The dev dashboard boots through this file rather than the application
+  // router's importRoutes() path, so load model-declared useApi routes here too.
+  //
+  // Package first, vendored second, matching importRoutes() and start.ts. This
+  // line used to import the vendored copy only, and nothing re-vendors that
+  // file: `@stacksjs/orm` publishes `dist/routes.js` and no `routes.ts`, so an
+  // app kept whatever generator its copy froze at however often it upgraded.
+  // An old enough copy compares route paths literally, so a generated
+  // `PATCH /api/sites/{id}` does not recognise a hand-written
+  // `/api/sites/{siteId}` as the same endpoint and registers alongside it,
+  // and the hand-written handler's authorization check stops running
+  // (stacksjs/stacks#2364).
+  //
+  // Held in a variable so the specifier resolves at runtime rather than while
+  // transpiling, where an unresolvable literal would fail this module instead
+  // of throwing where it can be caught.
+  const ormRoutesPackage = '@stacksjs/orm/routes'
+  try {
+    await import(ormRoutesPackage)
+  }
+  catch {
+    await import(frameworkPath('orm/routes.ts'))
+  }
 }
 
 // Email webhook + unsubscribe routes (stacksjs/stacks#1881, #1880).
@@ -110,6 +164,36 @@ if (feature('dashboard')) {
 // non-default mount path register their own routes in `routes/api.ts`
 // and the framework's mount silently no-ops since user routes
 // register first.
-if (feature('email')) {
+if (mounts('email', feature('email'))) {
   await route.register(frameworkPath('defaults/routes/email.ts'))
+}
+
+// Form-builder public endpoints (`@stacksjs/forms`). Gated on the `forms`
+// feature, which defaults OFF - an app opts in with config/forms.ts
+// (`buddy forms:install`) and only then do the public submit routes exist.
+if (mounts('forms', feature('forms'))) {
+  await route.register(frameworkPath('defaults/routes/forms.ts'))
+}
+
+// Courier delivery endpoints: position ingest and the stop/route lifecycle a
+// courier's device drives. Gated with the rest of the commerce surface, since
+// they are meaningless without the delivery models behind them.
+if (mounts('delivery', feature('commerce'))) {
+  await route.register(frameworkPath('defaults/routes/delivery.ts'))
+}
+
+// Social sign-in: `/auth/{provider}` + `/auth/{provider}/callback`
+// (stacksjs/stacks#2276). An opt-in bundle, NOT part of the implicit default
+// set or `all` — OAuth callback URLs in an app that configured no provider
+// are surface for nothing. So `mounts()` does not apply here: an app that
+// NAMED its bundles decides outright (`social` listed → on, absent → off),
+// and an app that said nothing gets it exactly when a provider is actually
+// configured in config/services.ts — configuring GitHub and finding
+// /auth/github dead would be the puzzle, not the mount.
+const { configuredSocialProviders } = await import('@stacksjs/socials')
+const mountSocial = selection?.explicit
+  ? selection.bundles.has('social')
+  : configuredSocialProviders().length > 0
+if (mountSocial) {
+  await route.register(frameworkPath('defaults/routes/socials.ts'))
 }

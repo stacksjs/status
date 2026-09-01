@@ -1,0 +1,19 @@
+<script client>
+import type { GiftCardRecord } from '../../../../app/Actions/Dashboard/Commerce/gift-card-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as GiftCardRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete "${record()?.code || 'Unnamed gift card'}" permanently? Recorded customer or order relationships may prevent deletion.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete gift card"
+  :description="description()"
+  confirmLabel="Delete gift card"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

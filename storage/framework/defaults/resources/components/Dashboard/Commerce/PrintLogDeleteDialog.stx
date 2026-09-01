@@ -1,0 +1,19 @@
+<script client>
+import type { PrintLogRecord } from '../../../../app/Actions/Dashboard/Commerce/print-log-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as PrintLogRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `This permanently deletes ${record()?.document || `print log #${record()?.id}`} from the native Receipt history. It does not affect the printed document.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open() && Boolean(record())"
+  title="Delete print log?"
+  :description="description()"
+  confirmLabel="Delete print log"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

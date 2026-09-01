@@ -1,8 +1,10 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
+import { kanbanActionError, kanbanError } from './kanban-response'
 
 /**
- * `DELETE /api/dashboard/kanban/columns/:id` (stacksjs/stacks#1846 Phase 2).
+ * `DELETE /api/dashboard/kanban/columns/:id`.
  *
  * Hard-deletes the column and cascade-cleans every card inside it
  * (plus the pivot rows referencing those cards). Same convention as
@@ -18,15 +20,15 @@ export default new Action({
   description: 'Hard-deletes a column and its cards.',
   method: 'DELETE',
   apiResponse: true,
-  async handle(request) {
-    const rawId = (request as any)?.params?.id ?? (request as any)?.param?.('id') ?? null
-    const id = Number(rawId)
+  async handle(request: RequestInstance) {
+    const id = Number(request.getParam('id'))
     if (!Number.isFinite(id) || id <= 0) {
-      return { error: 'Invalid column id', status: 400 }
+      return kanbanError('Invalid column id', 400)
     }
 
     try {
-      const txOps = async (qb: any) => {
+      await db.transaction(async (rawTrx) => {
+        const qb = rawTrx as unknown as typeof db
         await qb.unsafe(
           'DELETE FROM card_labels WHERE card_id IN (SELECT id FROM cards WHERE column_id = ?)',
           [id],
@@ -35,25 +37,18 @@ export default new Action({
           'DELETE FROM card_assignees WHERE card_id IN (SELECT id FROM cards WHERE column_id = ?)',
           [id],
         ).execute()
-        // Card comments (Phase 3, stacksjs/stacks#1846).
+        // Card comments are card-scoped children.
         await qb.unsafe(
           'DELETE FROM card_comments WHERE card_id IN (SELECT id FROM cards WHERE column_id = ?)',
           [id],
         ).execute()
         await qb.deleteFrom('cards').where('column_id', '=', id).execute()
         await qb.deleteFrom('board_columns').where('id', '=', id).execute()
-      }
-      try {
-        await (db as any).transaction(txOps)
-      }
-      catch {
-        await txOps(db)
-      }
+      })
       return { deleted: true, id }
     }
     catch (err) {
-      console.error('[dashboard/kanban] ColumnDestroyAction failed:', err)
-      return { error: err instanceof Error ? err.message : 'unknown error', status: 500 }
+      return kanbanActionError(err, 'ColumnDestroyAction')
     }
   },
 })

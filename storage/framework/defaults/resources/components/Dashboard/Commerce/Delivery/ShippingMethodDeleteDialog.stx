@@ -1,0 +1,24 @@
+<script client>
+interface ShippingMethodRecord {
+  id: number
+  name: string
+}
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as ShippingMethodRecord | null)
+const busy = useReactiveProp('busy', false)
+const error = useReactiveProp('error', '')
+const emit = defineEmits()
+const description = derived(() => `Delete ${record()?.name || 'the selected shipping method'} permanently. Methods referenced by shipping zones may be protected by the database.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open() && Boolean(record())"
+  title="Delete shipping method?"
+  :description="description()"
+  confirmLabel="Delete method"
+  :busy="busy()"
+  :error="error()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

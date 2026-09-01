@@ -1,0 +1,19 @@
+<script client>
+import type { ReviewRecord } from '../../../../app/Actions/Dashboard/Commerce/review-records'
+
+const open = useReactiveProp('open', false)
+const review = useReactiveProp('review', null as ReviewRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete "${review()?.title || 'Untitled review'}" permanently? This cannot be undone.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete review"
+  :description="description()"
+  confirmLabel="Delete review"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

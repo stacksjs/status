@@ -1,73 +1,100 @@
+import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions'
+import { Category, Order, OrderItem, Payment, Product } from '@stacksjs/orm'
+import { response } from '@stacksjs/router'
+import { dashboardOperationalError } from '../dashboard-response'
+import {
+  analyticsCurrency,
+  analyticsIdentifier,
+  analyticsNumber,
+  analyticsOptionalNumber,
+  analyticsOptionalString,
+  analyticsString,
+  analyticsTimestamp,
+} from './analytics-record'
+import { normalizeAnalyticsRange } from './request-analytics'
+import { buildSalesAnalytics } from './sales-analytics'
 
 export default new Action({
   name: 'SalesAnalyticsAction',
-  description: 'Returns sales analytics data from the Order model.',
+  description: 'Returns currency-safe sales analytics from orders, payments, order items, products, and categories.',
   method: 'GET',
-  async handle() {
+  apiResponse: true,
+
+  async handle(request: RequestInstance) {
+    let range
     try {
-      const { Order } = await import('@stacksjs/orm')
-
-      const allOrders = await Order.all()
-      const orderCount = allOrders.length
-      const totalSales = allOrders.reduce((sum: number, o: any) => sum + (o.total_amount || 0), 0)
-      // eslint-disable-next-line pickier/no-unused-vars
-      const avgOrderValue = orderCount > 0 ? totalSales / orderCount : 0
-
-      const cancelledOrders = allOrders.filter((o: any) => o.status === 'cancelled')
-      const refunds = cancelledOrders.reduce((sum: number, o: any) => sum + (o.total_amount || 0), 0)
-      const netRevenue = totalSales - refunds
-
-      // Group orders by date for daily sales
-      const ordersByDate: Record<string, { total: number, count: number }> = {}
-      for (const o of allOrders as any[]) {
-        const date = o.created_at ? String(o.created_at).split('T')[0] : 'Unknown'
-        if (!ordersByDate[date]) {
-          ordersByDate[date] = { total: 0, count: 0 }
-        }
-        ordersByDate[date].total += o.total_amount || 0
-        ordersByDate[date].count++
-      }
-
-      const dailySales = Object.keys(ordersByDate)
-        .sort((a, b) => b.localeCompare(a))
-        .slice(0, 7)
-        .map((date) => {
-          const data = ordersByDate[date]
-          return {
-            date,
-            sales: `$${data.total.toLocaleString()}`,
-            orders: data.count,
-            avgOrder: `$${data.count > 0 ? (data.total / data.count).toFixed(2) : '0.00'}`,
-          }
-        })
-
-      const stats = [
-        { label: 'Total Sales', value: `$${totalSales.toLocaleString()}`, change: '' },
-        { label: 'Transactions', value: String(orderCount), change: '' },
-        { label: 'Refunds', value: `$${refunds.toLocaleString()}`, change: '' },
-        { label: 'Net Revenue', value: `$${netRevenue.toLocaleString()}`, change: '' },
-      ]
-
-      // Payment method breakdown estimated from orders
-      const paymentMethods = orderCount > 0
-        ? [
-            { method: 'Credit Card', amount: `$${Math.round(totalSales * 0.67).toLocaleString()}`, transactions: Math.floor(orderCount * 0.67), percentage: 66.6 },
-            { method: 'PayPal', amount: `$${Math.round(totalSales * 0.20).toLocaleString()}`, transactions: Math.floor(orderCount * 0.20), percentage: 19.5 },
-            { method: 'Apple Pay', amount: `$${Math.round(totalSales * 0.10).toLocaleString()}`, transactions: Math.floor(orderCount * 0.10), percentage: 10.0 },
-            { method: 'Other', amount: `$${Math.round(totalSales * 0.03).toLocaleString()}`, transactions: Math.floor(orderCount * 0.03), percentage: 3.9 },
-          ]
-        : []
-
-      return {
-        stats,
-        dailySales,
-        paymentMethods,
-        salesTeam: [],
-      }
+      range = normalizeAnalyticsRange(request.get('range'))
     }
-    catch {
-      return { stats: [], dailySales: [], paymentMethods: [], salesTeam: [] }
+    catch (error) {
+      return response.json({
+        message: error instanceof Error ? error.message : 'The analytics query is invalid.',
+      }, 422)
+    }
+    try {
+      const [orders, payments, orderItems, products, categories] = await Promise.all([
+        Order.orderByDesc('id').limit(10_000).get(),
+        Payment.orderByDesc('id').limit(10_000).get(),
+        OrderItem.orderByDesc('id').limit(20_000).get(),
+        Product.orderByDesc('id').limit(10_000).get(),
+        Category.orderByDesc('id').limit(10_000).get(),
+      ])
+
+      return buildSalesAnalytics(
+        orders.map((order) => {
+          const id = analyticsIdentifier(order.get('id'), 'Order')
+          const source = `Order ${id}`
+          return {
+            id,
+            status: analyticsString(order.get('status'), source, 'status'),
+            totalAmount: analyticsNumber(order.get('total_amount'), source, 'total_amount', { min: 0 }),
+            currency: analyticsCurrency(order.get('currency'), source),
+            createdAt: analyticsTimestamp(order.get('created_at'), source),
+          }
+        }),
+        payments.map((payment) => {
+          const id = analyticsIdentifier(payment.get('id'), 'Payment')
+          const source = `Payment ${id}`
+          return {
+            method: analyticsString(payment.get('method'), source, 'method'),
+            status: analyticsString(payment.get('status'), source, 'status'),
+            amount: analyticsNumber(payment.get('amount'), source, 'amount', { min: 0 }),
+            refundAmount: analyticsOptionalNumber(payment.get('refund_amount'), source, 'refund_amount', { min: 0 }) ?? 0,
+            currency: analyticsCurrency(payment.get('currency'), source),
+            createdAt: analyticsTimestamp(payment.get('created_at'), source),
+          }
+        }),
+        orderItems.map((item) => {
+          const id = analyticsIdentifier(item.get('id'), 'OrderItem')
+          const source = `OrderItem ${id}`
+          return {
+            orderId: analyticsIdentifier(item.get('order_id'), source, 'order_id'),
+            productId: analyticsIdentifier(item.get('product_id'), source, 'product_id'),
+            quantity: analyticsNumber(item.get('quantity'), source, 'quantity', { min: 1, integer: true }),
+            price: analyticsNumber(item.get('price'), source, 'price', { min: 0 }),
+          }
+        }),
+        products.map((product) => {
+          const id = analyticsIdentifier(product.get('id'), 'Product')
+          const source = `Product ${id}`
+          return {
+            id,
+            name: analyticsString(product.get('name'), source, 'name'),
+            categoryId: analyticsOptionalString(product.get('category_id'), source, 'category_id'),
+          }
+        }),
+        categories.map((category) => {
+          const id = analyticsIdentifier(category.get('id'), 'Category')
+          return {
+            id,
+            name: analyticsString(category.get('name'), `Category ${id}`, 'name'),
+          }
+        }),
+        range,
+      )
+    }
+    catch (error) {
+      return dashboardOperationalError(error, 'Sales analytics records could not be read.', 'SalesAnalyticsAction')
     }
   },
 })

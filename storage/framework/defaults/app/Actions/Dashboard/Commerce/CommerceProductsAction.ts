@@ -1,50 +1,62 @@
 import { Action } from '@stacksjs/actions'
-import { Product } from '@stacksjs/orm'
+import { config } from '@stacksjs/config'
+import { Category, Manufacturer, Product, ProductUnit, ProductVariant, Review } from '@stacksjs/orm'
+import { dashboardOperationalError } from '../dashboard-response'
+import {
+  commerceRecordIdentifier,
+  countProductRelations,
+  normalizeCommerceCurrency,
+  normalizeCommerceProductRecord,
+  normalizeManufacturerOption,
+  normalizeProductOption,
+  summarizeCommerceProducts,
+} from './commerce-product-records'
 
 export default new Action({
-  name: 'CommerceProducts',
-  description: 'Returns products list with stats and categories.',
+  name: 'CommerceProductsAction',
+  description: 'Returns persisted Product records with native relationship context for dashboard management.',
   method: 'GET',
+  apiResponse: true,
+
   async handle() {
-    const categories = ['All Categories', 'Electronics', 'Clothing', 'Books', 'General']
-
     try {
-      const allProducts = await Product.orderByDesc('id').get()
-      const totalProducts = await Product.count()
+      const products = await Product.orderByDesc('id').limit(500).get()
+      const productIds = products.map(product => commerceRecordIdentifier(product, 'Product'))
+      // Identifiers normalize to strings; `product_id` is numeric.
+      const numericProductIds = productIds.map(Number).filter(Number.isSafeInteger)
+      const [categories, manufacturers, variants, units, reviews] = await Promise.all([
+        Category.orderBy('name', 'asc').limit(500).get(),
+        Manufacturer.orderBy('manufacturer', 'asc').limit(500).get(),
+        numericProductIds.length > 0 ? ProductVariant.whereIn('product_id', numericProductIds).get() : [],
+        numericProductIds.length > 0 ? ProductUnit.whereIn('product_id', numericProductIds).get() : [],
+        numericProductIds.length > 0 ? Review.whereIn('product_id', numericProductIds).get() : [],
+      ])
+      const categoryOptions = categories.map(normalizeProductOption)
+      const manufacturerOptions = manufacturers.map(normalizeManufacturerOption)
+      const categoryMap = new Map(categoryOptions.map(option => [option.id, option.label]))
+      const manufacturerMap = new Map(manufacturerOptions.map(option => [option.id, option.label]))
+      const variantCounts = countProductRelations(variants)
+      const unitCounts = countProductRelations(units)
+      const reviewCounts = countProductRelations(reviews)
+      const records = products.map(product => normalizeCommerceProductRecord(
+        product,
+        categoryMap,
+        manufacturerMap,
+        variantCounts,
+        unitCounts,
+        reviewCounts,
+      ))
 
-      const products = allProducts.map(p => ({
-        name: String(p.get('name') || 'Product'),
-        sku: `PRD-${String(p.get('id')).padStart(3, '0')}`,
-        price: `$${(Number(p.get('price')) || 0).toFixed(2)}`,
-        stock: Number(p.get('inventory_count') || 0),
-        category: 'General',
-        status: !p.get('is_available') ? 'inactive' : (Number(p.get('inventory_count') || 0)) < 10 ? 'low-stock' : 'active',
-      }))
-
-      const activeProducts = products.filter(p => p.status === 'active').length
-      const lowStockProducts = products.filter(p => p.status === 'low-stock').length
-      const outOfStock = products.filter(p => p.stock === 0).length
-
-      const stats = [
-        { label: 'Total Products', value: String(totalProducts) },
-        { label: 'Active', value: String(activeProducts) },
-        { label: 'Low Stock', value: String(lowStockProducts) },
-        { label: 'Out of Stock', value: String(outOfStock) },
-      ]
-
-      return { products, stats, categories }
-    }
-    catch {
       return {
-        products: [],
-        stats: [
-          { label: 'Total Products', value: '0' },
-          { label: 'Active', value: '0' },
-          { label: 'Low Stock', value: '0' },
-          { label: 'Out of Stock', value: '0' },
-        ],
-        categories,
+        records,
+        summary: summarizeCommerceProducts(records),
+        categories: categoryOptions,
+        manufacturers: manufacturerOptions,
+        defaultCurrency: normalizeCommerceCurrency(config.commerce?.currency),
       }
+    }
+    catch (error) {
+      return dashboardOperationalError(error, 'Product records could not be read.', 'CommerceProductsAction')
     }
   },
 })

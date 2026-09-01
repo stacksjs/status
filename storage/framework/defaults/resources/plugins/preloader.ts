@@ -36,7 +36,13 @@ const fastCommands = [
   'scaffold:crud',
 ]
 const isRepl = !process.argv[1]
-const skipPreloader = isRepl || (args.length > 0 && fastCommands.some(cmd => args[0] === cmd || args[0].startsWith(`${cmd}:`)))
+// Dependency installation runs package lifecycle scripts before Bun has finished
+// linking every workspace package. Loading @stacksjs/env (or the wider auto-import
+// graph) from a postinstall script can therefore fail even though the install is
+// otherwise valid. Postinstall scripts are bootstrap work and must stay independent
+// of the application runtime preloader.
+const isPostinstall = process.env.npm_lifecycle_event === 'postinstall'
+const skipPreloader = isRepl || isPostinstall || (args.length > 0 && fastCommands.some(cmd => args[0] === cmd || args[0].startsWith(`${cmd}:`)))
 
 if (!skipPreloader) {
   // Detect production/deployment commands and set environment accordingly BEFORE loading env files
@@ -44,11 +50,20 @@ if (!skipPreloader) {
   const productionCommands = ['cloud:remove', 'cloud:rm', 'cloud:destroy', 'cloud:cleanup', 'cloud:clean-up', 'undeploy']
   const isProductionCommand = productionCommands.includes(args[0])
 
-  // Handle deploy command which can have an optional env argument: `deploy [env]`
+  // Handle deploy command: the env may be positional (`deploy staging`) or a
+  // flag (`deploy --staging`). CI deploys use the flag form, so detecting only
+  // the positional arg left APP_ENV wrong and loaded the wrong .env file.
   const isDeployCommand = args[0] === 'deploy'
   if (isDeployCommand) {
-    // Check if second arg is an environment (not a flag starting with -)
-    const deployEnv = args[1] && !args[1].startsWith('-') ? args[1] : 'production'
+    const flagEnv = args.includes('--production') || args.includes('--prod')
+      ? 'production'
+      : args.includes('--staging')
+        ? 'staging'
+        : args.includes('--development') || args.includes('--dev')
+          ? 'development'
+          : undefined
+    const positionalEnv = args[1] && !args[1].startsWith('-') ? args[1] : undefined
+    const deployEnv = flagEnv ?? positionalEnv ?? 'production'
     process.env.APP_ENV = deployEnv
     process.env.NODE_ENV = deployEnv
   }
@@ -56,22 +71,54 @@ if (!skipPreloader) {
     process.env.APP_ENV = 'production'
     process.env.NODE_ENV = 'production'
   }
+}
 
-  // Load .env files with encryption support using our native Bun plugin
-  const { autoLoadEnv } = await import('@stacksjs/env')
+// Decrypt and load .env files for real command invocations. This is gated on
+// isRepl / isPostinstall ONLY, not on the fast-command `skipPreloader`: fast
+// commands (migrate, build, seed, ...) DO need decrypted config, which the old
+// `skipPreloader` gate wrongly denied them (an encrypted `.env.<env>` never
+// decrypted for those commands even with the key present). See stacksjs/stacks#2048.
+//
+// Postinstall still skips: @stacksjs/env may not be linked yet mid-install, so
+// importing it there can fail (see the isPostinstall note above). The REPL keeps
+// its original skip. The heavy auto-import graph below stays gated separately via
+// `skipAutoImports`.
+if (!isRepl && !isPostinstall) {
+  // Resolve the vendored source first; the package fallback covers non-standard
+  // layouts where defaults is consumed outside the framework layout.
+  const envPackage = '@stacksjs/' + 'env'
+  const { autoLoadEnv } = await import('../../../core/env/src/plugin.ts')
+    .catch(() => import(envPackage))
 
-  // Auto-load .env files based on environment
-  // Set quiet: true to prevent duplicate logging across multiple processes
+  // Pass the resolved env so deploy commands deterministically select their
+  // matching `.env.<env>` file. autoLoadEnv discovers `.env.keys` by default,
+  // replaces ciphertext that Bun preloaded, and preserves genuine shell/CI
+  // overrides while applying environment-specific file precedence. quiet: true
+  // prevents duplicate logging across multiple processes.
+  autoLoadEnv({ quiet: true, env: process.env.APP_ENV })
+
+  // Tell stx and ts-cloud where their state lives before anything imports them.
+  // Both keep it under `storage/` in a Stacks app rather than in a dot-directory
+  // at the project root, both take the location from their own config, and both
+  // read an environment variable ahead of that config — which is also what
+  // carries the answer into every process a command spawns. Setting it here
+  // means no boot order can leave a library writing to `.stx` / `.ts-cloud`.
   //
-  // keysFile MUST be passed here: autoLoadEnv only resolves a decryption
-  // private key from a keys FILE when explicitly told which one to read —
-  // without it, an encrypted .env.production (DOTENV_PUBLIC_KEY_PRODUCTION
-  // + `encrypted:...` values) loads with every encrypted value left as raw
-  // ciphertext in process.env, silently breaking anything that reads
-  // process.env.SOME_SECRET directly (e.g. deploy-time credentials like
-  // HCLOUD_TOKEN/PORKBUN_API_KEY) with no error — it just looks like a
-  // bogus/expired credential downstream.
-  autoLoadEnv({ quiet: true, keysFile: '.env.keys' })
+  // Guarded because this preload runs before ANY command: an app resolving
+  // `@stacksjs/path` from npm can legitimately be on a published version that
+  // predates this helper, and a bare call there throws
+  // `applyRuntimeDirectoryEnv is not a function` out of a bunfig preload,
+  // which takes down every `buddy` invocation including the `install` and
+  // `upgrade` that would fix it. Falling through leaves stx and ts-cloud on
+  // their own defaults, which is degraded but recoverable.
+  const pathPkg = '@stacksjs/' + 'path'
+  const { applyRuntimeDirectoryEnv } = await import('../../../core/path/src/index.ts')
+    .catch(() => import(pathPkg))
+
+  if (typeof applyRuntimeDirectoryEnv === 'function')
+    applyRuntimeDirectoryEnv()
+  else
+    console.warn('[stacks] installed @stacksjs/path has no applyRuntimeDirectoryEnv; stx and ts-cloud will use their default state directories. Run `buddy upgrade` to refresh the framework packages.')
 }
 
 // stx template engine plugin
@@ -81,13 +128,90 @@ if (!skipPreloader) {
 // eslint-disable-next-line antfu/no-top-level-await
 // await import('bun-plugin-stx')
 
+/**
+ * Whether a bare `@stacksjs/*` specifier resolves to something belonging to
+ * THIS project, and is therefore safe to import.
+ *
+ * A bare specifier resolves through node_modules, and when that is missing or
+ * half-installed bun falls back to its GLOBAL install cache. So a project with
+ * a broken install did not fail. It silently booted against whatever published
+ * version happened to be sitting in ~/.bun/install/cache, which is worse than
+ * loading nothing and completely invisible.
+ *
+ * It also hung, and that is how it was found. On Linux the first such
+ * cache-resolved import never settles: no rejection, no active handles, the
+ * process simply stops, so every stage of the preloader after it is silently
+ * unreachable. Both callers wrap their import in a `catch` that assumes a bad
+ * specifier fails FAST. That holds for one that cannot be resolved at all. It
+ * does not hold for one that resolves to a stale copy.
+ *
+ * ## Why this is a directory probe and not `Bun.resolveSync`
+ *
+ * The first version of this guard asked `Bun.resolveSync`, which answers the
+ * question exactly but pays full module resolution to do it. Measured on a
+ * Linux CI runner, a specifier that is NOT in `node_modules` cost **0.9 to 2.0
+ * seconds per call**, because bun walks the entire tree and then scans a global
+ * cache the install had just filled with 600+ packages. Twenty of those is 20
+ * to 40 seconds, so the guard turned a hang into a crawl and the preloader test
+ * kept timing out, intermittently, depending on how loaded the runner was.
+ *
+ * Locating the `node_modules/@stacksjs` directory once and then asking
+ * `existsSync` per package is the same question answered with stat calls:
+ * microseconds, and it never touches the global cache. The walk is memoised
+ * because the answer cannot change within a process.
+ *
+ * Accepted: a package present in this project's `@stacksjs` scope directory,
+ * which covers a real install and a vendored checkout alike (the framework's
+ * own core packages are symlinked into it). Anchored on `import.meta.dir`
+ * rather than the cwd, so running a command from a subdirectory does not change
+ * what loads.
+ */
+let stacksScopeDir: string | null | undefined
+
+async function findStacksScopeDir(): Promise<string | null> {
+  if (stacksScopeDir !== undefined)
+    return stacksScopeDir
+
+  const { existsSync } = await import('node:fs')
+  const { dirname, join } = await import('node:path')
+
+  let dir = import.meta.dir
+  for (;;) {
+    const candidate = join(dir, 'node_modules', '@stacksjs')
+    if (existsSync(candidate)) {
+      stacksScopeDir = candidate
+      return candidate
+    }
+    const parent = dirname(dir)
+    if (parent === dir)
+      break
+    dir = parent
+  }
+
+  stacksScopeDir = null
+  return null
+}
+
+async function belongsToThisProject(specifier: string): Promise<boolean> {
+  const scopeDir = await findStacksScopeDir()
+  if (!scopeDir)
+    return false
+
+  const { existsSync } = await import('node:fs')
+  const { join } = await import('node:path')
+
+  return existsSync(join(scopeDir, specifier.slice('@stacksjs/'.length)))
+}
+
 // Auto-import ALL Stacks framework modules into globalThis
 // This allows using Action, response, Activity, etc. without ANY imports.
 // Exported so server entrypoints (e.g. `dev/api.ts`) can opt back in
 // explicitly when needed — see #1835 root cause 3.
 export async function loadAutoImports() {
   const { Glob } = await import('bun')
-  const path = await import('@stacksjs/path')
+  const pathPackage = '@stacksjs/' + 'path'
+  const path = await import('../../../core/path/src/index.ts')
+    .catch(() => import(pathPackage))
 
   // CRITICAL: Never overwrite these built-in globals
   const protectedGlobals = new Set([
@@ -141,6 +265,12 @@ export async function loadAutoImports() {
   ]
 
   for (const pkg of stacksPackages) {
+    // See `belongsToThisProject`. Skipping is what the `catch` below always
+    // meant to do; it just never got the chance for a specifier that resolves
+    // to a stale copy instead of failing.
+    if (!(await belongsToThisProject(pkg)))
+      continue
+
     try {
       const module = await import(pkg)
       for (const [name, value] of Object.entries(module)) {
@@ -298,11 +428,14 @@ if (!skipAutoImports) {
   await loadAutoImports()
 
   // Run package auto-discovery after all imports are loaded
-  try {
-    const { discoverPackages } = await import('@stacksjs/actions')
-    await discoverPackages()
-  }
-  catch {
-    // Discovery may fail during early bootstrap — not critical
+  const actionsPackage = '@stacksjs/' + 'actions'
+  if (await belongsToThisProject(actionsPackage)) {
+    try {
+      const { discoverPackages } = await import(actionsPackage)
+      await discoverPackages()
+    }
+    catch {
+      // Discovery may fail during early bootstrap — not critical
+    }
   }
 }

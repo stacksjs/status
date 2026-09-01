@@ -1,0 +1,19 @@
+<script client>
+import type { PrintDeviceRecord } from '../../../../app/Actions/Dashboard/Commerce/print-device-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as PrintDeviceRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete "${record()?.name || 'Unnamed printer'}" permanently? Existing receipt logs remain separate records.`)
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete print device"
+  :description="description()"
+  confirmLabel="Delete printer"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

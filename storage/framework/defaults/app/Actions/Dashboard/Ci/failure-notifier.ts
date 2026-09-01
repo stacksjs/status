@@ -36,7 +36,7 @@ interface CiRunStateRow {
 async function loadPreviousStates(): Promise<Map<string, PreviousRunState>> {
   const rows = await db.unsafe(
     'SELECT repo_full_name, last_conclusion, last_run_id, last_notified_at FROM ci_run_states',
-  ).execute() as CiRunStateRow[]
+  ).execute() as unknown as CiRunStateRow[]
 
   const map = new Map<string, PreviousRunState>()
   for (const r of rows ?? []) {
@@ -114,7 +114,7 @@ function buildPayload(t: FailedTransition): { subject: string, body: string, dat
   const shortSha = t.commitSha ? t.commitSha.slice(0, 7) : ''
   const commit = t.commitMessage ? `${shortSha} ${t.commitMessage.split('\n')[0]}` : shortSha
   const workflow = t.workflowName ? ` (${t.workflowName})` : ''
-  const author = t.commitAuthor ? ` — ${t.commitAuthor}` : ''
+  const author = t.commitAuthor ? `, ${t.commitAuthor}` : ''
   const subject = `CI failed: ${t.repoFullName}${workflow}`
   const lines = [
     `${t.repoFullName}${workflow}`,

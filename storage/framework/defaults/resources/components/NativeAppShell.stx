@@ -1,0 +1,90 @@
+<script>
+interface NativeAppShellProps {
+  class?: string
+  tabBar?: boolean
+}
+
+const { tabBar = false } = defineProps<NativeAppShellProps>()
+</script>
+
+<script client>
+const className = useReactiveProp<string>('class', '')
+</script>
+
+<div data-native-app-shell class="native-app-shell" :class="className()">
+  <main class="native-app-content">
+    <slot />
+  </main>
+  @if(tabBar)
+    <footer class="native-app-tab-slot">
+      <slot name="tab-bar" />
+    </footer>
+  @endif
+</div>
+
+<style>
+  .native-app-shell {
+    --native-safe-area-top: env(safe-area-inset-top, 0px);
+    --native-safe-area-right: env(safe-area-inset-right, 0px);
+    --native-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --native-safe-area-left: env(safe-area-inset-left, 0px);
+
+    min-height: 100dvh;
+    color: inherit;
+    background: inherit;
+    padding-top: var(--native-safe-area-top);
+    padding-right: var(--native-safe-area-right);
+    padding-left: var(--native-safe-area-left);
+  }
+
+  .native-app-shell::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 35;
+    height: var(--native-safe-area-top);
+    pointer-events: none;
+    background: var(--native-safe-area-background, Canvas);
+  }
+
+  .native-app-content {
+    min-height: calc(100dvh - var(--native-safe-area-top));
+    padding-bottom: var(--native-safe-area-bottom);
+  }
+
+  /*
+   * Clearance for the fixed tab bar, and ONLY where a tab bar can appear.
+   *
+   * The slot element exists in the DOM whenever `tabBar` is set, but a bottom
+   * tab bar is a mobile control — apps hide its contents at desktop widths
+   * (`md:hidden`). `:has()` matches the slot either way, so this reserved 5rem
+   * on desktop too: eighty pixels of empty, scrollable nothing below the
+   * footer that a visitor could scroll into, which reads as a broken page.
+   *
+   * Scoped to below `md` (768px, the framework's own breakpoint and where
+   * NativeTabBar stops being shown) so the clearance exists exactly when the
+   * thing it is clearing does.
+   */
+  @media (max-width: 767.98px) {
+    .native-app-shell:has(.native-app-tab-slot) .native-app-content {
+      padding-bottom: calc(5rem + var(--native-safe-area-bottom));
+    }
+  }
+
+  .native-app-sticky-top {
+    top: var(--native-safe-area-top);
+  }
+
+  .native-app-tab-slot {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 30;
+    padding-right: var(--native-safe-area-right);
+    padding-bottom: var(--native-safe-area-bottom);
+    padding-left: var(--native-safe-area-left);
+  }
+</style>

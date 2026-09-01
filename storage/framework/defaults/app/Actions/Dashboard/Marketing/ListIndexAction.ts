@@ -1,43 +1,52 @@
 import { Action } from '@stacksjs/actions'
+import { db } from '@stacksjs/database'
 import { EmailList } from '@stacksjs/orm'
+import { dashboardOperationalError } from '../dashboard-response'
+import { normalizeMarketingLists } from './marketing-list-records'
 
 export default new Action({
   name: 'ListIndexAction',
-  description: 'Returns mailing list data for the dashboard.',
+  description: 'Returns persisted email lists with membership and campaign aggregates.',
   method: 'GET',
+  apiResponse: true,
+
   async handle() {
+    const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace('T', ' ')
+
     try {
-      const allLists = await EmailList.all()
+      const [lists, membershipRows, newMembershipRows, campaignRows] = await Promise.all([
+        EmailList.orderBy('name', 'asc').get(),
+        db
+          .selectFrom('email_list_subscribers')
+          .select(['email_list_id', 'status', db.fn.count('id').as('count')])
+          .groupBy(['email_list_id', 'status'])
+          .execute(),
+        db
+          .selectFrom('email_list_subscribers')
+          .select(['email_list_id', db.fn.count('id').as('count')])
+          .where('status', '=', 'subscribed')
+          .where('subscribed_at', '>=', weekStart)
+          .groupBy('email_list_id')
+          .execute(),
+        db
+          .selectFrom('campaigns')
+          .select([
+            'email_list_id',
+            db.fn.count('id').as('count'),
+            db.fn.max('sent_at').as('last_sent_at'),
+          ])
+          .whereNotNull('email_list_id')
+          .groupBy('email_list_id')
+          .execute(),
+      ])
 
-      const lists = allLists.map(l => ({
-        name: String(l.get('name') || ''),
-        members: Number(l.get('member_count') || l.get('subscribers_count') || 0),
-        growth: String(l.get('growth') || '+0'),
-        status: String(l.get('status') || 'active'),
-        lastSent: String(l.get('last_sent_at') || '-'),
-      }))
-
-      const totalSubscribers = lists.reduce((s, l) => s + l.members, 0)
-
-      const stats = [
-        { label: 'Total Subscribers', value: String(totalSubscribers) },
-        { label: 'New This Week', value: '-' },
-        { label: 'Unsubscribed', value: '-' },
-        { label: 'Avg Open Rate', value: '-' },
-      ]
-
-      return { lists, stats }
+      return normalizeMarketingLists(lists, membershipRows, newMembershipRows, campaignRows)
     }
-    catch {
-      return {
-        lists: [],
-        stats: [
-          { label: 'Total Subscribers', value: '0' },
-          { label: 'New This Week', value: '0' },
-          { label: 'Unsubscribed', value: '0' },
-          { label: 'Avg Open Rate', value: '-' },
-        ],
-      }
+    catch (error) {
+      return dashboardOperationalError(error, 'Email lists could not be loaded.', 'ListIndexAction')
     }
   },
 })

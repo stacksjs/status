@@ -1,5 +1,5 @@
 import { config } from '@stacksjs/config'
-import { mail, template } from '@stacksjs/email'
+import { escapeHtml, mail, safe, template } from '@stacksjs/email'
 
 export interface OrderConfirmationItem {
   name: string
@@ -38,7 +38,10 @@ export async function sendOrderConfirmation(options: OrderConfirmationOptions): 
       orderId: options.orderId,
       orderUrl: options.orderUrl,
       customerName: options.customerName || 'there',
-      items: options.items,
+      // A template variable is a scalar - an array would be interpolated as
+      // "[object Object],[object Object]". The rows are rendered here and
+      // marked safe, with every value the customer supplied escaped first.
+      itemRows: safe(renderItemRows(options.items)),
       subtotal: options.subtotal,
       shipping: options.shipping,
       total: options.total,
@@ -48,13 +51,26 @@ export async function sendOrderConfirmation(options: OrderConfirmationOptions): 
     subject: `Your ${appName} order #${options.orderId} is confirmed`,
   })
 
-  await mail.send({
+  await mail.sendOrFail({
     to: [options.to],
     from: { name: appName, address: fromAddress },
     subject: `Your ${appName} order #${options.orderId} is confirmed`,
     html,
     text,
   })
+}
+
+function formatMoney(amount: number): string {
+  return (amount / 100).toFixed(2)
+}
+
+function renderItemRows(items: OrderConfirmationItem[]): string {
+  return items
+    .map(item => `<tr>
+      <td style="padding: 12px 0; color: #d4d4d4; font-size: 15px;">${escapeHtml(item.name)} &times; ${Number(item.qty) || 0}</td>
+      <td style="padding: 12px 0; color: #ececec; font-size: 15px; text-align: right;">${formatMoney(Number(item.lineTotal) || 0)}</td>
+    </tr>`)
+    .join('\n')
 }
 
 export default sendOrderConfirmation

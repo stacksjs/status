@@ -1,23 +1,25 @@
 import { Action } from '@stacksjs/actions'
 import { tax } from '@stacksjs/commerce'
+import { toSnakeCaseKeys } from '@stacksjs/orm'
 import { response } from '@stacksjs/router'
+import { commerceIdentifier, commerceNotFound } from './commerce-action'
 
 export default new Action({
   name: 'TaxRate Update',
-  description: 'TaxRate Update ORM Action',
+  description: 'Updates a tax rate through the native commerce module.',
   method: 'PATCH',
+  model: TaxRate,
   async handle(request: RequestInstance) {
-    const id = request.getParam('id')
+    const identifier = commerceIdentifier(request, 'Tax rate')
+    if (identifier.error)
+      return identifier.error
+    const { id } = identifier
 
-    const data = {
-      name: request.get('name'),
-      rate: request.get<number>('rate'),
-      type: request.get('type'),
-      country: request.get('country'),
-      region: request.get('region'),
-    }
-
+    await request.validate()
+    const data = toSnakeCaseKeys(request.all())
     const model = await tax.update(id, data)
+    if (!model)
+      return commerceNotFound('Tax rate', id)
 
     return response.json(model)
   },

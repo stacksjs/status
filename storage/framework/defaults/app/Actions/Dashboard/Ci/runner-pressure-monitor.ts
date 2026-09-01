@@ -53,7 +53,8 @@ async function appendSamples(snapshot: DashboardData, nowIso: string): Promise<v
   // Insert one row per org. Cross-dialect multi-row INSERT keeps it
   // a single round-trip even for the typical 5-org fleet.
   const rows = orgs.map((org) => {
-    const r = runners[org]
+    // An org with no sample yet reads as zero pressure rather than throwing.
+    const r = runners[org] ?? { running: 0, queued: 0, cap: 0 }
     return { org, running: r.running, queued: r.queued, cap: r.cap, sampled_at: nowIso }
   })
   await db.insertInto('ci_runner_samples').values(rows as any).execute()
@@ -71,7 +72,7 @@ async function loadWindowSamples(windowMinutes: number, nowMs: number): Promise<
   const rows = await db.unsafe(
     'SELECT org, running, queued, cap, sampled_at FROM ci_runner_samples WHERE sampled_at >= ? ORDER BY sampled_at ASC',
     [cutoffIso],
-  ).execute() as SampleRow[]
+  ).execute() as unknown as SampleRow[]
 
   return (rows ?? []).map((r): RunnerSample => ({
     org: r.org,
@@ -85,7 +86,7 @@ async function loadWindowSamples(windowMinutes: number, nowMs: number): Promise<
 async function loadAlertStates(): Promise<Map<string, RunnerAlertState>> {
   const rows = await db.unsafe(
     'SELECT org, alerting, last_alerted_at, last_cleared_at FROM ci_runner_alert_states',
-  ).execute() as AlertStateRow[]
+  ).execute() as unknown as AlertStateRow[]
 
   const map = new Map<string, RunnerAlertState>()
   for (const r of rows ?? []) {
@@ -132,7 +133,7 @@ async function upsertAlertState(org: string, alerting: boolean, nowIso: string):
 function buildPayload(action: PressureAction): { subject: string, body: string, data: Record<string, unknown> } {
   const { org, current, sustainedMs } = action
   const minutes = Math.round(sustainedMs / 60_000)
-  const subject = `Runner pressure: ${org} — ${current.queued} queued`
+  const subject = `Runner pressure: ${org}, ${current.queued} queued`
   const body = [
     `Org: ${org}`,
     `Queue depth: ${current.queued} (cap ${current.cap}, ${current.running} running)`,
@@ -247,7 +248,7 @@ export async function fetchRunnerHistory(
     ORDER BY sampled_at DESC
     LIMIT ?`,
     [org, cutoffIso, limit],
-  ).execute() as SampleRow[]
+  ).execute() as unknown as SampleRow[]
 
   return (rows ?? []).reverse().map((r): RunnerSample => ({
     org: r.org,

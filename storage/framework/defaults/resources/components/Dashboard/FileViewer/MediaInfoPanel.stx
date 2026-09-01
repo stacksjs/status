@@ -1,0 +1,99 @@
+<script client>
+interface FileItem {
+  id: string | number
+  name: string
+  type: string
+  size?: number
+  path?: string
+  mime_type?: string
+  url?: string
+  thumbnail?: string
+  lastModified?: string | null
+  shared?: boolean
+}
+
+const EMPTY_ITEM: FileItem = {
+  id: '',
+  name: '',
+  type: 'other',
+}
+const item = useReactiveProp<FileItem | null>('item', null)
+const currentItem = derived(() => item() ?? EMPTY_ITEM)
+
+const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp', 'heic']
+const VIDEO_EXT = ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v']
+const AUDIO_EXT = ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac']
+
+function kindOf(value: FileItem): string {
+  if (value.type === 'folder')
+    return 'folder'
+  const mime = (value.mime_type || '').toLowerCase()
+  if (mime.startsWith('image/'))
+    return 'image'
+  if (mime.startsWith('video/'))
+    return 'video'
+  if (mime.startsWith('audio/'))
+    return 'audio'
+  const extension = (value.type || '').toLowerCase()
+  if (IMAGE_EXT.includes(extension))
+    return 'image'
+  if (VIDEO_EXT.includes(extension))
+    return 'video'
+  if (AUDIO_EXT.includes(extension))
+    return 'audio'
+  return 'document'
+}
+
+const kind = derived(() => kindOf(currentItem()))
+const previewUrl = derived(() => currentItem().thumbnail || currentItem().url || '')
+const hasImage = derived(() => kind() === 'image' && Boolean(previewUrl()))
+
+const glyphByKind: Record<string, string> = {
+  image: 'i-hugeicons-image-01 text-indigo-300',
+  video: 'i-hugeicons-video-01 text-neutral-300',
+  audio: 'i-hugeicons-music-note-01 text-purple-300',
+  folder: 'i-hugeicons-folder-02 text-indigo-300',
+  document: 'i-hugeicons-file-01 text-stone-300',
+}
+const glyphClass = derived(() => `h-14 w-14 ${glyphByKind[kind()] || glyphByKind.document}`)
+const previewClass = derived(() => `flex overflow-hidden items-center justify-center h-48 rounded-xl ${kind() === 'video'
+  ? 'bg-gradient-to-br from-neutral-800 to-neutral-950'
+  : 'bg-gradient-to-br from-stone-100 to-stone-200 dark:from-neutral-800 dark:to-neutral-900'}`)
+
+function formatBytes(bytes: number): string {
+  if (!bytes)
+    return '0 Bytes'
+  const units = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
+  return `${Number.parseFloat((bytes / 1024 ** index).toFixed(2))} ${units[index]}`
+}
+
+function formatWhen(value?: string | null): string {
+  if (!value)
+    return 'No date'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? 'No date'
+    : new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric' }).format(date)
+}
+
+const sizeLabel = derived(() => currentItem().type === 'folder' ? '-' : formatBytes(currentItem().size || 0))
+const locationLabel = derived(() => currentItem().path || '/')
+const kindLabel = derived(() => currentItem().type === 'folder' ? 'Folder' : `${kind()}${currentItem().type ? ` (.${currentItem().type})` : ''}`)
+</script>
+
+<div class="flex flex-col">
+  <div :class="previewClass()">
+    <img :if="hasImage()" :src="previewUrl()" :alt="currentItem().name" class="object-contain h-full w-full" />
+    <div :else-if="kind() === 'video'" class="flex items-center justify-center h-14 w-14 bg-white/90 rounded-full shadow-md"><span class="ml-0.5 h-6 w-6 text-neutral-900 i-hugeicons-play"></span></div>
+    <span :else :class="glyphClass()"></span>
+  </div>
+  <h4 class="mt-4 break-words font-semibold text-[15px] text-stone-800 dark:text-white">{{ currentItem().name }}</h4>
+  <dl class="mt-4 space-y-3 text-[13px]">
+    <div class="flex gap-4 items-start justify-between"><dt class="text-stone-400 dark:text-neutral-500">Type</dt><dd class="capitalize font-medium text-right text-stone-700 dark:text-neutral-200">{{ kindLabel() }}</dd></div>
+    <div class="flex gap-4 items-start justify-between"><dt class="text-stone-400 dark:text-neutral-500">Size</dt><dd class="font-medium text-right text-stone-700 dark:text-neutral-200">{{ sizeLabel() }}</dd></div>
+    <div class="flex gap-4 items-start justify-between"><dt class="text-stone-400 dark:text-neutral-500">Location</dt><dd class="break-all font-medium text-right text-stone-700 dark:text-neutral-200">{{ locationLabel() }}</dd></div>
+    <div class="flex gap-4 items-start justify-between"><dt class="text-stone-400 dark:text-neutral-500">Modified</dt><dd class="font-medium text-right text-stone-700 dark:text-neutral-200">{{ formatWhen(currentItem().lastModified) }}</dd></div>
+  </dl>
+  <span :if="currentItem().shared" class="inline-flex gap-1 items-center self-start mt-5 px-2 py-1 font-medium text-[11px] text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/15 rounded-full"><span class="h-3 w-3 i-hugeicons-share-01"></span>Public disk</span>
+</div>

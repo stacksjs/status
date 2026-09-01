@@ -1,0 +1,23 @@
+<script client>
+import type { ManufacturerRecord } from '../../../../app/Actions/Dashboard/Commerce/manufacturer-records'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as ManufacturerRecord | null)
+const busy = useReactiveProp('busy', false)
+const emit = defineEmits()
+const description = derived(() => `Delete "${record()?.name || 'Unnamed manufacturer'}" permanently?`)
+const warning = derived(() => record()?.productCount
+  ? `It is linked to ${record()?.productCount} products and deletion may be rejected.`
+  : '')
+</script>
+
+<ConfirmDialog
+  :isOpen="open()"
+  title="Delete manufacturer"
+  :description="description()"
+  :warning="warning()"
+  confirmLabel="Delete manufacturer"
+  :busy="busy()"
+  @close="emit('close')"
+  @confirm="emit('confirm')"
+/>

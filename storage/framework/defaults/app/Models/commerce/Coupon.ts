@@ -23,6 +23,7 @@ export default defineModel({
 
     useApi: {
       uri: 'coupons',
+      middleware: ['auth'],
     },
 
     observe: true,
@@ -55,10 +56,11 @@ export default defineModel({
     },
 
     status: {
+      default: 'Active',
       order: 3,
       fillable: true,
       validation: {
-        rule: schema.enum(['Active', 'Scheduled', 'Expired']),
+        rule: schema.enum(['Active', 'Scheduled', 'Expired']).required(),
         message: {
           required: 'Status is required',
         },
@@ -69,9 +71,11 @@ export default defineModel({
     isActive: {
       order: 4,
       fillable: true,
+      default: true,
       validation: {
         rule: schema.boolean().required(),
       },
+      factory: () => true,
     },
 
     discountType: {
@@ -145,6 +149,7 @@ export default defineModel({
     },
 
     usageCount: {
+      default: 0,
       order: 11,
       fillable: true,
       validation: {

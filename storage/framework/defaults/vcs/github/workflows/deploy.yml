@@ -1,0 +1,124 @@
+name: Deploy
+
+# Push to deploy.
+#
+# Gated on CI rather than firing on the push itself: `buddy deploy` activates a
+# release atomically, so the failure mode of deploying an untested commit is a
+# live site running it, not a red check somebody notices later.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+  # Ship a specific commit without pushing, and reach environments that no
+  # branch maps to.
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to deploy
+        type: choice
+        options: [production, staging, development]
+        default: production
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'production' }}
+  # Never cancel a deploy in flight. Half of one is a release uploaded but not
+  # activated, or services restarted against the previous release's env.
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # `workflow_run` fires for failed runs too — that is the point of the
+    # gate, so check the conclusion.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    # Attach a GitHub Environment to get required reviewers and to scope these
+    # secrets to it.
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      # A fresh app has nowhere to deploy to, and a red X on day one is worse
+      # than no deploy, so every step below is gated on the two secrets that
+      # cannot be defaulted. Without them this finishes green with a notice
+      # saying exactly what to add.
+      #
+      # Checked here rather than in `if:` on the job, because a job-level
+      # condition cannot read `secrets`.
+      - name: Is deployment configured?
+        id: check
+        env:
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -n "$DOTENV_PRIVATE_KEY_PRODUCTION" ] && [ -n "$DEPLOY_SSH_KEY" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Deployment is not configured, so this run did nothing. Add DEPLOY_SSH_KEY (a private key the target server trusts) and DOTENV_PRIVATE_KEY_PRODUCTION (from .env.keys) to deploy on every green push to main.'
+          fi
+
+      - name: Checkout
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/checkout@v6
+        with:
+          # The exact commit CI approved, not whatever main points at now.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Setup Bun
+        if: steps.check.outputs.configured == 'true'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Pantry
+        if: steps.check.outputs.configured == 'true'
+        uses: home-lang/pantry/packages/action@main
+
+      - name: Install dependencies
+        if: steps.check.outputs.configured == 'true'
+        run: bun install --frozen-lockfile
+
+      # The deploy talks to the server as root over SSH with BatchMode on, so
+      # the key has to be in an agent before it runs — there is no prompt to
+      # fall back to.
+      - name: Load the deploy key
+        if: steps.check.outputs.configured == 'true'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      # An agent is not enough on its own. ts-cloud reads the PUBLIC key off
+      # disk to register it on the server, and an agent holds keys in memory
+      # and exposes no path, so the deploy died on "SSH public key not found
+      # at ~/.ssh/id_ed25519.pub" with the agent perfectly loaded. The public
+      # half is derived from the private one rather than carried as a second
+      # secret, so the two can never disagree.
+      - name: Write the deploy key to disk
+        if: steps.check.outputs.configured == 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          chmod 644 ~/.ssh/id_ed25519.pub
+
+      - name: Deploy
+        if: steps.check.outputs.configured == 'true'
+        run: ./buddy deploy --${{ github.event.inputs.environment == 'staging' && 'staging' || github.event.inputs.environment == 'development' && 'dev' || 'prod' }} --yes
+        env:
+          # Decrypts .env.production. Without it the encrypted values silently
+          # fall back to defaults, which is how an app deploys with the wrong
+          # APP_KEY and invalidates every session it had.
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          # DNS records are written through the registrar that administers the
+          # zone, declared in config/cloud.ts. Keep these in the environment
+          # even when they are also in .env.production — a missing one now
+          # fails loudly instead of reaching for another provider's keys.
+          PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
+          PORKBUN_SECRET_KEY: ${{ secrets.PORKBUN_SECRET_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # macOS resource forks in a tarball built on a developer machine make
+          # the extraction on the server noisy and occasionally fatal.
+          COPYFILE_DISABLE: '1'

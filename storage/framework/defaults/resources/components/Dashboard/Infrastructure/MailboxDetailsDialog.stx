@@ -1,0 +1,21 @@
+<script client>
+import type { DashboardMailbox } from '../../../../app/Actions/Dashboard/Infrastructure/mailbox-overview'
+
+const open = useReactiveProp('open', false)
+const mailbox = useReactiveProp('mailbox', null as DashboardMailbox | null)
+const emit = defineEmits()
+</script>
+
+<Modal :isOpen="open() && Boolean(mailbox())" :title="mailbox()?.email || 'Mailbox'" description="Configured mailbox" size="md" @close="emit('close')">
+    <dl class="grid gap-5 sm:grid-cols-2 text-sm">
+      <div><dt class="text-neutral-500 dark:text-neutral-400">Username</dt><dd class="mt-1 font-mono text-neutral-900 dark:text-white">{{ mailbox()?.username }}</dd></div>
+      <div><dt class="text-neutral-500 dark:text-neutral-400">State</dt><dd class="mt-1"><CloudStatusBadge :status="mailbox()?.status || 'inactive'" /></dd></div>
+      <div class="sm:col-span-2"><dt class="text-neutral-500 dark:text-neutral-400">Address</dt><dd class="mt-1 break-all font-mono text-neutral-900 dark:text-white">{{ mailbox()?.email }}</dd></div>
+    </dl>
+  <template #footer>
+    <div class="flex gap-3 justify-end w-full">
+      <Button tag="a" href="/inbox/activity" variant="secondary">Mail activity</Button>
+      <Button tag="a" href="/inbox">Open inbox</Button>
+    </div>
+  </template>
+</Modal>

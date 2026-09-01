@@ -1,29 +1,25 @@
 import { Action } from '@stacksjs/actions'
-
 import { receipts } from '@stacksjs/commerce'
+import { toSnakeCaseKeys } from '@stacksjs/orm'
 import { response } from '@stacksjs/router'
+import { commerceIdentifier, commerceNotFound } from './commerce-action'
 
 export default new Action({
   name: 'Receipt Update',
-  description: 'Receipt Update ORM Action',
+  description: 'Updates a receipt print log through the native commerce module.',
   method: 'PATCH',
+  model: Receipt,
   async handle(request: RequestInstance) {
+    const identifier = commerceIdentifier(request, 'Receipt')
+    if (identifier.error)
+      return identifier.error
+    const { id } = identifier
+
     await request.validate()
-
-    const id = request.getParam('id')
-
-    const data = {
-      order_id: request.get<number>('order_id'),
-      customer_id: request.get<number>('customer_id'),
-      amount: request.get<number>('amount'),
-      print_device_id: request.get<number>('print_device_id'),
-      printer: request.get('printer'),
-      document: request.get('document'),
-      timestamp: request.get<number>('timestamp'),
-      status: request.get('status'),
-    }
-
+    const data = toSnakeCaseKeys(request.all())
     const result = await receipts.update(id, data)
+    if (!result)
+      return commerceNotFound('Receipt', id)
 
     return response.json(result)
   },

@@ -1,0 +1,257 @@
+<script server>
+import { publicApplicationUrl } from '../../../../functions/public-application-url'
+
+export const blogUrl = publicApplicationUrl('/blog')
+</script>
+
+<script client>
+import { dashboardApi } from '../../../../functions/dashboard-api'
+import { pushToast } from '../../../../functions/toasts'
+
+type PostStatus = 'draft' | 'published' | 'archived'
+interface OptionRecord { id: string, name: string, slug: string }
+interface AuthorRecord { id: string, name: string, email: string }
+interface PostRecord {
+  id: string
+  title: string
+  excerpt: string
+  content: string
+  poster: string
+  status: PostStatus
+  views: number
+  publishedAt: string
+  authorId: string
+  featured: boolean
+  categoryIds: string[]
+  tagIds: string[]
+}
+interface PostDraft {
+  title: string
+  excerpt: string
+  content: string
+  poster: string
+  status: PostStatus
+  authorId: string | null
+  featured: boolean
+  categoryIds: string[]
+  tagIds: string[]
+}
+
+const posts = state<PostRecord[]>([])
+const categories = state<OptionRecord[]>([])
+const tags = state<OptionRecord[]>([])
+const authors = state<AuthorRecord[]>([])
+const loading = state(true)
+const loadError = state('')
+const search = state('')
+const statusFilter = state('all')
+
+const formOpen = state(false)
+const editingPost = state<PostRecord | null>(null)
+const saving = state(false)
+const saveError = state('')
+const deletingPost = state<PostRecord | null>(null)
+const deleting = state(false)
+const deleteError = state('')
+
+function list(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(item => String(item)).filter(Boolean) : []
+}
+
+function normalizedStatus(value: unknown): PostStatus {
+  const normalized = String(value || 'draft').toLowerCase()
+  return normalized === 'published' || normalized === 'archived' ? normalized : 'draft'
+}
+
+function normalizePost(record: any): PostRecord {
+  return {
+    id: String(record?.id || ''),
+    title: String(record?.title || ''),
+    excerpt: String(record?.excerpt || ''),
+    content: String(record?.content || ''),
+    poster: String(record?.poster || ''),
+    status: normalizedStatus(record?.status),
+    views: Number(record?.views || 0),
+    publishedAt: String(record?.published_at || ''),
+    authorId: record?.author_id ? String(record.author_id) : '',
+    featured: Boolean(record?.featured ?? record?.is_featured),
+    categoryIds: list(record?.categoryIds ?? record?.category_ids),
+    tagIds: list(record?.tagIds ?? record?.tag_ids),
+  }
+}
+
+function normalizeOption(record: any): OptionRecord {
+  return { id: String(record?.id || ''), name: String(record?.name || ''), slug: String(record?.slug || '') }
+}
+
+function normalizeAuthor(record: any): AuthorRecord {
+  return { id: String(record?.id || ''), name: String(record?.name || ''), email: String(record?.email || '') }
+}
+
+function visiblePosts(): PostRecord[] {
+  const query = search().trim().toLowerCase()
+  return posts().filter(post =>
+    (statusFilter() === 'all' || post.status === statusFilter())
+    && (!query || [post.title, post.excerpt, post.content].some(value => value.toLowerCase().includes(query))),
+  )
+}
+
+function postCount(value: PostStatus): number {
+  return posts().filter(post => post.status === value).length
+}
+
+function totalViews(): number {
+  return posts().reduce((sum, post) => sum + post.views, 0)
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('en-US').format(value)
+}
+
+function formatDate(value: string): string {
+  if (!value)
+    return 'Not published'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+}
+
+function statusClass(value: PostStatus): string {
+  return `inline-flex px-2 py-1 font-medium text-xs rounded-full ${({
+    published: 'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/40',
+    draft: 'text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/40',
+    archived: 'text-gray-600 dark:text-neutral-300 bg-gray-100 dark:bg-neutral-700',
+  }[value])}`
+}
+
+function authorName(post: PostRecord): string {
+  return post.authorId ? authors().find(author => author.id === post.authorId)?.name || 'Unknown author' : 'No author'
+}
+
+function optionNames(ids: string[], options: OptionRecord[]): string {
+  const names = ids.map(id => options.find(option => option.id === id)?.name).filter((name): name is string => Boolean(name))
+  return names.length ? names.join(', ') : 'None'
+}
+
+async function loadPosts(): Promise<void> {
+  loading.set(true)
+  loadError.set('')
+  try {
+    const data = await dashboardApi<{ posts?: unknown[], categories?: unknown[], tags?: unknown[], authors?: unknown[] }>('/api/dashboard/posts')
+    if (!Array.isArray(data.posts) || !Array.isArray(data.categories) || !Array.isArray(data.tags) || !Array.isArray(data.authors))
+      throw new TypeError('Posts were not returned in the expected shape.')
+    posts.set(data.posts.map(normalizePost))
+    categories.set(data.categories.map(normalizeOption))
+    tags.set(data.tags.map(normalizeOption))
+    authors.set(data.authors.map(normalizeAuthor))
+  }
+  catch (error) {
+    loadError.set(error instanceof Error ? error.message : String(error))
+    pushToast('error', 'Could not load posts', { detail: loadError() })
+  }
+  finally {
+    loading.set(false)
+  }
+}
+
+function openCreate(): void { editingPost.set(null); saveError.set(''); formOpen.set(true) }
+function openEdit(post: PostRecord): void { editingPost.set(post); saveError.set(''); formOpen.set(true) }
+function closeForm(): void { if (!saving()) formOpen.set(false) }
+function openDelete(post: PostRecord): void { deletingPost.set(post); deleteError.set('') }
+function closeDelete(): void { if (!deleting()) deletingPost.set(null) }
+
+function deleteDescription(): string {
+  const post = deletingPost()
+  return post ? `${post.title} and its category and tag links will be permanently removed.` : ''
+}
+
+async function savePost(draft: PostDraft): Promise<void> {
+  const post = editingPost()
+  saving.set(true)
+  saveError.set('')
+  try {
+    await dashboardApi(post ? `/api/dashboard/posts/${post.id}` : '/api/dashboard/posts', {
+      method: post ? 'PATCH' : 'POST',
+      body: draft,
+    })
+    formOpen.set(false)
+    pushToast('success', post ? 'Post updated' : 'Post created')
+    await loadPosts()
+  }
+  catch (error) {
+    saveError.set(error instanceof Error ? error.message : String(error))
+  }
+  finally {
+    saving.set(false)
+  }
+}
+
+async function deletePost(): Promise<void> {
+  const post = deletingPost()
+  if (!post)
+    return
+  deleting.set(true)
+  deleteError.set('')
+  try {
+    await dashboardApi(`/api/dashboard/posts/${post.id}`, { method: 'DELETE' })
+    deletingPost.set(null)
+    pushToast('success', 'Post deleted')
+    await loadPosts()
+  }
+  catch (error) {
+    deleteError.set(error instanceof Error ? error.message : String(error))
+  }
+  finally {
+    deleting.set(false)
+  }
+}
+
+onMount(() => { void loadPosts() })
+</script>
+
+<div class="space-y-6">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div><p class="font-semibold text-blue-600 text-xs tracking-wide uppercase dark:text-blue-400">CMS</p><h1 class="mt-1 font-bold text-2xl text-gray-900 dark:text-white">Posts</h1><p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Manage persisted articles, publishing, authors, and native taxonomies.</p></div>
+    <div class="flex flex-wrap gap-2"><Button href="{{ blogUrl }}" target="_blank" rel="noreferrer" variant="secondary"><span aria-hidden="true" class="h-4 w-4 i-hugeicons-view"></span>View blog</Button><Button :loading="loading()" variant="secondary" @click="loadPosts()"><span :if="!loading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>Refresh</Button><Button @click="openCreate()"><span aria-hidden="true" class="h-4 w-4 i-hugeicons-add-01"></span>New post</Button></div>
+  </header>
+
+  <div :if="loadError()" role="alert" class="flex gap-4 items-center justify-between p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900"><span>{{ loadError() }}</span><Button variant="secondary" size="sm" @click="loadPosts()">Retry</Button></div>
+
+  <section aria-label="Post metrics" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Total</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ posts().length }}</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Published</p><p class="mt-2 font-semibold text-2xl text-green-700 dark:text-green-300">{{ postCount('published') }}</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Drafts</p><p class="mt-2 font-semibold text-2xl text-yellow-700 dark:text-yellow-300">{{ postCount('draft') }}</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Views</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ formatNumber(totalViews()) }}</p></article>
+  </section>
+
+  <section class="overflow-hidden bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700">
+    <div class="flex flex-col gap-3 sm:flex-row p-4 border-b border-gray-200 dark:border-neutral-700"><label class="flex-1"><span class="sr-only">Search posts</span><input x-model="search" type="search" placeholder="Search title, excerpt, or content" class="px-3 py-2 max-w-xl w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label><label><span class="sr-only">Filter by status</span><select x-model="statusFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="all">All statuses</option><option value="published">Published</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label></div>
+    <div class="overflow-x-auto"><table class="min-w-full divide-gray-200 divide-y dark:divide-neutral-700"><thead class="bg-gray-50 dark:bg-neutral-900/50"><tr><th class="px-4 py-3 font-semibold text-gray-600 text-left text-xs dark:text-neutral-300">Post</th><th class="px-4 py-3 font-semibold text-gray-600 text-left text-xs dark:text-neutral-300">Taxonomy</th><th class="px-4 py-3 font-semibold text-gray-600 text-left text-xs dark:text-neutral-300">Publishing</th><th class="px-4 py-3 font-semibold text-gray-600 text-left text-xs dark:text-neutral-300">Views</th><th class="px-4 py-3"><span class="sr-only">Actions</span></th></tr></thead><tbody class="divide-gray-200 divide-y dark:divide-neutral-700">
+      <template :if="loading()"><tr><td colspan="5" class="px-4 py-12 text-center text-gray-500 text-sm dark:text-neutral-400"><span class="inline-block mr-2 h-4 w-4 animate-spin i-hugeicons-loading-03"></span>Loading posts</td></tr></template>
+      <template :else-if="visiblePosts().length === 0"><tr><td colspan="5" class="px-4 py-14 text-center"><span class="inline-block h-6 w-6 text-gray-400 i-hugeicons-quill-write-02"></span><p class="mt-2 font-medium text-gray-900 text-sm dark:text-white">No posts found</p><p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Adjust the filters or create a post.</p></td></tr></template>
+      <template :else><template :for="post in visiblePosts()"><tr><td class="px-4 py-3 max-w-md"><div class="flex gap-2 items-center"><p class="font-medium text-gray-900 text-sm truncate dark:text-white">{{ post.title }}</p><span :if="post.featured" x-tooltip="Featured" title="Featured" class="flex-shrink-0 h-4 w-4 text-amber-500 i-hugeicons-star"></span></div><p class="mt-1 text-gray-500 text-xs truncate dark:text-neutral-400">{{ post.excerpt || post.content }}</p><p class="mt-1 text-gray-400 text-xs dark:text-neutral-500">{{ authorName(post) }}</p></td><td class="px-4 py-3 max-w-xs text-gray-500 text-xs dark:text-neutral-400"><p class="truncate"><span class="font-medium text-gray-700 dark:text-neutral-200">Categories:</span> {{ optionNames(post.categoryIds, categories()) }}</p><p class="mt-1 truncate"><span class="font-medium text-gray-700 dark:text-neutral-200">Tags:</span> {{ optionNames(post.tagIds, tags()) }}</p></td><td class="px-4 py-3"><span :class="statusClass(post.status)">{{ post.status }}</span><p class="mt-2 text-gray-400 text-xs dark:text-neutral-500">{{ formatDate(post.publishedAt) }}</p></td><td class="px-4 py-3 text-gray-500 text-sm dark:text-neutral-400">{{ formatNumber(post.views) }}</td><td class="px-4 py-3"><div class="flex justify-end"><Button variant="ghost" size="sm" iconOnly :ariaLabel="'Edit post ' + post.title" @click="openEdit(post)"><span class="block h-4 w-4 text-blue-500 i-hugeicons-edit-02"></span></Button><Button variant="ghost" size="sm" iconOnly :ariaLabel="'Delete post ' + post.title" @click="openDelete(post)"><span class="block h-4 w-4 text-red-500 i-hugeicons-delete-02"></span></Button></div></td></tr></template></template>
+    </tbody></table></div>
+  </section>
+</div>
+
+<PostEditorDialog
+  :open="formOpen()"
+  :post="editingPost()"
+  :categories="categories()"
+  :tags="tags()"
+  :authors="authors()"
+  :busy="saving()"
+  :error="saveError()"
+  @close="closeForm"
+  @submit="savePost"
+/>
+
+<ConfirmDialog
+  :isOpen="Boolean(deletingPost())"
+  title="Delete post?"
+  :description="deleteDescription()"
+  confirmLabel="Delete post"
+  :busy="deleting()"
+  :error="deleteError()"
+  @close="closeDelete"
+  @confirm="deletePost"
+/>

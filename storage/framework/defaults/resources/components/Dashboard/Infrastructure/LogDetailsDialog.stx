@@ -1,0 +1,31 @@
+<script client>
+import type { DashboardLogRecord } from '../../../../app/Actions/Dashboard/Infrastructure/log-dashboard'
+
+const open = useReactiveProp('open', false)
+const record = useReactiveProp('record', null as DashboardLogRecord | null)
+const emit = defineEmits()
+
+function formatDate(value: string | undefined): string {
+  if (!value)
+    return 'Not recorded'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? 'Not recorded'
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(date)
+}
+</script>
+
+<Modal :isOpen="open() && Boolean(record())" :title="record()?.message || 'Log details'" :description="`Log #${record()?.id || 'not recorded'}`" size="lg" @close="emit('close')">
+  <template #header-trailing><LogLevelBadge :type="record()?.type || 'unknown'" /></template>
+    <dl class="grid gap-5 sm:grid-cols-2 text-sm">
+      <div><dt class="text-neutral-500 dark:text-neutral-400">Occurred</dt><dd class="mt-1 text-neutral-900 dark:text-white">{{ formatDate(record()?.timestamp) }}</dd></div>
+      <div><dt class="text-neutral-500 dark:text-neutral-400">Persisted</dt><dd class="mt-1 text-neutral-900 dark:text-white">{{ formatDate(record()?.createdAt) }}</dd></div>
+      <div><dt class="text-neutral-500 dark:text-neutral-400">Source</dt><dd class="mt-1 font-mono text-neutral-900 dark:text-white">{{ record()?.source || 'Not recorded' }}</dd></div>
+      <div><dt class="text-neutral-500 dark:text-neutral-400">Project</dt><dd class="mt-1 text-neutral-900 dark:text-white">{{ record()?.project || 'Not recorded' }}</dd></div>
+      <div class="sm:col-span-2"><dt class="text-neutral-500 dark:text-neutral-400">File</dt><dd class="mt-1 break-all font-mono text-neutral-900 text-xs dark:text-white">{{ record()?.file || 'Not recorded' }}</dd></div>
+      <div :if="record()?.stacktrace" class="sm:col-span-2">
+        <dt class="text-neutral-500 dark:text-neutral-400">Stack trace</dt>
+        <dd><pre class="overflow-x-auto mt-2 p-4 font-mono text-neutral-800 text-xs whitespace-pre-wrap dark:text-neutral-200 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 rounded-lg dark:border-neutral-800">{{ record()?.stacktrace }}</pre></dd>
+      </div>
+    </dl>
+</Modal>

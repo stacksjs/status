@@ -1,11 +1,12 @@
+import { resolveApiBaseUrl } from '../api-url'
 import type { Coupons, NewCoupon } from '../../types/defaults'
-import { useStorage } from '@stacksjs/browser'
+import { useStorage } from '@stacksjs/browser/composables/useStorage'
 import { pushToast } from '../toasts'
 
-// Create a persistent coupons array using VueUse's useStorage
+// Create a persistent coupons array using STX useStorage
 const coupons = useStorage<Coupons[]>('coupons', [])
 
-const baseURL = process.env.VITE_API_URL || `http://localhost:${process.env.PORT_API || '3008'}`
+const baseURL = resolveApiBaseUrl()
 
 // Basic fetch function to get all coupons
 async function fetchCoupons() {
@@ -77,7 +78,7 @@ async function updateCoupon(id: number, coupon: NewCoupon) {
 
     const data = await response.json() as Coupons
     if (data) {
-      const index = coupons.value.findIndex(c => c.id === coupon.id)
+      const index = coupons.value.findIndex(c => c.id === id)
       if (index !== -1) {
         coupons.value = [
           ...coupons.value.slice(0, index),

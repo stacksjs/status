@@ -1,20 +1,24 @@
 <script>
+interface ComboboxItem {
+  id: number
+  name: string
+}
+
 interface ComboboxDemoProps {
-  listItems?: string
-  selected?: any
+  listItems?: ComboboxItem[]
+  selected?: ComboboxItem | null
   query?: string
   isOpen?: boolean
 }
 
-const { listItems = [, selected = null, query = '', isOpen = false } = defineProps<ComboboxDemoProps>()
-
-{ id: 1, name: 'Chris Breuer' },
+const { listItems = [
+  { id: 1, name: 'Chris Breuer' },
   { id: 2, name: 'Avery Hill' },
   { id: 3, name: 'Glenn Michael' },
   { id: 4, name: 'Michael Vincent' },
   { id: 5, name: 'Blake Ayer' },
-]
-function filterItems(items, query) {
+], selected = null, query = '', isOpen = false } = defineProps<ComboboxDemoProps>()
+function filterItems(items: ComboboxItem[], query: string): ComboboxItem[] {
   if (query === '') return items
   return items.filter(item => item.name.toLowerCase().includes(query.toLowerCase()))
 }
@@ -56,7 +60,7 @@ function filterItems(items, query) {
                     data-item-id="{{ item.id }}"
                     data-item-name="{{ item.name }}"
                   >
-                    <span class="block truncate selected selected.id : ? 'font-medium' 'font-normal' {{ }} && == item.id">
+                    <span class="block truncate {{ selected && selected.id == item.id ? 'font-medium' : 'font-normal' }}">
                       {{ item.name }}
                     </span>
                     @if(selected && selected.id == item.id)

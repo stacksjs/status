@@ -1,0 +1,61 @@
+{
+  "name": "@stacksjs/defaults",
+  "type": "module",
+  "sideEffects": false,
+  "version": "0.74.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git",
+    "directory": "./storage/framework/core/defaults"
+  },
+  "description": "The complete managed Stacks application scaffold, including runtime defaults, AI guidance, editor metadata, and npm-backed project support files.",
+  "author": "Chris Breuer",
+  "license": "MIT",
+  "homepage": "https://github.com/stacksjs/stacks/tree/main/storage/framework/defaults",
+  "files": [
+    "README.md",
+    "TODO.md",
+    "ai",
+    "resources",
+    "app",
+    "assets",
+    "docs",
+    "functions",
+    "ide",
+    "lang",
+    "routes",
+    "stores",
+    "styles",
+    "types",
+    "vcs",
+    "views",
+    "bootstrap.ts",
+    "stx-components-plugin.ts",
+    "project"
+  ],
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "bun": "./dist/*.js",
+      "import": "./dist/*.js",
+      "default": "./dist/*.js"
+    },
+    "./package.json": "./package.json",
+    "./*.js": {
+      "types": "./dist/*.d.ts",
+      "bun": "./dist/*.js",
+      "import": "./dist/*.js",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "bun build.ts"
+  },
+  "dependencies": {
+    "@iconify-json/f7": "^1.2.2",
+    "@iconify-json/hugeicons": "^1.2.27",
+    "@stacksjs/mobile": "^0.74.0",
+    "@stacksjs/sanitizer": "^0.2.113",
+    "ts-qr-codes": "^0.1.8"
+  }
+}
