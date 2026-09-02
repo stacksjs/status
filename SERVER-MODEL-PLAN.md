@@ -75,12 +75,26 @@ the card shows the answer, the dialog holds the form.
 - Two of the four live agents send no hostname (`default`) and are different machines. **The backfill
   must group by token, never by host label.**
 - Agent samples (`region = 'agent'`) are ~47% of all `check_results` rows — the largest region.
+- Incidents, all time (read-only, 2026-09-02):
+
+  | kind | total | open |
+  |---|---|---|
+  | host threshold breached | 2,001 | 45 |
+  | multi-region consensus | 1,327 | 0 |
+  | response-time regression | 264 | 4 |
+  | agent went quiet | 11 | 5 |
+  | DNS, SSL, ports, crawl | ~230 | 9 |
+
+  Breach incidents are 52% of every incident ever raised. The 5 open "agent went quiet" incidents are the four
+  never-installed tokens plus one monitor whose flag is off but whose token still exists; nothing can ever
+  resolve them today. Both groups are resolved by the migration.
 - The deployed agent reads its token from an env file on a 60-second timer. **If the token value is carried
   over unchanged, no agent needs touching.**
 
 ## Existing bug this fixes by construction
 
-One monitor currently has five open server-metrics incidents stacked at once. Cause, in
+Right now production has 45 open "host threshold breached" incidents across a handful of boxes, and one
+monitor alone holds five of them. Cause, in
 `app/Actions/Agents/ReceiveMetricsAction.ts` around line 159: the incident opens and resolves on edges of
 `monitors.status`, but the monitor's own HTTP/health check also writes that column. The check flips the
 monitor back to `up` without passing through the ingest action's resolve branch, so the next agent push
@@ -96,7 +110,9 @@ changing breaches update it in place. The migration resolves the currently stack
 2. Thresholds copied from the monitor's `config` onto the server; defaults where absent.
 3. Monitors with a token and no samples get no server. Their `server_id` stays null and the orphan token is
    dropped. The ones on the shared box should be attached to that box's server by hand.
-4. Open `server_metrics` incidents are resolved as part of the migration.
+4. Every open incident carrying the `server_metrics` marker — the 45 breach incidents and the 5 perpetual
+   quiet-agent ones, which share that marker — is resolved as part of the migration, with an incident update
+   saying why.
 
 ## Pending
 
