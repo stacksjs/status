@@ -26,6 +26,11 @@ import { broadcastMonitorUpdate } from '../Realtime/broadcastMonitorUpdate'
  *      Stacks app answers on /health. Every Stacks app has this from the
  *      moment it is created (the framework registers `route.health()` in its
  *      default routes), so pointing a monitor at one just works.
+ *    - `{ "status": ..., "timestamp": ..., "checks": { name: { ok, ms } } }` —
+ *      what the same framework answers on /api/health, reporting each
+ *      dependency it probed. The better of the two to point at: the app
+ *      answers 503 when a probe fails, and the probe names and messages reach
+ *      the monitor, so a failure reads as "cache check failed: timeout".
  *
  *    Both normalise to the same shape via coerceHealthReport, so per-check
  *    statuses reduce to one verdict the same way and a report older than

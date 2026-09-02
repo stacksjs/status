@@ -108,6 +108,39 @@ later fails closed until StatusHQ learns it.
 `timestamp` is read as the report time, so `healthMaxAgeSeconds` applies here
 exactly as it does to an Oh Dear report — a frozen response can't pass.
 
+### `/api/health`, the probe format
+
+Recent Stacks versions also answer `/api/health`, which reports each dependency
+it probed rather than a list of services:
+
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "database": { "ok": true, "ms": 1 },
+    "cache": { "ok": false, "ms": 1500, "message": "timeout" }
+  },
+  "timestamp": 1756382400000
+}
+```
+
+StatusHQ reads this too, so set `path` to `/api/health` if that is the endpoint
+your app exposes. It is the better target of the two: the app answers **503**
+when a probe fails, and each probe's name and message are surfaced on the
+monitor, so a failure reads as `cache check failed: timeout` rather than just
+"down".
+
+A probe that reports `ok: false` is **down**, not degraded. The app calls its
+own overall status `degraded` when any probe fails, but an unreachable database
+is not a partial success, and reading that word literally would leave the
+monitor green through an outage.
+
+One caveat worth knowing: `/api/health` is registered by the framework's
+default dashboard routes, so an app that disables the dashboard in
+`config/dashboard.ts`, or that gitignores its vendored `storage/framework/`
+tree, will not serve it. Registering the route in your own `routes/` file makes
+it independent of both.
+
 ### Node and Bun apps
 
 There's no `spatie/laravel-health` equivalent in that ecosystem, so we ship
