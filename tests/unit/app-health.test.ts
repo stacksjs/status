@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { checkPillClass, coerceHealthReport, evaluateAppHealth, isAppHealthReport, isStacksHealthReport, parseFinishedAt } from '../../app/lib/appHealth'
+import { checkPillClass, coerceHealthReport, evaluateAppHealth, isAppHealthReport, isStacksHealthReport, isStacksProbeReport, parseFinishedAt } from '../../app/lib/appHealth'
 
 /** The example straight out of Oh Dear's docs, so the shape stays honest. */
 const NOW = Date.parse('2021-12-07T12:23:53.000Z')
@@ -278,5 +278,82 @@ describe('Stacks health reports', () => {
     const v = evaluateAppHealth(coerceHealthReport(stacks([null as any, { name: 'API', status: 'healthy' }]))!, STACKS_NOW)
     expect(v.checks).toHaveLength(2)
     expect(v.checks[0]!.name).toBe('unnamed')
+  })
+})
+
+describe('Stacks probe reports (/api/health)', () => {
+  // The shape `route.health()` actually answers, and now the shape every app in
+  // the fleet answers. Before this was read, it fell through to the
+  // plain-endpoint branch: the verdict was right (the endpoint 503s) but the
+  // body naming the broken dependency was thrown away.
+  const healthy = {
+    app: 'loghq',
+    status: 'healthy',
+    checks: { database: { ok: true, ms: 1 }, cache: { ok: true, ms: 0 } },
+    timestamp: NOW - 5000,
+  }
+
+  const cacheDown = {
+    app: 'loghq',
+    status: 'degraded',
+    checks: {
+      database: { ok: true, ms: 1 },
+      cache: { ok: false, ms: 1500, message: 'timeout' },
+    },
+    timestamp: NOW - 5000,
+  }
+
+  test('a probe map claims the dialect', () => {
+    expect(isStacksProbeReport(healthy)).toBe(true)
+    expect(isStacksProbeReport(cacheDown)).toBe(true)
+  })
+
+  test('the older conventions keep their own meaning', () => {
+    // `{ status, checks: { db: true } }` is a different, older contract: the
+    // values are booleans, not probe objects. It must not be swallowed here.
+    expect(isStacksProbeReport({ status: 'ok', checks: { db: true } })).toBe(false)
+    // No probes is no evidence — fall through to the status-code branch.
+    expect(isStacksProbeReport({ status: 'healthy', checks: {} })).toBe(false)
+    expect(isStacksProbeReport({ checkResults: [] })).toBe(false)
+    expect(isStacksProbeReport({ services: [] })).toBe(false)
+    expect(isStacksProbeReport(null)).toBe(false)
+    expect(isStacksProbeReport('healthy')).toBe(false)
+    // A `checks` array is not a probe map.
+    expect(isStacksProbeReport({ checks: [{ ok: true }] })).toBe(false)
+  })
+
+  test('every probe passing is up', () => {
+    const verdict = evaluateAppHealth(coerceHealthReport(healthy)!, NOW)
+    expect(verdict.status).toBe('up')
+    expect(verdict.checks.map(c => c.name).sort()).toEqual(['cache', 'database'])
+  })
+
+  test('a failed probe is down, not degraded', () => {
+    // The framework calls the overall status `degraded` when any probe fails.
+    // An unreachable dependency is not a partial success, and taking that word
+    // at face value would leave the monitor green through an outage.
+    const verdict = evaluateAppHealth(coerceHealthReport(cacheDown)!, NOW)
+    expect(verdict.status).toBe('down')
+  })
+
+  test('the probe message survives, so the page says what broke', () => {
+    const verdict = evaluateAppHealth(coerceHealthReport(cacheDown)!, NOW)
+    const cache = verdict.checks.find(c => c.name === 'cache')
+
+    expect(cache?.status).toBe('failed')
+    expect(cache?.message).toBe('cache check failed: timeout')
+    expect(cache?.summary).toBe('1500ms')
+
+    const database = verdict.checks.find(c => c.name === 'database')
+    expect(database?.status).toBe('ok')
+    expect(database?.summary).toBe('1ms')
+  })
+
+  test('timestamp is read as finishedAt, so staleness works here too', () => {
+    const stale = { ...healthy, timestamp: NOW - 700_000 }
+    const verdict = evaluateAppHealth(coerceHealthReport(stale)!, NOW)
+
+    expect(verdict.stale).toBe(true)
+    expect(verdict.status).toBe('down')
   })
 })

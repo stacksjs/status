@@ -155,15 +155,114 @@ export function fromStacksHealthReport(body: StacksHealthReport): AppHealthRepor
 }
 
 /**
- * Accept either dialect and return the canonical shape, or null when the body
- * is neither. Oh Dear is tested first so an endpoint that somehow carries both
- * keys keeps the meaning it had before Stacks support existed.
+ * The third dialect: what a Stacks app answers on `/api/health`.
+ *
+ *   {
+ *     "status": "healthy",
+ *     "checks": { "database": { "ok": true, "ms": 1 },
+ *                 "cache": { "ok": false, "ms": 1500, "message": "timeout" } },
+ *     "timestamp": 1756382400000
+ *   }
+ *
+ * This is the CURRENT one. `route.health()` in the framework's default routes
+ * runs a database and a cache probe and answers this shape, and 503 when a
+ * probe fails; the `services` array above comes from the older HealthAction on
+ * `/health`. Both are in the wild — often on the same app — so both are read.
+ *
+ * Without this, a Stacks app's real health endpoint fell through to the
+ * plain-endpoint branch. That still got the verdict right, because the endpoint
+ * answers 503 when a probe fails, but the monitor could only say "down": the
+ * body naming which dependency broke was discarded. Reading it means the
+ * monitor page can say `cache: timeout` instead.
+ */
+export interface StacksProbeCheck {
+  ok?: unknown
+  ms?: unknown
+  message?: unknown
+}
+
+export interface StacksProbeReport {
+  status?: unknown
+  checks?: unknown
+  timestamp?: unknown
+}
+
+/**
+ * Narrow, like the two detectors above, and deliberately narrower than "has a
+ * `checks` key". A plain endpoint answering `{ status: 'ok', checks: { db: true } }`
+ * is a different, older convention that must keep meaning what it meant before
+ * this function existed, so a probe map only claims the dialect when every
+ * value is an object carrying a boolean `ok`.
+ *
+ * An empty `checks` map is rejected too: a report with no probes is no
+ * evidence, and falling through to the status-code branch is the safer read.
+ */
+export function isStacksProbeReport(body: unknown): body is StacksProbeReport {
+  if (!body || typeof body !== 'object')
+    return false
+
+  const checks = (body as StacksProbeReport).checks
+  if (!checks || typeof checks !== 'object' || Array.isArray(checks))
+    return false
+
+  const probes = Object.values(checks as Record<string, unknown>)
+  if (!probes.length)
+    return false
+
+  return probes.every(probe => !!probe
+    && typeof probe === 'object'
+    && !Array.isArray(probe)
+    && typeof (probe as StacksProbeCheck).ok === 'boolean')
+}
+
+/**
+ * Convert a probe report into the canonical shape, so there is exactly one
+ * evaluator across all three dialects.
+ *
+ * A probe is binary — it ran and passed, or it did not — so `ok: false` maps to
+ * `failed` rather than `warning`. The framework calls the overall status
+ * `degraded` when any probe fails, but that word means something softer here
+ * than it does at the probe level: an unreachable database is not a partial
+ * success, and reporting it as a warning would leave a monitor green through an
+ * outage. The top-level `status` is ignored for exactly that reason — the
+ * checks are the evidence.
+ */
+export function fromStacksProbeReport(body: StacksProbeReport): AppHealthReport {
+  const checks = (body.checks ?? {}) as Record<string, StacksProbeCheck>
+
+  return {
+    finishedAt: body.timestamp,
+    checkResults: Object.entries(checks).map(([name, probe]) => {
+      const ok = probe?.ok === true
+      const ms = Number(probe?.ms)
+      const latency = Number.isFinite(ms) ? `${ms}ms` : ''
+      const detail = String(probe?.message ?? '').trim()
+
+      return {
+        name,
+        label: name,
+        status: ok ? 'ok' : 'failed',
+        shortSummary: latency,
+        // The probe's own message is the useful half ("timeout",
+        // "connection refused"); the name alone would just repeat the label.
+        notificationMessage: ok ? '' : `${name} check failed${detail ? `: ${detail}` : ''}`,
+      }
+    }),
+  }
+}
+
+/**
+ * Accept any of the three dialects and return the canonical shape, or null when
+ * the body is none of them. Oh Dear is tested first so an endpoint that somehow
+ * carries both keys keeps the meaning it had before Stacks support existed.
  */
 export function coerceHealthReport(body: unknown): AppHealthReport | null {
   if (isAppHealthReport(body))
     return body
   if (isStacksHealthReport(body))
     return fromStacksHealthReport(body)
+  if (isStacksProbeReport(body))
+    return fromStacksProbeReport(body)
   return null
 }
 
