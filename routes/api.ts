@@ -1,4 +1,5 @@
 import { route } from '@stacksjs/router'
+import { healthResponse } from '../app/Support/health'
 
 /**
  * This file is the entry point for your application's API routes.
@@ -266,3 +267,24 @@ route.post('/team-forms/{id}/report-settings', 'Actions/Teams/DashboardUpdateRep
 // Launch the site with `./buddy launch`. Maintenance mode (503 page,
 // distinct cookie + state file) is the separate `./buddy down` /
 // `./buddy up` pair.
+
+// ---------------------------------------------------------------------------
+// Health
+// ---------------------------------------------------------------------------
+
+// This app already answers /api/health, but only because it happens to satisfy
+// both of the framework's unrelated preconditions: the dashboard is enabled in
+// config, and it is the one app in the fleet that tracks storage/framework/ in
+// git, so the vendored defaults/routes/dashboard.ts that calls route.health()
+// actually reaches the box. Gitignoring that tree — which every sibling does —
+// would silently remove the endpoint.
+//
+// Registering it here makes the monitor's target a property of this app rather
+// than of a build artifact, and there is a particular reason it matters here:
+// this is the app that watches the others. A status page whose own health check
+// can vanish when someone changes an unrelated config flag is the wrong thing to
+// build the fleet's monitoring on. See app/Support/health.ts.
+//
+// User routes load before the framework's, so this wins over route.health().
+route.get('/health', () => healthResponse())
+route.get('/api/health', () => healthResponse())
