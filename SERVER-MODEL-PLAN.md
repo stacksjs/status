@@ -114,12 +114,27 @@ changing breaches update it in place. The migration resolves the currently stack
    quiet-agent ones, which share that marker — is resolved as part of the migration, with an incident update
    saying why.
 
-## Pending
+## Where host samples live: a separate table
 
-- **Where host samples live** — stay in `check_results` re-keyed to `server_id`, or a dedicated table. Being
-  decided by an adversarial review; the answer decides whether the agent-region voting bug in the uptime
-  calculation is fixed by construction or needs its own guard.
-- The full spec: `Server.ts`, the migration chain, ingest and threshold changes, test plan, ship order.
+Settled by an adversarial review, two votes to one, in favour of `server_metric_samples` over re-keying
+`check_results`. The deciding argument was correctness by construction: readers of `check_results` that
+carry no monitor predicate — the check pipeline's dead-man's switch, the monitor index's checks-in-range
+count — silently count agent samples as checks today, and re-keying fixes them only if every present and
+future query remembers a `WHERE` clause. A separate table makes a sample physically incapable of voting.
+The dissent, on migration risk, was that this is the heavier change to land on a live system; its
+conditions (batched backfill, strict ordering, a second sweep, row-count assertions before any delete)
+are carried into the spec's ship order.
+
+The full spec is in [SERVER-MODEL-SPEC.md](SERVER-MODEL-SPEC.md).
+
+## Progress
+
+- **Step 1, done.** Both models, migrations 281–284, the retention job and its tests. Live in production;
+  nothing reads the new tables yet.
+- **Step 2, next.** Ingest resolves a server by token and writes samples; server state and the two
+  server-level incidents; notification fan-out.
+- **Step 3.** The backfill, per the rules above.
+- **Step 4.** The UI: server pages, the Server card, the attach dialog.
 
 ## Open question
 
