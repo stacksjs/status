@@ -29,7 +29,7 @@ export default defineModel({
     observe: true,
   },
 
-  belongsTo: ['Team'],
+  belongsTo: ['Team', 'Server'],
   hasMany: ['CheckResult', 'Incident'],
 
   attributes: {
@@ -187,6 +187,21 @@ export default defineModel({
         rule: schema.string().max(64),
       },
       factory: () => crypto.randomUUID().replace(/-/g, ''),
+    },
+
+    // The box this site runs on (servers.id), or null for anything without
+    // an agent (a third-party API, a CDN edge). Declared explicitly alongside
+    // the `belongsTo: ['Server']` relation so the column is nullable and
+    // ordered like every other attribute — same technique as TeamMember.userId.
+    // Set only by actions that first check the server belongs to the
+    // monitor's team.
+    serverId: {
+      order: 12,
+      fillable: true,
+      validation: {
+        rule: schema.number(),
+      },
+      factory: () => null,
     },
   },
 

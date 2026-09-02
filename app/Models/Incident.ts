@@ -81,6 +81,19 @@ export default defineModel({
       },
       factory: () => JSON.stringify([]),
     },
+
+    // Set — with monitorId left null — on the two server-level incidents, a
+    // threshold breach and a missed push, which belong to the box rather than
+    // to any one site on it. One hot box is one incident, however many
+    // monitors sit on it. Explicit nullable attribute, as Monitor.serverId.
+    serverId: {
+      order: 6,
+      fillable: true,
+      validation: {
+        rule: schema.number(),
+      },
+      factory: () => null,
+    },
   },
 
   dashboard: {

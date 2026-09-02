@@ -86,6 +86,13 @@ export default function () {
     .job('PruneOldCheckResults')
     .daily()
 
+  // Same retention window for agent-pushed host samples
+  // (server_metric_samples): one row per host per minute, so it is the
+  // highest-volume table after check_results.
+  schedule
+    .job('PruneOldServerMetricSamples')
+    .daily()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 
