@@ -33,11 +33,21 @@ const SERVER_MIGRATIONS = [
   '0000000284-alter-incidents-server_id.sql',
 ]
 
-// The two tables the ALTERs extend, created from the repo's own migrations
-// so the test tracks their real shape rather than a hand-typed stand-in.
-const PREREQUISITE_MIGRATIONS = [
-  '0000000220-create-monitors-table.sql',
-  '0000000215-create-incidents-table.sql',
+/**
+ * The two tables 0000000283/0000000284 extend, created inline rather than by
+ * replaying the repo's own create-table migrations.
+ *
+ * Those framework-generated create files are transient: `buddy migrate`
+ * records them and then DELETES them from database/migrations. CI runs
+ * migrate before the test suite, so by the time this file runs
+ * 0000000220-create-monitors-table.sql no longer exists on disk and reading
+ * it throws ENOENT. Only the ALTERs' target needs to exist here, and only the
+ * columns they touch matter, so a minimal stand-in is both sufficient and
+ * immune to that deletion.
+ */
+const PREREQUISITE_TABLES = [
+  'CREATE TABLE IF NOT EXISTS "monitors" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT, "url" TEXT)',
+  'CREATE TABLE IF NOT EXISTS "incidents" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "monitor_id" INTEGER, "cause" TEXT)',
 ]
 
 /**
@@ -88,8 +98,8 @@ describe('Server migrations 0000000281..0000000284', () => {
   beforeAll(() => {
     mkdirSync(TEMP_DIR, { recursive: true })
     db = new Database(DB_PATH, { create: true })
-    for (const file of PREREQUISITE_MIGRATIONS)
-      apply(db, file)
+    for (const statement of PREREQUISITE_TABLES)
+      db.run(statement)
     for (const file of SERVER_MIGRATIONS)
       apply(db, file)
   })
@@ -241,28 +251,26 @@ describe('Server migrations 0000000281..0000000284', () => {
       }
     })
 
-    test('existing columns are untouched by the ALTERs', () => {
-      const monitorColumns = columns(db, 'monitors').map(c => c.name)
-      expect(monitorColumns.slice(0, -1)).toEqual([
-        'id',
-        'team_id',
-        'name',
-        'url',
-        'type',
-        'enabled',
-        'check_interval_seconds',
-        'config',
-        'status',
-        'last_checked_at',
-        'consecutive_failures',
-        'reports_metrics',
-        'metrics_token',
-        'created_at',
-        'updated_at',
-        'uuid',
-      ])
-      expect(monitorColumns.at(-1)).toBe('server_id')
-      expect(columns(db, 'incidents').at(-1)!.name).toBe('server_id')
+    // Asserted as an invariant (everything that was there, plus server_id
+    // appended) rather than against a hard-coded column list, because the
+    // prerequisite tables here are minimal stand-ins — see PREREQUISITE_TABLES.
+    // It is also the property that actually matters: ADD COLUMN must not
+    // reorder or drop anything, which is what makes these migrations safe to
+    // run against a live SQLite database.
+    test('existing columns are untouched by the ALTERs, with server_id appended', () => {
+      const fresh = new Database(':memory:')
+      for (const statement of PREREQUISITE_TABLES)
+        fresh.run(statement)
+
+      for (const table of ['monitors', 'incidents']) {
+        const before = columns(fresh, table).map(c => c.name)
+        const after = columns(db, table).map(c => c.name)
+        expect(after.slice(0, before.length)).toEqual(before)
+        expect(after.at(-1)).toBe('server_id')
+        expect(after).toHaveLength(before.length + 1)
+      }
+
+      fresh.close()
     })
   })
 
