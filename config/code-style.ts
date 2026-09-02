@@ -92,6 +92,13 @@ const config: PickierOptions = {
     '**/docs/deps/**',
     // Generated scaffolds copied into pantry — out of project control
     '**/pantry/**',
+    // The Server model spec. Its fenced blocks are illustrative -- proposed stx
+    // markup, model definitions, SQL -- not source the build ever sees, and the
+    // markdown/stx rules fire inside them: Tailwind class order in an example
+    // template, list-marker spacing in a quoted docblock. Fixing those would
+    // edit the prose to satisfy rules about code that does not exist yet.
+    // Scoped to this one file; STX-MIGRATION-PLAN.md passes as it is.
+    '**/SERVER-MODEL-SPEC.md',
   ],
 }
 
