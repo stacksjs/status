@@ -2,12 +2,13 @@ import { Action } from '@stacksjs/actions'
 import { response } from '@stacksjs/router'
 import Incident from '../../Models/Incident'
 import IncidentUpdate from '../../Models/IncidentUpdate'
-import Monitor from '../../Models/Monitor'
+import { incidentBelongsToTeam } from '../../lib/incidentOwnership'
 import { requireTeamId } from '../../lib/teamGuard'
 
 /**
- * `POST /incidents/:id/acknowledge` — fills the one gap the auto-generated
- * `useApi` CRUD on Incident (index/store/show/update) doesn't cover: a
+ * `POST /incidents/:id/acknowledge` — fills the one gap the rest of the
+ * Incident API (index/show, plus the team-checked store/update overrides in
+ * routes/api.ts) doesn't cover: a
  * one-step "we've seen this" action a human hits from an alert, rather than
  * having to PATCH the full resource with a status string (stacksjs/status#1
  * Phase 10). Moves 'investigating' -> 'identified' and posts a timeline
@@ -31,10 +32,10 @@ export default new Action({
       return { success: false, message: `Incident ${id} not found` }
 
     // Incident has no team_id of its own — ownership flows through its
-    // monitor. Verify the monitor belongs to the caller's team so one team
-    // can't acknowledge another team's incidents by guessing the id (IDOR).
-    const monitor = await Monitor.where('id', incident.monitor_id).where('team_id', authTeamId).first()
-    if (!monitor)
+    // monitor, or, for the two box-level kinds, through its server. Verify
+    // that row belongs to the caller's team so one team can't acknowledge
+    // another team's incidents by guessing the id (IDOR).
+    if (!(await incidentBelongsToTeam(incident, authTeamId)))
       return { success: false, message: `Incident ${id} not found` }
 
     if (incident.status !== 'investigating')

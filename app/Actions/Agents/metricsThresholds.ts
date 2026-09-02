@@ -1,10 +1,14 @@
 /**
  * Server-metrics alerting config + evaluation (stacksjs/status#1 — server
- * metrics threshold alerting). A reportsMetrics monitor keeps its alert
- * thresholds and missed-push window in the monitor's `config` JSON (same
- * store as every other monitor type's per-type settings), so nothing new
- * on the schema. Shared by ReceiveMetricsAction (per-push evaluation) and
- * CheckStaleMetrics (missed-push detection) so both read the same values.
+ * metrics threshold alerting).
+ *
+ * Thresholds and the missed-push window are columns on `servers` now
+ * (thresholdsForServer), read by ReceiveMetricsAction on every push and by
+ * CheckStaleServers on every tick so both evaluate the same values. They used
+ * to live in each monitor's `config` JSON, which meant two monitors on one box
+ * carried two independent threshold sets for one CPU; parseMetricsThresholds
+ * still reads that shape for the pre-migration ingest fallback
+ * (legacyReceiveMetrics) and the backfill, and is deleted with them.
  */
 
 export interface MetricsThresholds {
@@ -25,7 +29,36 @@ function nonNegNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback
 }
 
-/** Parse the alert thresholds + missed-push window from a monitor's config JSON. */
+/**
+ * Thresholds and window from a `servers` row — columns, not config JSON.
+ *
+ * Takes the raw row rather than a Server model instance because all three
+ * readers (the ingest, the tick, the backfill) come off the query builder:
+ * `status` and `last_sample_at` are not fillable, so the server path never
+ * loads the model just to read four numbers.
+ */
+export function thresholdsForServer(server: {
+  cpu_threshold?: unknown
+  ram_threshold?: unknown
+  disk_threshold?: unknown
+  metrics_window_seconds?: unknown
+}): MetricsThresholds {
+  return {
+    cpu: nonNegNumber(server.cpu_threshold, DEFAULT_METRICS_THRESHOLDS.cpu),
+    ram: nonNegNumber(server.ram_threshold, DEFAULT_METRICS_THRESHOLDS.ram),
+    disk: nonNegNumber(server.disk_threshold, DEFAULT_METRICS_THRESHOLDS.disk),
+    // A window of 0 is not "no window", it is a misconfiguration that would
+    // make every server permanently overdue — same fallback as the config
+    // parser below.
+    windowSeconds: nonNegNumber(server.metrics_window_seconds, DEFAULT_METRICS_THRESHOLDS.windowSeconds) || DEFAULT_METRICS_THRESHOLDS.windowSeconds,
+  }
+}
+
+/**
+ * Parse the alert thresholds + missed-push window from a monitor's config
+ * JSON. Legacy: only the pre-migration ingest fallback and the backfill read
+ * thresholds from a monitor now.
+ */
 export function parseMetricsThresholds(configJson: string | null | undefined): MetricsThresholds {
   let cfg: Record<string, unknown> = {}
   try {

@@ -6,6 +6,7 @@ import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
 import SendNotification from '../../Jobs/SendNotification'
+import { notifyServerIncident } from '../../lib/serverNotifications'
 
 /**
  * Fires on `incident:created` (registered in app/Events.ts, via Incident's
@@ -24,8 +25,15 @@ export default eventAction({
   name: 'SendIncidentNotification',
   description: 'Notify configured channels when an incident opens',
 
-  async handle(incident: { id?: number, monitor_id: number, cause?: string, status: string, started_at?: string, impacted_checks?: string | null }) {
-    const monitor = await Monitor.find(incident.monitor_id)
+  async handle(incident: { id?: number, monitor_id: number | null, server_id?: number | null, cause?: string, status: string, started_at?: string, impacted_checks?: string | null }) {
+    // A box-level incident (a threshold breach, a silent agent) belongs to a
+    // Server and to none of the sites on it, so it fans out over every
+    // monitor on that box collapsed to one message per channel — see
+    // app/lib/serverNotifications.ts.
+    if (incident.server_id && !incident.monitor_id)
+      return notifyServerIncident(incident, 'opened')
+
+    const monitor = await Monitor.find(incident.monitor_id as number)
     if (!monitor) return
 
     // Safety net for the maintenance-window contract (docs/operate/maintenance.md):
@@ -44,10 +52,10 @@ export default eventAction({
     // Not every incident is an outage. Blocklist listings, broken links,
     // slowdowns, score drops and host resource breaches are "issues"
     // (degraded), so calling them "is down" with a red siren over-alarms.
-    // Read from the incident first: a `server` monitor opens issue-shaped
-    // incidents (a CPU threshold breached, agent still pushing) and
-    // outage-shaped ones (agent silent) from the same monitor type, so type
-    // alone cannot tell them apart.
+    // Read from the incident first: the marker in impacted_checks can say
+    // "issue" about an incident whose monitor type would otherwise read as an
+    // outage, which is how the pre-Server host-metrics incidents still route
+    // correctly.
     const severity = incidentSeverity(monitor.type, incident.impacted_checks)
     const isIssue = severity === 'issue'
     const subject = isIssue ? `⚠️ ${monitor.name}: issue detected` : `🔴 ${monitor.name} is down`

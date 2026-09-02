@@ -27,10 +27,18 @@ export default function () {
     .job('CheckOverdueHeartbeats')
     .everyMinute()
 
-  // Server-metrics monitors are passive too — watch for a stalled agent
-  // (no metrics pushed within the monitor's window) the same way, since a
-  // host that stops pushing is exactly what "missed-push works like a
-  // heartbeat" means (stacksjs/status#1 server metrics).
+  // Servers are passive too — reconcile each box's status and its two
+  // incidents from its stored samples, and watch for an agent that stopped
+  // pushing inside its window, since a host that stops pushing is exactly
+  // what "missed-push works like a heartbeat" means.
+  schedule
+    .job('CheckStaleServers')
+    .everyMinute()
+
+  // The pre-Server ingest's half of the same watch, kept alongside only until
+  // `buddy servers:migrate` has moved every live token onto a server: its work
+  // set is now `whereNull('server_id')`, so a migrated monitor is watched by
+  // CheckStaleServers alone and never by both. Deleted in ship step 6.
   schedule
     .job('CheckStaleMetrics')
     .everyMinute()

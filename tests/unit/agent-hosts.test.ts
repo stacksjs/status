@@ -7,6 +7,9 @@ import {
   MAX_HOST_LENGTH,
   normalizeHost,
   readingsFromRows,
+  readingsFromSamples,
+  SERVER_STATUSES,
+  serverStatusFromFleet,
 } from '../../app/lib/agentHosts'
 
 /**
@@ -170,5 +173,88 @@ describe('describeBreaches', () => {
     const readings = readingsFromRows([row(undefined, 'down', 10, ['CPU 96% ≥ 90%'])])
 
     expect(describeBreaches(readings)).toBe('CPU 96% ≥ 90%')
+  })
+})
+
+/**
+ * The samples-table reader. It differs from readingsFromRows in exactly one
+ * way, on purpose: the stored `breaches` array IS the verdict, because a row
+ * in server_metric_samples is a reading rather than a check with a status.
+ */
+describe('readingsFromSamples', () => {
+  function sample(host: string | undefined, breaches: unknown, secondsAgo: number) {
+    return {
+      host,
+      breaches: typeof breaches === 'string' ? breaches : JSON.stringify(breaches),
+      sampled_at: new Date(NOW - secondsAgo * 1000).toISOString(),
+      cpu_percent: 96.5,
+      ram_percent: 34,
+      disk_percent: null,
+    }
+  }
+
+  test('a stored breach makes the reading degraded, an empty array up', () => {
+    const [breaching, healthy] = readingsFromSamples([
+      sample('web-02', ['CPU 96% \u2265 90%'], 10),
+      sample('web-01', [], 10),
+    ])
+
+    expect(breaching!.status).toBe('degraded')
+    expect(breaching!.breaches).toEqual(['CPU 96% \u2265 90%'])
+    expect(breaching!.cpuPercent).toBe(96.5)
+    expect(breaching!.diskPercent).toBeNull()
+    expect(healthy!.status).toBe('up')
+  })
+
+  test('an unparseable sampled_at is skipped rather than read as 1970', () => {
+    expect(readingsFromSamples([{ host: 'web-01', breaches: '[]', sampled_at: 'not a date' }])).toHaveLength(0)
+    expect(readingsFromSamples([{ host: 'web-01', breaches: '[]', sampled_at: null }])).toHaveLength(0)
+  })
+
+  test('malformed breaches read as none, never as a thrown ingest', () => {
+    expect(readingsFromSamples([sample('web-01', '{not json', 10)])[0]!.breaches).toEqual([])
+    expect(readingsFromSamples([sample('web-01', { nope: true }, 10)])[0]!.status).toBe('up')
+    // Non-string entries are dropped, the strings kept.
+    expect(readingsFromSamples([sample('web-01', ['CPU', 7, null], 10)])[0]!.breaches).toEqual(['CPU'])
+  })
+
+  test('an absent host is the default one, and case is not two machines', () => {
+    expect(readingsFromSamples([sample(undefined, [], 10)])[0]!.host).toBe(DEFAULT_HOST)
+    expect(readingsFromSamples([sample('Web-01', [], 10)])[0]!.host).toBe('web-01')
+  })
+
+  test('feeds aggregateHostStatus the same way the ingest and the tick do', () => {
+    const fleet = aggregateHostStatus(readingsFromSamples([
+      sample('web-01', [], 10),
+      sample('web-02', ['CPU 96% \u2265 90%'], 20),
+      // Aged out of the window: a host that stopped pushing must not pin the
+      // box hot forever.
+      sample('gone-01', ['disk 91% \u2265 85%'], 3600),
+    ]), NOW, 300)
+
+    expect(fleet.status).toBe('degraded')
+    expect(fleet.breaching.map(r => r.host)).toEqual(['web-02'])
+    expect(fleet.hosts.map(r => r.host)).toEqual(['web-01', 'web-02'])
+  })
+})
+
+describe('serverStatusFromFleet', () => {
+  test('degraded is a hot box, up is a healthy one — never down', () => {
+    const breaching = aggregateHostStatus(readingsFromSamples([
+      { host: 'web-01', breaches: JSON.stringify(['CPU 96% \u2265 90%']), sampled_at: new Date(NOW - 10_000).toISOString() },
+    ]), NOW, 300)
+    const clean = aggregateHostStatus(readingsFromSamples([
+      { host: 'web-01', breaches: '[]', sampled_at: new Date(NOW - 10_000).toISOString() },
+    ]), NOW, 300)
+
+    expect(serverStatusFromFleet(breaching)).toBe('hot')
+    expect(serverStatusFromFleet(clean)).toBe('healthy')
+  })
+
+  test('an empty fleet is healthy here; quiet and unknown come from elsewhere', () => {
+    // Silence is CheckStaleServers' verdict off last_sample_at, and 'unknown'
+    // is "never received a sample" — neither is visible in an aggregate.
+    expect(serverStatusFromFleet(aggregateHostStatus([], NOW, 300))).toBe('healthy')
+    expect(SERVER_STATUSES).toEqual(['unknown', 'healthy', 'hot', 'quiet'])
   })
 })

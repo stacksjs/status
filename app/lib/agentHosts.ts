@@ -48,7 +48,7 @@ export interface HostReading {
   /**
    * 'degraded' means this host breached a threshold. It is NOT 'down': the
    * sample only exists because the agent pushed it, so the machine is alive
-   * and reachable — it is busy. A host that goes silent is CheckStaleMetrics'
+   * and reachable — it is busy. A host that goes silent is CheckStaleServers'
    * business and that is what 'down' is reserved for.
    */
   status: 'up' | 'degraded' | 'down'
@@ -65,7 +65,7 @@ interface CheckResultRow {
   checked_at?: string | null
 }
 
-function numberOrNull(value: unknown): number | null {
+export function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
@@ -97,6 +97,54 @@ export function readingsFromRows(rows: readonly CheckResultRow[]): HostReading[]
       cpuPercent: numberOrNull(meta.cpuPercent),
       ramPercent: numberOrNull(meta.ramPercent),
       diskPercent: numberOrNull(meta.diskPercent),
+    })
+  }
+
+  return readings
+}
+
+interface SampleRow {
+  host?: string | null
+  breaches?: string | null
+  sampled_at?: string | null
+  cpu_percent?: number | null
+  ram_percent?: number | null
+  disk_percent?: number | null
+}
+
+/**
+ * Parse `server_metric_samples` rows into readings.
+ *
+ * The stored breaches array IS the verdict: a sample is a reading, so unlike
+ * readingsFromRows there is no legacy `status = 'down'` row shape to
+ * interpret — the thresholds that were live when the sample landed are
+ * already baked into `breaches`, which is why the column exists.
+ */
+export function readingsFromSamples(rows: readonly SampleRow[]): HostReading[] {
+  const readings: HostReading[] = []
+
+  for (const row of rows) {
+    const checkedAtMs = Date.parse(row.sampled_at ?? '')
+    if (!Number.isFinite(checkedAtMs))
+      continue
+
+    let breaches: string[] = []
+    try {
+      const parsed = JSON.parse(row.breaches ?? '[]')
+      breaches = Array.isArray(parsed) ? parsed.filter((b): b is string => typeof b === 'string') : []
+    }
+    catch {
+      breaches = []
+    }
+
+    readings.push({
+      host: normalizeHost(row.host),
+      status: breaches.length > 0 ? 'degraded' : 'up',
+      breaches,
+      checkedAtMs,
+      cpuPercent: numberOrNull(row.cpu_percent),
+      ramPercent: numberOrNull(row.ram_percent),
+      diskPercent: numberOrNull(row.disk_percent),
     })
   }
 
@@ -138,7 +186,7 @@ export interface HostAggregate {
  * Readings older than the monitor's window are ignored rather than counted as
  * breaching. A node that breached and then stopped pushing — decommissioned,
  * rebuilt, renamed — would otherwise pin the monitor degraded forever with no
- * way to clear it. A host that goes silent is CheckStaleMetrics' business, and
+ * way to clear it. A host that goes silent is CheckStaleServers' business, and
  * it watches the monitor as a whole.
  */
 export function aggregateHostStatus(readings: readonly HostReading[], nowMs: number, windowSeconds: number): HostAggregate {
@@ -146,6 +194,26 @@ export function aggregateHostStatus(readings: readonly HostReading[], nowMs: num
   const breaching = hosts.filter(reading => reading.status !== 'up')
 
   return { status: breaching.length > 0 ? 'degraded' : 'up', breaching, hosts }
+}
+
+/**
+ * A Server's own status vocabulary, which is deliberately NOT a monitor's:
+ * 'healthy' every fresh host is within thresholds; 'hot' at least one fresh
+ * host is breaching (the box answered, it is busy); 'quiet' the agent has not
+ * pushed inside the window; 'unknown' never received a sample. A per-host
+ * reading keeps 'up' / 'degraded' — that describes a sample, not the box.
+ */
+export type ServerStatus = 'unknown' | 'healthy' | 'hot' | 'quiet'
+export const SERVER_STATUSES: readonly ServerStatus[] = ['unknown', 'healthy', 'hot', 'quiet']
+
+/**
+ * The box's status from its fleet verdict. A fleet computed from fresh
+ * readings can only ever say healthy or hot: 'quiet' comes from the absence
+ * of pushes (CheckStaleServers) and 'unknown' from never having had one, and
+ * neither is visible in an aggregate.
+ */
+export function serverStatusFromFleet(fleet: HostAggregate): ServerStatus {
+  return fleet.status === 'degraded' ? 'hot' : 'healthy'
 }
 
 /**

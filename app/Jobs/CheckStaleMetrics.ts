@@ -32,7 +32,11 @@ export default new Job({
   timeout: 30,
 
   async handle() {
-    const monitors = await Monitor.where('reports_metrics', true).where('enabled', true).get()
+    // `whereNull('server_id')`: a monitor the backfill has attached to a
+    // Server is watched by CheckStaleServers off servers.last_sample_at, and
+    // a box watched by both jobs would open two missed-push incidents for one
+    // silent agent. This job is deleted outright in ship step 6.
+    const monitors = await Monitor.where('reports_metrics', true).where('enabled', true).whereNull('server_id').get()
     const now = Date.now()
     let overdue = 0
 

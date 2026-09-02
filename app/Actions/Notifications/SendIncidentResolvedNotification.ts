@@ -6,6 +6,7 @@ import Monitor from '../../Models/Monitor'
 import MonitorNotificationChannel from '../../Models/MonitorNotificationChannel'
 import NotifyStatusPageSubscribers from '../../Jobs/NotifyStatusPageSubscribers'
 import SendNotification from '../../Jobs/SendNotification'
+import { notifyServerIncident } from '../../lib/serverNotifications'
 
 /**
  * Fires on every `incident:updated` (registered in app/Events.ts) — only
@@ -19,10 +20,14 @@ export default eventAction({
   name: 'SendIncidentResolvedNotification',
   description: 'Notify configured channels when an incident resolves',
 
-  async handle(incident: { id?: number, monitor_id: number, status: string, started_at?: string, impacted_checks?: string | null }) {
+  async handle(incident: { id?: number, monitor_id: number | null, server_id?: number | null, status: string, started_at?: string, impacted_checks?: string | null }) {
     if (incident.status !== 'resolved') return
 
-    const monitor = await Monitor.find(incident.monitor_id)
+    // The recovery side of the box-level fan-out (see SendIncidentNotification).
+    if (incident.server_id && !incident.monitor_id)
+      return notifyServerIncident(incident, 'resolved')
+
+    const monitor = await Monitor.find(incident.monitor_id as number)
     if (!monitor) return
 
     // No paging during an active maintenance window (docs/operate/maintenance.md),

@@ -28,13 +28,20 @@ export function incidentSeverityForType(monitorType: string): IncidentSeverity {
  * `impacted_checks[].type` values that are soft issues whatever the monitor's
  * own type says.
  *
- * Classifying by monitor type alone cannot describe a `server` monitor, which
- * has two unrelated failure modes: a CPU/RAM/disk threshold breach, where the
- * agent pushed and the box is merely busy, and the agent going silent, where
- * the box may be gone. Both open an incident on the same monitor of the same
- * type. Before this, both paged as "down".
+ * Classifying by monitor type alone cannot describe a box: a Server has two
+ * unrelated failure modes — a CPU/RAM/disk threshold breach ('server_hot',
+ * where the agent pushed and the box is merely busy) and the agent going
+ * silent ('server_silent', where the box may be gone) — and its incidents
+ * carry no monitor type at all, since they belong to the box rather than to
+ * any one site on it.
+ *
+ * Both are issues, never outages: a hot box answered, and a silent agent says
+ * nothing about whether the sites on it answer — their own monitors decide
+ * that, and only a site's own monitor pages as an outage. 'server_metrics' is
+ * the pre-Server marker and stays in the set so the incidents the backfill
+ * resolved keep rendering and routing exactly as they did.
  */
-const ISSUE_CHECK_TYPES = new Set(['server_metrics'])
+const ISSUE_CHECK_TYPES = new Set(['server_metrics', 'server_hot', 'server_silent'])
 
 /**
  * The severity an incident represents, preferring what the incident says
