@@ -15,8 +15,8 @@ import process from 'node:process'
  * first to touch the database — true when it runs alone, false in CI, where
  * `bun buddy test` runs every suite in one process and an earlier file has
  * already opened the connection on the suite database. beforeAll therefore
- * re-points the framework explicitly with initializeDbConfig() +
- * resetDatabaseConnection(), and afterAll puts the original config back so
+ * re-points the framework explicitly with initializeDbConfig(), and afterAll
+ * puts the original config back so
  * the suites that follow reconnect to theirs. Schema is built the way server-migrations.test.ts
  * builds it — the legacy tables inline from the migration files' text, then
  * 0000000281..0000000284 applied from disk. bun:sqlite on the same file gives
@@ -389,10 +389,18 @@ describe('servers:migrate', () => {
     // suite touched the database first. ensureDatabaseConfigLoaded() runs the
     // framework's own one-time init before we override it, so that init can
     // never fire later and quietly put the suite database back.
+    //
+    // initializeDbConfig() only drops the cached instance, so the next use
+    // opens a fresh connection on the new path. It deliberately does NOT
+    // close anything: resetDatabaseConnection() closes the shared SQLite
+    // handle, and the ORM's auto-CRUD routes keep their own query-builder
+    // instance on that handle, so closing it here made every later route in
+    // the run fail with "Cannot use a closed database" once file order put
+    // this suite before them.
     process.env.SERVERS_MIGRATE_JOURNAL = JOURNAL_PATH
     const { config, awaitConfig } = await import('@stacksjs/config')
     await awaitConfig()
-    const { ensureDatabaseConfigLoaded, initializeDbConfig, resetDatabaseConnection } = await import('@stacksjs/database')
+    const { ensureDatabaseConfigLoaded, initializeDbConfig } = await import('@stacksjs/database')
     await ensureDatabaseConfigLoaded()
     originalDbConfig = { app: config.app, database: config.database }
     initializeDbConfig({
@@ -405,16 +413,15 @@ describe('servers:migrate', () => {
         },
       },
     } as never)
-    resetDatabaseConnection()
     cmd = await import('../../app/Commands/MigrateServers')
   })
 
   afterAll(async () => {
-    // Hand the connection back to the suite database for whatever runs next.
-    const { initializeDbConfig, resetDatabaseConnection } = await import('@stacksjs/database')
+    // Hand the connection back to the suite database for whatever runs next
+    // (drops our cached instance; closes nothing — see beforeAll).
+    const { initializeDbConfig } = await import('@stacksjs/database')
     if (originalDbConfig)
       initializeDbConfig(originalDbConfig as never)
-    resetDatabaseConnection()
     delete process.env.SERVERS_MIGRATE_JOURNAL
     raw?.close()
     for (const suffix of ['', '-wal', '-shm', '-journal']) {
