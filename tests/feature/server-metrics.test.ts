@@ -142,7 +142,7 @@ describe('Server metrics (threshold alerting)', () => {
   })
 
   test('a metrics monitor whose token was dropped is never flagged by the missed-push job', async () => {
-    // servers:migrate nulls the token of a monitor whose agent never pushed.
+    // servers:backfill nulls the token of a monitor whose agent never pushed.
     // Nothing can push for it afterwards, so a missed-push incident there
     // would reopen on every tick and never resolve; the job skips it.
     const { id } = await makeMetricsMonitor({ metricsWindowSeconds: 60 })

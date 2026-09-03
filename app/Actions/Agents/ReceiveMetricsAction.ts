@@ -45,7 +45,7 @@ export default new Action({
     if (!server) {
       // Pre-backfill coexistence (ship step 2 only): the token is still on the
       // monitor, so delegate to the old monitor-keyed path unchanged. `buddy
-      // servers:migrate` moves it; after that every live token resolves above
+      // servers:backfill` moves it; after that every live token resolves above
       // and this branch is unreachable, and step 6 deletes it.
       const legacy = await Monitor.where('metrics_token', token).first()
       if (legacy)

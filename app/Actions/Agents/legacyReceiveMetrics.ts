@@ -11,7 +11,7 @@ import { evaluateBreaches, parseMetricsThresholds } from './metricsThresholds'
 /**
  * The monitor-keyed ingest, exactly as it behaved before Servers existed —
  * moved here byte-for-byte rather than rewritten, so that between the deploy
- * of the server ingest and the `buddy servers:migrate` backfill every already
+ * of the server ingest and the `buddy servers:backfill` backfill every already
  * installed agent keeps working against the token still sitting on its
  * monitor.
  *

@@ -36,7 +36,7 @@ export default function () {
     .everyMinute()
 
   // The pre-Server ingest's half of the same watch, kept alongside only until
-  // `buddy servers:migrate` has moved every live token onto a server: its work
+  // `buddy servers:backfill` has moved every live token onto a server: its work
   // set is now `whereNull('server_id')`, so a migrated monitor is watched by
   // CheckStaleServers alone and never by both. Deleted in ship step 6.
   schedule

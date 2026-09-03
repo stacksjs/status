@@ -9,7 +9,7 @@ import { parseMetricsThresholds } from '../Actions/Agents/metricsThresholds'
 import { aggregateHostStatus, normalizeHost, numberOrNull, readingsFromSamples, serverStatusFromFleet } from '../lib/agentHosts'
 
 /**
- * `buddy servers:migrate [--dry-run] [--final]` — the Server backfill
+ * `buddy servers:backfill [--dry-run] [--final]` — the Server backfill
  * (SERVER-MODEL-SPEC.md §2 "Backfill", ship step 3), and its inverse,
  * `buddy servers:rollback --yes`.
  *
@@ -38,7 +38,7 @@ import { aggregateHostStatus, normalizeHost, numberOrNull, readingsFromSamples, 
  *      Incident is observed and incident:updated fans out to
  *      SendIncidentResolvedNotification, so resolving 55 incidents through
  *      the model would page every attached channel 55 times during a
- *      migration. The timeline note is the record; nobody needs waking.
+ *      backfill. The timeline note is the record; nobody needs waking.
  *   D  agent rows move into server_metric_samples in id-range batches of
  *      1000, one transaction per batch, and every batch asserts
  *      inserted == convertible and convertible + metric-less == read BEFORE
@@ -50,7 +50,7 @@ import { aggregateHostStatus, normalizeHost, numberOrNull, readingsFromSamples, 
  * Re-runnable: a token whose server exists is skipped for creation but its
  * remaining agent rows are still swept — which is what --final is for after
  * the first run. Every run appends one entry to the journal
- * (storage/framework/servers-migrate.json); servers:rollback reverses the
+ * (storage/framework/servers-backfill.json); servers:rollback reverses the
  * newest entry that has not been rolled back yet.
  *
  * The journal is written AS THE RUN GOES, not at the end: the entry is
@@ -70,7 +70,7 @@ import { aggregateHostStatus, normalizeHost, numberOrNull, readingsFromSamples, 
  * every batch is one write transaction competing with the app's own writers
  * for SQLite's single lock, and a smaller batch holds it for less time.
  */
-export const BATCH = Number(process.env.SERVERS_MIGRATE_BATCH) > 0 ? Number(process.env.SERVERS_MIGRATE_BATCH) : 1000
+export const BATCH = Number(process.env.SERVERS_BACKFILL_BATCH) > 0 ? Number(process.env.SERVERS_BACKFILL_BATCH) : 1000
 
 const LOCK_PATTERN = /database is locked|SQLITE_BUSY|\bbusy\b|deadlock|lock wait timeout/i
 
@@ -119,8 +119,8 @@ export async function withLockRetry<T>(
 /** The ORM transaction, retried while the database is locked (see withLockRetry). */
 const transaction: typeof ormTransaction = fn => withLockRetry(() => ormTransaction(fn), 'transaction') as ReturnType<typeof ormTransaction>
 
-export const MIGRATION_RESOLVED_MESSAGE = 'Resolved by the server migration. Host metrics now belong to a Server, which raises at most one "box is hot" and one "agent went quiet" incident per box; see the server page for its current state.'
-export const ROLLBACK_REOPENED_MESSAGE = 'Reopened by the server migration rollback (servers:rollback). Host metrics are back on the monitor.'
+export const BACKFILL_RESOLVED_MESSAGE = 'Resolved by the server backfill. Host metrics now belong to a Server, which raises at most one "box is hot" and one "agent went quiet" incident per box; see the server page for its current state.'
+export const ROLLBACK_REOPENED_MESSAGE = 'Reopened by the server backfill rollback (servers:rollback). Host metrics are back on the monitor.'
 export const ROLLBACK_SERVER_RESOLVED_MESSAGE = 'Rolled back to per-monitor metrics.'
 
 // ---------------------------------------------------------------------------
@@ -190,30 +190,30 @@ export interface JournalEntry {
 }
 
 export function journalPath(): string {
-  return process.env.SERVERS_MIGRATE_JOURNAL || resolve(process.cwd(), 'storage/framework/servers-migrate.json')
+  return process.env.SERVERS_BACKFILL_JOURNAL || resolve(process.cwd(), 'storage/framework/servers-backfill.json')
 }
 
 /**
  * The run's clock, when a caller pins it: an ISO timestamp in
- * SERVERS_MIGRATE_NOW, honoured only when the options carry no `now`. The
+ * SERVERS_BACKFILL_NOW, honoured only when the options carry no `now`. The
  * feature suite drives both commands as subprocesses, so this is how it
  * fixes the timestamps it later asserts on. Unset or unparsable → null, and
  * the wall clock is used.
  */
 function pinnedNow(): string | null {
-  const value = process.env.SERVERS_MIGRATE_NOW
+  const value = process.env.SERVERS_BACKFILL_NOW
   return value && Number.isFinite(Date.parse(value)) ? value : null
 }
 
 /**
- * With SERVERS_MIGRATE_JSON=1 the CLI prints exactly one machine-readable
- * line at the end of a run — `SERVERS_MIGRATE_REPORT ` followed by the
+ * With SERVERS_BACKFILL_JSON=1 the CLI prints exactly one machine-readable
+ * line at the end of a run — `SERVERS_BACKFILL_REPORT ` followed by the
  * report as JSON, or `{"error": message}` when the run threw — so a caller
  * that spawns the command can read the result without scraping the log.
  */
 function emitJsonReport(report: unknown): void {
-  if (process.env.SERVERS_MIGRATE_JSON === '1')
-    console.log(`SERVERS_MIGRATE_REPORT ${JSON.stringify(report)}`)
+  if (process.env.SERVERS_BACKFILL_JSON === '1')
+    console.log(`SERVERS_BACKFILL_REPORT ${JSON.stringify(report)}`)
 }
 
 export function readJournal(): JournalEntry[] {
@@ -419,7 +419,7 @@ async function tokenGroups(): Promise<TokenGroup[]> {
 /**
  * Resolve one incident and leave a timeline note, through the query builder
  * rather than the Incident model. The model is observed: incident:updated
- * fans out to SendIncidentResolvedNotification, and a migration that closes
+ * fans out to SendIncidentResolvedNotification, and a backfill that closes
  * dozens of incidents must not page every attached channel once per row.
  * The note in incident_updates is the durable record of what happened.
  */
@@ -471,7 +471,7 @@ function backfillStatus(rowsInWindow: AgentRow[], nowMs: number, windowSeconds: 
 }
 
 // ---------------------------------------------------------------------------
-// Forward: servers:migrate
+// Forward: servers:backfill
 // ---------------------------------------------------------------------------
 
 export interface MigrateOptions {
@@ -595,7 +595,7 @@ async function sweepSamples(sweep: JournalSweep, flush: () => void): Promise<Swe
       // Both assertions BEFORE any source row is deleted.
       const inserted = after - before
       if (inserted !== convertible.length || newIds.length !== convertible.length || convertible.length + metricless.length !== rows.length)
-        throw new Error(`servers:migrate: batch ${from}-${to} on server ${serverId} read ${rows.length}, inserted ${inserted} (${newIds.length} new ids), convertible ${convertible.length}, metric-less ${metricless.length} — aborting before deleting anything`)
+        throw new Error(`servers:backfill: batch ${from}-${to} on server ${serverId} read ${rows.length}, inserted ${inserted} (${newIds.length} new ids), convertible ${convertible.length}, metric-less ${metricless.length} — aborting before deleting anything`)
 
       await tx.deleteFrom('check_results').where('id', 'in', rows.map(r => Number(r.id))).execute()
 
@@ -633,7 +633,7 @@ async function sweepSamples(sweep: JournalSweep, flush: () => void): Promise<Swe
   return { read: sweep.read, convertible: sweep.convertible, metricless: sweep.metricless, inserted: sweep.inserted }
 }
 
-export async function runServersMigrate(options: MigrateOptions = {}): Promise<MigrateReport> {
+export async function runServersBackfill(options: MigrateOptions = {}): Promise<MigrateReport> {
   retryLog = options.log ?? (message => console.log(message))
   const dryRun = options.dryRun === true
   const final = options.final === true
@@ -679,7 +679,7 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
     writeJournal(journal)
   }
 
-  log(`servers:migrate${dryRun ? ' [dry-run]' : ''}${final ? ' [final]' : ''} at ${now}`)
+  log(`servers:backfill${dryRun ? ' [dry-run]' : ''}${final ? ' [final]' : ''} at ${now}`)
 
   const groups = await tokenGroups()
   // A token whose server already exists is live whatever check_results says:
@@ -696,7 +696,7 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
   for (const group of withSamples) {
     const teams = new Set(group.monitors.map(m => Number(m.team_id)))
     if (teams.size > 1)
-      throw new Error(`servers:migrate: token on monitors ${group.monitorIds.join(', ')} spans teams ${[...teams].join(', ')} — fix by hand before migrating`)
+      throw new Error(`servers:backfill: token on monitors ${group.monitorIds.join(', ')} spans teams ${[...teams].join(', ')} — fix by hand before backfilling`)
   }
 
   const runPhases = async (): Promise<void> => {
@@ -758,7 +758,7 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
           } as never).execute()
           const row = await tx.selectFrom('servers').where('uuid', '=', uuid).select(['id']).executeTakeFirst() as { id: number } | undefined
           if (!row)
-            throw new Error(`servers:migrate: server insert for token of monitors ${group.monitorIds.join(', ')} did not land`)
+            throw new Error(`servers:backfill: server insert for token of monitors ${group.monitorIds.join(', ')} did not land`)
           await tx.updateTable('monitors').set({ server_id: Number(row.id) } as never)
             .where('metrics_token', '=', group.token).where('server_id', 'is', null).execute()
           return Number(row.id)
@@ -790,7 +790,7 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
     log(`  ${dryRun ? '[dry-run] would resolve' : 'resolving'} ${incidentIds.length} open server_metrics incident(s)${incidentIds.length > 0 ? `: ${incidentIds.join(', ')}` : ''}`)
     if (!dryRun) {
       for (const id of incidentIds) {
-        await resolveIncidentQuietly(id, MIGRATION_RESOLVED_MESSAGE, now)
+        await resolveIncidentQuietly(id, BACKFILL_RESOLVED_MESSAGE, now)
         entry.incidents_resolved.push(id)
         flush()
       }
@@ -858,9 +858,9 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
   printMigrateReport(report, log)
 
   if (!dryRun && report.unattachedTokens > 0)
-    throw new Error(`servers:migrate: ${report.unattachedTokens} monitor(s) still carry a metrics_token with no server`)
+    throw new Error(`servers:backfill: ${report.unattachedTokens} monitor(s) still carry a metrics_token with no server`)
   if (final && !dryRun && report.agentRowsRemaining > 0)
-    throw new Error(`servers:migrate --final: ${report.agentRowsRemaining} region='agent' row(s) remain in check_results${report.agentRowsWithoutToken.length > 0 ? ` (${report.agentRowsWithoutToken.map(r => `${r.rows} on monitor ${r.monitor_id}, which has no token`).join('; ')})` : ''}`)
+    throw new Error(`servers:backfill --final: ${report.agentRowsRemaining} region='agent' row(s) remain in check_results${report.agentRowsWithoutToken.length > 0 ? ` (${report.agentRowsWithoutToken.map(r => `${r.rows} on monitor ${r.monitor_id}, which has no token`).join('; ')})` : ''}`)
 
   return report
 }
@@ -868,7 +868,7 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
 export function printMigrateReport(report: MigrateReport, log: (line: string) => void = line => console.log(line)): void {
   const dry = report.dryRun ? ' (dry-run: nothing written)' : ''
   log('')
-  log(`servers:migrate report${dry}`)
+  log(`servers:backfill report${dry}`)
   log(`  servers created:            ${report.serversCreated.length}${report.serversCreated.length > 0 ? ` (${report.serversCreated.map(s => `${s.id || 'new'} "${s.name}" ← monitors ${s.monitor_ids.join(',')}`).join('; ')})` : ''}`)
   log(`  servers already existing:   ${report.serversExisting.length}${report.serversExisting.length > 0 ? ` (${report.serversExisting.map(s => s.id).join(', ')})` : ''}`)
   log(`  monitors attached:          ${report.monitorsAttached.length}${report.monitorsAttached.length > 0 ? ` (${report.monitorsAttached.join(', ')})` : ''}`)
@@ -940,7 +940,7 @@ export async function runServersRollback(options: RollbackOptions = {}): Promise
   if (outcome === 'aborted')
     log(`  that run ABORTED at ${entry.finished_at} (${entry.error ?? 'no error recorded'}); reversing what it had written up to then`)
   else if (outcome === 'running')
-    log(`  that run never recorded finishing (last journaled ${entry.finished_at}) — it died, or is still running; make sure no servers:migrate process is alive before continuing. Reversing what it had written up to then`)
+    log(`  that run never recorded finishing (last journaled ${entry.finished_at}) — it died, or is still running; make sure no servers:backfill process is alive before continuing. Reversing what it had written up to then`)
 
   // Refuse when a server this entry created has samples newer than the run:
   // deleting the server would lose them. Sweep-only entries leave the server
@@ -954,7 +954,7 @@ export async function runServersRollback(options: RollbackOptions = {}): Promise
   }
   if (blocked.length > 0) {
     const detail = blocked.map(b => `server ${b.id}: ${b.count} sample(s) after ${entry.finished_at}, newest ${b.newest}`).join('; ')
-    throw new Error(`servers:rollback: refusing — ${detail}. Those samples arrived through the Server ingest after the migration and would be lost. Either stop the agents pushing to those servers and delete their post-migration samples by hand (DELETE FROM server_metric_samples WHERE server_id = ? AND sampled_at > '${entry.finished_at}') once you have decided you do not need them, then re-run servers:rollback --yes; or keep the Server model and do not roll back.`)
+    throw new Error(`servers:rollback: refusing — ${detail}. Those samples arrived through the Server ingest after the backfill and would be lost. Either stop the agents pushing to those servers and delete their post-backfill samples by hand (DELETE FROM server_metric_samples WHERE server_id = ? AND sampled_at > '${entry.finished_at}') once you have decided you do not need them, then re-run servers:rollback --yes; or keep the Server model and do not roll back.`)
   }
 
   const report: RollbackReport = {
@@ -1075,26 +1075,26 @@ interface RollbackCliOptions { yes: boolean }
 
 export default function (cli: CLI) {
   cli
-    .command('servers:migrate', 'Backfill Servers from monitor metrics tokens and move agent samples out of check_results')
+    .command('servers:backfill', 'Backfill Servers from monitor metrics tokens and move agent samples out of check_results')
     .option('--dry-run', 'Print every count and write nothing', { default: false })
     .option('--final', 'Also assert that no region=agent row remains in check_results', { default: false })
     .action(async (options: MigrateCliOptions) => {
       try {
-        const report = await runServersMigrate({ dryRun: options.dryRun, final: options.final })
-        console.log(options.dryRun ? '✓ Dry-run complete.' : '✓ servers:migrate complete.')
+        const report = await runServersBackfill({ dryRun: options.dryRun, final: options.final })
+        console.log(options.dryRun ? '✓ Dry-run complete.' : '✓ servers:backfill complete.')
         emitJsonReport(report)
         process.exit(ExitCode.Success)
       }
       catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        console.error(`✗ servers:migrate failed: ${message}`)
+        console.error(`✗ servers:backfill failed: ${message}`)
         emitJsonReport({ error: message })
         process.exit(ExitCode.FatalError)
       }
     })
 
   cli
-    .command('servers:rollback', 'Reverse the newest servers:migrate run recorded in storage/framework/servers-migrate.json')
+    .command('servers:rollback', 'Reverse the newest servers:backfill run recorded in storage/framework/servers-backfill.json')
     .option('--yes', 'Confirm the rewrite of check_results, servers, monitors and incidents', { default: false })
     .action(async (options: RollbackCliOptions) => {
       try {

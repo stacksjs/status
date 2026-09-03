@@ -36,7 +36,7 @@ export default new Job({
     // Server is watched by CheckStaleServers off servers.last_sample_at, and
     // a box watched by both jobs would open two missed-push incidents for one
     // silent agent. This job is deleted outright in ship step 6.
-    // No token, no agent: servers:migrate nulls the token of a monitor whose
+    // No token, no agent: servers:backfill nulls the token of a monitor whose
     // agent never pushed, and nothing can push for it afterwards. A missed-push
     // incident there would reopen on every tick and could never resolve.
     const monitors = await Monitor.where('reports_metrics', true).where('enabled', true).whereNull('server_id').whereNotNull('metrics_token').get()

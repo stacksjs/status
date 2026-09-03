@@ -87,7 +87,7 @@ the card shows the answer, the dialog holds the form.
 
   Breach incidents are 52% of every incident ever raised. The 5 open "agent went quiet" incidents are the four
   never-installed tokens plus one monitor whose flag is off but whose token still exists; nothing can ever
-  resolve them today. Both groups are resolved by the migration.
+  resolve them today. Both groups are resolved by the backfill.
 - The deployed agent reads its token from an env file on a 60-second timer. **If the token value is carried
   over unchanged, no agent needs touching.**
 
@@ -102,7 +102,7 @@ sees `up → degraded` and opens another incident. Recovery also resolves only t
 
 With `Server` carrying its own state column written only by the ingest path and `CheckStaleMetrics`, the
 server incident keys off that column and there is no second writer. At most one open incident per server;
-changing breaches update it in place. The migration resolves the currently stacked incidents.
+changing breaches update it in place. The backfill resolves the currently stacked incidents.
 
 ## Backfill rules
 
@@ -111,9 +111,9 @@ changing breaches update it in place. The migration resolves the currently stack
 3. Monitors with a token and no samples get no server. Their `server_id` stays null and the orphan token is
    dropped. The ones on the shared box should be attached to that box's server by hand.
 4. Every open incident carrying the `server_metrics` marker — the 45 breach incidents and the 5 perpetual
-   quiet-agent ones, which share that marker — is resolved as part of the migration, with an incident update
+   quiet-agent ones, which share that marker — is resolved as part of the backfill, with an incident update
    saying why. Resolved through the query builder, not the model: the model is observed and would fan a
-   "resolved" notification out to every attached channel once per incident. A migration pages nobody.
+   "resolved" notification out to every attached channel once per incident. The backfill pages nobody.
 
 ## Where host samples live: a separate table
 
@@ -142,7 +142,7 @@ The full spec is in [SERVER-MODEL-SPEC.md](SERVER-MODEL-SPEC.md).
   single lock often enough to outlast the framework's five-second wait; every batch had committed or
   rolled back whole, so nothing was half-done. The fix was retry-with-backoff around every write and
   a smaller batch for the sweep, after which one pass finished with 24 lock waits absorbed. Backups
-  and the migration journal sit in `statushq-shared/backups`; `buddy servers:rollback` reverses one
+  and the backfill journal sit in `statushq-shared/backups`; `buddy servers:rollback` reverses one
   journal entry per invocation.
 - **Step 4, next.** The UI: server pages, the Server card, the attach dialog. This is the step that
   lets the HQ sites be grouped under the shared box's server.

@@ -1,19 +1,19 @@
-import type { MigrateReport, RollbackReport } from '../../app/Commands/MigrateServers'
+import type { MigrateReport, RollbackReport } from '../../app/Commands/BackfillServers'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import { Database } from 'bun:sqlite'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
-import { MIGRATION_RESOLVED_MESSAGE, ROLLBACK_REOPENED_MESSAGE } from '../../app/Commands/MigrateServers'
+import { BACKFILL_RESOLVED_MESSAGE, ROLLBACK_REOPENED_MESSAGE } from '../../app/Commands/BackfillServers'
 
 /**
- * `buddy servers:migrate` / `buddy servers:rollback` (SERVER-MODEL-SPEC.md §2
+ * `buddy servers:backfill` / `buddy servers:rollback` (SERVER-MODEL-SPEC.md §2
  * "Backfill", ship step 3) against a production-shaped scratch database.
  *
- * Every run is the real CLI in a SUBPROCESS — `bun buddy servers:migrate …`
+ * Every run is the real CLI in a SUBPROCESS — `bun buddy servers:backfill …`
  * from the app root, exactly as production invokes it — with its own env:
- * DB_DATABASE_PATH on the scratch file, SERVERS_MIGRATE_JOURNAL on a scratch
- * journal, SERVERS_MIGRATE_NOW pinning the clock and SERVERS_MIGRATE_JSON=1
+ * DB_DATABASE_PATH on the scratch file, SERVERS_BACKFILL_JOURNAL on a scratch
+ * journal, SERVERS_BACKFILL_NOW pinning the clock and SERVERS_BACKFILL_JSON=1
  * so the command prints its report as one parseable line. Nothing here sets
  * a DB env on this process or re-points the framework's shared connection:
  * an earlier version did (initializeDbConfig in beforeAll, restore in
@@ -41,9 +41,9 @@ import { MIGRATION_RESOLVED_MESSAGE, ROLLBACK_REOPENED_MESSAGE } from '../../app
  * open incidents that must survive.
  */
 const APP_ROOT = resolve(import.meta.dir, '../..')
-const SCRATCH_DIR = process.env.SERVERS_MIGRATE_SCRATCH || join(import.meta.dir, '../temp')
-const DB_PATH = join(SCRATCH_DIR, `servers-migrate-${process.pid}-${Date.now()}.sqlite`)
-const JOURNAL_PATH = join(SCRATCH_DIR, `servers-migrate-${process.pid}-${Date.now()}.journal.json`)
+const SCRATCH_DIR = process.env.SERVERS_BACKFILL_SCRATCH || join(import.meta.dir, '../temp')
+const DB_PATH = join(SCRATCH_DIR, `servers-backfill-${process.pid}-${Date.now()}.sqlite`)
+const JOURNAL_PATH = join(SCRATCH_DIR, `servers-backfill-${process.pid}-${Date.now()}.journal.json`)
 
 mkdirSync(SCRATCH_DIR, { recursive: true })
 
@@ -383,7 +383,7 @@ function journal(): any[] {
 
 interface RunResult<T> {
   exitCode: number
-  /** The SERVERS_MIGRATE_REPORT line, parsed; null when the command printed none. */
+  /** The SERVERS_BACKFILL_REPORT line, parsed; null when the command printed none. */
   report: T | null
   stdout: string
   stderr: string
@@ -391,7 +391,7 @@ interface RunResult<T> {
   output: string
 }
 
-const REPORT_PREFIX = 'SERVERS_MIGRATE_REPORT '
+const REPORT_PREFIX = 'SERVERS_BACKFILL_REPORT '
 let runSerial = 0
 
 /**
@@ -404,7 +404,7 @@ let runSerial = 0
  * output is captured on disk and read back once the process has exited.
  */
 async function buddy<T>(args: string[]): Promise<RunResult<T>> {
-  const stem = join(SCRATCH_DIR, `servers-migrate-${process.pid}-${Date.now()}-${++runSerial}`)
+  const stem = join(SCRATCH_DIR, `servers-backfill-${process.pid}-${Date.now()}-${++runSerial}`)
   const stdoutPath = `${stem}.stdout.log`
   const stderrPath = `${stem}.stderr.log`
   try {
@@ -413,10 +413,10 @@ async function buddy<T>(args: string[]): Promise<RunResult<T>> {
       env: {
         ...process.env,
         DB_DATABASE_PATH: DB_PATH,
-        SERVERS_MIGRATE_JOURNAL: JOURNAL_PATH,
-        SERVERS_MIGRATE_NOW: NOW,
-        SERVERS_MIGRATE_JSON: '1',
-        SERVERS_MIGRATE_BATCH: String(BATCH),
+        SERVERS_BACKFILL_JOURNAL: JOURNAL_PATH,
+        SERVERS_BACKFILL_NOW: NOW,
+        SERVERS_BACKFILL_JSON: '1',
+        SERVERS_BACKFILL_BATCH: String(BATCH),
       },
       stdin: 'ignore',
       stdout: Bun.file(stdoutPath),
@@ -441,7 +441,7 @@ type MigrateResult = RunResult<MigrateReport | { error: string }>
 type RollbackResult = RunResult<RollbackReport | { error: string }>
 
 function runMigrate(options: { dryRun?: boolean, final?: boolean } = {}): Promise<MigrateResult> {
-  return buddy(['servers:migrate', ...(options.dryRun ? ['--dry-run'] : []), ...(options.final ? ['--final'] : [])])
+  return buddy(['servers:backfill', ...(options.dryRun ? ['--dry-run'] : []), ...(options.final ? ['--final'] : [])])
 }
 
 function runRollback(options: { yes?: boolean } = { yes: true }): Promise<RollbackResult> {
@@ -473,7 +473,7 @@ function expectFailure(result: RunResult<unknown>, pattern: RegExp): void {
   expect(String((result.report as { error?: unknown }).error)).toMatch(pattern)
 }
 
-describe('servers:migrate', () => {
+describe('servers:backfill', () => {
   beforeAll(() => {
     raw = new Database(DB_PATH, { create: true })
     raw.run('PRAGMA journal_mode = WAL')
@@ -741,7 +741,7 @@ describe('servers:migrate', () => {
         expect(row.impacted_checks).toBe(before[id].impacted_checks)
         const update = one('SELECT * FROM incident_updates WHERE incident_id = ? ORDER BY id DESC LIMIT 1', id)
         expect(update.status).toBe('resolved')
-        expect(update.message).toBe(MIGRATION_RESOLVED_MESSAGE)
+        expect(update.message).toBe(BACKFILL_RESOLVED_MESSAGE)
         expect(update.posted_at).toBe(NOW)
       }
 
