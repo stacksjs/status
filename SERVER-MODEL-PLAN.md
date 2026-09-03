@@ -130,12 +130,22 @@ The full spec is in [SERVER-MODEL-SPEC.md](SERVER-MODEL-SPEC.md).
 
 ## Progress
 
-- **Step 1, done.** Both models, migrations 281–284, the retention job and its tests. Live in production;
-  nothing reads the new tables yet.
-- **Step 2, next.** Ingest resolves a server by token and writes samples; server state and the two
-  server-level incidents; notification fan-out.
-- **Step 3.** The backfill, per the rules above.
-- **Step 4.** The UI: server pages, the Server card, the attach dialog.
+- **Step 1, done.** Both models, migrations 281–284, the retention job and its tests.
+- **Step 2, done.** Ingest resolves a server by token and writes samples; server state reconciled from
+  state, never from an edge; both server incidents route as issues; the legacy path kept as a fallback
+  for monitors without a server.
+- **Step 3, done (2026-09-03).** The backfill ran against production: 4 servers created from the 4
+  tokens that had ever received a sample, 5 never-installed tokens dropped, 56 stacked incidents
+  resolved without paging anyone, and all 195,692 legacy agent rows moved out of `check_results`
+  with none left behind and every probe row untouched. It took two runs. The first stopped on
+  SQLite's `database is locked` after the schema phases, because the live app's writers hold the
+  single lock often enough to outlast the framework's five-second wait; every batch had committed or
+  rolled back whole, so nothing was half-done. The fix was retry-with-backoff around every write and
+  a smaller batch for the sweep, after which one pass finished with 24 lock waits absorbed. Backups
+  and the migration journal sit in `statushq-shared/backups`; `buddy servers:rollback` reverses one
+  journal entry per invocation.
+- **Step 4, next.** The UI: server pages, the Server card, the attach dialog. This is the step that
+  lets the HQ sites be grouped under the shared box's server.
 
 ## Open question
 
