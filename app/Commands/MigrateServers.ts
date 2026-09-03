@@ -193,6 +193,29 @@ export function journalPath(): string {
   return process.env.SERVERS_MIGRATE_JOURNAL || resolve(process.cwd(), 'storage/framework/servers-migrate.json')
 }
 
+/**
+ * The run's clock, when a caller pins it: an ISO timestamp in
+ * SERVERS_MIGRATE_NOW, honoured only when the options carry no `now`. The
+ * feature suite drives both commands as subprocesses, so this is how it
+ * fixes the timestamps it later asserts on. Unset or unparsable → null, and
+ * the wall clock is used.
+ */
+function pinnedNow(): string | null {
+  const value = process.env.SERVERS_MIGRATE_NOW
+  return value && Number.isFinite(Date.parse(value)) ? value : null
+}
+
+/**
+ * With SERVERS_MIGRATE_JSON=1 the CLI prints exactly one machine-readable
+ * line at the end of a run — `SERVERS_MIGRATE_REPORT ` followed by the
+ * report as JSON, or `{"error": message}` when the run threw — so a caller
+ * that spawns the command can read the result without scraping the log.
+ */
+function emitJsonReport(report: unknown): void {
+  if (process.env.SERVERS_MIGRATE_JSON === '1')
+    console.log(`SERVERS_MIGRATE_REPORT ${JSON.stringify(report)}`)
+}
+
 export function readJournal(): JournalEntry[] {
   const path = journalPath()
   if (!existsSync(path))
@@ -614,7 +637,7 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
   retryLog = options.log ?? (message => console.log(message))
   const dryRun = options.dryRun === true
   const final = options.final === true
-  const now = options.now ?? new Date().toISOString()
+  const now = options.now ?? pinnedNow() ?? new Date().toISOString()
   const nowMs = Date.parse(now)
   const log = options.log ?? ((line: string) => console.log(line))
 
@@ -901,7 +924,7 @@ async function restoreSamplesBatch(serverId: number, sampleIds: number[], monito
 }
 
 export async function runServersRollback(options: RollbackOptions = {}): Promise<RollbackReport> {
-  const now = options.now ?? new Date().toISOString()
+  const now = options.now ?? pinnedNow() ?? new Date().toISOString()
   const log = options.log ?? ((line: string) => console.log(line))
 
   if (options.yes !== true)
@@ -1057,12 +1080,15 @@ export default function (cli: CLI) {
     .option('--final', 'Also assert that no region=agent row remains in check_results', { default: false })
     .action(async (options: MigrateCliOptions) => {
       try {
-        await runServersMigrate({ dryRun: options.dryRun, final: options.final })
+        const report = await runServersMigrate({ dryRun: options.dryRun, final: options.final })
         console.log(options.dryRun ? '✓ Dry-run complete.' : '✓ servers:migrate complete.')
+        emitJsonReport(report)
         process.exit(ExitCode.Success)
       }
       catch (error) {
-        console.error(`✗ servers:migrate failed: ${error instanceof Error ? error.message : String(error)}`)
+        const message = error instanceof Error ? error.message : String(error)
+        console.error(`✗ servers:migrate failed: ${message}`)
+        emitJsonReport({ error: message })
         process.exit(ExitCode.FatalError)
       }
     })
@@ -1072,12 +1098,15 @@ export default function (cli: CLI) {
     .option('--yes', 'Confirm the rewrite of check_results, servers, monitors and incidents', { default: false })
     .action(async (options: RollbackCliOptions) => {
       try {
-        await runServersRollback({ yes: options.yes })
+        const report = await runServersRollback({ yes: options.yes })
         console.log('✓ servers:rollback complete.')
+        emitJsonReport(report)
         process.exit(ExitCode.Success)
       }
       catch (error) {
-        console.error(`✗ servers:rollback failed: ${error instanceof Error ? error.message : String(error)}`)
+        const message = error instanceof Error ? error.message : String(error)
+        console.error(`✗ servers:rollback failed: ${message}`)
+        emitJsonReport({ error: message })
         process.exit(ExitCode.FatalError)
       }
     })

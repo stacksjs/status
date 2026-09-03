@@ -1,26 +1,34 @@
+import type { MigrateReport, RollbackReport } from '../../app/Commands/MigrateServers'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import { Database } from 'bun:sqlite'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { MIGRATION_RESOLVED_MESSAGE, ROLLBACK_REOPENED_MESSAGE } from '../../app/Commands/MigrateServers'
 
 /**
  * `buddy servers:migrate` / `buddy servers:rollback` (SERVER-MODEL-SPEC.md §2
  * "Backfill", ship step 3) against a production-shaped scratch database.
  *
- * The suite's own database is never touched. The framework resolves the
- * SQLite path from its config object (config/database.ts reads
- * DB_DATABASE_PATH once, at evaluation) and caches the connection at module
- * level, so setting the env here only works when this file happens to be the
- * first to touch the database — true when it runs alone, false in CI, where
- * `bun buddy test` runs every suite in one process and an earlier file has
- * already opened the connection on the suite database. beforeAll therefore
- * re-points the framework explicitly with initializeDbConfig(), and afterAll
- * puts the original config back so
- * the suites that follow reconnect to theirs. Schema is built the way server-migrations.test.ts
- * builds it — the legacy tables inline from the migration files' text, then
- * 0000000281..0000000284 applied from disk. bun:sqlite on the same file gives
- * the assertions a second, independent connection for raw snapshots.
+ * Every run is the real CLI in a SUBPROCESS — `bun buddy servers:migrate …`
+ * from the app root, exactly as production invokes it — with its own env:
+ * DB_DATABASE_PATH on the scratch file, SERVERS_MIGRATE_JOURNAL on a scratch
+ * journal, SERVERS_MIGRATE_NOW pinning the clock and SERVERS_MIGRATE_JSON=1
+ * so the command prints its report as one parseable line. Nothing here sets
+ * a DB env on this process or re-points the framework's shared connection:
+ * an earlier version did (initializeDbConfig in beforeAll, restore in
+ * afterAll) and, under CI's single-process `bun buddy test`, left the ORM's
+ * auto-CRUD routes with a closed handle ("Cannot use a closed database") in
+ * suites that ran after it. The two message constants are imported for the
+ * assertions; importing the command module opens the framework's connection
+ * to the SUITE database the way every other feature suite's import of
+ * @stacksjs/database does, and touches nothing else.
+ *
+ * Schema is built the way server-migrations.test.ts builds it — the legacy
+ * tables inline from the migration files' text, then 0000000281..0000000284
+ * applied from disk. bun:sqlite on the same file gives the assertions their
+ * own connection for seeding, triggers and raw snapshots; WAL mode lets the
+ * subprocess write while it stays open.
  *
  * The fixture mirrors what production looked like on 2026-09-02
  * (scratchpad production-findings.md): two monitors that report host
@@ -32,21 +40,21 @@ import process from 'node:process'
  * (five on one monitor) + 5 open "agent went quiet" incidents, and unrelated
  * open incidents that must survive.
  */
+const APP_ROOT = resolve(import.meta.dir, '../..')
 const SCRATCH_DIR = process.env.SERVERS_MIGRATE_SCRATCH || join(import.meta.dir, '../temp')
 const DB_PATH = join(SCRATCH_DIR, `servers-migrate-${process.pid}-${Date.now()}.sqlite`)
 const JOURNAL_PATH = join(SCRATCH_DIR, `servers-migrate-${process.pid}-${Date.now()}.journal.json`)
 
 mkdirSync(SCRATCH_DIR, { recursive: true })
-// Deliberately NOT set at module load: `bun test` imports every file in the
-// run before executing any, so a top-level env mutation here would re-point
-// the whole process's database config at this scratch file — for every
-// suite, in every order — before a single test ran. beforeAll re-points the
-// framework explicitly, and afterAll hands it back.
 
 const MIGRATIONS_DIR = join(import.meta.dir, '../../database/migrations')
 
 const NOW = '2026-09-02T12:00:00.000Z'
 const MIN = 60_000
+/** Rows per sweep batch the subprocess is told to use (the command's default); the abort cases reason about batch boundaries. */
+const BATCH = 1000
+/** Each spawn boots bun + the framework (~3s); the longest case below runs eight. */
+const RUN_TIMEOUT = 120_000
 
 // Legacy tables as the live migrations created them (0000000116/117/118/119
 // plus the ALTERs 0000000156/192/193). Inline for the reason
@@ -369,14 +377,104 @@ function journal(): any[] {
   return JSON.parse(readFileSync(JOURNAL_PATH, 'utf8'))
 }
 
-const quiet = { log: () => {} }
+// ---------------------------------------------------------------------------
+// The CLI, as production runs it: `bun buddy <command>` in a subprocess
+// ---------------------------------------------------------------------------
 
-type Migrate = typeof import('../../app/Commands/MigrateServers')
-let cmd: Migrate
-let originalDbConfig: { app: unknown, database: unknown } | null = null
+interface RunResult<T> {
+  exitCode: number
+  /** The SERVERS_MIGRATE_REPORT line, parsed; null when the command printed none. */
+  report: T | null
+  stdout: string
+  stderr: string
+  /** stdout then stderr, for matching messages wherever the CLI put them. */
+  output: string
+}
+
+const REPORT_PREFIX = 'SERVERS_MIGRATE_REPORT '
+let runSerial = 0
+
+/**
+ * The child's stdout and stderr go to files, not pipes. When `bun test` runs
+ * a file that lives inside this project (as `bun buddy test` does), a child
+ * spawned with `stdout: 'pipe'` gets fds 1 and 2 it cannot write to — even
+ * `/bin/echo hi` exits 1 with "write error: Bad file descriptor" and the
+ * parent reads nothing — while the same spawn from a test file outside the
+ * project is fine (bun 1.3.14). A file target works in both, so the run's
+ * output is captured on disk and read back once the process has exited.
+ */
+async function buddy<T>(args: string[]): Promise<RunResult<T>> {
+  const stem = join(SCRATCH_DIR, `servers-migrate-${process.pid}-${Date.now()}-${++runSerial}`)
+  const stdoutPath = `${stem}.stdout.log`
+  const stderrPath = `${stem}.stderr.log`
+  try {
+    const proc = Bun.spawn([process.execPath, 'buddy', ...args], {
+      cwd: APP_ROOT,
+      env: {
+        ...process.env,
+        DB_DATABASE_PATH: DB_PATH,
+        SERVERS_MIGRATE_JOURNAL: JOURNAL_PATH,
+        SERVERS_MIGRATE_NOW: NOW,
+        SERVERS_MIGRATE_JSON: '1',
+        SERVERS_MIGRATE_BATCH: String(BATCH),
+      },
+      stdin: 'ignore',
+      stdout: Bun.file(stdoutPath),
+      stderr: Bun.file(stderrPath),
+    })
+    const exitCode = await proc.exited
+    const stdout = existsSync(stdoutPath) ? readFileSync(stdoutPath, 'utf8') : ''
+    const stderr = existsSync(stderrPath) ? readFileSync(stderrPath, 'utf8') : ''
+    const line = stdout.split('\n').find(l => l.startsWith(REPORT_PREFIX))
+    const report = line ? JSON.parse(line.slice(REPORT_PREFIX.length)) as T : null
+    return { exitCode, report, stdout, stderr, output: `${stdout}\n${stderr}` }
+  }
+  finally {
+    for (const path of [stdoutPath, stderrPath]) {
+      if (existsSync(path))
+        rmSync(path)
+    }
+  }
+}
+
+type MigrateResult = RunResult<MigrateReport | { error: string }>
+type RollbackResult = RunResult<RollbackReport | { error: string }>
+
+function runMigrate(options: { dryRun?: boolean, final?: boolean } = {}): Promise<MigrateResult> {
+  return buddy(['servers:migrate', ...(options.dryRun ? ['--dry-run'] : []), ...(options.final ? ['--final'] : [])])
+}
+
+function runRollback(options: { yes?: boolean } = { yes: true }): Promise<RollbackResult> {
+  return buddy(['servers:rollback', ...(options.yes ? ['--yes'] : [])])
+}
+
+/** A run that must succeed: exit 0 and a report on stdout. */
+async function migrate(options: { dryRun?: boolean, final?: boolean } = {}): Promise<MigrateReport & { output: string }> {
+  const result = await runMigrate(options)
+  expect(result.exitCode, result.output).toBe(0)
+  expect(result.report, result.output).toBeTruthy()
+  expect('error' in result.report!).toBe(false)
+  return { ...(result.report as MigrateReport), output: result.output }
+}
+
+async function rollback(): Promise<RollbackReport & { output: string }> {
+  const result = await runRollback({ yes: true })
+  expect(result.exitCode, result.output).toBe(0)
+  expect(result.report, result.output).toBeTruthy()
+  expect('error' in result.report!).toBe(false)
+  return { ...(result.report as RollbackReport), output: result.output }
+}
+
+/** A run that must fail: non-zero exit, the message on stdout/stderr and in the JSON line. */
+function expectFailure(result: RunResult<unknown>, pattern: RegExp): void {
+  expect(result.exitCode, result.output).not.toBe(0)
+  expect(result.output).toMatch(pattern)
+  expect(result.report).toBeTruthy()
+  expect(String((result.report as { error?: unknown }).error)).toMatch(pattern)
+}
 
 describe('servers:migrate', () => {
-  beforeAll(async () => {
+  beforeAll(() => {
     raw = new Database(DB_PATH, { create: true })
     raw.run('PRAGMA journal_mode = WAL')
     for (const statement of LEGACY_SCHEMA)
@@ -385,44 +483,9 @@ describe('servers:migrate', () => {
       for (const statement of statements(readFileSync(join(MIGRATIONS_DIR, file), 'utf8')))
         raw.run(statement)
     }
-    // Re-point the framework's connection at the scratch file no matter which
-    // suite touched the database first. ensureDatabaseConfigLoaded() runs the
-    // framework's own one-time init before we override it, so that init can
-    // never fire later and quietly put the suite database back.
-    //
-    // initializeDbConfig() only drops the cached instance, so the next use
-    // opens a fresh connection on the new path. It deliberately does NOT
-    // close anything: resetDatabaseConnection() closes the shared SQLite
-    // handle, and the ORM's auto-CRUD routes keep their own query-builder
-    // instance on that handle, so closing it here made every later route in
-    // the run fail with "Cannot use a closed database" once file order put
-    // this suite before them.
-    process.env.SERVERS_MIGRATE_JOURNAL = JOURNAL_PATH
-    const { config, awaitConfig } = await import('@stacksjs/config')
-    await awaitConfig()
-    const { ensureDatabaseConfigLoaded, initializeDbConfig } = await import('@stacksjs/database')
-    await ensureDatabaseConfigLoaded()
-    originalDbConfig = { app: config.app, database: config.database }
-    initializeDbConfig({
-      app: config.app,
-      database: {
-        ...config.database,
-        connections: {
-          ...config.database?.connections,
-          sqlite: { ...config.database?.connections?.sqlite, database: DB_PATH },
-        },
-      },
-    } as never)
-    cmd = await import('../../app/Commands/MigrateServers')
   })
 
-  afterAll(async () => {
-    // Hand the connection back to the suite database for whatever runs next
-    // (drops our cached instance; closes nothing — see beforeAll).
-    const { initializeDbConfig } = await import('@stacksjs/database')
-    if (originalDbConfig)
-      initializeDbConfig(originalDbConfig as never)
-    delete process.env.SERVERS_MIGRATE_JOURNAL
+  afterAll(() => {
     raw?.close()
     for (const suffix of ['', '-wal', '-shm', '-journal']) {
       if (existsSync(`${DB_PATH}${suffix}`))
@@ -436,12 +499,6 @@ describe('servers:migrate', () => {
     resetAndSeed()
   })
 
-  test('the framework connection is on the scratch file, not the suite database', async () => {
-    const { db } = await import('@stacksjs/database')
-    expect(Number(await db.selectFrom('monitors').count())).toBe(MONITORS.length)
-    expect(Number(await db.selectFrom('check_results').where('region', '=', 'agent').count())).toBe(count(`SELECT COUNT(*) AS n FROM check_results WHERE region = 'agent'`))
-  })
-
   test('fixture sanity: the production shape is present', () => {
     expect(count(`SELECT COUNT(*) AS n FROM check_results WHERE region = 'agent'`)).toBe(119 + 4 + 10 + 60 + 2400 + 281 + 10)
     expect(openIncidentIds()).toHaveLength(45 + 5 + 9)
@@ -451,8 +508,7 @@ describe('servers:migrate', () => {
   describe('--dry-run', () => {
     test('prints every count and writes nothing', async () => {
       const before = snapshot()
-      const lines: string[] = []
-      const report = await cmd.runServersMigrate({ dryRun: true, now: NOW, log: line => lines.push(line) })
+      const report = await migrate({ dryRun: true })
 
       expect(snapshot()).toEqual(before)
       expect(existsSync(JOURNAL_PATH)).toBe(false)
@@ -466,19 +522,19 @@ describe('servers:migrate', () => {
       expect(report.totals.inserted).toBe(0)
       expect(report.agentRowsRemaining).toBe(2884)
 
-      const text = lines.join('\n')
+      const text = report.output
       expect(text).toContain('[dry-run]')
       expect(text).toContain('servers created:            5')
       expect(text).toContain('orphan tokens dropped:      4')
       expect(text).toContain('incidents resolved:         50')
       expect(text).toContain('metric-less rows dropped:   4')
       expect(text).toContain('(dry-run: nothing written)')
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B1 population', () => {
     test('one server per distinct token with agent rows, grouped by token and never by host label', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
 
       expect(count('SELECT COUNT(*) AS n FROM servers')).toBe(5)
       const shared = serverByToken(TOKENS.shared)
@@ -493,34 +549,34 @@ describe('servers:migrate', () => {
       expect(monitor(49).server_id).toBe(redline.id)
       expect(monitor(51).server_id).toBe(serverByToken(TOKENS.api).id)
       expect(monitor(60).server_id).toBe(serverByToken(TOKENS.stage).id)
-    })
+    }, RUN_TIMEOUT)
 
     test('reports_metrics is never read: a flag-off monitor with a live token gets a server', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       const bughq = serverByToken(TOKENS.bughq)
       expect(bughq).toBeTruthy()
       expect(monitor(55).server_id).toBe(bughq.id)
       expect(monitor(55).reports_metrics).toBe(0)
-    })
+    }, RUN_TIMEOUT)
 
     test('no token is minted: every server token is one a monitor already had', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       const seeded = new Set(MONITORS.map(m => m.metrics_token).filter(Boolean))
       for (const row of all('SELECT metrics_token FROM servers'))
         expect(seeded.has(String(row.metrics_token))).toBe(true)
-    })
+    }, RUN_TIMEOUT)
 
     test('a token shared across teams aborts before anything is written', async () => {
       raw.run('UPDATE monitors SET team_id = 8 WHERE id = 64')
       const before = snapshot()
-      await expect(cmd.runServersMigrate({ now: NOW, ...quiet })).rejects.toThrow(/spans teams 7, 8/)
+      expectFailure(await runMigrate(), /spans teams 7, 8/)
       expect(snapshot()).toEqual(before)
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B2 server row', () => {
     test('carries the monitor name, team, verbatim token, parsed thresholds, last_sample_at and a uuid', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
 
       const shared = serverByToken(TOKENS.shared)
       expect(shared.team_id).toBe(TEAM)
@@ -553,12 +609,12 @@ describe('servers:migrate', () => {
       const redline = serverByToken(TOKENS.redline)
       expect(redline.cpu_threshold).toBe(90)
       expect(redline.metrics_window_seconds).toBe(300)
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B3 orphans', () => {
     test('tokens with no agent rows get no server and are nulled, and the journal keeps them', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       for (const id of [56, 57, 58, 62]) {
         expect(monitor(id).metrics_token).toBeNull()
         expect(monitor(id).server_id).toBeNull()
@@ -574,7 +630,7 @@ describe('servers:migrate', () => {
         { monitor_id: 58, token: TOKENS.analyticshq },
         { monitor_id: 62, token: TOKENS.usa },
       ])
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B4 samples', () => {
@@ -582,7 +638,7 @@ describe('servers:migrate', () => {
       const probesBefore = all(`SELECT * FROM check_results WHERE region != 'agent' ORDER BY id`)
       const legacy = all(`SELECT * FROM check_results WHERE region = 'agent' ORDER BY id`)
 
-      const report = await cmd.runServersMigrate({ now: NOW, ...quiet })
+      const report = await migrate()
 
       expect(all(`SELECT * FROM check_results WHERE region != 'agent' ORDER BY id`)).toEqual(probesBefore)
       expect(count(`SELECT COUNT(*) AS n FROM check_results WHERE region = 'agent'`)).toBe(0)
@@ -615,23 +671,23 @@ describe('servers:migrate', () => {
       expect(count('SELECT COUNT(*) AS n FROM server_metric_samples WHERE server_id = ?', shared.id)).toBe(119 + 10)
       expect(report.samples[TOKENS.shared]).toEqual({ read: 133, convertible: 129, metricless: 4, inserted: 129 })
       expect(count('SELECT COUNT(*) AS n FROM server_metric_samples WHERE server_id = ?', serverByToken(TOKENS.api).id)).toBe(2400)
-    })
+    }, RUN_TIMEOUT)
 
     test('a batch whose insert falls short aborts before deleting its source rows', async () => {
       // Silently swallow the insert of one easyotc row: inserted != convertible.
       raw.run(`CREATE TRIGGER poison BEFORE INSERT ON server_metric_samples WHEN NEW.sampled_at = '${ago(1500)}' BEGIN SELECT RAISE(IGNORE); END`)
       try {
         const agentBefore = count(`SELECT COUNT(*) AS n FROM check_results WHERE region = 'agent'`)
-        await expect(cmd.runServersMigrate({ now: NOW, ...quiet })).rejects.toThrow(/aborting before deleting anything/)
+        expectFailure(await runMigrate(), /aborting before deleting anything/)
 
         // The poisoned batch's rows are all still there, and none of its samples landed.
         const api = serverByToken(TOKENS.api)
         expect(api).toBeTruthy()
         const poisoned = one(`SELECT id FROM check_results WHERE monitor_id = 51 AND checked_at = ?`, ago(1500))
         expect(poisoned).toBeTruthy()
-        const from = Math.floor((Number(poisoned.id) - Number(one(`SELECT MIN(id) AS id FROM check_results WHERE monitor_id IN (51) AND region = 'agent'`).id)) / cmd.BATCH)
-        const lo = Number(one(`SELECT MIN(id) AS id FROM check_results WHERE monitor_id IN (51) AND region = 'agent'`).id) + from * cmd.BATCH
-        const batchRows = count(`SELECT COUNT(*) AS n FROM check_results WHERE monitor_id = 51 AND region = 'agent' AND id >= ? AND id < ?`, lo, lo + cmd.BATCH)
+        const from = Math.floor((Number(poisoned.id) - Number(one(`SELECT MIN(id) AS id FROM check_results WHERE monitor_id IN (51) AND region = 'agent'`).id)) / BATCH)
+        const lo = Number(one(`SELECT MIN(id) AS id FROM check_results WHERE monitor_id IN (51) AND region = 'agent'`).id) + from * BATCH
+        const batchRows = count(`SELECT COUNT(*) AS n FROM check_results WHERE monitor_id = 51 AND region = 'agent' AND id >= ? AND id < ?`, lo, lo + BATCH)
         expect(batchRows).toBeGreaterThan(0)
         expect(count(`SELECT COUNT(*) AS n FROM server_metric_samples WHERE server_id = ? AND sampled_at = ?`, api.id, ago(1500))).toBe(0)
         // Every source row either moved (sample exists) or is still in place — none lost.
@@ -643,27 +699,27 @@ describe('servers:migrate', () => {
       finally {
         raw.run('DROP TRIGGER poison')
       }
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B5 status', () => {
     test('healthy / hot / quiet from the moved samples inside the window', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       expect(serverByToken(TOKENS.shared).status).toBe('healthy')
       expect(serverByToken(TOKENS.redline).status).toBe('healthy')
       expect(serverByToken(TOKENS.bughq).status).toBe('healthy')
       expect(serverByToken(TOKENS.api).status).toBe('hot')
       expect(serverByToken(TOKENS.stage).status).toBe('quiet')
       expect(count(`SELECT COUNT(*) AS n FROM servers WHERE status = 'unknown'`)).toBe(0)
-    })
+    }, RUN_TIMEOUT)
 
     test('only a metric-less row inside the window is healthy, not quiet', async () => {
       raw.run(`DELETE FROM check_results WHERE monitor_id IN (48, 64) AND region = 'agent' AND checked_at >= ?`, [ago(5)] as never)
       raw.run(`UPDATE check_results SET checked_at = ? WHERE monitor_id = 48 AND region = 'agent' AND metadata = '{}'`, [ago(2)] as never)
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       expect(serverByToken(TOKENS.shared).status).toBe('healthy')
       expect(serverByToken(TOKENS.shared).last_sample_at).toBe(ago(2))
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B6 incidents', () => {
@@ -673,7 +729,7 @@ describe('servers:migrate', () => {
       const targets = all(`SELECT id FROM incidents WHERE resolved_at IS NULL AND impacted_checks LIKE '%server_metrics%' ORDER BY id`).map(r => Number(r.id))
       expect(targets).toHaveLength(50)
 
-      const report = await cmd.runServersMigrate({ now: NOW, ...quiet })
+      const report = await migrate()
       expect(report.incidentsResolved).toEqual(targets)
 
       for (const id of targets) {
@@ -685,7 +741,7 @@ describe('servers:migrate', () => {
         expect(row.impacted_checks).toBe(before[id].impacted_checks)
         const update = one('SELECT * FROM incident_updates WHERE incident_id = ? ORDER BY id DESC LIMIT 1', id)
         expect(update.status).toBe('resolved')
-        expect(update.message).toBe(cmd.MIGRATION_RESOLVED_MESSAGE)
+        expect(update.message).toBe(MIGRATION_RESOLVED_MESSAGE)
         expect(update.posted_at).toBe(NOW)
       }
 
@@ -700,22 +756,22 @@ describe('servers:migrate', () => {
         expect(row).toEqual(before[Number(row.id)])
       expect(all('SELECT * FROM incident_updates ORDER BY id').slice(0, updatesBefore.length)).toEqual(updatesBefore)
       expect(count('SELECT COUNT(*) AS n FROM incident_updates')).toBe(updatesBefore.length + 50)
-    })
+    }, RUN_TIMEOUT)
 
     test('the orphan monitors\' perpetual quiet incidents are resolved even though they get no server', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       for (const id of [56, 57, 58, 62]) {
         expect(count(`SELECT COUNT(*) AS n FROM incidents WHERE monitor_id = ? AND resolved_at IS NULL`, id)).toBe(0)
         expect(monitor(id).server_id).toBeNull()
       }
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B7 idempotent and re-runnable', () => {
     test('running twice produces identical state', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       const first = snapshot()
-      const report = await cmd.runServersMigrate({ now: NOW, ...quiet })
+      const report = await migrate()
       expect(snapshot()).toEqual(first)
       expect(report.serversCreated).toHaveLength(0)
       expect(report.serversExisting).toHaveLength(5)
@@ -723,17 +779,17 @@ describe('servers:migrate', () => {
       expect(report.incidentsResolved).toHaveLength(0)
       expect(report.totals.read).toBe(0)
       expect(journal()).toHaveLength(2)
-    })
+    }, RUN_TIMEOUT)
 
     test('--final sweeps rows an old-code process wrote between runs', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       const api = serverByToken(TOKENS.api)
       const samplesBefore = count('SELECT COUNT(*) AS n FROM server_metric_samples WHERE server_id = ?', api.id)
       for (let i = 0; i < 3; i++)
         insert('check_results', legacyRow(51, 'ip-172-31-7-9', ago(-i - 1), { cpu: 31, ram: 36, disk: 41 }))
       insert('check_results', legacyRow(64, 'default', ago(-1), { cpu: 8, ram: 40 }))
 
-      const report = await cmd.runServersMigrate({ now: NOW, final: true, ...quiet })
+      const report = await migrate({ final: true })
       expect(report.serversCreated).toHaveLength(0)
       expect(report.totals).toEqual({ read: 4, convertible: 4, metricless: 0, inserted: 4 })
       expect(report.agentRowsRemaining).toBe(0)
@@ -742,17 +798,17 @@ describe('servers:migrate', () => {
       expect(count('SELECT COUNT(*) AS n FROM servers')).toBe(5)
       expect(journal()).toHaveLength(2)
       expect(journal()[1].final).toBe(true)
-    })
+    }, RUN_TIMEOUT)
 
     test('--final fails when an agent row cannot be swept because its monitor has no token', async () => {
       insert('check_results', legacyRow(70, 'default', ago(3), { cpu: 1, ram: 2 }))
-      const lines: string[] = []
-      await expect(cmd.runServersMigrate({ now: NOW, final: true, log: line => lines.push(line) })).rejects.toThrow(/1 region='agent' row\(s\) remain.*monitor 70, which has no token/)
-      expect(lines.join('\n')).toContain('agent rows on token-less monitors (not swept): monitor 70: 1')
+      const result = await runMigrate({ final: true })
+      expectFailure(result, /1 region='agent' row\(s\) remain.*monitor 70, which has no token/)
+      expect(result.stdout).toContain('agent rows on token-less monitors (not swept): monitor 70: 1')
       // Everything else still migrated; the leftover row is exactly the one reported.
       expect(count('SELECT COUNT(*) AS n FROM servers')).toBe(5)
       expect(all(`SELECT monitor_id FROM check_results WHERE region = 'agent'`)).toEqual([{ monitor_id: 70 }])
-    })
+    }, RUN_TIMEOUT)
 
     test('a server that already exists is skipped for creation but its monitors are attached and swept', async () => {
       const api = serverByToken(TOKENS.api)
@@ -760,7 +816,7 @@ describe('servers:migrate', () => {
       insert('servers', { team_id: TEAM, name: 'pre-made', metrics_token: TOKENS.api, status: 'healthy', last_sample_at: ago(1), uuid: crypto.randomUUID(), created_at: ago(2), updated_at: ago(2) })
       const pre = serverByToken(TOKENS.api)
 
-      const report = await cmd.runServersMigrate({ now: NOW, ...quiet })
+      const report = await migrate()
       expect(report.serversCreated).toHaveLength(4)
       expect(report.serversExisting).toEqual([{ id: Number(pre.id), token: TOKENS.api, monitor_ids: [51] }])
       expect(monitor(51).server_id).toBe(pre.id)
@@ -769,12 +825,12 @@ describe('servers:migrate', () => {
       expect(serverByToken(TOKENS.api).name).toBe('pre-made')
       expect(serverByToken(TOKENS.api).status).toBe('healthy')
       expect(journal()[0].servers_created.map((s: any) => s.token)).not.toContain(TOKENS.api)
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B8 journal', () => {
     test('one entry per run with servers, orphans, per-server sample counts, incidents and timestamps', async () => {
-      const report = await cmd.runServersMigrate({ now: NOW, ...quiet })
+      const report = await migrate()
       const entries = journal()
       expect(entries).toHaveLength(1)
       const [entry] = entries
@@ -802,14 +858,14 @@ describe('servers:migrate', () => {
       expect(entry.incidents_resolved).toHaveLength(50)
       expect(entry.outcome).toBe('complete')
       expect(entry.error).toBeNull()
-    })
+    }, RUN_TIMEOUT)
 
     test('an aborted run is journaled as it goes, so nothing it wrote is unrecorded', async () => {
       // Poison one easyotc row in the third batch: phase D trips after the
       // servers, orphans, incidents and the earlier sweeps have all landed.
       raw.run(`CREATE TRIGGER poison BEFORE INSERT ON server_metric_samples WHEN NEW.host = 'ip-172-31-7-9' AND NEW.sampled_at = '${ago(100)}' BEGIN SELECT RAISE(IGNORE); END`)
       try {
-        await expect(cmd.runServersMigrate({ now: NOW, ...quiet })).rejects.toThrow(/aborting before deleting anything/)
+        expectFailure(await runMigrate(), /aborting before deleting anything/)
       }
       finally {
         raw.run('DROP TRIGGER poison')
@@ -842,14 +898,12 @@ describe('servers:migrate', () => {
       }
       const api = entry.samples_moved.find((s: any) => s.token === TOKENS.api)
       expect(api.read).toBeLessThan(2400)
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('B9 report', () => {
     test('prints the final counts', async () => {
-      const lines: string[] = []
-      await cmd.runServersMigrate({ now: NOW, log: line => lines.push(line) })
-      const text = lines.join('\n')
+      const { output: text } = await migrate()
       expect(text).toContain('servers created:            5')
       expect(text).toContain('monitors attached:          6')
       expect(text).toContain('orphan tokens dropped:      4 (monitors 56, 57, 58, 62)')
@@ -859,22 +913,22 @@ describe('servers:migrate', () => {
       expect(text).toContain('incidents resolved:         50')
       expect(text).toContain('agent rows remaining:       0')
       expect(text).toContain('tokens without a server:    0 (must be 0)')
-    })
+    }, RUN_TIMEOUT)
   })
 
   describe('servers:rollback', () => {
     test('refuses without --yes', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
-      await expect(cmd.runServersRollback({ now: NOW })).rejects.toThrow(/--yes/)
-    })
+      await migrate()
+      expectFailure(await runRollback({ yes: false }), /--yes/)
+    }, RUN_TIMEOUT)
 
     test('restores the pre-migration state on every affected table', async () => {
       const before = snapshot()
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       const migrated = snapshot()
       expect(migrated).not.toEqual(before)
 
-      const report = await cmd.runServersRollback({ yes: true, now: NOW, ...quiet })
+      const report = await rollback()
       const after = snapshot()
 
       expect(report.serversDeleted).toHaveLength(5)
@@ -909,28 +963,28 @@ describe('servers:migrate', () => {
       const reopened = after.incident_updates.slice(-50)
       for (const update of reopened) {
         expect(update.status).toBe('investigating')
-        expect(update.message).toBe(cmd.ROLLBACK_REOPENED_MESSAGE)
+        expect(update.message).toBe(ROLLBACK_REOPENED_MESSAGE)
         expect(update.posted_at).toBe(NOW)
       }
       expect(journal()[0].rolled_back_at).toBe(NOW)
-    })
+    }, RUN_TIMEOUT)
 
     test('reverses a --final sweep and then the creating run, one entry at a time', async () => {
       const before = snapshot()
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       const extra = legacyRow(51, 'ip-172-31-7-9', ago(-2), { cpu: 33, ram: 36, disk: 41 })
       insert('check_results', extra)
-      await cmd.runServersMigrate({ now: NOW, final: true, ...quiet })
+      await migrate({ final: true })
       expect(count(`SELECT COUNT(*) AS n FROM check_results WHERE region = 'agent'`)).toBe(0)
 
-      const first = await cmd.runServersRollback({ yes: true, now: NOW, ...quiet })
+      const first = await rollback()
       expect(first.serversDeleted).toEqual([])
       expect(first.samplesRestored).toBe(1)
       expect(first.entriesRemaining).toBe(1)
       expect(count('SELECT COUNT(*) AS n FROM servers')).toBe(5)
       expect(one(`SELECT metadata FROM check_results WHERE region = 'agent'`).metadata).toBe(extra.metadata)
 
-      const second = await cmd.runServersRollback({ yes: true, now: NOW, ...quiet })
+      const second = await rollback()
       expect(second.serversDeleted).toHaveLength(5)
       expect(second.entriesRemaining).toBe(0)
       const after = snapshot()
@@ -940,23 +994,22 @@ describe('servers:migrate', () => {
       const restored = checkResultsShape(after.check_results)
       const expected = checkResultsShape([...before.check_results, extra as Row])
       expect(restored).toEqual(expected)
-      await expect(cmd.runServersRollback({ yes: true, now: NOW, ...quiet })).rejects.toThrow(/nothing to reverse/)
-    })
+      expectFailure(await runRollback(), /nothing to reverse/)
+    }, RUN_TIMEOUT)
 
     test('reverses an aborted run, and a re-run after the abort, back to the pre-migration state', async () => {
       const before = snapshot()
       raw.run(`CREATE TRIGGER poison BEFORE INSERT ON server_metric_samples WHEN NEW.host = 'ip-172-31-7-9' AND NEW.sampled_at = '${ago(100)}' BEGIN SELECT RAISE(IGNORE); END`)
       try {
-        await expect(cmd.runServersMigrate({ now: NOW, ...quiet })).rejects.toThrow(/aborting before deleting anything/)
+        expectFailure(await runMigrate(), /aborting before deleting anything/)
       }
       finally {
         raw.run('DROP TRIGGER poison')
       }
 
       // Straight back from the aborted run alone.
-      const lines: string[] = []
-      const report = await cmd.runServersRollback({ yes: true, now: NOW, log: line => lines.push(line) })
-      expect(lines.join('\n')).toContain('that run ABORTED')
+      const report = await rollback()
+      expect(report.output).toContain('that run ABORTED')
       expect(report.serversDeleted).toHaveLength(5)
       expect(report.tokensRestored).toBe(4)
       expect(report.incidentsReopened).toHaveLength(50)
@@ -975,22 +1028,22 @@ describe('servers:migrate', () => {
       const reseeded = snapshot()
       raw.run(`CREATE TRIGGER poison BEFORE INSERT ON server_metric_samples WHEN NEW.host = 'ip-172-31-7-9' AND NEW.sampled_at = '${ago(100)}' BEGIN SELECT RAISE(IGNORE); END`)
       try {
-        await expect(cmd.runServersMigrate({ now: NOW, ...quiet })).rejects.toThrow(/aborting before deleting anything/)
+        expectFailure(await runMigrate(), /aborting before deleting anything/)
       }
       finally {
         raw.run('DROP TRIGGER poison')
       }
-      const rerun = await cmd.runServersMigrate({ now: NOW, final: true, ...quiet })
+      const rerun = await migrate({ final: true })
       expect(rerun.serversCreated).toHaveLength(0)
       expect(rerun.serversExisting).toHaveLength(5)
       expect(rerun.agentRowsRemaining).toBe(0)
       expect(count('SELECT COUNT(*) AS n FROM server_metric_samples')).toBe(2880)
       expect(journal().map((e: any) => e.outcome)).toEqual(['aborted', 'complete'])
 
-      const first = await cmd.runServersRollback({ yes: true, now: NOW, ...quiet })
+      const first = await rollback()
       expect(first.serversDeleted).toEqual([])
       expect(first.entriesRemaining).toBe(1)
-      const second = await cmd.runServersRollback({ yes: true, now: NOW, ...quiet })
+      const second = await rollback()
       expect(second.serversDeleted).toHaveLength(5)
       expect(second.tokensRestored).toBe(4)
       expect(second.incidentsReopened).toHaveLength(50)
@@ -1001,30 +1054,30 @@ describe('servers:migrate', () => {
       expect(restored.server_metric_samples).toEqual([])
       expect(checkResultsShape(restored.check_results)).toEqual(checkResultsShape(reseeded.check_results))
       expect(openIncidentIds()).toEqual(reseeded.incidents.filter(i => i.resolved_at === null).map(i => Number(i.id)))
-    })
+    }, RUN_TIMEOUT)
 
     test('refuses when a created server has received samples after the migration, and changes nothing', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       const api = serverByToken(TOKENS.api)
       const [entry] = journal()
       const later = new Date(Date.parse(entry.finished_at) + 5 * MIN).toISOString()
       insert('server_metric_samples', { host: 'ip-172-31-7-9', cpu_percent: 12, ram_percent: 30, ram_used_mb: 1, ram_total_mb: 2, disk_percent: null, breaches: '[]', sampled_at: later, server_id: api.id, created_at: later })
       const migrated = snapshot()
 
-      await expect(cmd.runServersRollback({ yes: true, now: NOW, ...quiet })).rejects.toThrow(new RegExp(`refusing — server ${api.id}: 1 sample\\(s\\) after ${entry.finished_at}, newest ${later}.*DELETE FROM server_metric_samples`))
+      expectFailure(await runRollback(), new RegExp(`refusing — server ${api.id}: 1 sample\\(s\\) after ${entry.finished_at}, newest ${later}.*DELETE FROM server_metric_samples`))
       expect(snapshot()).toEqual(migrated)
       expect(journal()[0].rolled_back_at).toBeNull()
-    })
+    }, RUN_TIMEOUT)
 
     test('a server incident opened after the migration is resolved by the rollback', async () => {
-      await cmd.runServersMigrate({ now: NOW, ...quiet })
+      await migrate()
       const api = serverByToken(TOKENS.api)
       insert('incidents', { started_at: NOW, resolved_at: null, cause: 'ip-172-31-7-9: CPU 95% ≥ 50%', status: 'investigating', impacted_checks: JSON.stringify([{ type: 'server_hot', hosts: [] }]), monitor_id: null, server_id: api.id, created_at: NOW, updated_at: NOW, uuid: crypto.randomUUID() })
-      const report = await cmd.runServersRollback({ yes: true, now: NOW, ...quiet })
+      const report = await rollback()
       expect(report.serverIncidentsResolved).toBe(1)
       const row = one('SELECT * FROM incidents WHERE server_id = ?', api.id)
       expect(row.status).toBe('resolved')
       expect(row.resolved_at).toBe(NOW)
-    })
+    }, RUN_TIMEOUT)
   })
 })
