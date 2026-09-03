@@ -8,10 +8,16 @@ import process from 'node:process'
  * `buddy servers:migrate` / `buddy servers:rollback` (SERVER-MODEL-SPEC.md §2
  * "Backfill", ship step 3) against a production-shaped scratch database.
  *
- * The suite's own database is never touched: DB_DATABASE_PATH is pointed at a
- * throwaway SQLite file BEFORE the framework's `db` first connects (the env
- * proxy reads process.env live and the connection is opened lazily on the
- * first query), and the schema is built the way server-migrations.test.ts
+ * The suite's own database is never touched. The framework resolves the
+ * SQLite path from its config object (config/database.ts reads
+ * DB_DATABASE_PATH once, at evaluation) and caches the connection at module
+ * level, so setting the env here only works when this file happens to be the
+ * first to touch the database — true when it runs alone, false in CI, where
+ * `bun buddy test` runs every suite in one process and an earlier file has
+ * already opened the connection on the suite database. beforeAll therefore
+ * re-points the framework explicitly with initializeDbConfig() +
+ * resetDatabaseConnection(), and afterAll puts the original config back so
+ * the suites that follow reconnect to theirs. Schema is built the way server-migrations.test.ts
  * builds it — the legacy tables inline from the migration files' text, then
  * 0000000281..0000000284 applied from disk. bun:sqlite on the same file gives
  * the assertions a second, independent connection for raw snapshots.
@@ -31,8 +37,11 @@ const DB_PATH = join(SCRATCH_DIR, `servers-migrate-${process.pid}-${Date.now()}.
 const JOURNAL_PATH = join(SCRATCH_DIR, `servers-migrate-${process.pid}-${Date.now()}.journal.json`)
 
 mkdirSync(SCRATCH_DIR, { recursive: true })
-process.env.DB_DATABASE_PATH = DB_PATH
-process.env.SERVERS_MIGRATE_JOURNAL = JOURNAL_PATH
+// Deliberately NOT set at module load: `bun test` imports every file in the
+// run before executing any, so a top-level env mutation here would re-point
+// the whole process's database config at this scratch file — for every
+// suite, in every order — before a single test ran. beforeAll re-points the
+// framework explicitly, and afterAll hands it back.
 
 const MIGRATIONS_DIR = join(import.meta.dir, '../../database/migrations')
 
@@ -364,6 +373,7 @@ const quiet = { log: () => {} }
 
 type Migrate = typeof import('../../app/Commands/MigrateServers')
 let cmd: Migrate
+let originalDbConfig: { app: unknown, database: unknown } | null = null
 
 describe('servers:migrate', () => {
   beforeAll(async () => {
@@ -375,14 +385,37 @@ describe('servers:migrate', () => {
       for (const statement of statements(readFileSync(join(MIGRATIONS_DIR, file), 'utf8')))
         raw.run(statement)
     }
-    // Imported after the env points at the scratch file, so the framework's
-    // lazily-opened connection lands there and nowhere else.
-    cmd = await import('../../app/Commands/MigrateServers')
-    const { awaitConfig } = await import('@stacksjs/config')
+    // Re-point the framework's connection at the scratch file no matter which
+    // suite touched the database first. ensureDatabaseConfigLoaded() runs the
+    // framework's own one-time init before we override it, so that init can
+    // never fire later and quietly put the suite database back.
+    process.env.SERVERS_MIGRATE_JOURNAL = JOURNAL_PATH
+    const { config, awaitConfig } = await import('@stacksjs/config')
     await awaitConfig()
+    const { ensureDatabaseConfigLoaded, initializeDbConfig, resetDatabaseConnection } = await import('@stacksjs/database')
+    await ensureDatabaseConfigLoaded()
+    originalDbConfig = { app: config.app, database: config.database }
+    initializeDbConfig({
+      app: config.app,
+      database: {
+        ...config.database,
+        connections: {
+          ...config.database?.connections,
+          sqlite: { ...config.database?.connections?.sqlite, database: DB_PATH },
+        },
+      },
+    } as never)
+    resetDatabaseConnection()
+    cmd = await import('../../app/Commands/MigrateServers')
   })
 
-  afterAll(() => {
+  afterAll(async () => {
+    // Hand the connection back to the suite database for whatever runs next.
+    const { initializeDbConfig, resetDatabaseConnection } = await import('@stacksjs/database')
+    if (originalDbConfig)
+      initializeDbConfig(originalDbConfig as never)
+    resetDatabaseConnection()
+    delete process.env.SERVERS_MIGRATE_JOURNAL
     raw?.close()
     for (const suffix of ['', '-wal', '-shm', '-journal']) {
       if (existsSync(`${DB_PATH}${suffix}`))

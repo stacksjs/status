@@ -5,8 +5,6 @@ import process from 'node:process'
 import { db } from '@stacksjs/database'
 import { transaction } from '@stacksjs/orm'
 import { ExitCode } from '@stacksjs/types'
-import Incident from '../Models/Incident'
-import IncidentUpdate from '../Models/IncidentUpdate'
 import { parseMetricsThresholds } from '../Actions/Agents/metricsThresholds'
 import { aggregateHostStatus, normalizeHost, numberOrNull, readingsFromSamples, serverStatusFromFleet } from '../lib/agentHosts'
 
@@ -36,7 +34,11 @@ import { aggregateHostStatus, normalizeHost, numberOrNull, readingsFromSamples, 
  *   C  every open incident carrying a type:'server_metrics' marker — the
  *      breach shape and the reason:'missed_push' shape alike, on every
  *      monitor whether or not it gets a server — is resolved with an
- *      IncidentUpdate. Model calls on purpose, so incident:updated fires.
+ *      IncidentUpdate. Raw query-builder writes on purpose, NOT model calls:
+ *      Incident is observed and incident:updated fans out to
+ *      SendIncidentResolvedNotification, so resolving 55 incidents through
+ *      the model would page every attached channel 55 times during a
+ *      migration. The timeline note is the record; nobody needs waking.
  *   D  agent rows move into server_metric_samples in id-range batches of
  *      1000, one transaction per batch, and every batch asserts
  *      inserted == convertible and convertible + metric-less == read BEFORE
@@ -339,6 +341,30 @@ async function tokenGroups(): Promise<TokenGroup[]> {
 }
 
 /** Open incidents that carry a server_metrics marker, on any monitor. */
+/**
+ * Resolve one incident and leave a timeline note, through the query builder
+ * rather than the Incident model. The model is observed: incident:updated
+ * fans out to SendIncidentResolvedNotification, and a migration that closes
+ * dozens of incidents must not page every attached channel once per row.
+ * The note in incident_updates is the durable record of what happened.
+ */
+async function resolveIncidentQuietly(id: number, message: string, at: string): Promise<void> {
+  await db.updateTable('incidents').set({ status: 'resolved', resolved_at: at, updated_at: at } as never).where('id', '=', id).execute()
+  await postIncidentNote(id, message, 'resolved', at)
+}
+
+async function postIncidentNote(incidentId: number, message: string, status: 'resolved' | 'investigating', at: string): Promise<void> {
+  await db.insertInto('incident_updates').values({
+    incident_id: incidentId,
+    message,
+    status,
+    posted_at: at,
+    created_at: at,
+    updated_at: at,
+    uuid: crypto.randomUUID(),
+  } as never).execute()
+}
+
 async function openServerMetricsIncidentIds(): Promise<number[]> {
   const rows = await db.selectFrom('incidents')
     .where('resolved_at', 'is', null)
@@ -688,16 +714,7 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
     log(`  ${dryRun ? '[dry-run] would resolve' : 'resolving'} ${incidentIds.length} open server_metrics incident(s)${incidentIds.length > 0 ? `: ${incidentIds.join(', ')}` : ''}`)
     if (!dryRun) {
       for (const id of incidentIds) {
-        const incident = await Incident.find(id)
-        if (!incident)
-          continue
-        await (incident as any).update({ status: 'resolved', resolved_at: now })
-        await IncidentUpdate.create({
-          incident_id: id,
-          message: MIGRATION_RESOLVED_MESSAGE,
-          status: 'resolved',
-          postedAt: now,
-        })
+        await resolveIncidentQuietly(id, MIGRATION_RESOLVED_MESSAGE, now)
         entry.incidents_resolved.push(id)
         flush()
       }
@@ -923,10 +940,9 @@ export async function runServersRollback(options: RollbackOptions = {}): Promise
       await restoreSamplesBatch(server.id, rest, () => lowest, restored)
     }
 
-    const open = await Incident.where('server_id', server.id).where('status', '!=', 'resolved').get()
+    const open = await db.selectFrom('incidents').where('server_id', '=', server.id).where('status', '!=', 'resolved').select(['id']).execute() as unknown as { id: number }[]
     for (const incident of open) {
-      await (incident as any).update({ status: 'resolved', resolved_at: now })
-      await IncidentUpdate.create({ incident_id: Number((incident as any).id), message: ROLLBACK_SERVER_RESOLVED_MESSAGE, status: 'resolved', postedAt: now })
+      await resolveIncidentQuietly(Number(incident.id), ROLLBACK_SERVER_RESOLVED_MESSAGE, now)
       report.serverIncidentsResolved++
     }
 
@@ -947,11 +963,11 @@ export async function runServersRollback(options: RollbackOptions = {}): Promise
   }
 
   for (const id of entry.incidents_resolved) {
-    const incident = await Incident.find(id)
-    if (!incident)
+    const exists = await db.selectFrom('incidents').where('id', '=', id).select(['id']).executeTakeFirst()
+    if (!exists)
       continue
-    await (incident as any).update({ status: 'investigating', resolved_at: null })
-    await IncidentUpdate.create({ incident_id: id, message: ROLLBACK_REOPENED_MESSAGE, status: 'investigating', postedAt: now })
+    await db.updateTable('incidents').set({ status: 'investigating', resolved_at: null, updated_at: now } as never).where('id', '=', id).execute()
+    await postIncidentNote(id, ROLLBACK_REOPENED_MESSAGE, 'investigating', now)
     report.incidentsReopened.push(id)
   }
 

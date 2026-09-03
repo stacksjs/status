@@ -112,7 +112,8 @@ changing breaches update it in place. The migration resolves the currently stack
    dropped. The ones on the shared box should be attached to that box's server by hand.
 4. Every open incident carrying the `server_metrics` marker — the 45 breach incidents and the 5 perpetual
    quiet-agent ones, which share that marker — is resolved as part of the migration, with an incident update
-   saying why.
+   saying why. Resolved through the query builder, not the model: the model is observed and would fan a
+   "resolved" notification out to every attached channel once per incident. A migration pages nobody.
 
 ## Where host samples live: a separate table
 
