@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { db } from '@stacksjs/database'
-import { transaction } from '@stacksjs/orm'
+import { transaction as ormTransaction } from '@stacksjs/orm'
 import { ExitCode } from '@stacksjs/types'
 import { parseMetricsThresholds } from '../Actions/Agents/metricsThresholds'
 import { aggregateHostStatus, normalizeHost, numberOrNull, readingsFromSamples, serverStatusFromFleet } from '../lib/agentHosts'
@@ -65,7 +65,59 @@ import { aggregateHostStatus, normalizeHost, numberOrNull, readingsFromSamples, 
  * rollback (see runServersRollback), so nothing is lost either way.
  */
 
-export const BATCH = 1000
+/**
+ * Rows per sweep batch. Overridable for a run: on a busy production database
+ * every batch is one write transaction competing with the app's own writers
+ * for SQLite's single lock, and a smaller batch holds it for less time.
+ */
+export const BATCH = Number(process.env.SERVERS_MIGRATE_BATCH) > 0 ? Number(process.env.SERVERS_MIGRATE_BATCH) : 1000
+
+const LOCK_PATTERN = /database is locked|SQLITE_BUSY|\bbusy\b|deadlock|lock wait timeout/i
+
+/** True for the errors SQLite (and the other dialects) raise when a writer could not get the lock. */
+export function isLockError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  return LOCK_PATTERN.test(message)
+}
+
+let retryLog: (message: string) => void = () => {}
+
+/**
+ * Run a write, retrying with backoff while the database is locked.
+ *
+ * The framework opens SQLite with busy_timeout = 5000, and the live run still
+ * died on "database is locked": the app's ingest and check writers hold the
+ * lock often enough that a five-second wait is not always enough. Every
+ * caller here is either a whole transaction (rolled back on failure, so
+ * re-running it from the top is safe: it re-reads before it writes) or a
+ * single idempotent statement. Anything that is not a lock error is rethrown
+ * at once. Worst case is about two minutes of waiting per call.
+ */
+export async function withLockRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  options: { attempts?: number, baseDelayMs?: number, maxDelayMs?: number, sleep?: (ms: number) => Promise<void> } = {},
+): Promise<T> {
+  const attempts = options.attempts ?? 40
+  const base = options.baseDelayMs ?? 250
+  const max = options.maxDelayMs ?? 3000
+  const sleep = options.sleep ?? (ms => new Promise<void>(resolve => setTimeout(resolve, ms)))
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn()
+    }
+    catch (err) {
+      if (!isLockError(err) || attempt >= attempts)
+        throw err
+      const delay = Math.min(max, base * 2 ** Math.min(attempt - 1, 4))
+      retryLog(`  ${label}: database is locked, retry ${attempt}/${attempts} in ${delay}ms`)
+      await sleep(delay)
+    }
+  }
+}
+
+/** The ORM transaction, retried while the database is locked (see withLockRetry). */
+const transaction: typeof ormTransaction = fn => withLockRetry(() => ormTransaction(fn), 'transaction') as ReturnType<typeof ormTransaction>
 
 export const MIGRATION_RESOLVED_MESSAGE = 'Resolved by the server migration. Host metrics now belong to a Server, which raises at most one "box is hot" and one "agent went quiet" incident per box; see the server page for its current state.'
 export const ROLLBACK_REOPENED_MESSAGE = 'Reopened by the server migration rollback (servers:rollback). Host metrics are back on the monitor.'
@@ -349,12 +401,12 @@ async function tokenGroups(): Promise<TokenGroup[]> {
  * The note in incident_updates is the durable record of what happened.
  */
 async function resolveIncidentQuietly(id: number, message: string, at: string): Promise<void> {
-  await db.updateTable('incidents').set({ status: 'resolved', resolved_at: at, updated_at: at } as never).where('id', '=', id).execute()
+  await withLockRetry(() => db.updateTable('incidents').set({ status: 'resolved', resolved_at: at, updated_at: at } as never).where('id', '=', id).execute(), `resolve incident ${id}`)
   await postIncidentNote(id, message, 'resolved', at)
 }
 
 async function postIncidentNote(incidentId: number, message: string, status: 'resolved' | 'investigating', at: string): Promise<void> {
-  await db.insertInto('incident_updates').values({
+  await withLockRetry(() => db.insertInto('incident_updates').values({
     incident_id: incidentId,
     message,
     status,
@@ -362,7 +414,7 @@ async function postIncidentNote(incidentId: number, message: string, status: 're
     created_at: at,
     updated_at: at,
     uuid: crypto.randomUUID(),
-  } as never).execute()
+  } as never).execute(), `note on incident ${incidentId}`)
 }
 
 async function openServerMetricsIncidentIds(): Promise<number[]> {
@@ -559,6 +611,7 @@ async function sweepSamples(sweep: JournalSweep, flush: () => void): Promise<Swe
 }
 
 export async function runServersMigrate(options: MigrateOptions = {}): Promise<MigrateReport> {
+  retryLog = options.log ?? (message => console.log(message))
   const dryRun = options.dryRun === true
   const final = options.final === true
   const now = options.now ?? new Date().toISOString()
@@ -702,7 +755,7 @@ export async function runServersMigrate(options: MigrateOptions = {}): Promise<M
         report.orphans.push({ monitor_id: Number(monitor.id), name: monitor.name, token: group.token })
       log(`  ${dryRun ? '[dry-run] would drop' : 'dropped'} orphan token on monitor(s) ${group.monitors.map(m => `${m.id} "${m.name}"`).join(', ')} — no agent row ever, no server`)
       if (!dryRun)
-        await db.updateTable('monitors').set({ metrics_token: null } as never).where('id', 'in', group.monitorIds).execute()
+        await withLockRetry(() => db.updateTable('monitors').set({ metrics_token: null } as never).where('id', 'in', group.monitorIds).execute(), `drop token on ${group.monitorIds.join(', ')}`)
       // Journaled after the update, so the record never claims a drop that did not land.
       for (const monitor of group.monitors)
         entry.orphan_tokens_dropped.push({ monitor_id: Number(monitor.id), token: group.token })
@@ -958,7 +1011,7 @@ export async function runServersRollback(options: RollbackOptions = {}): Promise
   report.samplesRestored = restored.n
 
   for (const dropped of entry.orphan_tokens_dropped) {
-    await db.updateTable('monitors').set({ metrics_token: dropped.token } as never).where('id', '=', dropped.monitor_id).execute()
+    await withLockRetry(() => db.updateTable('monitors').set({ metrics_token: dropped.token } as never).where('id', '=', dropped.monitor_id).execute(), `restore token on ${dropped.monitor_id}`)
     report.tokensRestored++
   }
 
@@ -966,7 +1019,7 @@ export async function runServersRollback(options: RollbackOptions = {}): Promise
     const exists = await db.selectFrom('incidents').where('id', '=', id).select(['id']).executeTakeFirst()
     if (!exists)
       continue
-    await db.updateTable('incidents').set({ status: 'investigating', resolved_at: null, updated_at: now } as never).where('id', '=', id).execute()
+    await withLockRetry(() => db.updateTable('incidents').set({ status: 'investigating', resolved_at: null, updated_at: now } as never).where('id', '=', id).execute(), `reopen incident ${id}`)
     await postIncidentNote(id, ROLLBACK_REOPENED_MESSAGE, 'investigating', now)
     report.incidentsReopened.push(id)
   }

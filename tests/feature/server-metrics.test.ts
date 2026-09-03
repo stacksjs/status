@@ -141,6 +141,17 @@ describe('Server metrics (threshold alerting)', () => {
     expect(await statusOf(id)).toBe('up')
   })
 
+  test('a metrics monitor whose token was dropped is never flagged by the missed-push job', async () => {
+    // servers:migrate nulls the token of a monitor whose agent never pushed.
+    // Nothing can push for it afterwards, so a missed-push incident there
+    // would reopen on every tick and never resolve; the job skips it.
+    const { id } = await makeMetricsMonitor({ metricsWindowSeconds: 60 })
+    created.push(id)
+    await db.updateTable('monitors').set({ metrics_token: null } as never).where('id', '=', id).execute()
+    await CheckStaleMetrics.handle()
+    expect(await openIncidents(id)).toHaveLength(0)
+  })
+
   // Several machines reporting to one monitor. Both SDKs send `host` with
   // every sample; these pin what the ingest does with it.
 
