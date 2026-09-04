@@ -1,4 +1,6 @@
 import type { StxOptions as UiOptions } from '@stacksjs/stx'
+import { env } from '@stacksjs/env'
+import { tsAnalyticsStxConfig } from '@ts-analytics/tracking/stx'
 
 /**
  * STX configuration (stx-standards 01-topology: config as root).
@@ -19,6 +21,27 @@ import type { StxOptions as UiOptions } from '@stacksjs/stx'
  * every dir below is written cwd-relative. Keep it that way.
  */
 export default {
+  // Page views to analyticshq. Not layout-coupled: stx injects the tag in
+  // processOtherDirectives, the shared tail of both the layout and no-layout
+  // render branches, so all five layouts here are covered. The two fragment
+  // layouts (default, home) have no </head>, so on those the tag is appended
+  // into <body> instead — still fires, but grep the whole document rather than
+  // the head when checking a dashboard page.
+  //
+  // `apiEndpoint` is named rather than left to the package default, which was
+  // http://localhost:2027 in every release up to 0.1.13 — over HTTPS that is
+  // blocked as mixed content, silently, so an app supplying only an App ID
+  // beacons at nothing.
+  //
+  // `?? ''` because env.d.ts types this key `string | undefined` while `appId`
+  // is a required string, and because the package documents a blank App ID as
+  // inert — the same "unset means off" path as a missing variable rather than
+  // a second way to be broken.
+  analytics: tsAnalyticsStxConfig({
+    appId: env.ANALYTICSHQ_APP_ID ?? '',
+    apiEndpoint: 'https://analyticshq.org',
+  }),
+
   root: '.',
 
   // Pages: the only routable tree. Layouts/partials live inside it (their

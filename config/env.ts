@@ -256,6 +256,19 @@ export default {
   SSO_OIDC_CLIENT_SECRET: { validation: schema.string(), default: '' },
   SSO_OIDC_LABEL: { validation: schema.string(), default: '' },
 
+  // The analyticshq site this app reports page views to. Empty disables the
+  // tracker rather than failing: tsAnalyticsStxConfig ties `enabled` to the App
+  // ID, so a checkout without this set renders no tag and beacons at nothing.
+  // That is what keeps a laptop and CI out of production's numbers without
+  // anyone remembering to switch it off. Declared in types/env.d.ts too, and
+  // here that is load-bearing rather than tidiness: its reader is config/ui.ts,
+  // which unlike the other config files IS in the tsconfig program, so leaving
+  // the augmentation out fails the build outright.
+  ANALYTICSHQ_APP_ID: {
+    validation: schema.string(),
+    default: '',
+  },
+
   // Streams this app's logs to loghq. Empty disables the transport rather than
   // failing: the client reports "no ingest key, client disabled" and every
   // log.* call carries on writing to the console and the log file as before.

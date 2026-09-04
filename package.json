@@ -67,8 +67,11 @@
   "dependencies": {
     "@bughq/stacks": "^0.2.2",
     "@loghq/stacks": "^0.2.6",
+    "@stacksjs/ts-validation": "^0.5.6",
+    "@ts-analytics/tracking": "^0.1.15",
     "@stacksjs/stx": "^0.2.231",
     "bun-plugin-stx": "^0.2.231",
+    "bun-query-builder": "^0.2.59",
     "@stacksjs/logging": "^0.74.0",
     "stacks": "^0.74.0",
     "ts-charts": "github:stacksjs/ts-charts"
