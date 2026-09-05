@@ -47,7 +47,7 @@
   "dependencies": {
     "@stacksjs/config": "workspace:*",
     "@stacksjs/dns": "workspace:*",
-    "@stacksjs/logging": "workspace:*",
+    "@stacksjs/logging": "workspace:*0.74.24",
     "@stacksjs/path": "workspace:*",
     "@stacksjs/queue": "workspace:*",
     "@stacksjs/router": "workspace:*",
