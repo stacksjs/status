@@ -41,6 +41,6 @@
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
-    "stacks": "workspace:*"
+    "stacks": "workspace:*0.74.24"
   }
 }
